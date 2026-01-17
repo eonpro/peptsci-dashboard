@@ -1,4 +1,187 @@
-# PeptSci Dashboard - Financial Reporting Enhancements
+# PeptSci Dashboard - Client Ordering System
+
+## Background and Motivation
+- **Request**: Build a complete Client Ordering System enabling B2B customers to browse products, add to cart, checkout, and track orders.
+- **Business Goal**: Enable self-service ordering for approved clients, reducing manual order processing and improving client experience.
+- **Technical Context**: Prisma schema already has Order, OrderItem, Client, User models. Need to build UI, APIs, and payment integration.
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENT PORTAL                             │
+│  /shop/*  (Product Catalog, Cart, Checkout, Order History)      │
+├─────────────────────────────────────────────────────────────────┤
+│                        ADMIN PORTAL                              │
+│  /dashboard/*  (Existing - Order Management, Fulfillment)       │
+├─────────────────────────────────────────────────────────────────┤
+│                          API LAYER                               │
+│  /api/shop/*  (Catalog, Cart, Orders, Payment)                  │
+│  /api/admin/*  (Order Processing, Client Management)            │
+├─────────────────────────────────────────────────────────────────┤
+│                        DATA LAYER                                │
+│  PostgreSQL (Prisma) - Orders, Clients, Products                │
+│  Google Sheets - Legacy Sales Data (Read-Only)                  │
+├─────────────────────────────────────────────────────────────────┤
+│                     EXTERNAL SERVICES                            │
+│  Clerk (Auth) | Stripe (Payments) | Email (Notifications)       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Key Challenges and Analysis
+
+1. **Dual Data Source**: Need to sync product catalog between Google Sheets and PostgreSQL, or migrate fully to DB
+2. **B2B Compliance**: Clients need approval before ordering (license verification, DEA compliance)
+3. **Payment Flow**: Stripe integration for B2B with support for invoicing and credit terms
+4. **Role-Based Access**: Clear separation between CLIENT and ADMIN roles
+5. **Order Workflow**: DRAFT → SUBMITTED → APPROVED → FULFILLED → SHIPPED → COMPLETED
+6. **Inventory Integration**: Deduct stock on order approval, not submission
+
+## High-Level Task Breakdown
+
+### Phase 1: Foundation (Core Infrastructure)
+1. [ ] Set up PostgreSQL database with existing Prisma schema
+2. [ ] Migrate product catalog from Google Sheets to DB
+3. [ ] Create product seeding script
+4. [ ] Configure Clerk roles (CLIENT vs ADMIN)
+5. [ ] Set up Stripe account and keys
+
+### Phase 2: Client Portal (Shopping Experience)
+6. [ ] Create `/shop` layout with client navigation
+7. [ ] Build product catalog page (`/shop/catalog`)
+8. [ ] Implement product detail page (`/shop/catalog/[id]`)
+9. [ ] Build shopping cart (localStorage + API)
+10. [ ] Create cart summary component
+
+### Phase 3: Checkout & Payments
+11. [ ] Build checkout flow (`/shop/checkout`)
+12. [ ] Implement address management
+13. [ ] Integrate Stripe payment
+14. [ ] Create order confirmation page
+15. [ ] Send order confirmation email
+
+### Phase 4: Order Management
+16. [ ] Build client order history (`/shop/orders`)
+17. [ ] Create order detail page (`/shop/orders/[id]`)
+18. [ ] Add order tracking/status display
+19. [ ] Build admin order management (`/admin/orders`)
+20. [ ] Implement order status updates
+
+### Phase 5: Client Onboarding
+21. [ ] Create client registration flow
+22. [ ] Build document upload (licenses, DEA)
+23. [ ] Admin client approval workflow
+24. [ ] Client profile management
+
+### Phase 6: Polish & Production
+25. [ ] Email notifications (order updates)
+26. [ ] Audit logging
+27. [ ] Performance optimization
+28. [ ] Security audit
+29. [ ] Documentation
+
+## Data Models (Already in Prisma)
+
+```prisma
+model Client {
+  id               String    @id
+  organizationName String
+  licenseNumber    String?
+  onboardingStatus ClientOnboardingStatus
+  orders           Order[]
+  users            User[]
+}
+
+model Order {
+  id            String      @id
+  orderNumber   Int
+  client        Client
+  status        OrderStatus  // DRAFT → SUBMITTED → APPROVED → FULFILLED
+  paymentStatus PaymentStatus
+  items         OrderItem[]
+  total         Decimal
+}
+
+model OrderItem {
+  id        String
+  order     Order
+  variant   ProductVariant
+  quantity  Int
+  unitPrice Decimal
+}
+```
+
+## API Endpoints to Build
+
+### Shop APIs (Client-facing)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/shop/catalog` | List products with filters |
+| GET | `/api/shop/catalog/[id]` | Product details |
+| GET | `/api/shop/cart` | Get user's cart |
+| POST | `/api/shop/cart` | Add item to cart |
+| PUT | `/api/shop/cart/[itemId]` | Update cart item |
+| DELETE | `/api/shop/cart/[itemId]` | Remove from cart |
+| POST | `/api/shop/orders` | Create order from cart |
+| GET | `/api/shop/orders` | List client's orders |
+| GET | `/api/shop/orders/[id]` | Order details |
+| POST | `/api/shop/checkout/session` | Create Stripe session |
+
+### Admin APIs
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/orders` | All orders with filters |
+| PUT | `/api/admin/orders/[id]/status` | Update order status |
+| GET | `/api/admin/clients` | List all clients |
+| PUT | `/api/admin/clients/[id]/approve` | Approve client |
+
+## UI Components to Build
+
+### Shop Components
+- `ProductCard` - Product grid item
+- `ProductDetail` - Full product view
+- `CartDrawer` - Slide-out cart
+- `CartItem` - Individual cart line
+- `CheckoutForm` - Multi-step checkout
+- `AddressForm` - Shipping/billing
+- `OrderSummary` - Order review
+- `OrderStatusBadge` - Status indicator
+- `OrderTimeline` - Status history
+
+### Admin Components
+- `OrdersTable` - Admin order list
+- `OrderActions` - Approve/fulfill buttons
+- `ClientApprovalCard` - Pending clients
+
+## Project Status Board
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Database Setup | 🔴 Not Started | Need DATABASE_URL |
+| Product Migration | 🔴 Not Started | Sheet → DB |
+| Shop Layout | 🔴 Not Started | Client navigation |
+| Product Catalog | 🔴 Not Started | Grid + filters |
+| Shopping Cart | 🔴 Not Started | Local + API |
+| Checkout Flow | 🔴 Not Started | Multi-step |
+| Stripe Integration | 🔴 Not Started | Payment |
+| Order Management | 🔴 Not Started | Client + Admin |
+| Client Onboarding | 🔴 Not Started | Registration |
+| Notifications | 🔴 Not Started | Email |
+
+## Success Criteria
+
+1. ✅ Clients can browse product catalog without logging in
+2. ✅ Approved clients can add products to cart
+3. ✅ Clients can complete checkout with Stripe
+4. ✅ Clients can view order history and status
+5. ✅ Admins can process and fulfill orders
+6. ✅ Inventory updates on order fulfillment
+7. ✅ Email notifications for key events
+8. ✅ Mobile-responsive shop experience
+
+---
+
+# Previous Work: Financial Reporting Enhancements (✅ COMPLETE)
 
 ## Background and Motivation
 - **Request**: Enhance the Profit & Loss view to support month-specific and YTD reporting using paid orders by fulfillment product, and introduce a balance sheet summarizing inventory value and associated spend.
