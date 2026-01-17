@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -7,6 +8,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { 
   User, 
   Building2, 
@@ -17,7 +27,11 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
-  Clock
+  Clock,
+  CreditCard,
+  Plus,
+  Trash2,
+  Star
 } from 'lucide-react'
 
 // Mock user data
@@ -53,6 +67,32 @@ const userData = {
       zip: '90002',
     },
   ],
+  paymentMethods: [
+    {
+      id: 'pm_1',
+      brand: 'visa',
+      last4: '4242',
+      expMonth: 12,
+      expYear: 2027,
+      isDefault: true,
+    },
+    {
+      id: 'pm_2',
+      brand: 'mastercard',
+      last4: '8888',
+      expMonth: 6,
+      expYear: 2026,
+      isDefault: false,
+    },
+  ],
+}
+
+// Card brand icons/colors
+const cardBrands: Record<string, { name: string; color: string; bg: string }> = {
+  visa: { name: 'Visa', color: 'text-blue-600', bg: 'bg-blue-50' },
+  mastercard: { name: 'Mastercard', color: 'text-orange-600', bg: 'bg-orange-50' },
+  amex: { name: 'Amex', color: 'text-blue-700', bg: 'bg-blue-50' },
+  discover: { name: 'Discover', color: 'text-orange-500', bg: 'bg-orange-50' },
 }
 
 const statusConfig = {
@@ -62,8 +102,43 @@ const statusConfig = {
 }
 
 export default function AccountPage() {
+  const [paymentMethods, setPaymentMethods] = useState(userData.paymentMethods)
+  const [isAddCardOpen, setIsAddCardOpen] = useState(false)
+  const [newCard, setNewCard] = useState({
+    cardNumber: '',
+    expiry: '',
+    cvc: '',
+    name: '',
+  })
+  
   const status = statusConfig[userData.accountStatus as keyof typeof statusConfig]
   const StatusIcon = status.icon
+
+  const handleAddCard = () => {
+    // In production, this would call Stripe to create a payment method
+    const mockNewCard = {
+      id: `pm_${Date.now()}`,
+      brand: 'visa',
+      last4: newCard.cardNumber.slice(-4) || '0000',
+      expMonth: parseInt(newCard.expiry.split('/')[0]) || 12,
+      expYear: 2020 + parseInt(newCard.expiry.split('/')[1]) || 2027,
+      isDefault: paymentMethods.length === 0,
+    }
+    setPaymentMethods([...paymentMethods, mockNewCard])
+    setNewCard({ cardNumber: '', expiry: '', cvc: '', name: '' })
+    setIsAddCardOpen(false)
+  }
+
+  const handleRemoveCard = (id: string) => {
+    setPaymentMethods(paymentMethods.filter(pm => pm.id !== id))
+  }
+
+  const handleSetDefault = (id: string) => {
+    setPaymentMethods(paymentMethods.map(pm => ({
+      ...pm,
+      isDefault: pm.id === id,
+    })))
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -195,6 +270,162 @@ export default function AccountPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Methods */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    Payment Methods
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your saved cards for faster checkout
+                  </CardDescription>
+                </div>
+                <Dialog open={isAddCardOpen} onOpenChange={setIsAddCardOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Card
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Payment Method</DialogTitle>
+                      <DialogDescription>
+                        Add a new credit or debit card for future purchases.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="cardName">Name on Card</Label>
+                        <Input
+                          id="cardName"
+                          placeholder="John Smith"
+                          value={newCard.name}
+                          onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cardNumber">Card Number</Label>
+                        <Input
+                          id="cardNumber"
+                          placeholder="4242 4242 4242 4242"
+                          value={newCard.cardNumber}
+                          onChange={(e) => setNewCard({ ...newCard, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 16) })}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="expiry">Expiry Date</Label>
+                          <Input
+                            id="expiry"
+                            placeholder="MM/YY"
+                            value={newCard.expiry}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '')
+                              if (value.length >= 2) {
+                                value = value.slice(0, 2) + '/' + value.slice(2, 4)
+                              }
+                              setNewCard({ ...newCard, expiry: value })
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cvc">CVC</Label>
+                          <Input
+                            id="cvc"
+                            placeholder="123"
+                            value={newCard.cvc}
+                            onChange={(e) => setNewCard({ ...newCard, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                        <Shield className="h-4 w-4" />
+                        <span>Your card information is encrypted and secure.</span>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsAddCardOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleAddCard} className="bg-indigo-600 hover:bg-indigo-700">
+                        Add Card
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {paymentMethods.length === 0 ? (
+                <div className="text-center py-8">
+                  <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No payment methods saved</p>
+                  <p className="text-sm text-gray-400 mt-1">Add a card for faster checkout</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentMethods.map((card) => {
+                    const brand = cardBrands[card.brand] || { name: card.brand, color: 'text-gray-600', bg: 'bg-gray-50' }
+                    return (
+                      <div
+                        key={card.id}
+                        className={`flex items-center justify-between p-4 border rounded-xl transition-colors ${
+                          card.isDefault ? 'border-indigo-300 bg-indigo-50/50' : 'hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-lg ${brand.bg}`}>
+                            <CreditCard className={`h-6 w-6 ${brand.color}`} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900">
+                                {brand.name} •••• {card.last4}
+                              </p>
+                              {card.isDefault && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Star className="h-3 w-3 mr-1 fill-current" />
+                                  Default
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              Expires {card.expMonth.toString().padStart(2, '0')}/{card.expYear}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!card.isDefault && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => handleSetDefault(card.id)}
+                            >
+                              Set Default
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-red-500"
+                            onClick={() => handleRemoveCard(card.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
