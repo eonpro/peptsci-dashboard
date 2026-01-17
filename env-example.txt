@@ -1,0 +1,18 @@
+# Copy this entire content to a new file called .env.local
+# Replace the placeholder values with your actual Google Sheets credentials
+
+GOOGLE_SHEETS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nPaste your private key here keeping all the \n characters\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEETS_CLIENT_EMAIL="your-service-account@your-project.iam.gserviceaccount.com"
+SPREADSHEET_ID="your-google-sheets-id-here"
+
+# Database (Vercel Postgres)
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME?sslmode=require"
+
+# Stripe (payments)
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Clerk (authentication)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
+CLERK_SECRET_KEY="sk_test_..."
+CLERK_WEBHOOK_SECRET="whsec_..."

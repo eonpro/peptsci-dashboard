@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -------------------------------------------------
+// Core user & client identity
+// -------------------------------------------------
+
+model User {
+  id                   String                @id @default(cuid())
+  clerkUserId          String                @unique
+  email                String?               @unique
+  firstName            String?
+  lastName             String?
+  role                 UserRole              @default(CLIENT)
+  status               UserStatus            @default(PENDING)
+  lastLoginAt          DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  client               Client?               @relation(fields: [clientId], references: [id])
+  clientId             String?
+  auditLogs            AuditLog[]
+  ordersCreated        Order[]               @relation("OrdersCreated")
+  ordersApproved       Order[]               @relation("OrdersApproved")
+  inventoryAdjustments InventoryAdjustment[]
+}
+
+model Client {
+  id               String                 @id @default(cuid())
+  organizationName String
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  billingAddress   Json?
+  shippingAddress  Json?
+  licenseNumber    String?
+  licenseExpiresAt DateTime?
+  onboardingStatus ClientOnboardingStatus @default(PENDING)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  users            User[]
+  orders           Order[]
+  documents        ClientDocument[]
+}
+
+model ClientDocument {
+  id         String             @id @default(cuid())
+  client     Client             @relation(fields: [clientId], references: [id])
+  clientId   String
+  type       ClientDocumentType
+  fileUrl    String
+  uploadedBy String?
+  createdAt  DateTime           @default(now())
+}
+
+// -------------------------------------------------
+// Catalog & Inventory
+// -------------------------------------------------
+
+model Product {
+  id          String           @id @default(cuid())
+  sku         String?          @unique
+  name        String
+  description String?
+  category    String?
+  status      ProductStatus    @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  variants    ProductVariant[]
+  media       ProductMedia[]
+}
+
+model ProductVariant {
+  id              String                @id @default(cuid())
+  product         Product               @relation(fields: [productId], references: [id])
+  productId       String
+  dose            String?
+  unitSize        String?
+  unitCost        Decimal               @db.Decimal(12, 2)
+  srp             Decimal               @db.Decimal(12, 2)
+  inventoryOnHand Int                   @default(0)
+  reorderLevel    Int                   @default(0)
+  status          ProductStatus         @default(ACTIVE)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  orderItems      OrderItem[]
+  inventoryLogs   InventoryAdjustment[]
+}
+
+model ProductMedia {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  url       String
+  altText   String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model InventoryAdjustment {
+  id          String                    @id @default(cuid())
+  variant     ProductVariant            @relation(fields: [variantId], references: [id])
+  variantId   String
+  delta       Int
+  reason      InventoryAdjustmentReason
+  note        String?
+  order       Order?                    @relation(fields: [orderId], references: [id])
+  orderId     String?
+  createdBy   User?                     @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime                  @default(now())
+}
+
+// -------------------------------------------------
+// Ordering & Payments
+// -------------------------------------------------
+
+model Order {
+  id                    String                @id @default(cuid())
+  orderNumber           Int                   @default(autoincrement())
+  client                Client                @relation(fields: [clientId], references: [id])
+  clientId              String
+  status                OrderStatus           @default(DRAFT)
+  paymentStatus         PaymentStatus         @default(PENDING)
+  subtotal              Decimal               @db.Decimal(12, 2)
+  taxTotal              Decimal               @default(0) @db.Decimal(12, 2)
+  total                 Decimal               @db.Decimal(12, 2)
+  currency              String                @default("USD")
+  notes                 String?
+  internalNotes         String?
+  stripePaymentIntentId String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  fulfilledAt           DateTime?
+  createdBy             User                  @relation("OrdersCreated", fields: [createdById], references: [id])
+  createdById           String
+  approvedBy            User?                 @relation("OrdersApproved", fields: [approvedById], references: [id])
+  approvedById          String?
+  items                 OrderItem[]
+  documents             OrderDocument[]
+  inventoryAdjustments  InventoryAdjustment[]
+  auditLogs             AuditLog[]
+}
+
+model OrderItem {
+  id             String         @id @default(cuid())
+  order          Order          @relation(fields: [orderId], references: [id])
+  orderId        String
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  variantId      String
+  quantity       Int
+  unitPrice      Decimal        @db.Decimal(12, 2)
+  discountAmount Decimal        @default(0) @db.Decimal(12, 2)
+  totalPrice     Decimal        @db.Decimal(12, 2)
+  createdAt      DateTime       @default(now())
+}
+
+model OrderDocument {
+  id         String            @id @default(cuid())
+  order      Order             @relation(fields: [orderId], references: [id])
+  orderId    String
+  type       OrderDocumentType
+  fileUrl    String
+  uploadedBy String?
+  createdAt  DateTime          @default(now())
+}
+
+// -------------------------------------------------
+// Audit & Notifications
+// -------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  entity    String
+  entityId  String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  order     Order?   @relation(fields: [orderId], references: [id])
+  orderId   String?
+}
+
+// -------------------------------------------------
+// Enums
+// -------------------------------------------------
+
+enum UserRole {
+  CLIENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INVITED
+}
+
+enum ClientOnboardingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_INFO
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+}
+
+enum InventoryAdjustmentReason {
+  ORDER_FULFILLMENT
+  MANUAL_ADJUSTMENT
+  RETURN
+  DAMAGE
+  AUDIT
+}
+
+enum OrderStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  AWAITING_DOCUMENTS
+  APPROVED
+  REJECTED
+  FULFILLED
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  REFUNDED
+  FAILED
+}
+
+enum ClientDocumentType {
+  LICENSE
+  INSURANCE
+  DEA
+  OTHER
+}
+
+enum OrderDocumentType {
+  PRESCRIPTION
+  PO
+  ID
+  LAB_RESULTS
+  OTHER
+}
