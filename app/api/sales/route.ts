@@ -3,7 +3,7 @@ import { getSales } from '@/lib/sheets'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
-export const revalidate = 60 // 1 minute cache for faster updates
+export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
 
 export async function GET(request: NextRequest) {
   try {

@@ -1,15 +1,43 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { Webhook, WebhookEvent } from 'svix'
+import { Webhook } from 'svix'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
+
+// Clerk webhook event types
+interface ClerkEmailAddress {
+  id: string
+  email_address: string
+}
+
+interface ClerkUserEventData {
+  id: string
+  email_addresses?: ClerkEmailAddress[]
+  primary_email_address_id?: string
+  first_name?: string | null
+  last_name?: string | null
+}
+
+interface ClerkWebhookEvent {
+  type: string
+  data: ClerkUserEventData
+}
 
 const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET
 
-if (!clerkWebhookSecret) {
-  throw new Error('Missing CLERK_WEBHOOK_SECRET env variable')
-}
-
 export async function POST(req: Request) {
+  // Check for webhook secret at runtime
+  if (!clerkWebhookSecret) {
+    logger.error('Missing CLERK_WEBHOOK_SECRET env variable')
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+  }
+
+  // Check if database is configured
+  if (!prisma) {
+    logger.warn('Database not configured - skipping user sync')
+    return NextResponse.json({ received: true, warning: 'Database not configured' }, { status: 200 })
+  }
+
   const payload = await req.text()
   const headerPayload = Object.fromEntries(await headers())
 
@@ -21,7 +49,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing Svix headers' }, { status: 400 })
   }
 
-  let event: WebhookEvent
+  let event: ClerkWebhookEvent
 
   try {
     const wh = new Webhook(clerkWebhookSecret)
@@ -29,9 +57,9 @@ export async function POST(req: Request) {
       'svix-id': svixId,
       'svix-timestamp': svixTimestamp,
       'svix-signature': svixSignature,
-    }) as WebhookEvent
+    }) as ClerkWebhookEvent
   } catch (error) {
-    console.error('Clerk webhook verification failed', error)
+    logger.error('Clerk webhook verification failed', {}, error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
@@ -42,9 +70,10 @@ export async function POST(req: Request) {
         email_addresses,
         first_name,
         last_name,
+        primary_email_address_id,
       } = event.data
 
-      const primaryEmail = email_addresses?.find((email) => email.id === event.data.primary_email_address_id)
+      const primaryEmail = email_addresses?.find((email) => email.id === primary_email_address_id)
         ?.email_address ?? email_addresses?.[0]?.email_address
 
       await prisma.user.upsert({
@@ -63,6 +92,8 @@ export async function POST(req: Request) {
           status: 'ACTIVE',
         },
       })
+
+      logger.info('User synced from Clerk webhook', { userId: id, eventType: event.type })
     }
 
     if (event.type === 'user.deleted') {
@@ -71,9 +102,10 @@ export async function POST(req: Request) {
         where: { clerkUserId: id },
         data: { status: 'SUSPENDED' },
       })
+      logger.info('User suspended from Clerk webhook', { userId: id })
     }
   } catch (error) {
-    console.error('Error handling Clerk webhook', error)
+    logger.error('Error handling Clerk webhook', { eventType: event.type }, error instanceof Error ? error : new Error(String(error)))
     return NextResponse.json({ error: 'Webhook handler error' }, { status: 500 })
   }
 

@@ -63,6 +63,9 @@ export default function DashboardPage() {
     await loadData()
   }
 
+  // Get current month name dynamically - must be before any conditional returns
+  const currentMonth = useMemo(() => format(new Date(), 'MMMM'), [])
+
   if (loading) {
     return (
       <div className="container mx-auto space-y-6 p-6">
@@ -82,9 +85,6 @@ export default function DashboardPage() {
   const productMetrics = groupByProduct(sales)
   const customerMetrics = groupByCustomer(sales)
   const monthOverMonthData = getMonthOverMonthSales(sales)
-  
-  // Get current month name dynamically
-  const currentMonth = useMemo(() => format(new Date(), 'MMMM'), [])
   
   // Get recent orders (last 20)
   const recentOrders = sales

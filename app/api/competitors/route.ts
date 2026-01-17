@@ -3,7 +3,7 @@ import { getCompetitors } from '@/lib/sheets'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
-export const revalidate = 300 // 5 minute cache (competitor data changes less frequently)
+export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
 
 export async function GET(request: NextRequest) {
   try {

@@ -3,6 +3,8 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
+
 export async function POST(request: NextRequest) {
   try {
     // Authenticate request

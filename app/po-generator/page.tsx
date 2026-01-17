@@ -129,9 +129,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
     const doc = new jsPDF()
     
     // Set font to Helvetica (closest to Poppins available in jsPDF)
-    // We'll adjust letter spacing and weight to simulate Poppins
     doc.setFont('helvetica')
-    doc.setCharSpace(0.5) // Add slight letter spacing like Poppins
     
     // Add the PEPTSCI logo
     try {
@@ -148,23 +146,19 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
           } catch (imgError) {
             console.error('Error adding image:', imgError)
             // Fallback to text if image fails
-            doc.setCharSpace(0.8)
             doc.setFontSize(26)
             doc.setFont('helvetica', 'bold')
             doc.setTextColor(33, 60, 239)
             doc.text('PEPTSCI', 15, 20)
-            doc.setCharSpace(0.5)
           }
           resolve()
         }
         reader.onerror = () => {
           // Fallback to text logo
-          doc.setCharSpace(0.8)
           doc.setFontSize(26)
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(33, 60, 239)
           doc.text('PEPTSCI', 15, 20)
-          doc.setCharSpace(0.5)
           resolve()
         }
         reader.readAsDataURL(blob)
@@ -172,19 +166,16 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
     } catch (error) {
       console.error('Error loading logo:', error)
       // Fallback to text logo
-      doc.setCharSpace(0.8)
       doc.setFontSize(26)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(33, 60, 239)
       doc.text('PEPTSCI', 15, 20)
-      doc.setCharSpace(0.5)
     }
     
     // Style text to look like Poppins
     doc.setFontSize(16)
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'bold')
-    doc.setCharSpace(0.4)
     doc.text('PURCHASE ORDER', 105, 40, { align: 'center' })
     
     // Add a line separator
@@ -195,13 +186,11 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
     // Add PO details with Poppins-like styling
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.setCharSpace(0.2)
     doc.text('PO Number:', 15, 55)
     doc.text('Date:', 15, 62)
     doc.text('Vendor:', 15, 69)
     
     doc.setFont('helvetica', 'normal')
-    doc.setCharSpace(0.1)
     doc.text(poNumber, 50, 55)
     doc.text(format(new Date(), 'MMMM dd, yyyy'), 50, 62)
     doc.text(vendor || 'TBD', 50, 69)
@@ -296,14 +285,13 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
     const finalY = autoTableDoc.lastAutoTable?.finalY ?? 200
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
-    doc.setCharSpace(0.2)
     doc.setTextColor(80, 80, 80)
     doc.text('Please remit payment to: PEPTSCI LLC', 15, finalY + 15)
     doc.setTextColor(100, 100, 100)
     doc.text('Thank you for your business!', 15, finalY + 22)
     
     // Add page number
-    const pageCount = doc.getNumberOfPages()
+    const pageCount = doc.internal.getNumberOfPages()
     doc.setFontSize(8)
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)

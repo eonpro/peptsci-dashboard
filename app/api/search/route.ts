@@ -6,6 +6,8 @@ import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } fro
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 
+export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
+
 const searchQuerySchema = z.object({
   q: z.string().min(2, 'Query must be at least 2 characters').max(100),
   limit: z.coerce.number().int().min(1).max(50).default(20),

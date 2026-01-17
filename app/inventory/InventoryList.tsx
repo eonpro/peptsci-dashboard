@@ -115,7 +115,7 @@ export default function InventoryList({ data }: InventoryListProps) {
     <DataTable
       columns={columns}
       data={sortedData}
-      searchColumn="MedicationName"
+      searchKey="MedicationName"
     />
   )
 }

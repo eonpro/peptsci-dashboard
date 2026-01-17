@@ -10,11 +10,14 @@ export const paginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 })
 
-// Date range parameters
-export const dateRangeSchema = z.object({
+// Date range base schema (without refine for merging)
+const dateRangeBaseSchema = z.object({
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
-}).refine(
+})
+
+// Date range with validation
+export const dateRangeSchema = dateRangeBaseSchema.refine(
   (data) => {
     if (data.startDate && data.endDate) {
       return data.startDate <= data.endDate
@@ -37,9 +40,18 @@ export const searchSchema = z.object({
 
 // Combined query parameters for list endpoints
 export const listQuerySchema = paginationSchema
-  .merge(dateRangeSchema)
+  .merge(dateRangeBaseSchema)
   .merge(sortSchema)
   .merge(searchSchema)
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.startDate <= data.endDate
+      }
+      return true
+    },
+    { message: 'startDate must be before or equal to endDate' }
+  )
 
 // Revalidation parameters
 export const revalidateSchema = z.object({

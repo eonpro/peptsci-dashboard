@@ -53,7 +53,7 @@ const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
 const formatCompactCurrency = (value: number) =>
   compactCurrencyFormatter.format(value).replace('.0', '')
 
-const formatAxisLabel = (value: string | number) => {
+const formatAxisLabel = (value: string | number): string => {
   if (typeof value === 'string' && /^\d{4}-\d{2}$/.test(value)) {
     const [year, month] = value.split('-')
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -65,7 +65,7 @@ const formatAxisLabel = (value: string | number) => {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
   }
-  return value
+  return String(value)
 }
 
 const ModernTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
@@ -223,20 +223,21 @@ export default function DashboardCharts({
                 <Label
                   position="center"
                   content={({ viewBox }) => {
-                    if (!viewBox || typeof viewBox.cx !== 'number' || typeof viewBox.cy !== 'number') return null
+                    if (!viewBox || !('cx' in viewBox) || typeof viewBox.cx !== 'number' || typeof viewBox.cy !== 'number') return null
+                    const { cx, cy } = viewBox
                     return (
                       <g>
                         <text
-                          x={viewBox.cx}
-                          y={viewBox.cy - 6}
+                          x={cx}
+                          y={cy - 6}
                           textAnchor="middle"
                           className="fill-slate-400 text-xs uppercase tracking-[0.18em]"
                         >
                           TOTAL
                         </text>
                         <text
-                          x={viewBox.cx}
-                          y={viewBox.cy + 14}
+                          x={cx}
+                          y={cy + 14}
                           textAnchor="middle"
                           className="fill-slate-900 text-lg font-semibold"
                         >

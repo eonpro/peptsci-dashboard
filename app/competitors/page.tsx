@@ -1,8 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ChartCard } from '@/components/ChartCard'
 import { getCompetitors } from '@/lib/sheets'
 import CompetitorsTable from './CompetitorsTable'
+import CompetitorChart from './CompetitorChart'
+
+interface CompetitorEntry {
+  name: string
+  price: number
+  diff: number
+}
+
+interface ProductComparison {
+  product: string
+  ourPrice: number
+  competitors: CompetitorEntry[]
+}
 
 export default async function CompetitorsPage() {
   const competitors = await getCompetitors()
@@ -30,7 +42,7 @@ export default async function CompetitorsPage() {
   }
   
   // Group by product for comparison
-  const productComparison = competitors.reduce((acc, item) => {
+  const productComparison = competitors.reduce<Record<string, ProductComparison>>((acc, item) => {
     if (!acc[item.Product]) {
       acc[item.Product] = {
         product: item.Product,
@@ -122,20 +134,26 @@ export default async function CompetitorsPage() {
       )}
       
       {/* Competitor Price Chart */}
-      <ChartCard
-        title="Price Comparison by Product"
-        description="How our prices compare across all products"
-        data={Object.values(productComparison).map(item => ({
-          name: item.product,
-          'Our Price': item.ourPrice,
-          'Competitor Avg': Math.round(
-            item.competitors.reduce((sum, c) => sum + c.price, 0) / item.competitors.length
-          )
-        }))}
-        dataKeys={['Our Price', 'Competitor Avg']}
-        colors={['hsl(220, 70%, 50%)', 'hsl(0, 0%, 60%)']}
-        type="bar"
-      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Price Comparison by Product</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            How our prices compare across all products
+          </p>
+        </CardHeader>
+        <CardContent>
+          <CompetitorChart
+            data={Object.values(productComparison).map(item => ({
+              name: item.product,
+              ourPrice: item.ourPrice,
+              theirPrice: Math.round(
+                item.competitors.reduce((sum, c) => sum + c.price, 0) / item.competitors.length
+              ),
+              competitor: 'Average'
+            }))}
+          />
+        </CardContent>
+      </Card>
       
       {/* Detailed Table */}
       <Card>

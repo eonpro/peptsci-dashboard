@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Logo } from './Logo'
@@ -17,8 +17,8 @@ import {
   Calculator,
   Menu,
   X,
+  User,
 } from 'lucide-react'
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,6 +26,47 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { SearchCommand } from './SearchCommand'
+
+// Check if Clerk is configured
+const isClerkConfigured = typeof window !== 'undefined' 
+  ? Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'))
+  : Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'))
+
+// Conditional Clerk component wrappers
+function AuthWrapper({ children, signedIn = true }: { children: ReactNode; signedIn?: boolean }) {
+  if (!isClerkConfigured) {
+    // When Clerk is not configured, show content based on signedIn prop
+    // In dev mode without Clerk, we show signed-in content by default
+    return signedIn ? <>{children}</> : null
+  }
+  
+  // Dynamically import Clerk components only when configured
+  const ClerkComponents = require('@clerk/nextjs')
+  const Component = signedIn ? ClerkComponents.SignedIn : ClerkComponents.SignedOut
+  return <Component>{children}</Component>
+}
+
+function AuthUserButton() {
+  if (!isClerkConfigured) {
+    // Show a placeholder user icon when Clerk is not configured
+    return (
+      <Button variant="ghost" size="icon" className="rounded-full">
+        <User className="h-5 w-5" />
+      </Button>
+    )
+  }
+  
+  const { UserButton } = require('@clerk/nextjs')
+  return (
+    <UserButton
+      appearance={{
+        elements: {
+          avatarBox: 'h-9 w-9',
+        },
+      }}
+    />
+  )
+}
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -126,16 +167,10 @@ export function Header() {
           </Button>
 
           {/* User button */}
-          <SignedIn>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: 'h-9 w-9',
-                },
-              }}
-            />
-          </SignedIn>
-          <SignedOut>
+          <AuthWrapper signedIn={true}>
+            <AuthUserButton />
+          </AuthWrapper>
+          <AuthWrapper signedIn={false}>
             <Link href="/sign-in">
               <Button
                 size="sm"
@@ -144,7 +179,7 @@ export function Header() {
                 Sign in
               </Button>
             </Link>
-          </SignedOut>
+          </AuthWrapper>
         </div>
       </div>
 
@@ -211,28 +246,22 @@ export function Header() {
 
             {/* Mobile menu footer */}
             <div className="p-4 border-t bg-gray-50">
-              <SignedIn>
+              <AuthWrapper signedIn={true}>
                 <div className="flex items-center space-x-3">
-                  <UserButton
-                    appearance={{
-                      elements: {
-                        avatarBox: 'h-10 w-10',
-                      },
-                    }}
-                  />
+                  <AuthUserButton />
                   <div className="text-sm">
                     <p className="font-medium text-gray-900">Account</p>
                     <p className="text-muted-foreground">Manage settings</p>
                   </div>
                 </div>
-              </SignedIn>
-              <SignedOut>
+              </AuthWrapper>
+              <AuthWrapper signedIn={false}>
                 <Link href="/sign-in" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full bg-brand-primary hover:bg-brand-primary/90">
                     Sign in
                   </Button>
                 </Link>
-              </SignedOut>
+              </AuthWrapper>
             </div>
           </div>
         </DialogContent>

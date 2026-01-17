@@ -1,5 +1,9 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { logger } from './logger'
+
+// Check if Clerk is configured
+const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
 export interface AuthResult {
   userId: string | null
@@ -9,12 +13,30 @@ export interface AuthResult {
 /**
  * Validates that a request is authenticated via Clerk.
  * Returns the userId if authenticated, null otherwise.
+ * If Clerk is not configured, allows all requests (dev mode).
  */
 export async function requireAuth(): Promise<AuthResult> {
-  const { userId } = await auth()
-  return {
-    userId,
-    isAuthenticated: !!userId,
+  // If Clerk is not configured, allow requests (development mode)
+  if (!isClerkConfigured) {
+    logger.warn('Clerk not configured - auth bypassed')
+    return {
+      userId: 'dev-user',
+      isAuthenticated: true,
+    }
+  }
+  
+  try {
+    const { userId } = await auth()
+    return {
+      userId,
+      isAuthenticated: !!userId,
+    }
+  } catch (error) {
+    logger.error('Auth error', {}, error instanceof Error ? error : new Error(String(error)))
+    return {
+      userId: null,
+      isAuthenticated: false,
+    }
   }
 }
 
