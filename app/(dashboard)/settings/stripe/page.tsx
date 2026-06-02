@@ -100,6 +100,7 @@ export default function StripeSettingsPage() {
   const [migrate, setMigrate] = useState<MigrateResult | null>(null)
   const [migrateLoading, setMigrateLoading] = useState(false)
   const [migrateError, setMigrateError] = useState<string | null>(null)
+  const [migrateArmed, setMigrateArmed] = useState(false)
 
   const checkSchema = useCallback(async () => {
     setMigrateLoading(true)
@@ -116,10 +117,16 @@ export default function StripeSettingsPage() {
     }
   }, [])
 
+  // Two-step confirmation without a blocking window.confirm() (which Chrome
+  // flags as an INP/main-thread-blocking issue): first click arms, second runs.
+  const armApply = useCallback(() => {
+    setMigrateError(null)
+    setMigrateArmed(true)
+    window.setTimeout(() => setMigrateArmed(false), 6000)
+  }, [])
+
   const applyMigrations = useCallback(async () => {
-    if (!window.confirm('Apply pending DB migrations to the PRODUCTION database? This is idempotent but writes schema changes.')) {
-      return
-    }
+    setMigrateArmed(false)
     setMigrateLoading(true)
     setMigrateError(null)
     try {
@@ -281,11 +288,16 @@ export default function StripeSettingsPage() {
               Check
             </Button>
             <Button
-              onClick={applyMigrations}
+              onClick={migrateArmed ? applyMigrations : armApply}
               disabled={migrateLoading}
-              className="bg-[#213cef] text-white hover:bg-[#1a30c0]"
+              className={
+                migrateArmed
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-[#213cef] text-white hover:bg-[#1a30c0]'
+              }
             >
-              Apply pending migrations
+              {migrateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {migrateArmed ? 'Confirm — apply to production' : 'Apply pending migrations'}
             </Button>
           </div>
         </div>
