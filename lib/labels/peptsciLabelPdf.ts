@@ -371,13 +371,29 @@ function drawLabel(ctx: LabelContext): void {
   })
 
   // --- Product name: auto-fit, centered in the open band above the dose box.
+  // Shrink to a readable floor; if it still won't fit, truncate with an ellipsis
+  // so the name can never bleed into the logo or barcode columns.
   const nameMaxWidth = NAME_RIGHT - NAME_LEFT
+  const NAME_SIZE_MIN = 6
   let nameSize = NAME_SIZE_MAX
-  while (nameSize > 5 && fonts.name.widthOfTextAtSize(req.productName, nameSize) > nameMaxWidth) {
+  while (
+    nameSize > NAME_SIZE_MIN &&
+    fonts.name.widthOfTextAtSize(req.productName, nameSize) > nameMaxWidth
+  ) {
     nameSize -= 0.25
   }
-  const nameWidth = fonts.name.widthOfTextAtSize(req.productName, nameSize)
-  page.drawText(req.productName, {
+  let nameText = req.productName
+  if (fonts.name.widthOfTextAtSize(nameText, nameSize) > nameMaxWidth) {
+    while (
+      nameText.length > 1 &&
+      fonts.name.widthOfTextAtSize(`${nameText}…`, nameSize) > nameMaxWidth
+    ) {
+      nameText = nameText.slice(0, -1)
+    }
+    nameText = `${nameText.trimEnd()}…`
+  }
+  const nameWidth = fonts.name.widthOfTextAtSize(nameText, nameSize)
+  page.drawText(nameText, {
     x: toX((NAME_LEFT + NAME_RIGHT) / 2 - nameWidth / 2),
     y: toY(NAME_BASELINE),
     size: nameSize,
