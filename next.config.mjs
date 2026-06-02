@@ -22,6 +22,9 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/admin/inventory/labels/pdf': ['./public/labels/**/*', './public/fonts/labels/**/*'],
     '/api/admin/orders/[id]/labels/pdf': ['./public/labels/**/*', './public/fonts/labels/**/*'],
+    // The runtime migration runner reads the SQL files at request time; Next.js
+    // doesn't bundle prisma/migrations into the function unless we trace them.
+    '/api/admin/db/migrate': ['./prisma/migrations/**/*'],
   },
 }
 

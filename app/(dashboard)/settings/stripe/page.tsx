@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Beaker } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Beaker, Database } from 'lucide-react'
 
 interface Diagnostics {
   config?: {
@@ -36,6 +36,28 @@ interface TestResult {
   canceled?: boolean
   livemode?: boolean
   latencyMs?: number
+}
+
+interface MigrateSchema {
+  paymentMethodTable?: boolean
+  webhookEventTable?: boolean
+  orderShippingTotalColumn?: boolean
+  clientStripeCustomerIdColumn?: boolean
+}
+
+interface MigrateResult {
+  success?: boolean
+  upToDate?: boolean
+  durationMs?: number
+  migrations?: string[]
+  schema?: MigrateSchema
+  results?: Array<{
+    migration: string
+    statements: number
+    applied: number
+    skipped: number
+    error?: string
+  }>
 }
 
 function Row({ label, value, ok }: { label: string; value: React.ReactNode; ok?: boolean }) {
@@ -72,6 +94,47 @@ export default function StripeSettingsPage() {
       setDiagError(e instanceof Error ? e.message : 'Failed to load diagnostics')
     } finally {
       setDiagLoading(false)
+    }
+  }, [])
+
+  const [migrate, setMigrate] = useState<MigrateResult | null>(null)
+  const [migrateLoading, setMigrateLoading] = useState(false)
+  const [migrateError, setMigrateError] = useState<string | null>(null)
+
+  const checkSchema = useCallback(async () => {
+    setMigrateLoading(true)
+    setMigrateError(null)
+    try {
+      const res = await fetch('/api/admin/db/migrate')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || data.error || 'Schema check failed')
+      setMigrate(data.data ?? data)
+    } catch (e) {
+      setMigrateError(e instanceof Error ? e.message : 'Schema check failed')
+    } finally {
+      setMigrateLoading(false)
+    }
+  }, [])
+
+  const applyMigrations = useCallback(async () => {
+    if (!window.confirm('Apply pending DB migrations to the PRODUCTION database? This is idempotent but writes schema changes.')) {
+      return
+    }
+    setMigrateLoading(true)
+    setMigrateError(null)
+    try {
+      const res = await fetch('/api/admin/db/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || data.error || 'Migration run failed')
+      setMigrate(data.data ?? data)
+    } catch (e) {
+      setMigrateError(e instanceof Error ? e.message : 'Migration run failed')
+    } finally {
+      setMigrateLoading(false)
     }
   }, [])
 
@@ -195,6 +258,79 @@ export default function StripeSettingsPage() {
             <Row label="Live mode" value={String(test.livemode ?? false)} />
             <Row label="Latency" value={`${test.latencyMs ?? 0}ms`} />
             {test.message && <p className="pt-2 text-xs text-white/40">{test.message}</p>}
+          </div>
+        )}
+      </Card>
+
+      {/* Database schema */}
+      <Card className="border-white/10 bg-white/5 p-5">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-white">Database schema</h2>
+          <div className="flex gap-2">
+            <Button
+              onClick={checkSchema}
+              disabled={migrateLoading}
+              variant="outline"
+              className="border-white/15 bg-transparent text-white hover:bg-white/10"
+            >
+              {migrateLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Database className="mr-2 h-4 w-4" />
+              )}
+              Check
+            </Button>
+            <Button
+              onClick={applyMigrations}
+              disabled={migrateLoading}
+              className="bg-[#213cef] text-white hover:bg-[#1a30c0]"
+            >
+              Apply pending migrations
+            </Button>
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-white/40">
+          Applies the SQL migrations through the live runtime connection (the build can&apos;t run
+          them under RDS IAM auth). Idempotent — safe to run more than once.
+        </p>
+
+        {migrateError && (
+          <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {migrateError}
+          </div>
+        )}
+
+        {migrate && (
+          <div className="space-y-0.5">
+            <Row
+              label="Up to date"
+              value={String(migrate.upToDate ?? false)}
+              ok={migrate.upToDate}
+            />
+            <Row label="PaymentMethod table" value={String(migrate.schema?.paymentMethodTable ?? false)} ok={migrate.schema?.paymentMethodTable} />
+            <Row label="WebhookEvent table" value={String(migrate.schema?.webhookEventTable ?? false)} ok={migrate.schema?.webhookEventTable} />
+            <Row label="Order.shippingTotal" value={String(migrate.schema?.orderShippingTotalColumn ?? false)} ok={migrate.schema?.orderShippingTotalColumn} />
+            <Row label="Client.stripeCustomerId" value={String(migrate.schema?.clientStripeCustomerIdColumn ?? false)} ok={migrate.schema?.clientStripeCustomerIdColumn} />
+            {migrate.results && migrate.results.length > 0 && (
+              <div className="pt-3">
+                <p className="mb-1 text-xs uppercase tracking-wide text-white/40">Run details</p>
+                {migrate.results.map((r) => (
+                  <Row
+                    key={r.migration}
+                    label={r.migration}
+                    value={
+                      r.error
+                        ? `error: ${r.error}`
+                        : `${r.applied} applied, ${r.skipped} skipped / ${r.statements}`
+                    }
+                    ok={!r.error}
+                  />
+                ))}
+              </div>
+            )}
+            {typeof migrate.durationMs === 'number' && (
+              <Row label="Duration" value={`${migrate.durationMs}ms`} />
+            )}
           </div>
         )}
       </Card>
