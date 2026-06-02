@@ -1,10 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // -------------------------------------------------
@@ -28,6 +28,7 @@ model User {
   ordersCreated        Order[]               @relation("OrdersCreated")
   ordersApproved       Order[]               @relation("OrdersApproved")
   inventoryAdjustments InventoryAdjustment[]
+  inventoryBatches     InventoryBatch[]
 }
 
 model Client {
@@ -41,11 +42,87 @@ model Client {
   licenseNumber    String?
   licenseExpiresAt DateTime?
   onboardingStatus ClientOnboardingStatus @default(PENDING)
+  // Stripe Customer for this B2B account. Saved cards are shared across the
+  // client's users. Stripe never holds our product catalog (Model A).
+  stripeCustomerId String?                @unique
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   users            User[]
   orders           Order[]
   documents        ClientDocument[]
+  customPricing    ClientPricing[]
+  paymentMethods   PaymentMethod[]
+  storefront       Storefront?
+}
+
+// Saved card (or other payment method) for a client's Stripe Customer.
+// Card PAN never touches our DB — only Stripe's tokenized id + display fields.
+model PaymentMethod {
+  id                    String   @id @default(cuid())
+  client                Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId              String
+  stripePaymentMethodId String   @unique
+  cardBrand             String?
+  cardLast4             String?
+  expiryMonth           Int?
+  expiryYear            Int?
+  cardholderName        String?
+  billingZip            String?
+  isDefault             Boolean  @default(false)
+  isActive              Boolean  @default(true)
+  lastUsedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt            DateTime  @updatedAt
+  orders                Order[]
+
+  @@index([clientId])
+}
+
+// Stripe webhook event log used for idempotency + audit (DLQ on failure).
+// One row per Stripe event id; processing is skipped if a row already exists.
+model WebhookEvent {
+  id           String             @id @default(cuid())
+  source       String             @default("stripe")
+  eventId      String             @unique
+  eventType    String
+  status       WebhookEventStatus @default(RECEIVED)
+  errorMessage String?
+  payload      Json?
+  processingMs Int?
+  retryCount   Int                @default(0)
+  processedAt  DateTime?
+  createdAt    DateTime           @default(now())
+
+  @@index([eventType])
+  @@index([status])
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  SUCCESS
+  ERROR
+}
+
+// Custom pricing per client - overrides standard SRP
+model ClientPricing {
+  id              String          @id @default(cuid())
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId        String
+  variant         ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId       String
+  customPrice     Decimal         @db.Decimal(12, 2)  // The special price for this client
+  discountPercent Decimal?        @db.Decimal(5, 2)   // Optional: track as % off SRP
+  notes           String?                             // Reason for custom pricing
+  validFrom       DateTime?                           // Optional: pricing effective date
+  validUntil      DateTime?                           // Optional: pricing expiration
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       String?                             // Admin who set this price
+
+  @@unique([clientId, variantId])                     // One custom price per client per variant
+  @@index([clientId])
+  @@index([variantId])
 }
 
 model ClientDocument {
@@ -59,12 +136,127 @@ model ClientDocument {
 }
 
 // -------------------------------------------------
+// White-Label Storefronts
+// -------------------------------------------------
+
+model Storefront {
+  id              String           @id @default(cuid())
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId        String           @unique
+  slug            String           @unique // Subdomain slug, e.g. "drclinic" -> drclinic.peptsci.com
+  name            String
+  brandingConfig  Json?            // BrandingConfig: logo, colors, fonts, hero, footer, about, contact, socials
+  status          StorefrontStatus @default(DRAFT)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  products        StorefrontProduct[]
+  endCustomers    EndCustomer[]
+  retailOrders    RetailOrder[]
+
+  @@index([slug])
+}
+
+model StorefrontProduct {
+  id                String                  @id @default(cuid())
+  storefront        Storefront              @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  storefrontId      String
+  variant           ProductVariant          @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId         String
+  isEnabled         Boolean                 @default(true)
+  isFeatured        Boolean                 @default(false)
+  displayOrder      Int                     @default(0)
+  displayName       String?                 // Override product name for this storefront
+  displayDescription String?                // Override description for this storefront
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  retailPrice       StorefrontRetailPrice?
+  retailOrderItems  RetailOrderItem[]
+
+  @@unique([storefrontId, variantId])
+  @@index([storefrontId])
+  @@index([variantId])
+}
+
+model StorefrontRetailPrice {
+  id                 String            @id @default(cuid())
+  storefrontProduct  StorefrontProduct @relation(fields: [storefrontProductId], references: [id], onDelete: Cascade)
+  storefrontProductId String           @unique
+  retailPrice        Decimal           @db.Decimal(12, 2)
+  compareAtPrice     Decimal?          @db.Decimal(12, 2) // Optional strikethrough price
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+model EndCustomer {
+  id             String       @id @default(cuid())
+  storefront     Storefront   @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  storefrontId   String
+  email          String
+  firstName      String?
+  lastName       String?
+  phone          String?
+  passwordHash   String?      // bcrypt hash; null for guest customers
+  isGuest        Boolean      @default(false)
+  shippingAddress Json?
+  billingAddress  Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  retailOrders   RetailOrder[]
+
+  @@unique([storefrontId, email])
+  @@index([storefrontId])
+  @@index([email])
+}
+
+model RetailOrder {
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique // e.g. "SF-drclinic-00001"
+  storefront      Storefront        @relation(fields: [storefrontId], references: [id])
+  storefrontId    String
+  endCustomer     EndCustomer?      @relation(fields: [endCustomerId], references: [id])
+  endCustomerId   String?
+  guestEmail      String?           // For guest checkout without EndCustomer account
+  status          RetailOrderStatus @default(PENDING)
+  subtotal        Decimal           @db.Decimal(12, 2)
+  taxTotal        Decimal           @default(0) @db.Decimal(12, 2)
+  shippingTotal   Decimal           @default(0) @db.Decimal(12, 2)
+  total           Decimal           @db.Decimal(12, 2)
+  currency        String            @default("USD")
+  shippingAddress Json?
+  billingAddress  Json?
+  notes           String?
+  peptsciOrder    Order?            @relation(fields: [peptsciOrderId], references: [id])
+  peptsciOrderId  String?           @unique // Link to auto-generated PeptSci order
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  items           RetailOrderItem[]
+
+  @@index([storefrontId])
+  @@index([endCustomerId])
+  @@index([peptsciOrderId])
+}
+
+model RetailOrderItem {
+  id                  String            @id @default(cuid())
+  retailOrder         RetailOrder       @relation(fields: [retailOrderId], references: [id], onDelete: Cascade)
+  retailOrderId       String
+  storefrontProduct   StorefrontProduct @relation(fields: [storefrontProductId], references: [id])
+  storefrontProductId String
+  quantity            Int
+  unitRetailPrice     Decimal           @db.Decimal(12, 2) // Price end customer paid
+  totalPrice          Decimal           @db.Decimal(12, 2)
+  createdAt           DateTime          @default(now())
+}
+
+// -------------------------------------------------
 // Catalog & Inventory
 // -------------------------------------------------
 
 model Product {
   id          String           @id @default(cuid())
   sku         String?          @unique
+  airtableId  String?          @unique  // Link to Airtable record for content sync
   name        String
   description String?
   category    String?
@@ -79,17 +271,91 @@ model ProductVariant {
   id              String                @id @default(cuid())
   product         Product               @relation(fields: [productId], references: [id])
   productId       String
+  airtableId      String?               @unique  // Link to Airtable variant record
+  sku             String?               @unique  // Variant-level SKU for ordering
   dose            String?
   unitSize        String?
   unitCost        Decimal               @db.Decimal(12, 2)
   srp             Decimal               @db.Decimal(12, 2)
+  // How we buy this from the manufacturer (purchasing terms)
+  supplierName    String?               // Manufacturer / supplier name
+  supplierSku     String?               // Supplier's catalog # / SKU for reorder
   inventoryOnHand Int                   @default(0)
   reorderLevel    Int                   @default(0)
   status          ProductStatus         @default(ACTIVE)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
-  orderItems      OrderItem[]
-  inventoryLogs   InventoryAdjustment[]
+  orderItems          OrderItem[]
+  inventoryLogs       InventoryAdjustment[]
+  clientPricing       ClientPricing[]
+  storefrontProducts  StorefrontProduct[]
+  batches             InventoryBatch[]
+}
+
+// -------------------------------------------------
+// Inventory Batches (intake + BUD + auto batch# / barcode / labels)
+// -------------------------------------------------
+
+// A single recorded inbound inventory receipt. The batch number and Code128
+// barcode payload are derived from product name + dose + BUD at creation time
+// (see lib/batch-number.ts) and are immutable thereafter. Receiving a batch
+// increments ProductVariant.inventoryOnHand and writes an InventoryAdjustment.
+model InventoryBatch {
+  id            String         @id @default(cuid())
+  batchNumber   String         @unique // e.g. "TES10-072027" — also the Code128 barcode payload
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+  variantId     String
+  // Label snapshots — frozen at intake so later catalog edits never change a printed batch.
+  productName   String                            // e.g. "Tesamorelin"
+  dose          String                            // e.g. "10mg" (label dose-box top line)
+  vialSize      String?                           // e.g. "3mL"
+  purity        String         @default("99%HPLC") // label dose-box bottom line
+  bud           DateTime                          // Beyond-Use Date
+  receivedOn    DateTime       @default(now())
+  qtyReceived   Int
+  qtyDamaged    Int            @default(0)
+  qtyOnHand     Int                               // decremented as labels/orders consume
+  yearColor     String?                           // optional hex accent for BUD day + batch text
+  notes         String?
+  status        BatchStatus    @default(RECEIVED)
+  receivedBy    User?          @relation(fields: [receivedById], references: [id])
+  receivedById  String?
+  receivedByName String?                          // snapshot of operator name/email
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  events        InventoryBatchEvent[]
+
+  @@index([variantId])
+  @@index([status])
+  @@index([bud])
+}
+
+// Immutable audit trail for a batch (receipt, manual adjustment, label print, void).
+model InventoryBatchEvent {
+  id          String         @id @default(cuid())
+  batch       InventoryBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId     String
+  type        BatchEventType
+  delta       Int?           // qty change (negative for consumption), when applicable
+  note        String?
+  performedBy String?        // operator name/email snapshot
+  createdAt   DateTime       @default(now())
+
+  @@index([batchId])
+}
+
+enum BatchStatus {
+  RECEIVED
+  DEPLETED
+  VOIDED
+}
+
+enum BatchEventType {
+  RECEIVED
+  ADJUSTED
+  LABELS_PRINTED
+  ALLOCATED
+  VOIDED
 }
 
 model ProductMedia {
@@ -125,15 +391,23 @@ model Order {
   orderNumber           Int                   @default(autoincrement())
   client                Client                @relation(fields: [clientId], references: [id])
   clientId              String
+  source                OrderSource           @default(DIRECT)
   status                OrderStatus           @default(DRAFT)
   paymentStatus         PaymentStatus         @default(PENDING)
   subtotal              Decimal               @db.Decimal(12, 2)
   taxTotal              Decimal               @default(0) @db.Decimal(12, 2)
+  shippingTotal         Decimal               @default(0) @db.Decimal(12, 2)
   total                 Decimal               @db.Decimal(12, 2)
   currency              String                @default("USD")
   notes                 String?
   internalNotes         String?
-  stripePaymentIntentId String?
+  shippingAddress       Json?
+  stripePaymentIntentId String?               @unique
+  stripeChargeId        String?
+  paymentMethod         PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodId       String?
+  paymentFailureReason  String?
+  paidAt                DateTime?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   submittedAt           DateTime?
@@ -147,6 +421,10 @@ model Order {
   documents             OrderDocument[]
   inventoryAdjustments  InventoryAdjustment[]
   auditLogs             AuditLog[]
+  retailOrder           RetailOrder?
+
+  @@index([clientId])
+  @@index([stripePaymentIntentId])
 }
 
 model OrderItem {
@@ -225,6 +503,28 @@ enum InventoryAdjustmentReason {
   RETURN
   DAMAGE
   AUDIT
+  RECEIPT
+}
+
+enum StorefrontStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum RetailOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderSource {
+  DIRECT
+  STOREFRONT
 }
 
 enum OrderStatus {

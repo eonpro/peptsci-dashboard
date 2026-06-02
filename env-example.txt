@@ -1,18 +1,115 @@
 # Copy this entire content to a new file called .env.local
-# Replace the placeholder values with your actual Google Sheets credentials
+# Replace the placeholder values with your actual credentials
 
-GOOGLE_SHEETS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nPaste your private key here keeping all the \n characters\n-----END PRIVATE KEY-----\n"
-GOOGLE_SHEETS_CLIENT_EMAIL="your-service-account@your-project.iam.gserviceaccount.com"
-SPREADSHEET_ID="your-google-sheets-id-here"
-
-# Database (Vercel Postgres)
+# ===========================================
+# DATABASE (Required) — choose ONE of the modes below
+# ===========================================
+#
+# The connection is resolved in lib/db-url.ts in this precedence order:
+#   1. PGHOST + PGPASSWORD  -> static-password connection string (local/dev)
+#   2. DATABASE_URL         -> explicit connection string
+#   3. PGHOST + AWS_ROLE_ARN (and NO PGPASSWORD/DATABASE_URL) -> RDS IAM auth
+#
+# --- Mode A: static connection string (local Docker / simple hosted PG) ---
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME?sslmode=require"
+# Vercel also adds these which Prisma can use:
+# POSTGRES_URL=
+# POSTGRES_PRISMA_URL=
+# POSTGRES_URL_NON_POOLING=
+#
+# --- Mode B: RDS IAM database auth via Vercel OIDC (recommended for prod) ---
+# Leave PGPASSWORD *and* DATABASE_URL unset so the app mints a short-lived IAM
+# token per connection (no static DB password stored anywhere). Requires:
+#   - RDS instance with IAM database authentication enabled
+#   - DB user GRANTed rds_iam
+#   - A Vercel<->AWS OIDC role with the rds-db:connect permission
+# PGHOST="your-instance.xxxx.us-east-1.rds.amazonaws.com"
+# PGPORT="5432"
+# PGUSER="app_user"
+# PGDATABASE="postgres"
+# AWS_REGION="us-east-1"
+# AWS_ROLE_ARN="arn:aws:iam::ACCOUNT_ID:role/your-vercel-oidc-role"
+# Optional: cap pool size (RDS connection limits are low). Defaults to 20.
+# PG_POOL_MAX="20"
+#
+# NOTE: The Prisma CLI (migrate/seed) cannot use Vercel OIDC. For migrations
+# against an IAM-only RDS instance, run them with a temporary admin
+# DATABASE_URL (or from inside the VPC), not from the IAM path above.
 
-# Stripe (payments)
+# ===========================================
+# AIRTABLE - Product Content Management
+# ===========================================
+# Get API key from: https://airtable.com/account
+AIRTABLE_API_KEY="pat..."
+# Base ID from your Airtable URL: https://airtable.com/[BASE_ID]/...
+AIRTABLE_BASE_ID="app..."
+
+# ===========================================
+# GOOGLE SHEETS - Legacy Data (Optional)
+# ===========================================
+# Keep for migration period, can remove after full Airtable migration
+GOOGLE_SHEETS_API_KEY="your-api-key"
+GOOGLE_SHEETS_SPREADSHEET_ID="your-spreadsheet-id"
+# Alternative names (supported for backwards compatibility):
+# SPREADSHEET_ID=
+# SHEETS_API_KEY=
+
+# ===========================================
+# STRIPE - Payments (Model A: inline pricing, Stripe Connect)
+# ===========================================
+# PeptSci operates as a Stripe Connect PLATFORM. Use the PLATFORM's keys here.
+# A RESTRICTED key (rk_...) scoped to PaymentIntents, Customers, SetupIntents,
+# and PaymentMethods (with Connect access) is recommended over a full sk_.
+# We never create Products/Prices in Stripe — the Postgres catalog + per-client
+# pricing are the sole source of truth; Stripe only receives computed amounts.
 STRIPE_SECRET_KEY="sk_test_..."
+
+# Platform publishable key, exposed to the browser for Stripe Elements. The
+# NEXT_PUBLIC_ variant is preferred (returned by checkout/setup-intent APIs).
+# Elements is routed to the connected account via stripeAccount on the client.
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_PUBLISHABLE_KEY="pk_test_..."
+
+# Connected account that funds settle into (Direct charges). Example:
+#   "Como RX LLX" = acct_1S34ayDhHXlGkLX4
+# When set, all Customers/PaymentIntents/SetupIntents/PaymentMethods are created
+# ON this account using the platform key + the `stripeAccount` request header.
+# Leave blank to fall back to the platform/standalone account (local/dev).
+STRIPE_CONNECTED_ACCOUNT_ID="acct_1S34ayDhHXlGkLX4"
+
+# Optional platform fee on each Direct charge, in basis points (e.g. 250 = 2.5%).
+# Unset / 0 = no platform fee (100% settles to the connected account).
+# STRIPE_APPLICATION_FEE_BPS="0"
+
+# Webhook signing secret for POST /api/webhooks/stripe.
+# Use the secret of a CONNECT webhook endpoint so connected-account events
+# (with event.account set) are delivered to the platform.
+# Local dev: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
 STRIPE_WEBHOOK_SECRET="whsec_..."
 
-# Clerk (authentication)
+# Recommended webhook events to enable in the Stripe Dashboard (Connect endpoint):
+#   payment_intent.succeeded, payment_intent.payment_failed,
+#   payment_intent.canceled, payment_intent.processing, charge.refunded,
+#   payment_method.attached, payment_method.detached
+# Verify config any time with: npm run stripe:check
+
+# ===========================================
+# CLERK - Authentication
+# ===========================================
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 CLERK_SECRET_KEY="sk_test_..."
 CLERK_WEBHOOK_SECRET="whsec_..."
+
+# ===========================================
+# APPLICATION
+# ===========================================
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+LOG_LEVEL="debug"
+
+# ===========================================
+# WHITE-LABEL STOREFRONTS
+# ===========================================
+# Root domain used for subdomain detection (e.g. drclinic.peptsci.com)
+NEXT_PUBLIC_ROOT_DOMAIN="peptsci.com"
+# Secret for signing end-customer JWT tokens (generate a strong random string)
+END_CUSTOMER_JWT_SECRET="change-me-to-a-random-64-char-string"
