@@ -1,3 +1,242 @@
+# ACTIVE PLAN — Admin Backend Performance Analysis (June 2026)  [PLANNER]
+
+> **Current source of truth.** Diagnosis of why the admin backend "moves very slow," grounded in a code audit. No code changed yet — this is the analysis + prioritized remediation plan. Awaiting user go-ahead on which fixes to execute.
+
+## Background and Motivation
+The admin portal (`/dashboard`, `/customers`, `/profit-loss`, `/inventory`, `/pricing`, `/competitors`, global search) feels slow. The platform has two data backends: **Google Sheets** (legacy: sales/inventory/pricing/competitors — powers most admin analytics) and **Postgres/RDS** (orders, clients, pricing overrides, fulfillment). The slowness is concentrated on the Sheets-backed analytics surfaces and the client-side fetch patterns around them.
+
+## Key Challenges and Analysis (grounded in code audit)
+
+### ROOT CAUSE #1 — Google Sheets is used as the application database (highest impact)
+`lib/sheets.ts` hits the Google Sheets REST API for every analytics read. Sheets is a spreadsheet API (typically 300 ms–2 s per range, rate-limited), not an OLTP store. Worse, the read functions chain extra round trips:
+- `getSales()` fetches `Sales!A:P`, then **calls `getInventory()`** (a 2nd sheet fetch), then runs an **O(rows × costLookup)** nested loop with a partial-match fallback (`for (const [key,cost] of costLookup.entries())`) for *every* sales row to compute COGS. (`lib/sheets.ts:118-289`)
+- `getPriceSheet()` **also calls `getInventory()`** (`lib/sheets.ts:348`).
+- So a single `globalSearch` request runs `Promise.all([getSales(), getInventory(), getPriceSheet()])` → `getInventory()` is effectively fetched **3×** in one request, plus a full parse of the entire sales history. (`app/api/search/route.ts:61-65`)
+
+### ROOT CAUSE #2 — Dashboard: client-only render + cache-busting + 60 s polling
+`app/(dashboard)/dashboard/page.tsx` is `'use client'`:
+- Renders a skeleton, then fetches `/api/sales?t=${Date.now()}` with `cache: 'no-store'` → **defeats the browser cache and Next's fetch cache**, forcing a full Sheets parse + transfer on every load. (`dashboard/page.tsx:24-26`)
+- No SSR/streaming: the user waits for JS hydration + a full Sheets round trip before seeing any KPI.
+- **Auto-refreshes every 60 s** (`setInterval` 60000) — every open admin tab re-pulls the entire sales dataset every minute, multiplying Sheets load and server CPU.
+
+### ROOT CAUSE #3 — Search re-pulls the whole dataset per query
+`/api/search` loads ALL sales+inventory+prices (see #1) just to substring-match, on a 300 ms debounce (`SearchCommand.tsx:77-83`). Each query = ~3–4 Sheets round trips + full-history parse. Fast typers fire several.
+
+### ROOT CAUSE #4 — Same heavy data fetched independently by many pages, no shared cache
+`getSales()` / `/api/sales` is consumed by Dashboard (client), Customers (server, `customers/page.tsx`), Customer detail (server, **per-customer** full `getSales()` — `customers/[id]/page.tsx:20`), Profit-Loss (client, + `/api/inventory` + `/api/orders`). No SWR/React Query/dedupe — every navigation re-pulls and re-parses the full history.
+
+### ROOT CAUSE #5 — RDS IAM token minted per DB connection (Postgres-backed admin routes)
+`lib/db-url.ts` passes `password: getRdsAuthToken` — an async fn called by node-postgres **per new connection**. Each cold connection does an STS assume-role (Vercel OIDC) + RDS signer round trip (hundreds of ms) with **no token caching/reuse** across connections. On serverless with frequent cold pools this adds latency to every DB-backed admin request (orders, clients, fulfillment, pricing).
+
+### Contributing factors
+- **`force-dynamic` on every API route** + client `no-store` ⇒ effectively no caching layer; only `fetchRange`'s `revalidate:300` caches the Sheets hop (and the dashboard's transform re-runs regardless).
+- **Heavy client bundles**: Dashboard + Profit-Loss are large `'use client'` pages pulling `recharts`; PO Generator first-load ≈287 kB. More JS to download/parse before interactivity.
+- **In-memory rate-limit** (`lib/rate-limit`) is per-instance (correctness, not latency).
+
+## High-Level Task Breakdown (prioritized; each independently shippable)
+### P0 — Kill the redundant Sheets work (biggest win, low risk)
+1. **Request-level memoization of Sheets reads.** Wrap `fetchRange`/`getInventory`/`getSales`/`getPriceSheet` in React `cache()` (per-request dedupe) so `getInventory` runs once per request, not 3×. **Success:** one search request makes ≤1 fetch per distinct range.
+2. **Stop cache-busting the dashboard.** Remove `?t=Date.now()` + `cache:'no-store'`; rely on a short server cache (see #4). Make auto-refresh opt-in or raise to ≥5 min. **Success:** repeat dashboard loads served from cache; Sheets hit ≤1×/cache-window.
+3. **Search shouldn't reload everything per keystroke.** Add an in-process TTL cache (e.g. 60–300 s) for the parsed sales/inventory/prices used by search, and raise debounce. **Success:** typing a query reuses cached parsed data; no per-keystroke Sheets pulls.
+
+### P1 — Server-render + cache the analytics
+4. **Move Dashboard/Profit-Loss data fetching server-side** (RSC) with `unstable_cache`/`revalidate` (e.g. 300 s) instead of client `fetch` + skeleton; stream the shell. **Success:** TTFB shows KPIs without a client round trip; bundle shrinks (charts can stay client islands).
+5. **Cache RDS IAM tokens** in module scope (~14 min TTL, refresh-ahead) so connections reuse a token instead of re-signing each time. **Success:** cold DB route latency drops by the STS+signer cost on warm pools.
+
+### P2 — Structural
+6. **Migrate hot analytics off Sheets to Postgres** (sales already partly in `Order`); make Sheets an import/sync source, not a request-time dependency. Add a nightly/triggered sync. **Success:** Dashboard/Customers/P&L read indexed Postgres, not Sheets, at request time.
+7. **Code-split heavy chart pages**; lazy-load `recharts`. **Success:** first-load JS for `/dashboard` and `/profit-loss` drops.
+
+## Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| Audit | Diagnose slowness, document root causes | ✅ |
+| P0-1 | Per-request memoization of Sheets reads | ✅ in-process TTL cache + in-flight dedupe in `lib/sheets.ts` (`SHEETS_CACHE_TTL_MS`, default 60s); `getInventory` now fetched 1× per window instead of 3× |
+| P0-2 | Remove dashboard cache-bust + tame polling | ✅ dropped `?t=`/`no-store`; auto-refresh 60s→5min + visibility-gated |
+| P0-3 | TTL cache for search data | ✅ covered by P0-1 (search reuses cached parsed sales/inventory/prices) |
+| P1-4 | Server-render + cache Dashboard/P&L | ⬜ |
+| P1-5 | Cache RDS IAM tokens | ⬜ |
+| P2-6 | Migrate hot analytics Sheets→Postgres | ⬜ |
+| P2-7 | Code-split chart pages | ⬜ |
+
+## Executor's Feedback or Assistance Requests
+- **Need user decision:** start with the P0 quick wins (memoization + stop cache-busting + search TTL — low risk, hours, big perceived speedup) before the larger P2 Sheets→Postgres migration? Recommend yes.
+- **Measurement gap:** no real timing data captured yet (Lighthouse/Vercel traces). Recommend grabbing Vercel function durations for `/api/sales` and `/api/search` to quantify before/after.
+
+---
+
+# ACTIVE PLAN — FedEx Labels + Package Photos + Client Tracking (June 2026)  [PLANNER]
+
+> **Current source of truth for the in-flight effort.** Port EonPro's (`logosrx.eonpro.io`, repo `/Users/italo/Desktop/FULFILMENT/eonpro`) FedEx shipping + package-photo capture into PeptSci, mapped from EonPro's Patient/Clinic domain onto PeptSci's B2B Client/Order domain. Goal: (1) generate FedEx labels from the customer profile or from the address a client entered at checkout, (2) capture a photo of each outgoing package and attach it to the order so the client sees it on their profile, (3) deliver tracking info to the client.
+
+## Background and Motivation
+PeptSci ships physical orders but has no carrier integration. EonPro already has a mature, production FedEx integration + a package-photo "proof of shipment" capture flow used at logosrx.eonpro.io. The user wants that **copied exactly** and wired to PeptSci's data model:
+- **FedEx labels**: admin generates a real FedEx shipping label for an order; recipient = the order's `shippingAddress` (entered at checkout) or the client's saved shipping address; shipper = PeptSci/Logos RX origin.
+- **Package photo**: warehouse rep scans/enters the order identifier, photographs the package, photo is stored and linked to the `Order`; the client can view it on their order detail/profile (proof of shipment).
+- **Tracking**: tracking number + URL persisted on the `Order` and surfaced on the (currently mock) client order pages; optional notification.
+
+## Reference mapping (EonPro → PeptSci)
+| EonPro | PeptSci |
+| --- | --- |
+| `Patient` / `Clinic` (multi-tenant) | `Client` (single PeptSci tenant) |
+| `Order` (Rx) `trackingNumber`/`trackingUrl`/`shippingStatus` | `Order` — **fields must be added** |
+| `ShipmentLabel` model | new `ShipmentLabel` model (clientId/orderId, no patient/clinic) |
+| `PatientShippingUpdate` | fold into `Order` tracking fields (+ optional `OrderShippingUpdate`) |
+| `PackagePhoto` (LifeFile ID match) | new `PackagePhoto` (match by PeptSci `orderNumber`/order id) |
+| AWS S3 (`uploadToS3`) + signed URLs | **STORAGE DECISION REQUIRED** (S3 / Vercel Blob / base64) |
+| Twilio SMS + SES email tracking notify | **NOTIFY DECISION REQUIRED** (email / in-app only) |
+| Per-clinic FedEx creds + env fallback | **env-only single account** (simpler) |
+| `withAuth(roles)` / HIPAA audit | PeptSci `requireAdmin`/`requireSuperAdmin` + `AuditLog` |
+
+## Key Challenges and Analysis (grounded in code audit)
+- **No object storage in PeptSci.** Labels today are base64-in-DB (inventory labels). Package photos (≤10 MB JPEG) in Postgres is a poor fit. Need a storage backend; PeptSci already runs on Vercel + AWS RDS (account 631413806260, Vercel OIDC role) so S3 in the same account is feasible; Vercel Blob is simplest. (Decision D-STORE.)
+- **FedEx port is clean.** `lib/fedex.ts` only depends on `fetch`, a logger, and a circuit breaker. PeptSci has `lib/logger.ts` (pino) and `lib/rate-limit.ts`. We drop EonPro's `phi-encryption`, `integrations/adapter`, and clinic-credential branch; keep OAuth cache, circuit-breaker (or simple retry), `createShipment`/`cancelShipment`/`getRateQuote`, and `fedex-services.ts` verbatim.
+- **Order tracking fields missing.** Add to `Order`: `trackingNumber String?`, `trackingUrl String?`, `carrier String?`, `shippingStatus String?` (or enum), `shippedAt DateTime?`. Migration must be applied to prod RDS via the runtime runner `POST /api/admin/db/migrate` (RDS IAM — Prisma CLI can't reach prod; see Lessons).
+- **Admin order surface is thin.** `/dashboard/customers/[id]` = Google Sheets (legacy); `/shop/orders/[id]` = mock. To "generate labels from the customer profile" we need a DB-order surface. Likely a new admin order detail (or attach to the planned `/dashboard/clients/[id]`) that lists the client's Postgres orders with a "Create FedEx Label" action. (Decision D-SURFACE.)
+- **Client order pages are mock.** `/shop/orders` + `/shop/orders/[id]` must be wired to real `Order` data to show tracking + the package photo. (In-scope: read-only wiring for tracking/photo; full order-history rewrite may be larger.)
+- **Recipient source.** Order `shippingAddress` (Json) is the checkout address. Need a shared `Address` shape + a helper to map `Order.shippingAddress`/`Client.shippingAddress` → `FedExAddress`. Phone is required by FedEx; ensure checkout/client captures phone.
+- **Auth/roles.** Label create/void + photo capture = ADMIN/SUPER_ADMIN (reuse `lib/access.ts`/`lib/auth.ts` guards). Photo *viewing* allowed to the owning client on their order.
+- **Security.** FedEx creds server-only; never trust client-sent amounts; validate addresses (Zod); rate-limit label + photo routes; signed/proxied photo URLs so only the owner/admin can view.
+
+## High-Level Task Breakdown (TDD; explicit success criteria) — DRAFT pending Decisions
+### Phase A — Schema & FedEx core
+1. Prisma: add `Order` tracking fields; new `ShipmentLabel` + `PackagePhoto` models; migration (local Docker now, prod via `/api/admin/db/migrate`). **Success:** `migrate status` clean; client regenerated.
+2. Port `lib/fedex.ts` (OAuth cache, retry/circuit-breaker, create/cancel/rate) + `lib/fedex-services.ts` (service/packaging catalogs); strip PHI/clinic/adapter deps; env-only `resolveCredentials`. Unit tests for payload builders + credential resolution. **Success:** tests green; no PHI imports.
+3. `lib/shipping/address.ts` — shared `Address` type + `orderToFedExAddress`/`clientToFedExAddress` mappers + Zod schemas + unit tests. **Success:** tests green.
+
+### Phase B — Storage
+4. `lib/storage.ts` abstraction (`put`/`getSignedUrl`/`download`/`delete`) backed by the chosen provider (D-STORE), with a base64-in-DB fallback for local dev. **Success:** upload+read round-trips in dev and on Vercel.
+
+### Phase C — FedEx label APIs + UI
+5. `POST /api/admin/shipping/fedex/rate` (rate quote) + `POST/GET/DELETE /api/admin/shipping/fedex/label` (create/store/void; persist `ShipmentLabel`, write tracking onto `Order`, audit). Admin-guarded, Zod, rate-limited. **Success:** sandbox label returns tracking+PDF; order shows tracking; void reverses.
+6. Port `FedExLabelModal.tsx` (PeptSci theme, `Address` mappers, no AddressAutocomplete dependency or add a simple one). **Success:** modal creates+prints a sandbox label end-to-end.
+
+### Phase D — Package photos
+7. Prisma `PackagePhoto` (done in A1) + `POST/GET /api/admin/package-photos` (+ `[id]` PATCH tracking, `[id]/image` proxy, `[id]/pdf` audit). Match by PeptSci order number/id; resolve tracking from Order/ShipmentLabel; store via `lib/storage.ts`. **Success:** capture links a photo to an order; audit log lists it.
+8. Port the capture page (`/dashboard/package-photos` or `/shop/storefront-manage`?) — scan order # → camera → upload → confirm; + audit log table. **Success:** rep captures a photo on mobile; it appears on the order.
+
+### Phase E — Client-facing tracking + photo
+9. Wire `/shop/orders` + `/shop/orders/[id]` to real `Order` data (read-only): show tracking number/link, shipping status timeline, and the package photo (proof of shipment). **Success:** a client sees their real order, tracking, and package photo.
+10. (If D-NOTIFY = email) send tracking email on label creation. **Success:** email delivered in test.
+
+### Phase F — Hardening & docs
+11. Tests (fedex payloads, address mappers, authz), build green, env-example + README + scratchpad. **Success:** suite green; docs updated.
+
+## Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| A1 | Schema: Order tracking + ShipmentLabel + PackagePhoto + migration | ✅ |
+| A2 | lib/fedex.ts + lib/fedex-services.ts port | ✅ |
+| A3 | lib/shipping/address.ts mappers + tests | ✅ |
+| B4 | lib/storage.ts abstraction (Vercel Blob + base64 fallback) | ✅ |
+| C5 | FedEx rate + label create/get/void admin APIs | ✅ |
+| C6 | FedExLabelModal port (PeptSci theme, shadcn) | ✅ |
+| D7 | package-photos APIs (upload, list/stats, PATCH/DELETE, image proxy) | ✅ |
+| D8 | package-photos capture page + audit log (`/package-photos`) | ✅ |
+| C5b | admin orders list API + Fulfillment page (`/fulfillment`) w/ label action | ✅ |
+| E9 | client order pages wired to real data (tracking + photo) | ✅ |
+| E10 | tracking notification (email) | ⬜ deferred — in-app only per D-NOTIFY |
+| F11 | tests (79 pass) + production build green | ✅ |
+
+### Implementation notes (June 2, 2026 — Executor)
+- **Surface chosen**: instead of `/dashboard/orders`, added a dedicated **`/fulfillment`** admin page (nav: Fulfillment) listing Postgres `Order`s with "Create/New Label" (opens `FedExLabelModal`), tracking links, and photo counts. Warehouse capture lives at **`/package-photos`**. Client sees tracking + photos at **`/shop/orders` + `/shop/orders/[id]`** (both now real, was mock).
+- **Client photo access**: image proxy `GET /api/package-photos/[id]/image` allows admin OR the owning client (via `resolveShopClientId`); URLs are not public even on the blob backend.
+- **Env vars required** (set in Vercel / `.env.local`):
+  - FedEx: `FEDEX_CLIENT_ID`, `FEDEX_CLIENT_SECRET`, `FEDEX_ACCOUNT_NUMBER`, `FEDEX_SANDBOX` (`true`/`false`, default sandbox). Optional ship-from override: `FEDEX_ORIGIN_NAME|COMPANY|PHONE|ADDRESS1|ADDRESS2|CITY|STATE|ZIP|COUNTRY`. Label UI/APIs degrade gracefully (422 `FEDEX_UNCONFIGURED`) when unset.
+  - Storage: `BLOB_READ_WRITE_TOKEN` (optional) → use Vercel Blob; unset → base64-in-DB fallback (works out of the box).
+- **DB migration**: `prisma/migrations/20260602110000_fedex_labels_package_photos` + the runtime runner `/api/admin/db/migrate` probes the new `ShipmentLabel`/`PackagePhoto` tables and `Order.trackingNumber`.
+
+## Decisions (user skipped the question prompt → Executor proceeding with documented defaults, all reversible)
+- **D-STORE → `lib/storage.ts` abstraction.** Uses **Vercel Blob** when `BLOB_READ_WRITE_TOKEN` is set; otherwise **base64-in-DB** fallback (zero new infra, works local+prod). Switchable later to S3 by adding a driver. Photos proxied through an auth-gated route so URLs aren't public.
+- **D-FEDEX-ACCT → env-only, single account.** `FEDEX_CLIENT_ID/SECRET/ACCOUNT_NUMBER`, `FEDEX_SANDBOX=true` default (apis-sandbox.fedex.com). Ship-from origin defaults to Logos RX (7543 West Waters Ave, Tampa FL 33615, 8138862800) and is overridable via `FEDEX_ORIGIN_*` env. App degrades gracefully (label UI disabled) when creds absent.
+- **D-SURFACE → new admin order detail** backed by Postgres `Order` (`/dashboard/orders` list + `/dashboard/orders/[id]`), with the "Create FedEx Label" action there. `/dashboard/customers` (Sheets) left as-is.
+- **D-PHOTO-ID → match by `Order.orderNumber`** (autoincrement int the client/admin sees), with fallback to order cuid.
+- **D-NOTIFY → in-app only for v1.** Tracking + photo shown on the client order page. Email hook left as a no-op `lib/notify.ts` to wire a provider later.
+- **D-CLIENT-ORDERS → in scope.** Wire `/shop/orders` + `/shop/orders/[id]` to real `Order` data (read-only) to show tracking + package photo.
+
+---
+
+# ACTIVE PLAN — New-User Sign-Up + Practice Profile + NPI + Checkout Shipping Tiers (June 2026)
+
+> **Current source of truth for the in-flight effort.** Planner mode. Builds a real B2B onboarding flow (NPI-verified provider, practice profile, billing/shipping addresses, contact, saved payment) tied to the existing Clerk + `Client` model, editable by the client and by SUPER_ADMIN, plus a new checkout shipping selector (ship-to + speed tiers).
+
+## Background and Motivation
+New medical-provider customers must self-register with verifiable identity (NPI), full practice details, and addresses so PeptSci can approve them and ship orders. Today sign-up is bare Clerk → `/pending-approval` with no profile capture; `/shop/account` is 100% mock; there is no admin Client-management UI; and checkout shipping is a single flat rule (free ≥ $500 else $25) with no speed choice and no ship-to-patient option. We need to:
+1. Capture a complete practice profile at sign-up, anchored to a validated **NPI** (autocomplete provider name from the NPPES registry).
+2. Persist it as the `Client` profile (1 Client per practice; the signing-up user becomes its first member).
+3. Let the client edit their own profile + saved cards (`/shop/account`), and let SUPER_ADMIN edit any client on the backend (`/dashboard`).
+4. Support saved payment methods (Stripe — backend already exists; wire the UI).
+5. Replace checkout shipping with: **ship-to (Practice | Patient)** + **speed (2-Day | Overnight)**, priced per the tier matrix below.
+
+## Shipping tier matrix (to confirm — see Decisions D-SHIP)
+| Order subtotal | 2-Day | Overnight |
+| -------------- | ----- | --------- |
+| < $500         | $15   | $25       |
+| ≥ $500         | FREE  | $20       |
+
+## Key Challenges and Analysis (grounded in code audit)
+- **NPI verification**: NPPES NPI Registry API (`https://npiregistry.cms.hhs.gov/api/?version=2.1`) is **public, free, no key, CORS-permissive-via-server-proxy**. Plan: server-side proxy route (`/api/npi/lookup`) to avoid CORS + add rate-limit/caching. Supports lookup by `number` (exact NPI → returns provider/org name, taxonomy, practice address) and by `first_name`/`last_name`/`organization_name`/`state` (typeahead). We autocomplete the provider/practice name from the entered NPI and let the user pick.
+- **Data model gaps**: `Client` has `organizationName, contactName, contactEmail, contactPhone, billingAddress(Json), shippingAddress(Json)`. **Missing**: `npiNumber`, `providerName` (the credentialed individual), `practiceName` (vs org), structured shipping-address-differs flag. Plan: add `npiNumber String? @unique`, `providerName String?`, optionally `npiData Json?` (frozen registry snapshot). Reuse `organizationName` as practice name. Addresses already `Json?` — define a shared `Address` TS type. `User.clientId` already links a user to a Client.
+- **Sign-up → profile linkage**: Clerk creates the auth user; the webhook (`user.created`) currently sets `role=CLIENT,status=PENDING` and upserts a `User`. There is **no Client creation**. Plan: add a post-sign-up **/onboarding** step (after Clerk sign-up, before /pending-approval) that collects the profile, creates the `Client`, links `User.clientId`, sets Clerk `publicMetadata.clientId`, then routes to /pending-approval. Guard middleware so a CLIENT with no `clientId` is forced to /onboarding.
+- **Client self-edit**: `/shop/account` is mock. Plan: wire it to a new `GET/PATCH /api/shop/profile` (auth'd; client edits own `Client` + own contact). Saved cards already have `GET/POST/DELETE /api/shop/payment-methods` + `setup-intent` — replace the mock card UI with the real Stripe Elements add-card + list/delete.
+- **Super-admin edit**: existing `/dashboard/customers` reads **Google Sheets** (legacy sales), not the `Client` table — wrong surface. Plan: add an admin **Clients** management surface (`/dashboard/clients` + `/dashboard/clients/[id]`) backed by `/api/admin/clients` (list exists; add GET-one + PATCH + approve). SUPER_ADMIN can edit all profile fields + approve/suspend.
+- **Approval workflow**: reuse `Client.onboardingStatus` (PENDING/APPROVED/REJECTED/NEEDS_INFO) + `User.status`. Approving the Client flips the user(s) to ACTIVE and Clerk `status=ACTIVE`. Ties into existing `/users` approve path — keep them consistent.
+- **Checkout shipping**: `lib/checkout-core.ts` `computeShipping(subtotal)` is flat. Plan: replace with `computeShipping(subtotal, { speed })` returning the matrix above; add `shipTo` (PRACTICE|PATIENT) + optional patient address. Thread `speed`, `shipTo`, `shippingAddress`, optional `patient` through `resolveCart` → `/api/shop/checkout/process` → `Order` (`shippingTotal`, `shippingAddress`, `notes`/new fields). Update checkout UI (`app/shop/checkout/page.tsx`) with the selector. Server recomputes shipping — never trust client.
+- **Validation/security**: Zod-validate NPI (10-digit Luhn per CMS check-digit), addresses, phone/email. Rate-limit the NPI proxy. Server is authoritative on pricing + shipping. PHI note: "ship to patient" stores a patient name + address on the order — flag minimal-PII handling (no diagnosis/health data; treat address as confidential, no logging of patient PII).
+
+## High-Level Task Breakdown (TDD; explicit success criteria) — DRAFT, pending Decisions
+### Phase A — Schema & NPI core
+1. Prisma: add `Client.npiNumber @unique`, `providerName`, `npiData Json?`; migration (local Docker now, prod via `/api/admin/db/migrate` runtime runner per Lessons). **Success:** `migrate status` clean; client regenerated.
+2. `lib/npi.ts` — pure NPI validation (10-digit + CMS Luhn check digit) + NPPES response normalizer; unit tests incl. known-valid/invalid NPIs. **Success:** tests green.
+3. `GET /api/npi/lookup?number=` and `?name=&state=` — server proxy to NPPES (rate-limited, 5-min cache, Zod). **Success:** valid NPI returns normalized provider+address; invalid → 400.
+
+### Phase B — Sign-up + Onboarding
+4. `/onboarding` page (multi-section form): NPI field w/ autocomplete (provider name), practice name, billing address, "shipping same as billing" toggle + shipping address, contact name/email/phone. Client-side + server Zod validation. **Success:** submitting creates a `Client`, links `User.clientId`, sets Clerk `publicMetadata.clientId`, redirects to /pending-approval.
+5. `POST /api/onboarding` (auth'd CLIENT, no existing clientId) — idempotent create. Middleware: CLIENT without `clientId` → `/onboarding`. Update sign-up `forceRedirectUrl` → `/onboarding`. **Success:** new user can't reach /shop until onboarded + approved.
+
+### Phase C — Profile editing (client + super-admin)
+6. `GET/PATCH /api/shop/profile` — client reads/updates own Client + contact (not status/role/NPI-locked-after-approve?). **Success:** edits persist; reload shows them.
+7. Rewrite `/shop/account` to real data: profile form (wired to /api/shop/profile), addresses, and **real Stripe saved cards** (Elements add-card via setup-intent + list/delete). Remove mock. **Success:** add/remove card hits Stripe test mode; profile saves.
+8. Admin Clients UI `/dashboard/clients` + `/dashboard/clients/[id]` backed by `GET /api/admin/clients`, `GET/PATCH /api/admin/clients/[id]`, approve route. SUPER_ADMIN edits all fields + approve/suspend (flips user status + Clerk metadata). Nav entry, role-gated. **Success:** super-admin edits a client and approves; user flips ACTIVE.
+
+### Phase D — Checkout shipping
+9. `lib/checkout-core.ts`: new `ShipSpeed`/`ShipTo` types + `computeShipping(subtotal, speed)` matrix; update `computeCartTotals` signature; unit tests for all 4 cells + boundary at $500. **Success:** tests green.
+10. Thread shipping selection through `resolveCart` + `/api/shop/checkout/process` + Order persistence (shippingTotal, shippingAddress, shipTo, patient). **Success:** server total == matrix regardless of client input.
+11. Checkout UI: ship-to (Practice prefilled from profile | Patient w/ address fields) + speed (2-Day | Overnight, prices reflect threshold live) selectors; summary updates. **Success:** test purchase with each combination charges correct total.
+
+### Phase E — Hardening & docs
+12. Tests (NPI, shipping, profile authz), build green, README/env + scratchpad status. **Success:** suite green; docs updated.
+
+## Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| A1 | Schema: NPI fields + Patient + Order shipTo/patientId + migration | ✅ |
+| A2 | lib/npi.ts validation + normalizer + tests | ✅ |
+| A3 | /api/npi/lookup proxy (rate-limited, cached, Zod) | ✅ |
+| B4 | /onboarding form (NPI autocomplete + addresses) | ✅ |
+| B5 | /api/onboarding + middleware gate | ✅ |
+| C6 | /api/shop/profile GET/PATCH (NPI lock after APPROVED) | ✅ |
+| C7 | /shop/account real (profile + Stripe saved cards + patients) | ✅ |
+| C8 | /clients admin list + /clients/[id] detail; GET/PATCH/approve APIs | ✅ |
+| D9 | shipping matrix in checkout-core + tests | ✅ |
+| D10 | thread shipping (shipTo/speed/patientId) through process/order | ✅ |
+| D11 | checkout UI ship-to + speed selectors | ✅ |
+| E12 | tests (73 pass) + production build green | ✅ |
+
+## Decisions (CONFIRMED with user — June 2, 2026)
+- **D-SHIP ✅** Shipping matrix: `< $500` → 2-Day **$15** / Overnight **$25**; `≥ $500` → 2-Day **FREE** / Overnight **$20**. Server-enforced.
+- **D-ONBOARD ✅** Profile collected in a dedicated **`/onboarding` step right after Clerk sign-up**, before /pending-approval.
+- **D-PATIENT ✅** "Ship to patient" uses a **saved patient list per practice** → new `Patient` model (name + address, minimal PII, no health data). Selectable at checkout; manageable in account.
+- **D-NPI ✅** Free public **NPPES NPI Registry API** via server proxy (no key).
+- **D-NPI-LOCK ✅** After a Client is **APPROVED**, NPI + practice name are **read-only** for the client (admin-only to change).
+- **D-PAY ✅** Saved cards offered on the **account page and during checkout** (not required at sign-up), via the existing Stripe backend.
+
+### Schema delta from these decisions
+- `Client`: add `npiNumber String? @unique`, `providerName String?`, `npiData Json?`.
+- New `Patient` model: `id, clientId, firstName, lastName, address Json, phone?, email?, isActive, timestamps`; `Client.patients Patient[]`. Order gets `shipTo` (PRACTICE|PATIENT) + `patientId?` + keeps `shippingAddress Json` snapshot.
+
+---
+
 # ACTIVE PLAN — Inventory Intake + Auto Batch/Barcode + Label Generation (June 2026)
 
 > **This is the current source of truth for the in-flight effort.** Adapted from the proven `eonpro/eonpro` label + vial-inventory model (`src/lib/labels/vialLabelPdf.ts`, `src/lib/vial-inventory/*`, `src/app/admin/vial-inventory/*`). The earlier Go-Live plan (User Roles / Client Pricing / Members-Only / Stripe) remains below and is largely complete.
@@ -1001,3 +1240,38 @@ Clinics with PeptSci accounts can create subdomain-based white-label storefronts
 - [ ] DNS/Vercel wildcard subdomain configuration for production
 - [ ] Image upload for logo/hero (currently URL-based)
 - [ ] Prisma migration (`prisma migrate dev`)
+
+---
+
+## Stripe Connect — Production Incident (2026-06-02)
+
+### Symptom
+Vercel Observability: 98% error rate on `/api/webhooks/stripe` (98 reqs). Two errors:
+`PrismaClientKnownRequestError` (83x) and `[STRIPE WEBHOOK] Not configured` (17x, pre-deploy).
+
+### Root causes
+1. **Platform-wide event flood**: endpoint is a Connect destination → received events for ALL
+   connected accounts on the EONPro platform, not just `acct_1S34ayDhHXlGkLX4`.
+2. **Missing migration in prod**: `stripe_payments` tables/columns were never applied to RDS.
+   The build runs `next build` only; `prisma migrate deploy` can't run because prod uses RDS
+   **IAM auth minted at runtime** (lib/db-url.ts) and the build env has no DB URL (resolves to a
+   `localhost` placeholder → P1001 if migrate is in the build script).
+3. One unguarded DB call (`webhookEvent.findUnique`) turned the missing-table error into a 500,
+   which made Stripe retry → sustained storm.
+
+### Fixes (deployed)
+- Webhook: skip (200) events where `event.account !== STRIPE_CONNECTED_ACCOUNT_ID`; guard the
+  dedup lookup so DB errors never 500. (commit: harden webhook)
+- Reverted build script to `next build` (migrate-at-build fails under IAM auth).
+- Added admin-only runtime migration runner `POST /api/admin/db/migrate` (+ GET probe) that applies
+  prisma/migrations SQL via the live IAM connection, idempotently. Surfaced in `/settings/stripe`.
+
+### Lessons
+- With RDS IAM auth, migrations cannot run at build time. Apply them via the runtime connection
+  (admin route) or an environment that can mint IAM tokens / reach RDS.
+- Connect webhook endpoints receive events for every connected account; always filter by
+  `event.account` before doing any work.
+- Any DB call in a webhook handler must be guarded so it returns 2xx, never 500 (avoids retry storms).
+
+### Action required (user)
+Go to `/settings/stripe` → Database schema → **Check** then **Apply pending migrations**.

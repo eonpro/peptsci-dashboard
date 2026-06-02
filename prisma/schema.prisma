@@ -29,11 +29,17 @@ model User {
   ordersApproved       Order[]               @relation("OrdersApproved")
   inventoryAdjustments InventoryAdjustment[]
   inventoryBatches     InventoryBatch[]
+  shipmentLabels       ShipmentLabel[]       @relation("LabelsCreated")
+  packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
 }
 
 model Client {
   id               String                 @id @default(cuid())
   organizationName String
+  // Credentialed medical provider verified against the NPPES NPI Registry.
+  npiNumber        String?                @unique // 10-digit National Provider Identifier
+  providerName     String?                // Provider/organization name as returned by NPPES
+  npiData          Json?                  // Frozen NPPES registry snapshot at verification time
   contactName      String?
   contactEmail     String?
   contactPhone     String?
@@ -52,7 +58,30 @@ model Client {
   documents        ClientDocument[]
   customPricing    ClientPricing[]
   paymentMethods   PaymentMethod[]
+  patients         Patient[]
+  shipmentLabels   ShipmentLabel[]
+  packagePhotos    PackagePhoto[]
   storefront       Storefront?
+}
+
+// Saved ship-to recipient for a practice ("ship to patient" at checkout).
+// Minimal PII only — name + address + optional contact. No health data.
+model Patient {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  firstName String
+  lastName  String
+  address   Json     // { address1, address2?, city, state, zip, country? }
+  phone     String?
+  email     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+
+  @@index([clientId])
 }
 
 // Saved card (or other payment method) for a client's Stripe Customer.
@@ -402,6 +431,17 @@ model Order {
   notes                 String?
   internalNotes         String?
   shippingAddress       Json?
+  // Where the order ships and how fast (priced server-side; see lib/checkout-core.ts).
+  shipTo                ShipTo                @default(PRACTICE)
+  shipSpeed             ShipSpeed             @default(TWO_DAY)
+  patient               Patient?              @relation(fields: [patientId], references: [id])
+  patientId             String?
+  // Carrier tracking — set when a FedEx label is created (see lib/fedex.ts).
+  carrier               String?
+  trackingNumber        String?
+  trackingUrl           String?
+  shippingStatus        String?               // e.g. LABEL_CREATED, IN_TRANSIT, DELIVERED
+  shippedAt             DateTime?
   stripePaymentIntentId String?               @unique
   stripeChargeId        String?
   paymentMethod         PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
@@ -421,10 +461,13 @@ model Order {
   documents             OrderDocument[]
   inventoryAdjustments  InventoryAdjustment[]
   auditLogs             AuditLog[]
+  shipmentLabels        ShipmentLabel[]
+  packagePhotos         PackagePhoto[]
   retailOrder           RetailOrder?
 
   @@index([clientId])
   @@index([stripePaymentIntentId])
+  @@index([trackingNumber])
 }
 
 model OrderItem {
@@ -448,6 +491,80 @@ model OrderDocument {
   fileUrl    String
   uploadedBy String?
   createdAt  DateTime          @default(now())
+}
+
+// -------------------------------------------------
+// Shipping: FedEx labels + outgoing-package proof photos
+// (ported from eonpro/logosrx.eonpro.io, mapped to the B2B Client/Order domain)
+// -------------------------------------------------
+
+// A FedEx shipping label created for an order. The label PDF/ZPL/PNG is stored
+// via lib/storage.ts (blob URL) with a base64 fallback in-row. Creating a label
+// writes the tracking number/URL back onto the linked Order.
+model ShipmentLabel {
+  id                 String              @id @default(cuid())
+  order              Order?              @relation(fields: [orderId], references: [id])
+  orderId            String?
+  client             Client?             @relation(fields: [clientId], references: [id])
+  clientId           String?
+  createdBy          User?               @relation("LabelsCreated", fields: [createdById], references: [id])
+  createdById        String?
+  carrier            String              @default("FEDEX")
+  trackingNumber     String
+  shipmentId         String?             // FedEx master tracking id
+  serviceType        String              // FEDEX_GROUND, STANDARD_OVERNIGHT, etc.
+  originAddress      Json                // snapshot at label creation
+  destinationAddress Json
+  weightLbs          Float               @default(1.0)
+  length             Float?
+  width              Float?
+  height             Float?
+  labelFormat        String              @default("PDF") // PDF | ZPLII | PNG
+  labelBlobUrl       String?             // storage URL when blob backend is used
+  labelPdfBase64     String?             // inline fallback when no blob backend
+  status             ShipmentLabelStatus @default(CREATED)
+  voidedAt           DateTime?
+  voidedById         String?
+  createdAt          DateTime            @default(now())
+
+  @@index([orderId])
+  @@index([clientId])
+  @@index([trackingNumber])
+}
+
+enum ShipmentLabelStatus {
+  CREATED
+  VOIDED
+}
+
+// Proof-of-shipment photo captured by a warehouse rep for an outgoing package.
+// Matched to an Order by the scanned/typed order number; the owning client can
+// view it on their order detail page.
+model PackagePhoto {
+  id             String   @id @default(cuid())
+  order          Order?   @relation(fields: [orderId], references: [id])
+  orderId        String?
+  client         Client?  @relation(fields: [clientId], references: [id])
+  clientId       String?
+  // The identifier the rep scanned/typed (PeptSci Order.orderNumber as text).
+  orderRef       String
+  trackingNumber String?
+  trackingSource String?  // order | fedex_label | manual
+  capturedBy     User?    @relation("PhotosCaptured", fields: [capturedById], references: [id])
+  capturedById   String?
+  blobUrl        String?  // storage URL when blob backend is used
+  imageBase64    String?  // inline fallback when no blob backend
+  contentType    String   @default("image/jpeg")
+  fileSize       Int?
+  matched        Boolean  @default(false)
+  matchedAt      DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+  @@index([clientId])
+  @@index([orderRef])
+  @@index([createdAt])
 }
 
 // -------------------------------------------------
@@ -525,6 +642,16 @@ enum RetailOrderStatus {
 enum OrderSource {
   DIRECT
   STOREFRONT
+}
+
+enum ShipTo {
+  PRACTICE
+  PATIENT
+}
+
+enum ShipSpeed {
+  TWO_DAY
+  OVERNIGHT
 }
 
 enum OrderStatus {

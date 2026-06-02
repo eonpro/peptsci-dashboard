@@ -75,18 +75,23 @@ interface SchemaProbe {
   webhookEventTable: boolean
   orderShippingTotalColumn: boolean
   clientStripeCustomerIdColumn: boolean
+  shipmentLabelTable: boolean
+  packagePhotoTable: boolean
+  orderTrackingNumberColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
   const db = getDb()
   const tables = await db.$queryRaw<{ table_name: string }[]>`
     SELECT table_name FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name IN ('PaymentMethod', 'WebhookEvent')
+    WHERE table_schema = 'public'
+      AND table_name IN ('PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto')
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
     SELECT table_name, column_name FROM information_schema.columns
     WHERE table_schema = 'public'
       AND ((table_name = 'Order' AND column_name = 'shippingTotal')
+        OR (table_name = 'Order' AND column_name = 'trackingNumber')
         OR (table_name = 'Client' AND column_name = 'stripeCustomerId'))
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
@@ -96,6 +101,9 @@ async function probeSchema(): Promise<SchemaProbe> {
     webhookEventTable: tableNames.has('WebhookEvent'),
     orderShippingTotalColumn: colKeys.has('Order.shippingTotal'),
     clientStripeCustomerIdColumn: colKeys.has('Client.stripeCustomerId'),
+    shipmentLabelTable: tableNames.has('ShipmentLabel'),
+    packagePhotoTable: tableNames.has('PackagePhoto'),
+    orderTrackingNumberColumn: colKeys.has('Order.trackingNumber'),
   }
 }
 
@@ -110,7 +118,10 @@ export async function GET() {
       schema.paymentMethodTable &&
       schema.webhookEventTable &&
       schema.orderShippingTotalColumn &&
-      schema.clientStripeCustomerIdColumn
+      schema.clientStripeCustomerIdColumn &&
+      schema.shipmentLabelTable &&
+      schema.packagePhotoTable &&
+      schema.orderTrackingNumberColumn
     return successResponse({ migrations, schema, upToDate })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Schema probe failed'
@@ -190,7 +201,10 @@ export async function POST(request: NextRequest) {
       schema.paymentMethodTable &&
       schema.webhookEventTable &&
       schema.orderShippingTotalColumn &&
-      schema.clientStripeCustomerIdColumn
+      schema.clientStripeCustomerIdColumn &&
+      schema.shipmentLabelTable &&
+      schema.packagePhotoTable &&
+      schema.orderTrackingNumberColumn
     const hadFatal = results.some((r) => r.error && r.error !== 'sql_not_found')
 
     logger.info('[DB MIGRATE] run complete', {
