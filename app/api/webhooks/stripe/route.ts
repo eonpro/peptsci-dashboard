@@ -16,6 +16,7 @@ import { PaymentStatus, WebhookEventStatus } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { getStripeClient, getStripeWebhookSecret } from '@/lib/stripe/config'
+import { getConnectedAccountId } from '@/lib/stripe/connect'
 import {
   reconcileOrderFromPaymentIntent,
   persistPaymentMethodFromStripe,
@@ -55,14 +56,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
+  // Connect: the platform endpoint receives events for ALL connected accounts.
+  // Only process events for our monitored connected account; skip everything
+  // else (other clinics + platform-level events) with a 200 so Stripe doesn't
+  // retry. When no connected account is configured (dev), process everything.
+  const monitoredAccount = getConnectedAccountId()
+  if (monitoredAccount && event.account !== monitoredAccount) {
+    return NextResponse.json({ received: true, skipped: 'account_not_monitored' })
+  }
+
   if (!prisma) {
     // Can't dedupe/record without a DB; report received so Stripe doesn't retry forever.
     logger.error('[STRIPE WEBHOOK] DB unavailable; cannot process', { eventId: event.id })
     return NextResponse.json({ received: true, processed: false, reason: 'db_unavailable' })
   }
 
-  // Idempotency: skip if we've already recorded this event.
-  const existing = await prisma.webhookEvent.findUnique({ where: { eventId: event.id } })
+  // Idempotency: skip if we've already recorded this event. Guarded so a DB
+  // issue (e.g. missing table before migrations) never turns into a 500.
+  let existing: { status: WebhookEventStatus } | null = null
+  try {
+    existing = await prisma.webhookEvent.findUnique({ where: { eventId: event.id } })
+  } catch (lookupErr) {
+    logger.error('[STRIPE WEBHOOK] Dedup lookup failed (continuing)', {
+      eventId: event.id,
+      error: lookupErr instanceof Error ? lookupErr.message : String(lookupErr),
+    })
+  }
   if (existing && existing.status === WebhookEventStatus.SUCCESS) {
     return NextResponse.json({ received: true, processed: true, duplicate: true })
   }
