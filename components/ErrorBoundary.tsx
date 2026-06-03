@@ -34,10 +34,10 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log error to console in development
     console.error('ErrorBoundary caught an error:', error, errorInfo)
-    
+
     // Call optional error handler
     this.props.onError?.(error, errorInfo)
-    
+
     // In production, you could send to error tracking service
     // e.g., Sentry.captureException(error, { extra: errorInfo })
   }
@@ -65,19 +65,15 @@ export class ErrorBoundary extends Component<Props, State> {
               <p className="text-center text-muted-foreground">
                 We encountered an unexpected error. Please try again or return to the dashboard.
               </p>
-              
+
               {process.env.NODE_ENV !== 'production' && this.state.error && (
                 <div className="rounded-lg bg-gray-100 p-3 text-xs font-mono text-gray-700 overflow-auto max-h-32">
                   {this.state.error.message}
                 </div>
               )}
-              
+
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  onClick={this.handleReset}
-                  className="flex-1"
-                  variant="outline"
-                >
+                <Button onClick={this.handleReset} className="flex-1" variant="outline">
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Try Again
                 </Button>

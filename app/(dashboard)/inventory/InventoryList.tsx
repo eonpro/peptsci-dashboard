@@ -9,16 +9,12 @@ const columns: ColumnDef<Inventory>[] = [
   {
     accessorKey: 'SKU',
     header: 'SKU',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">{row.getValue('SKU')}</span>
-    ),
+    cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.getValue('SKU')}</span>,
   },
   {
     accessorKey: 'MedicationName',
     header: 'Product',
-    cell: ({ row }) => (
-      <span className="font-medium">{row.getValue('MedicationName')}</span>
-    ),
+    cell: ({ row }) => <span className="font-medium">{row.getValue('MedicationName')}</span>,
   },
   {
     accessorKey: 'Dose',
@@ -29,9 +25,9 @@ const columns: ColumnDef<Inventory>[] = [
     header: 'Cost',
     cell: ({ row }) => {
       const cost = row.original.Cost
-      return `$${cost.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${cost.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -40,9 +36,9 @@ const columns: ColumnDef<Inventory>[] = [
     header: 'Price',
     cell: ({ row }) => {
       const srp = row.getValue('SRP') as number
-      return `$${srp.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${srp.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -83,9 +79,10 @@ const columns: ColumnDef<Inventory>[] = [
       const value = srp * available
       return (
         <span className="font-semibold text-green-600">
-          ${value.toLocaleString('en-US', {
+          $
+          {value.toLocaleString('en-US', {
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            maximumFractionDigits: 2,
           })}
         </span>
       )
@@ -102,20 +99,14 @@ export default function InventoryList({ data }: InventoryListProps) {
   const sortedData = [...data].sort((a, b) => {
     const aLowStock = a.InventoryAvailable <= 10
     const bLowStock = b.InventoryAvailable <= 10
-    
+
     // Low stock items come first
     if (aLowStock && !bLowStock) return -1
     if (!aLowStock && bLowStock) return 1
-    
+
     // Then sort by available inventory (ascending)
     return a.InventoryAvailable - b.InventoryAvailable
   })
-  
-  return (
-    <DataTable
-      columns={columns}
-      data={sortedData}
-      searchKey="MedicationName"
-    />
-  )
+
+  return <DataTable columns={columns} data={sortedData} searchKey="MedicationName" />
 }

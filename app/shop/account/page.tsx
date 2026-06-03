@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -8,434 +8,318 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { AddressFields } from '@/components/AddressFields'
+import { SavedCards } from '@/components/shop/SavedCards'
+import { PatientsManager } from '@/components/shop/PatientsManager'
+import type { Address } from '@/lib/address'
+import type { ClientProfile } from '@/lib/profile'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { 
-  User, 
-  Building2, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Shield, 
+  User,
+  Building2,
+  Stethoscope,
+  MapPin,
+  Shield,
   FileText,
   CheckCircle2,
   AlertCircle,
   Clock,
   CreditCard,
-  Plus,
-  Trash2,
-  Star
+  UserRound,
+  Lock,
+  Loader2,
 } from 'lucide-react'
 
-// Mock user data
-const userData = {
-  firstName: 'John',
-  lastName: 'Smith',
-  email: 'john@abcmedical.com',
-  phone: '(555) 123-4567',
-  company: 'ABC Medical Clinic',
-  licenseNumber: 'CA-MED-123456',
-  licenseExpiry: '2027-06-30',
-  accountStatus: 'approved',
-  memberSince: '2024-06-15',
-  addresses: [
-    {
-      id: 1,
-      type: 'shipping',
-      default: true,
-      address1: '123 Healthcare Blvd',
-      address2: 'Suite 100',
-      city: 'Los Angeles',
-      state: 'California',
-      zip: '90001',
-    },
-    {
-      id: 2,
-      type: 'billing',
-      default: true,
-      address1: '456 Finance Ave',
-      address2: '',
-      city: 'Los Angeles',
-      state: 'California',
-      zip: '90002',
-    },
-  ],
-  paymentMethods: [
-    {
-      id: 'pm_1',
-      brand: 'visa',
-      last4: '4242',
-      expMonth: 12,
-      expYear: 2027,
-      isDefault: true,
-    },
-    {
-      id: 'pm_2',
-      brand: 'mastercard',
-      last4: '8888',
-      expMonth: 6,
-      expYear: 2026,
-      isDefault: false,
-    },
-  ],
+const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+  APPROVED: { label: 'Approved', color: 'bg-green-500/20 text-green-400', icon: CheckCircle2 },
+  PENDING: { label: 'Pending Approval', color: 'bg-yellow-500/20 text-yellow-400', icon: Clock },
+  NEEDS_INFO: { label: 'Needs Info', color: 'bg-yellow-500/20 text-yellow-400', icon: AlertCircle },
+  REJECTED: { label: 'Not Approved', color: 'bg-red-500/20 text-red-400', icon: AlertCircle },
 }
 
-// Card brand icons/colors
-const cardBrands: Record<string, { name: string; color: string; bg: string }> = {
-  visa: { name: 'Visa', color: 'text-blue-600', bg: 'bg-blue-50' },
-  mastercard: { name: 'Mastercard', color: 'text-orange-600', bg: 'bg-orange-50' },
-  amex: { name: 'Amex', color: 'text-blue-700', bg: 'bg-blue-50' },
-  discover: { name: 'Discover', color: 'text-orange-500', bg: 'bg-orange-50' },
-}
-
-const statusConfig = {
-  approved: { label: 'Approved', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  pending: { label: 'Pending Approval', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
-  rejected: { label: 'Not Approved', color: 'bg-red-100 text-red-700', icon: AlertCircle },
-}
+const emptyAddress: Partial<Address> = { country: 'US' }
 
 export default function AccountPage() {
-  const [paymentMethods, setPaymentMethods] = useState(userData.paymentMethods)
-  const [isAddCardOpen, setIsAddCardOpen] = useState(false)
-  const [newCard, setNewCard] = useState({
-    cardNumber: '',
-    expiry: '',
-    cvc: '',
-    name: '',
-  })
-  
-  const status = statusConfig[userData.accountStatus as keyof typeof statusConfig]
-  const StatusIcon = status.icon
+  const [profile, setProfile] = useState<ClientProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleAddCard = () => {
-    // In production, this would call Stripe to create a payment method
-    const mockNewCard = {
-      id: `pm_${Date.now()}`,
-      brand: 'visa',
-      last4: newCard.cardNumber.slice(-4) || '0000',
-      expMonth: parseInt(newCard.expiry.split('/')[0]) || 12,
-      expYear: 2020 + parseInt(newCard.expiry.split('/')[1]) || 2027,
-      isDefault: paymentMethods.length === 0,
+  // Editable fields
+  const [organizationName, setOrganizationName] = useState('')
+  const [contactName, setContactName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [billing, setBilling] = useState<Partial<Address>>(emptyAddress)
+  const [shipping, setShipping] = useState<Partial<Address>>(emptyAddress)
+
+  useEffect(() => {
+    fetch('/api/shop/profile')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.profile) return
+        const p: ClientProfile = data.profile
+        setProfile(p)
+        setOrganizationName(p.organizationName ?? '')
+        setContactName(p.contactName ?? '')
+        setContactEmail(p.contactEmail ?? '')
+        setContactPhone(p.contactPhone ?? '')
+        setBilling(p.billingAddress ?? emptyAddress)
+        setShipping(p.shippingAddress ?? emptyAddress)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const body: Record<string, unknown> = {
+        contactName,
+        contactEmail,
+        contactPhone,
+        billingAddress: billing,
+        shippingAddress: shipping,
+      }
+      if (!profile?.npiLocked) body.organizationName = organizationName
+      const res = await fetch('/api/shop/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Could not save changes')
+      setProfile(data.profile)
+      setSavedFlash(true)
+      setTimeout(() => setSavedFlash(false), 2500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save changes')
+    } finally {
+      setSaving(false)
     }
-    setPaymentMethods([...paymentMethods, mockNewCard])
-    setNewCard({ cardNumber: '', expiry: '', cvc: '', name: '' })
-    setIsAddCardOpen(false)
   }
 
-  const handleRemoveCard = (id: string) => {
-    setPaymentMethods(paymentMethods.filter(pm => pm.id !== id))
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-white/40">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
-  const handleSetDefault = (id: string) => {
-    setPaymentMethods(paymentMethods.map(pm => ({
-      ...pm,
-      isDefault: pm.id === id,
-    })))
-  }
+  const status = statusConfig[profile?.onboardingStatus ?? 'PENDING'] ?? statusConfig.PENDING
+  const StatusIcon = status.icon
+  const locked = profile?.npiLocked
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Account</h1>
-        <p className="text-gray-500 mt-1">Manage your account settings and preferences</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-white">My Account</h1>
+        <p className="text-white/60 mt-1 text-sm md:text-base">
+          Manage your practice profile, payment methods, and patients
+        </p>
       </div>
 
+      {error && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Personal Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Personal Information
+          {/* Provider / NPI (locked once approved) */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
+                  <Stethoscope className="h-5 w-5 text-[#213cef]" />
+                </div>
+                Provider & Practice
               </CardTitle>
-              <CardDescription>
-                Update your personal details
+              <CardDescription className="text-white/60">
+                Your verified NPI and practice name
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" defaultValue={userData.firstName} />
+                  <Label className="text-white/80 text-sm flex items-center gap-1">
+                    NPI Number {locked && <Lock className="h-3 w-3 text-white/40" />}
+                  </Label>
+                  <Input
+                    value={profile?.npiNumber ?? ''}
+                    disabled
+                    className="h-12 bg-white/5 border-white/10 text-white/60 rounded-xl"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" defaultValue={userData.lastName} />
+                  <Label className="text-white/80 text-sm">Provider Name</Label>
+                  <Input
+                    value={profile?.providerName ?? ''}
+                    disabled
+                    className="h-12 bg-white/5 border-white/10 text-white/60 rounded-xl"
+                  />
                 </div>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={userData.email} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" type="tel" defaultValue={userData.phone} />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="org" className="text-white/80 text-sm flex items-center gap-1">
+                  Practice / Organization {locked && <Lock className="h-3 w-3 text-white/40" />}
+                </Label>
+                <Input
+                  id="org"
+                  value={organizationName}
+                  onChange={(e) => setOrganizationName(e.target.value)}
+                  disabled={locked}
+                  className="h-12 bg-white/5 border-white/10 text-white rounded-xl disabled:text-white/60"
+                />
               </div>
-              <Button>Save Changes</Button>
+              {locked && (
+                <div className="flex items-center gap-2 p-3 bg-[#213cef]/20 rounded-lg text-sm text-[#213cef]">
+                  <FileText className="h-4 w-4" />
+                  <span>NPI and practice name are locked after approval. Contact support to change them.</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Business Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Business Information
+          {/* Contact */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
+                  <User className="h-5 w-5 text-[#213cef]" />
+                </div>
+                Contact Information
               </CardTitle>
-              <CardDescription>
-                Your organization and license details
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="company">Company / Organization</Label>
-                <Input id="company" defaultValue={userData.company} />
+                <Label htmlFor="contactName" className="text-white/80 text-sm">
+                  Contact Name
+                </Label>
+                <Input
+                  id="contactName"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="license">License Number</Label>
-                  <Input id="license" defaultValue={userData.licenseNumber} disabled />
+                  <Label htmlFor="email" className="text-white/80 text-sm">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expiry">License Expiry</Label>
-                  <Input id="expiry" defaultValue={userData.licenseExpiry} disabled />
+                  <Label htmlFor="phone" className="text-white/80 text-sm">
+                    Phone
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                  />
                 </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-                <FileText className="h-4 w-4" />
-                <span>To update license information, please contact support.</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Addresses */}
-          <Card>
+          {/* Billing address */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Addresses
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your shipping and billing addresses
-                  </CardDescription>
-                </div>
-                <Button variant="outline" size="sm">
-                  Add Address
-                </Button>
-              </div>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Building2 className="h-5 w-5" />
+                Billing Address
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {userData.addresses.map((address) => (
-                  <div 
-                    key={address.id} 
-                    className="p-4 border rounded-xl space-y-2 hover:border-indigo-300 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="capitalize">
-                        {address.type}
-                      </Badge>
-                      {address.default && (
-                        <Badge variant="secondary" className="text-xs">
-                          Default
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <p>{address.address1}</p>
-                      {address.address2 && <p>{address.address2}</p>}
-                      <p>{address.city}, {address.state} {address.zip}</p>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <Button variant="ghost" size="sm" className="text-xs">
-                        Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-xs text-red-500">
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AddressFields value={billing} onChange={setBilling} idPrefix="acct-billing" dark />
             </CardContent>
           </Card>
 
-          {/* Payment Methods */}
-          <Card>
+          {/* Shipping address */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5" />
-                    Payment Methods
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your saved cards for faster checkout
-                  </CardDescription>
-                </div>
-                <Dialog open={isAddCardOpen} onOpenChange={setIsAddCardOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Card
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Payment Method</DialogTitle>
-                      <DialogDescription>
-                        Add a new credit or debit card for future purchases.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="cardName">Name on Card</Label>
-                        <Input
-                          id="cardName"
-                          placeholder="John Smith"
-                          value={newCard.name}
-                          onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cardNumber">Card Number</Label>
-                        <Input
-                          id="cardNumber"
-                          placeholder="4242 4242 4242 4242"
-                          value={newCard.cardNumber}
-                          onChange={(e) => setNewCard({ ...newCard, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 16) })}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="expiry">Expiry Date</Label>
-                          <Input
-                            id="expiry"
-                            placeholder="MM/YY"
-                            value={newCard.expiry}
-                            onChange={(e) => {
-                              let value = e.target.value.replace(/\D/g, '')
-                              if (value.length >= 2) {
-                                value = value.slice(0, 2) + '/' + value.slice(2, 4)
-                              }
-                              setNewCard({ ...newCard, expiry: value })
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cvc">CVC</Label>
-                          <Input
-                            id="cvc"
-                            placeholder="123"
-                            value={newCard.cvc}
-                            onChange={(e) => setNewCard({ ...newCard, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-                        <Shield className="h-4 w-4" />
-                        <span>Your card information is encrypted and secure.</span>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsAddCardOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleAddCard} className="bg-indigo-600 hover:bg-indigo-700">
-                        Add Card
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <MapPin className="h-5 w-5" />
+                Practice Shipping Address
+              </CardTitle>
+              <CardDescription className="text-white/60">
+                Default address when shipping to your practice
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {paymentMethods.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No payment methods saved</p>
-                  <p className="text-sm text-gray-400 mt-1">Add a card for faster checkout</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {paymentMethods.map((card) => {
-                    const brand = cardBrands[card.brand] || { name: card.brand, color: 'text-gray-600', bg: 'bg-gray-50' }
-                    return (
-                      <div
-                        key={card.id}
-                        className={`flex items-center justify-between p-4 border rounded-xl transition-colors ${
-                          card.isDefault ? 'border-indigo-300 bg-indigo-50/50' : 'hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-lg ${brand.bg}`}>
-                            <CreditCard className={`h-6 w-6 ${brand.color}`} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900">
-                                {brand.name} •••• {card.last4}
-                              </p>
-                              {card.isDefault && (
-                                <Badge variant="secondary" className="text-xs">
-                                  <Star className="h-3 w-3 mr-1 fill-current" />
-                                  Default
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-500">
-                              Expires {card.expMonth.toString().padStart(2, '0')}/{card.expYear}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!card.isDefault && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => handleSetDefault(card.id)}
-                            >
-                              Set Default
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-gray-400 hover:text-red-500"
-                            onClick={() => handleRemoveCard(card.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              <AddressFields value={shipping} onChange={setShipping} idPrefix="acct-shipping" dark />
+            </CardContent>
+          </Card>
+
+          <Button
+            className="w-full sm:w-auto h-12 px-6 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : savedFlash ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Saved
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+
+          {/* Payment methods */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <CreditCard className="h-5 w-5" />
+                Payment Methods
+              </CardTitle>
+              <CardDescription className="text-white/60">
+                Saved cards for faster checkout and reorders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SavedCards />
+            </CardContent>
+          </Card>
+
+          {/* Patients */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <UserRound className="h-5 w-5" />
+                Patients
+              </CardTitle>
+              <CardDescription className="text-white/60">
+                Saved recipients for &quot;ship to patient&quot; orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PatientsManager />
             </CardContent>
           </Card>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Account Status */}
-          <Card>
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-white">
                 <Shield className="h-5 w-5" />
                 Account Status
               </CardTitle>
@@ -445,65 +329,25 @@ export default function AccountPage() {
                 <div className={`p-2 rounded-lg ${status.color.split(' ')[0]}`}>
                   <StatusIcon className={`h-5 w-5 ${status.color.split(' ')[1]}`} />
                 </div>
-                <div>
-                  <Badge className={status.color}>{status.label}</Badge>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Member since {new Date(userData.memberSince).toLocaleDateString('en-US', { 
-                      month: 'long', 
-                      year: 'numeric' 
-                    })}
-                  </p>
-                </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Orders Placed</span>
-                  <span className="font-medium">24</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total Spent</span>
-                  <span className="font-medium">$12,450.00</span>
-                </div>
+                <Badge className={status.color}>{status.label}</Badge>
               </div>
             </CardContent>
           </Card>
 
-          {/* Quick Links */}
-          <Card>
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
             <CardHeader>
-              <CardTitle className="text-base">Quick Links</CardTitle>
+              <CardTitle className="text-base text-white">Quick Links</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="ghost" className="w-full justify-start" asChild>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10"
+                asChild
+              >
                 <Link href="/shop/orders">
                   <FileText className="mr-2 h-4 w-4" />
                   Order History
                 </Link>
-              </Button>
-              <Button variant="ghost" className="w-full justify-start">
-                <Mail className="mr-2 h-4 w-4" />
-                Email Preferences
-              </Button>
-              <Button variant="ghost" className="w-full justify-start">
-                <Shield className="mr-2 h-4 w-4" />
-                Security Settings
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Support */}
-          <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-100">
-            <CardContent className="pt-6 text-center">
-              <Phone className="h-10 w-10 text-indigo-600 mx-auto mb-3" />
-              <h3 className="font-medium text-gray-900">Need Assistance?</h3>
-              <p className="text-sm text-gray-600 mt-1 mb-4">
-                Our team is available Mon-Fri 9am-5pm PST
-              </p>
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
-                Contact Support
               </Button>
             </CardContent>
           </Card>

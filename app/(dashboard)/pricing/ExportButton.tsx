@@ -14,19 +14,19 @@ export default function ExportButton({ data }: ExportButtonProps) {
     const headers = ['Product', 'Dose', 'Cost', 'SRP', 'Margin %', 'Notes']
     const csvContent = [
       headers.join(','),
-      ...data.map(item => {
-        const margin = item.Cost > 0 
-          ? ((item.SRP - item.Cost) / item.Cost * 100).toFixed(0) 
-          : 0
+      ...data.map((item) => {
+        const margin = item.Cost > 0 ? (((item.SRP - item.Cost) / item.Cost) * 100).toFixed(0) : 0
         return [
           item.Product,
           item.Dose,
           item.Cost.toFixed(2),
           item.SRP.toFixed(2),
           margin,
-          item.Notes || ''
-        ].map(cell => `"${cell}"`).join(',')
-      })
+          item.Notes || '',
+        ]
+          .map((cell) => `"${cell}"`)
+          .join(',')
+      }),
     ].join('\n')
 
     // Create and download file

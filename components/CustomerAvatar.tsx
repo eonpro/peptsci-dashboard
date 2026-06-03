@@ -28,17 +28,19 @@ export function CustomerAvatar({ name, email, className }: CustomerAvatarProps) 
     'bg-red-500',
     'bg-orange-500',
   ]
-  
+
   const colorSeed = `${name}${email ?? ''}`
-  const colorIndex = colorSeed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
+  const colorIndex =
+    colorSeed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
   const bgColor = colors[colorIndex]
 
   return (
     <Avatar className={className}>
-      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`} alt={name} />
-      <AvatarFallback className={`${bgColor} text-white`}>
-        {initials}
-      </AvatarFallback>
+      <AvatarImage
+        src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`}
+        alt={name}
+      />
+      <AvatarFallback className={`${bgColor} text-white`}>{initials}</AvatarFallback>
     </Avatar>
   )
 }

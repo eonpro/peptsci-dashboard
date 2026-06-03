@@ -2,88 +2,381 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global font stack */
-* {
-  font-family: var(--font-sans, 'sofia-pro', 'Sofia Pro', 'Helvetica Neue', Arial, sans-serif);
-}
-
 @layer base {
   :root {
-    /* Brand Colors */
+    /* PEPTSCI Brand Colors */
     --brand-bg: 36 17% 95%; /* #F2F0EA */
     --brand-white: 0 0% 100%; /* #FFFFFF */
-    --brand-primary: 232 84% 53%; /* #213cef */
-    --brand-dark: 232 74% 8%; /* #050722 */
-    
-    --background: 36 17% 95%; /* #F2F0EA */
-    --foreground: 240 10% 3.9%;
+    --brand-primary: 228 87% 53%; /* #213cef */
+    --brand-dark: 235 90% 8%; /* #050722 */
 
-    --font-sans: 'sofia-pro', 'Sofia Pro', 'Helvetica Neue', Arial, sans-serif;
-    
+    --background: 36 17% 95%; /* #F2F0EA */
+    --foreground: 235 90% 8%; /* #050722 */
+
+    /* Sofia Pro Font Family (Adobe Typekit) */
+    --font-sofia:
+      'sofia-pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+      sans-serif;
+
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    
+    --card-foreground: 235 90% 8%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    
-    --primary: 232 84% 53%; /* #213cef */
+    --popover-foreground: 235 90% 8%;
+
+    --primary: 228 87% 53%; /* #213cef */
     --primary-foreground: 0 0% 100%;
-    
+
     --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    
+    --secondary-foreground: 235 90% 8%;
+
     --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
-    
+
     --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    
+    --accent-foreground: 235 90% 8%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 232 84% 53%; /* Use primary color for focus */
-    
+    --ring: 228 87% 53%; /* Brand blue for focus */
+
     --radius: 0.75rem;
   }
-  
+
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    
-    --primary: 232 84% 53%;
+    /* PEPTSCI Dark Theme - #050722 base */
+    --background: 235 90% 8%; /* #050722 */
+    --foreground: 0 0% 100%; /* White */
+
+    --card: 235 70% 10%; /* Slightly lighter than bg */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 235 70% 10%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 228 87% 53%; /* #213cef */
     --primary-foreground: 0 0% 100%;
-    
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+
+    --secondary: 235 50% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 235 50% 15%;
+    --muted-foreground: 228 30% 70%;
+
+    --accent: 228 87% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 235 50% 18%;
+    --input: 235 50% 15%;
+    --ring: 228 87% 53%;
   }
 }
- 
+
+/* Global font application */
+html,
+body {
+  font-family: var(--font-sofia);
+}
+
+* {
+  font-family: inherit;
+}
+
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sofia);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Ensure all text elements use Sofia Pro */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label {
+    font-family: var(--font-sofia);
+  }
+}
+
+/* Admin Console Theme Overrides */
+.dark .admin-card {
+  @apply bg-slate-800/50 border-slate-700 backdrop-blur;
+}
+
+.dark .admin-text-primary {
+  @apply text-white;
+}
+
+.dark .admin-text-secondary {
+  @apply text-slate-400;
+}
+
+/* Client Portal Theme */
+.client-portal {
+  --primary: 152 76% 39%; /* Emerald */
+  --primary-foreground: 0 0% 100%;
+}
+
+.client-portal .client-card {
+  @apply bg-white/80 border-emerald-100 shadow-sm backdrop-blur;
+}
+
+/* Typography utilities for Sofia Pro */
+.font-sofia {
+  font-family: var(--font-sofia);
+}
+
+.font-sofia-light {
+  font-family: var(--font-sofia);
+  font-weight: 300;
+}
+
+.font-sofia-regular {
+  font-family: var(--font-sofia);
+  font-weight: 400;
+}
+
+.font-sofia-medium {
+  font-family: var(--font-sofia);
+  font-weight: 500;
+}
+
+.font-sofia-semibold {
+  font-family: var(--font-sofia);
+  font-weight: 600;
+}
+
+.font-sofia-bold {
+  font-family: var(--font-sofia);
+  font-weight: 700;
+}
+
+/* Mobile-first utilities */
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area padding for notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Touch-friendly tap highlight */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: rgba(33, 60, 239, 0.1);
+  }
+}
+
+/* Smooth scrolling for the whole page */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection on interactive elements for better touch UX */
+.touch-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mobile pull-to-refresh style overscroll */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Better input styling on iOS */
+input,
+textarea,
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+
+/* Fix for iOS input zoom */
+@media screen and (max-width: 768px) {
+  input[type='text'],
+  input[type='email'],
+  input[type='tel'],
+  input[type='number'],
+  input[type='search'],
+  input[type='password'],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Smooth transitions for interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
+}
+
+/* Active states for touch devices */
+@media (hover: none) {
+  button:active,
+  a:active,
+  [role='button']:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Bottom sheet animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Card lift effect on tap */
+@keyframes cardTap {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tap-card:active {
+  animation: cardTap 0.15s ease-out;
+}
+
+/* Focus ring for accessibility */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Better contrast for placeholder text */
+::placeholder {
+  opacity: 0.5;
+}
+
+/* Mobile corner radius standardization - 15px on mobile */
+@media screen and (max-width: 768px) {
+  /* Cards and containers */
+  .rounded-2xl,
+  .rounded-3xl,
+  .rounded-xl {
+    border-radius: 15px !important;
+  }
+
+  /* Smaller elements like buttons, inputs, badges */
+  .rounded-lg {
+    border-radius: 12px !important;
+  }
+
+  /* Pills and small badges */
+  .rounded-full {
+    border-radius: 9999px !important; /* Keep pills round */
+  }
+
+  /* Specific component overrides */
+  [class*='Card'],
+  [data-slot='card'],
+  .bg-\[#0a0e3a\],
+  [class*='SheetContent'],
+  [class*='DialogContent'] {
+    border-radius: 15px !important;
+  }
+
+  /* Input fields */
+  input,
+  textarea,
+  select,
+  [class*='SelectTrigger'],
+  [class*='Input'] {
+    border-radius: 12px !important;
+  }
+
+  /* Buttons */
+  button:not(.rounded-full):not([class*='rounded-full']) {
+    border-radius: 12px !important;
+  }
+
+  /* Large action buttons */
+  button.h-12,
+  button.h-14,
+  a.h-12,
+  a.h-14 {
+    border-radius: 15px !important;
+  }
+
+  /* Product images */
+  [class*='aspect-'] {
+    border-radius: 15px 15px 0 0 !important;
+  }
+
+  /* Bottom navigation */
+  .fixed.bottom-0 nav {
+    border-radius: 0 !important;
+  }
+
+  /* Cart item cards */
+  .space-y-3 > div[class*='rounded'],
+  .space-y-4 > div[class*='rounded'] {
+    border-radius: 15px !important;
   }
 }

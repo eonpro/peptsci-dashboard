@@ -24,13 +24,13 @@ export async function GET(request: NextRequest) {
     // Rate limit check
     const rateLimitKey = getRateLimitKey(request, userId)
     const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
-    
+
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
-        { 
+        {
           status: 429,
-          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter)
+          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter),
         }
       )
     }
@@ -44,9 +44,9 @@ export async function GET(request: NextRequest) {
 
     if (!parseResult.success) {
       return NextResponse.json(
-        { 
+        {
           error: 'Bad Request',
-          message: parseResult.error.errors.map(e => e.message).join(', '),
+          message: parseResult.error.errors.map((e) => e.message).join(', '),
           code: 'VALIDATION_ERROR',
         },
         { status: 400 }

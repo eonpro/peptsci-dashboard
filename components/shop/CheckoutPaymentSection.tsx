@@ -44,6 +44,9 @@ interface Props {
   shippingAddress: Record<string, unknown>
   notes?: string
   total: number
+  shipTo: 'PRACTICE' | 'PATIENT'
+  shipSpeed: 'TWO_DAY' | 'OVERNIGHT'
+  patientId?: string | null
   onSuccess: (orderId: string) => void
 }
 
@@ -61,7 +64,16 @@ function formatPrice(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
-export function CheckoutPaymentSection({ items, shippingAddress, notes, total, onSuccess }: Props) {
+export function CheckoutPaymentSection({
+  items,
+  shippingAddress,
+  notes,
+  total,
+  shipTo,
+  shipSpeed,
+  patientId,
+  onSuccess,
+}: Props) {
   const [savedMethods, setSavedMethods] = useState<SavedMethod[]>([])
   const [loadingMethods, setLoadingMethods] = useState(true)
   const [selected, setSelected] = useState<string>('new') // 'new' or a saved method id
@@ -103,7 +115,7 @@ export function CheckoutPaymentSection({ items, shippingAddress, notes, total, o
       const res = await fetch('/api/shop/checkout/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, shippingAddress, notes, saveCard }),
+        body: JSON.stringify({ items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId }),
       })
       const data: ProcessResponse & { message?: string } = await res.json()
       if (!res.ok || !data.clientSecret || !data.publishableKey || !data.orderId) {
@@ -120,7 +132,7 @@ export function CheckoutPaymentSection({ items, shippingAddress, notes, total, o
     } finally {
       setCreatingPi(false)
     }
-  }, [items, shippingAddress, notes, saveCard])
+  }, [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId])
 
   // Create the PaymentIntent when the new-card option becomes active.
   useEffect(() => {
@@ -137,7 +149,15 @@ export function CheckoutPaymentSection({ items, shippingAddress, notes, total, o
       const res = await fetch('/api/shop/checkout/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, shippingAddress, notes, savedPaymentMethodId: selected }),
+        body: JSON.stringify({
+          items,
+          shippingAddress,
+          notes,
+          savedPaymentMethodId: selected,
+          shipTo,
+          shipSpeed,
+          patientId,
+        }),
       })
       const data: ProcessResponse & { message?: string } = await res.json()
 
@@ -166,7 +186,7 @@ export function CheckoutPaymentSection({ items, shippingAddress, notes, total, o
     } finally {
       setPlacing(false)
     }
-  }, [items, shippingAddress, notes, selected, onSuccess])
+  }, [items, shippingAddress, notes, selected, onSuccess, shipTo, shipSpeed, patientId])
 
   const stripePromise = useMemo(
     () => (pi?.publishableKey ? getStripePromise(pi.publishableKey, pi.connectedAccountId) : null),

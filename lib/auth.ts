@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { logger } from './logger'
+import { isAdminRole, isSuperAdminRole, type UserRole } from './access'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -8,6 +9,12 @@ const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsW
 export interface AuthResult {
   userId: string | null
   isAuthenticated: boolean
+}
+
+export interface AdminAuthResult extends AuthResult {
+  role: UserRole | null
+  isAdmin: boolean
+  isSuperAdmin: boolean
 }
 
 /**
@@ -24,7 +31,7 @@ export async function requireAuth(): Promise<AuthResult> {
       isAuthenticated: true,
     }
   }
-  
+
   try {
     const { userId } = await auth()
     return {
@@ -41,11 +48,55 @@ export async function requireAuth(): Promise<AuthResult> {
 }
 
 /**
+ * Resolve the caller's role and admin status from the Clerk session.
+ *
+ * Reads role from `sessionClaims.metadata.role` (requires the Clerk session
+ * token to expose `{"metadata": "{{user.public_metadata}}"}`). When Clerk is
+ * not configured (local dev), treats the caller as SUPER_ADMIN to match the
+ * dev-bypass behavior elsewhere.
+ */
+export async function requireAdmin(): Promise<AdminAuthResult> {
+  if (!isClerkConfigured) {
+    logger.warn('Clerk not configured - admin auth bypassed (dev mode)')
+    return {
+      userId: 'dev-user',
+      isAuthenticated: true,
+      role: 'SUPER_ADMIN',
+      isAdmin: true,
+      isSuperAdmin: true,
+    }
+  }
+
+  try {
+    const { userId, sessionClaims } = await auth()
+    const role =
+      ((sessionClaims?.metadata as { role?: UserRole } | undefined)?.role as UserRole) ?? 'CLIENT'
+    return {
+      userId,
+      isAuthenticated: !!userId,
+      role,
+      isAdmin: isAdminRole(role),
+      isSuperAdmin: isSuperAdminRole(role),
+    }
+  } catch (error) {
+    logger.error('Admin auth error', {}, error instanceof Error ? error : new Error(String(error)))
+    return { userId: null, isAuthenticated: false, role: null, isAdmin: false, isSuperAdmin: false }
+  }
+}
+
+/**
+ * Like requireAdmin but for SUPER_ADMIN-only operations (e.g. role changes).
+ */
+export async function requireSuperAdmin(): Promise<AdminAuthResult> {
+  return requireAdmin()
+}
+
+/**
  * Creates an unauthorized response with a consistent format.
  */
 export function unauthorizedResponse(message = 'Authentication required') {
   return NextResponse.json(
-    { 
+    {
       error: 'Unauthorized',
       message,
       code: 'AUTH_REQUIRED',
@@ -71,17 +122,11 @@ export function forbiddenResponse(message = 'Insufficient permissions') {
 /**
  * Creates a standardized error response.
  */
-export function errorResponse(
-  message: string,
-  status = 500,
-  code = 'INTERNAL_ERROR'
-) {
+export function errorResponse(message: string, status = 500, code = 'INTERNAL_ERROR') {
   return NextResponse.json(
     {
       error: status >= 500 ? 'Internal Server Error' : 'Bad Request',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'An error occurred' 
-        : message,
+      message: process.env.NODE_ENV === 'production' ? 'An error occurred' : message,
       code,
     },
     { status }

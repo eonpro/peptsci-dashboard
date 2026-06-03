@@ -6,15 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 import OrderHistoryList from './OrderHistoryList'
-import { 
-  MapPin, 
-  Mail, 
-  Phone, 
-  DollarSign, 
-  ShoppingCart,
-  Calendar,
-  Package
-} from 'lucide-react'
+import { CustomerPricing } from './CustomerPricing'
+import { MapPin, Mail, Phone, DollarSign, ShoppingCart, Calendar, Package } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{
@@ -26,7 +19,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const resolvedParams = await params
   const sales = await getSales()
   const customer = getCustomerById(sales, decodeURIComponent(resolvedParams.id))
-  
+
   if (!customer) {
     notFound()
   }
@@ -35,7 +28,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const now = toZonedTime(new Date(), 'America/New_York')
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
-  
+
   const mtdSpend = customer.orders.reduce((sum, order) => {
     if (order.Date && isWithinInterval(order.Date, { start: monthStart, end: monthEnd })) {
       return sum + order.PaidAmount
@@ -54,8 +47,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       {/* Customer Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start space-x-4">
-          <CustomerAvatar 
-            name={customer.name} 
+          <CustomerAvatar
+            name={customer.name}
             email={customer.email}
             className="h-16 w-16 text-xl"
           />
@@ -77,7 +70,9 @@ export default async function CustomerDetailPage({ params }: PageProps) {
               {customer.city && customer.state && (
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  <span>{customer.city}, {customer.state}</span>
+                  <span>
+                    {customer.city}, {customer.state}
+                  </span>
                 </div>
               )}
             </div>
@@ -94,9 +89,10 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${customer.lifetimeSpend.toLocaleString('en-US', {
+              $
+              {customer.lifetimeSpend.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
               })}
             </div>
           </CardContent>
@@ -109,9 +105,10 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${mtdSpend.toLocaleString('en-US', {
+              $
+              {mtdSpend.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
               })}
             </div>
           </CardContent>
@@ -134,14 +131,18 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${customer.avgOrderValue.toLocaleString('en-US', {
+              $
+              {customer.avgOrderValue.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
               })}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Custom Pricing */}
+      <CustomerPricing customerId={resolvedParams.id} customerName={customer.name} />
 
       {/* Orders Timeline */}
       <Card className="rounded-2xl">

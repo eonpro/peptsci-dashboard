@@ -15,8 +15,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn('min-h-screen bg-brand-bg antialiased font-sans')}>
-        <Providers>
+      <head>
+        {/* Adobe Fonts - Sofia Pro */}
+        <link rel="stylesheet" href="https://use.typekit.net/rbf3ldc.css" />
+      </head>
+      <body className={cn('min-h-screen bg-brand-bg antialiased font-sofia')}>
+        <Providers publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
           {children}
         </Providers>
       </body>

@@ -22,7 +22,7 @@ export function Logo({ className = '', variant = 'auto', width = 150, height = 5
       }
 
       checkDarkMode()
-      
+
       // Watch for changes
       const observer = new MutationObserver(checkDarkMode)
       observer.observe(document.documentElement, {
@@ -34,7 +34,7 @@ export function Logo({ className = '', variant = 'auto', width = 150, height = 5
     }
   }, [variant])
 
-  const logoSrc = 
+  const logoSrc =
     variant === 'light' || (variant === 'auto' && isDarkMode)
       ? 'https://static.wixstatic.com/media/c49a9b_a7d9e44fe804486b95fd734d0e3bea8e~mv2.png'
       : 'https://static.wixstatic.com/media/c49a9b_dc1a4a002b144f1fbabb0bcc9b1fa5e2~mv2.png'

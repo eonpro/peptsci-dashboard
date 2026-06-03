@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { PriceSheet } from '@/lib/sheets'
 import ExportButton from './ExportButton'
 import PricingTable from './PricingTable'
-import { LayoutGrid, List, RefreshCw } from 'lucide-react'
+import { LayoutGrid, List, RefreshCw, Users } from 'lucide-react'
+import Link from 'next/link'
 
 export default function PricingPage() {
   const [prices, setPrices] = useState<PriceSheet[]>([])
@@ -20,15 +21,31 @@ export default function PricingPage() {
     try {
       // Force cache bypass with timestamp
       const response = await fetch(`/api/prices?t=${Date.now()}`, {
-        cache: 'no-store'
+        cache: 'no-store',
       })
       if (!response.ok) {
         throw new Error('Failed to fetch prices')
       }
       const data = await response.json()
-      setPrices(data)
+      // The API returns { source, prices } where each price uses the
+      // ProductPrice shape (lowercase keys). Normalize to PriceSheet and
+      // tolerate the legacy array/Sheets shape so the page never crashes on
+      // an unexpected payload.
+      const list: unknown = Array.isArray(data) ? data : data?.prices
+      const normalized: PriceSheet[] = (Array.isArray(list) ? list : []).map((p: any) => ({
+        SKU: p.sku ?? p.SKU ?? '',
+        Product: p.productName ?? p.Product ?? '',
+        Dose: p.dose ?? p.Dose ?? '',
+        Cost: Number(p.unitCost ?? p.Cost ?? 0),
+        SRP: Number(p.srp ?? p.SRP ?? 0),
+        Notes:
+          p.Notes ??
+          (typeof p.inventoryOnHand === 'number' && p.inventoryOnHand > 0 ? 'In Stock' : ''),
+      }))
+      setPrices(normalized)
     } catch (error) {
       console.error('Error fetching prices:', error)
+      setPrices([])
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -45,7 +62,7 @@ export default function PricingPage() {
     const interval = setInterval(() => {
       fetchPrices()
     }, 60000) // Refresh every minute
-    
+
     return () => clearInterval(interval)
   }, [])
 
@@ -59,11 +76,14 @@ export default function PricingPage() {
     return (
       <div className="container mx-auto space-y-6 p-6">
         <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded mb-4"></div>
-          <div className="h-4 w-64 bg-gray-200 rounded mb-6"></div>
+          <div className="h-8 w-48 bg-white/10 rounded mb-4"></div>
+          <div className="h-4 w-64 bg-white/10 rounded mb-6"></div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="h-48 bg-gray-200 rounded"></div>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="h-48 bg-[#0a0e3a]/50 border border-white/10 rounded-2xl"
+              ></div>
             ))}
           </div>
         </div>
@@ -72,30 +92,42 @@ export default function PricingPage() {
   }
 
   // Group prices by product for display
-  const groupedPrices = prices.reduce((acc, price) => {
-    const product = price.Product
-    if (!acc[product]) {
-      acc[product] = []
-    }
-    acc[product].push(price)
-    return acc
-  }, {} as Record<string, PriceSheet[]>)
+  const groupedPrices = prices.reduce(
+    (acc, price) => {
+      const product = price.Product
+      if (!acc[product]) {
+        acc[product] = []
+      }
+      acc[product].push(price)
+      return acc
+    },
+    {} as Record<string, PriceSheet[]>
+  )
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Pricing</h2>
-          <p className="text-muted-foreground">
-            Product pricing and margin information
-          </p>
+          <h2 className="text-3xl font-bold tracking-tight text-white">Pricing</h2>
+          <p className="text-white/60">Product pricing and margin information</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link href="/pricing/client-pricing">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Client Pricing
+            </Button>
+          </Link>
           <Button
             onClick={handleRefresh}
             variant="outline"
             size="sm"
             disabled={refreshing}
+            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -125,25 +157,24 @@ export default function PricingPage() {
           {/* Pricing Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Object.entries(groupedPrices).map(([product, variations], index) => {
-              const minPrice = Math.min(...variations.map(v => v.SRP))
-              const maxPrice = Math.max(...variations.map(v => v.SRP))
-              const avgMargin = variations.reduce((acc, v) => {
-                const margin = ((v.SRP - v.Cost) / v.SRP) * 100
-                return acc + margin
-              }, 0) / variations.length
-              
+              const minPrice = Math.min(...variations.map((v) => v.SRP))
+              const maxPrice = Math.max(...variations.map((v) => v.SRP))
+              const avgMargin =
+                variations.reduce((acc, v) => {
+                  const margin = ((v.SRP - v.Cost) / v.SRP) * 100
+                  return acc + margin
+                }, 0) / variations.length
+
               return (
                 <Card key={`${product}-${index}`}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{product}</CardTitle>
-                      {variations.some(v => v.Notes === 'In Stock') && (
+                      {variations.some((v) => v.Notes === 'In Stock') && (
                         <Badge className="bg-green-100 text-green-800">In Stock</Badge>
                       )}
                     </div>
-                    <CardDescription>
-                      {variations.length} variations available
-                    </CardDescription>
+                    <CardDescription>{variations.length} variations available</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -155,10 +186,15 @@ export default function PricingPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Avg Margin:</span>
-                        <span className={`font-medium ${
-                          avgMargin >= 70 ? 'text-green-600' : 
-                          avgMargin >= 50 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
+                        <span
+                          className={`font-medium ${
+                            avgMargin >= 70
+                              ? 'text-green-600'
+                              : avgMargin >= 50
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                          }`}
+                        >
                           {avgMargin.toFixed(1)}%
                         </span>
                       </div>
@@ -166,7 +202,11 @@ export default function PricingPage() {
                         <div className="text-xs text-muted-foreground mb-1">Doses:</div>
                         <div className="flex flex-wrap gap-1">
                           {variations.map((v, idx) => (
-                            <Badge key={`${product}_${v.Dose}_${idx}`} variant="secondary" className="text-xs">
+                            <Badge
+                              key={`${product}_${v.Dose}_${idx}`}
+                              variant="secondary"
+                              className="text-xs"
+                            >
                               {v.Dose}
                             </Badge>
                           ))}
@@ -203,7 +243,7 @@ export default function PricingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {prices.filter(p => p.Notes === 'In Stock').length}
+                  {prices.filter((p) => p.Notes === 'In Stock').length}
                 </div>
               </CardContent>
             </Card>
@@ -218,7 +258,8 @@ export default function PricingPage() {
                       const margin = ((p.SRP - p.Cost) / p.SRP) * 100
                       return acc + margin
                     }, 0) / prices.length
-                  ).toFixed(1)}%
+                  ).toFixed(1)}
+                  %
                 </div>
               </CardContent>
             </Card>

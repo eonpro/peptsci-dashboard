@@ -54,8 +54,8 @@ The admin portal (`/dashboard`, `/customers`, `/profit-loss`, `/inventory`, `/pr
 | P0-1 | Per-request memoization of Sheets reads | ✅ in-process TTL cache + in-flight dedupe in `lib/sheets.ts` (`SHEETS_CACHE_TTL_MS`, default 60s); `getInventory` now fetched 1× per window instead of 3× |
 | P0-2 | Remove dashboard cache-bust + tame polling | ✅ dropped `?t=`/`no-store`; auto-refresh 60s→5min + visibility-gated |
 | P0-3 | TTL cache for search data | ✅ covered by P0-1 (search reuses cached parsed sales/inventory/prices) |
-| P1-4 | Server-render + cache Dashboard/P&L | ⬜ |
-| P1-5 | Cache RDS IAM tokens | ⬜ |
+| P1-4 | Server-render + cache Dashboard/P&L | ✅ both pages now RSC: data fetched server-side (`getSales`/`getInventory`/`getDistributorOrders`) and passed to seeded client components (`DashboardClient`, `ProfitLossClient`) — no first-paint skeleton or client round trip |
+| P1-5 | Cache RDS IAM tokens | ✅ module-scope token cache (~14min TTL) + in-flight dedupe in `lib/db-url.ts`; connections reuse one signed token instead of re-signing per connection |
 | P2-6 | Migrate hot analytics Sheets→Postgres | ⬜ |
 | P2-7 | Code-split chart pages | ⬜ |
 

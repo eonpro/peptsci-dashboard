@@ -223,10 +223,7 @@ export function usePagination<T>(items: T[], initialPageSize = 25) {
     setCurrentPage(1)
   }
 
-  const paginatedItems = items.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  )
+  const paginatedItems = items.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const handlePageChange = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)))

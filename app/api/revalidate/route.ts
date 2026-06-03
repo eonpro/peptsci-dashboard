@@ -16,13 +16,13 @@ export async function POST(request: NextRequest) {
     // Rate limit check (use export limits since revalidation is expensive)
     const rateLimitKey = getRateLimitKey(request, userId)
     const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.export)
-    
+
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
-        { 
+        {
           status: 429,
-          headers: getRateLimitHeaders(remaining, RATE_LIMITS.export, retryAfter)
+          headers: getRateLimitHeaders(remaining, RATE_LIMITS.export, retryAfter),
         }
       )
     }

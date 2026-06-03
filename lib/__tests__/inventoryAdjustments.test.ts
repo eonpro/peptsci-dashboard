@@ -115,4 +115,3 @@ describe('adjustInventoryWithSales', () => {
     assert.equal(item.UnitsSold, 0)
   })
 })
-

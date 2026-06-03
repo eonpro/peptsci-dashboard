@@ -9,16 +9,12 @@ const columns: ColumnDef<PriceSheet>[] = [
   {
     accessorKey: 'SKU',
     header: 'SKU',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">{row.getValue('SKU')}</span>
-    ),
+    cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.getValue('SKU')}</span>,
   },
   {
     accessorKey: 'Product',
     header: 'Product',
-    cell: ({ row }) => (
-      <span className="font-medium">{row.getValue('Product')}</span>
-    ),
+    cell: ({ row }) => <span className="font-medium">{row.getValue('Product')}</span>,
   },
   {
     accessorKey: 'Dose',
@@ -29,9 +25,9 @@ const columns: ColumnDef<PriceSheet>[] = [
     header: 'Cost',
     cell: ({ row }) => {
       const cost = row.getValue('Cost') as number
-      return `$${cost.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${cost.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -41,14 +37,15 @@ const columns: ColumnDef<PriceSheet>[] = [
     cell: ({ row }) => {
       const srp = row.getValue('SRP') as number
       const cost = row.original.Cost
-      const margin = cost > 0 ? ((srp - cost) / cost * 100).toFixed(0) : 0
-      
+      const margin = cost > 0 ? (((srp - cost) / cost) * 100).toFixed(0) : 0
+
       return (
         <div className="flex items-center gap-2">
           <span className="font-semibold text-brand-primary">
-            ${srp.toLocaleString('en-US', { 
-              minimumFractionDigits: 2, 
-              maximumFractionDigits: 2 
+            $
+            {srp.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
             })}
           </span>
           {row.original.Notes === 'In Stock' && (

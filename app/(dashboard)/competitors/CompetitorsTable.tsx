@@ -10,9 +10,7 @@ const columns: ColumnDef<Competitor>[] = [
   {
     accessorKey: 'Competitor',
     header: 'Competitor',
-    cell: ({ row }) => (
-      <span className="font-medium">{row.getValue('Competitor')}</span>
-    ),
+    cell: ({ row }) => <span className="font-medium">{row.getValue('Competitor')}</span>,
   },
   {
     accessorKey: 'Product',
@@ -27,9 +25,9 @@ const columns: ColumnDef<Competitor>[] = [
     header: 'Their Price',
     cell: ({ row }) => {
       const price = row.getValue('TheirPrice') as number
-      return `$${price.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${price.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -40,9 +38,10 @@ const columns: ColumnDef<Competitor>[] = [
       const srp = row.getValue('OurSRP') as number
       return (
         <span className="font-semibold text-brand-primary">
-          ${srp.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+          $
+          {srp.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
           })}
         </span>
       )
@@ -56,15 +55,13 @@ const columns: ColumnDef<Competitor>[] = [
       const ourPrice = row.original.OurSRP
       const theirPrice = row.original.TheirPrice
       const actualDiff = diff !== undefined ? diff : ourPrice - theirPrice
-      const percentDiff = theirPrice > 0 ? (actualDiff / theirPrice * 100) : 0
-      
+      const percentDiff = theirPrice > 0 ? (actualDiff / theirPrice) * 100 : 0
+
       if (actualDiff < 0) {
         return (
           <div className="flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-green-600" />
-            <span className="text-green-600 font-medium">
-              ${Math.abs(actualDiff).toFixed(2)}
-            </span>
+            <span className="text-green-600 font-medium">${Math.abs(actualDiff).toFixed(2)}</span>
             <Badge variant="success" className="text-xs">
               {Math.abs(percentDiff).toFixed(0)}% savings
             </Badge>
@@ -74,9 +71,7 @@ const columns: ColumnDef<Competitor>[] = [
         return (
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-red-600" />
-            <span className="text-red-600 font-medium">
-              +${actualDiff.toFixed(2)}
-            </span>
+            <span className="text-red-600 font-medium">+${actualDiff.toFixed(2)}</span>
             <Badge variant="destructive" className="text-xs">
               {percentDiff.toFixed(0)}% higher
             </Badge>

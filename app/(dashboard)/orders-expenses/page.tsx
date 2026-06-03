@@ -2,22 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
-  TableRow 
+  TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue 
+  SelectValue,
 } from '@/components/ui/select'
 import { Package, DollarSign, TrendingUp, Truck, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
@@ -41,7 +41,6 @@ interface DistributorOrder {
   trackingNumber?: string
 }
 
-
 export default function OrdersExpensesPage() {
   const [orders, setOrders] = useState<DistributorOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +52,7 @@ export default function OrdersExpensesPage() {
     try {
       // Force cache bypass with timestamp
       const response = await fetch(`/api/orders?t=${Date.now()}`, {
-        cache: 'no-store'
+        cache: 'no-store',
       })
       if (!response.ok) {
         throw new Error('Failed to fetch orders')
@@ -81,15 +80,16 @@ export default function OrdersExpensesPage() {
 
   // Calculate totals
   const totalSpent = orders.reduce((sum, order) => sum + order.total, 0)
-  const totalProducts = orders.reduce((sum, order) => 
-    sum + order.products.reduce((pSum, product) => pSum + product.quantity, 0), 0
+  const totalProducts = orders.reduce(
+    (sum, order) => sum + order.products.reduce((pSum, product) => pSum + product.quantity, 0),
+    0
   )
   const totalShipping = orders.reduce((sum, order) => sum + order.shipping, 0)
   const totalPaypalFees = orders.reduce((sum, order) => sum + order.paypalFee, 0)
   const averageOrderValue = orders.length > 0 ? totalSpent / orders.length : 0
 
   // Filter orders
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = orders.filter((order) => {
     if (filter === 'all') return true
     return order.status === filter
   })
@@ -114,7 +114,7 @@ export default function OrdersExpensesPage() {
           <div className="h-8 w-48 bg-gray-200 rounded mb-4"></div>
           <div className="h-4 w-64 bg-gray-200 rounded mb-6"></div>
           <div className="grid gap-4 md:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-32 bg-gray-200 rounded"></div>
             ))}
           </div>
@@ -130,11 +130,7 @@ export default function OrdersExpensesPage() {
           <h1 className="text-3xl font-bold">Orders & Expenses</h1>
           <p className="text-muted-foreground">Track distributor orders and shipping expenses</p>
         </div>
-        <Button 
-          onClick={handleRefresh}
-          variant="outline"
-          disabled={refreshing}
-        >
+        <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </Button>
@@ -203,7 +199,12 @@ export default function OrdersExpensesPage() {
         <Select
           value={filter}
           onValueChange={(value) => {
-            if (value === 'all' || value === 'pending' || value === 'shipped' || value === 'delivered') {
+            if (
+              value === 'all' ||
+              value === 'pending' ||
+              value === 'shipped' ||
+              value === 'delivered'
+            ) {
               setFilter(value)
             }
           }}
@@ -293,7 +294,7 @@ export default function OrdersExpensesPage() {
                     total: 0,
                     products: 0,
                     shipping: 0,
-                    paypalFees: 0
+                    paypalFees: 0,
                   }
                 }
                 acc[monthKey].orders++
@@ -308,7 +309,10 @@ export default function OrdersExpensesPage() {
                 .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
                 .slice(0, 6)
                 .map(([month, data]) => (
-                  <div key={month} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                  <div
+                    key={month}
+                    className="flex justify-between items-center p-4 bg-gray-50 rounded-lg"
+                  >
                     <div>
                       <div className="font-medium">{month}</div>
                       <div className="text-sm text-muted-foreground">
@@ -318,7 +322,8 @@ export default function OrdersExpensesPage() {
                     <div className="text-right">
                       <div className="text-2xl font-bold">${data.total.toFixed(2)}</div>
                       <div className="text-sm text-muted-foreground">
-                        Product: ${data.products.toFixed(0)} | Shipping: ${data.shipping.toFixed(0)} | Fees: ${data.paypalFees.toFixed(0)}
+                        Product: ${data.products.toFixed(0)} | Shipping: ${data.shipping.toFixed(0)}{' '}
+                        | Fees: ${data.paypalFees.toFixed(0)}
                       </div>
                     </div>
                   </div>

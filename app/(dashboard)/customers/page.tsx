@@ -11,9 +11,7 @@ export default async function CustomersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
-          <p className="text-muted-foreground">
-            Manage and view customer information
-          </p>
+          <p className="text-muted-foreground">Manage and view customer information</p>
         </div>
         <div className="flex items-center space-x-2">
           <div className="rounded-lg bg-brand-primary/10 px-3 py-1">

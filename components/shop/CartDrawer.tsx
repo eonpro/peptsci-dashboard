@@ -2,21 +2,16 @@
 
 import { useCart } from './CartContext'
 import { Button } from '@/components/ui/button'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { ShoppingCart, Minus, Plus, Trash2, ArrowRight } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, ArrowRight, X, Package } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
 export function CartDrawer() {
-  const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, clearCart } = useCart()
+  const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, clearCart, totalItems } =
+    useCart()
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -25,59 +20,108 @@ export function CartDrawer() {
     }).format(price)
   }
 
+  // Calculate free shipping threshold
+  const freeShippingThreshold = 500
+  const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal)
+  const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100)
+
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
-      <SheetContent className="flex w-full flex-col sm:max-w-lg">
-        <SheetHeader className="space-y-2.5 pr-6">
-          <SheetTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Shopping Cart
-            {items.length > 0 && (
-              <span className="ml-auto text-sm font-normal text-muted-foreground">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </span>
-            )}
+      {/* Full screen on mobile, side drawer on desktop */}
+      <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg bg-[#050722] border-l border-white/10 text-white data-[state=open]:duration-300">
+        {/* Custom header for better mobile UX */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-[#050722]">
+          <SheetTitle className="flex items-center gap-3 text-white">
+            <div className="relative">
+              <ShoppingCart className="h-6 w-6" />
+              {totalItems > 0 && (
+                <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[#213cef] text-white text-[10px] font-bold">
+                  {totalItems}
+                </span>
+              )}
+            </div>
+            <span className="text-lg font-semibold">Your Cart</span>
           </SheetTitle>
-        </SheetHeader>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={closeCart}
+            className="h-10 w-10 rounded-full text-white/60 hover:text-white hover:bg-white/10"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Free shipping progress - mobile optimized */}
+        {items.length > 0 && (
+          <div className="px-4 py-3 bg-[#0a0e3a] border-b border-white/10">
+            {remainingForFreeShipping > 0 ? (
+              <>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-white/70">
+                    Add {formatPrice(remainingForFreeShipping)} for FREE shipping
+                  </span>
+                  <span className="text-white/50">
+                    {formatPrice(subtotal)} / {formatPrice(freeShippingThreshold)}
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#213cef] to-[#4f6cff] rounded-full transition-all duration-500"
+                    style={{ width: `${freeShippingProgress}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-green-400">
+                <Package className="h-4 w-4" />
+                <span className="text-sm font-medium">🎉 You qualify for FREE shipping!</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {items.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12">
-            <div className="rounded-full bg-gray-100 p-6">
-              <ShoppingCart className="h-12 w-12 text-gray-400" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
+            <div className="rounded-full bg-white/5 p-8">
+              <ShoppingCart className="h-16 w-16 text-white/20" />
             </div>
-            <div className="text-center">
-              <p className="text-lg font-medium text-gray-900">Your cart is empty</p>
-              <p className="mt-1 text-sm text-gray-500">
-                Browse our catalog and add products to get started.
+            <div className="text-center space-y-2">
+              <p className="text-xl font-semibold text-white">Your cart is empty</p>
+              <p className="text-white/60 max-w-[250px]">
+                Discover our premium research peptides and add items to get started.
               </p>
             </div>
-            <Button onClick={closeCart} asChild>
-              <Link href="/shop">
-                Browse Catalog
-              </Link>
+            <Button
+              onClick={closeCart}
+              asChild
+              className="bg-[#213cef] hover:bg-[#1a30c0] text-white h-12 px-8 rounded-xl text-base"
+            >
+              <Link href="/shop">Browse Catalog</Link>
             </Button>
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1 -mx-6 px-6">
-              <div className="space-y-4 py-4">
+            {/* Scrollable items area */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-3">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex gap-4 rounded-xl border bg-white p-4 shadow-sm"
+                    className="flex gap-3 rounded-2xl border border-white/10 bg-[#0a0e3a] p-3"
                   >
-                    {/* Product image placeholder */}
-                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100">
+                    {/* Product image - larger touch target */}
+                    <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#213cef]/20 to-[#213cef]/5">
                       {item.image ? (
                         <Image
                           src={item.image}
                           alt={item.name}
                           fill
-                          className="object-cover"
+                          className="object-contain p-1"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center">
-                          <span className="text-2xl font-bold text-indigo-300">
+                          <span className="text-2xl font-bold text-[#213cef]">
                             {item.name.charAt(0)}
                           </span>
                         </div>
@@ -85,51 +129,51 @@ export function CartDrawer() {
                     </div>
 
                     {/* Product details */}
-                    <div className="flex flex-1 flex-col">
-                      <div className="flex justify-between">
-                        <div>
-                          <h3 className="font-medium text-gray-900 line-clamp-1">
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-white text-base leading-tight line-clamp-2">
                             {item.name}
                           </h3>
-                          <p className="text-sm text-gray-500">{item.dose}</p>
-                          <p className="text-xs text-gray-400">SKU: {item.sku}</p>
+                          <p className="text-sm text-white/60 mt-0.5">{item.dose}</p>
                         </div>
+                        {/* Delete button - larger touch target */}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-gray-400 hover:text-red-500"
+                          className="h-10 w-10 -mt-1 -mr-1 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-xl flex-shrink-0"
                           onClick={() => removeItem(item.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-5 w-5" />
                         </Button>
                       </div>
 
                       <div className="mt-auto flex items-center justify-between pt-2">
-                        {/* Quantity controls */}
-                        <div className="flex items-center gap-2">
+                        {/* Quantity controls - larger for touch */}
+                        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-10 w-10 text-white hover:bg-white/10 rounded-lg"
                             onClick={() => updateQuantity(item.id, item.quantity - 1)}
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-4 w-4" />
                           </Button>
-                          <span className="w-8 text-center font-medium">
+                          <span className="w-10 text-center font-semibold text-white text-lg">
                             {item.quantity}
                           </span>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-10 w-10 text-white hover:bg-white/10 rounded-lg"
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-4 w-4" />
                           </Button>
                         </div>
 
                         {/* Price */}
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-bold text-white text-lg">
                           {formatPrice(item.price * item.quantity)}
                         </p>
                       </div>
@@ -139,61 +183,65 @@ export function CartDrawer() {
               </div>
             </ScrollArea>
 
-            <div className="space-y-4 pt-4">
-              <Separator />
-              
-              {/* Subtotal */}
+            {/* Fixed bottom checkout section - safe area aware */}
+            <div className="border-t border-white/10 bg-[#050722] p-4 pb-6 md:pb-4 space-y-4">
+              {/* Totals */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">{formatPrice(subtotal)}</span>
+                  <span className="text-white/60">Subtotal ({totalItems} items)</span>
+                  <span className="font-medium text-white">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping</span>
-                  <span className="text-gray-500">Calculated at checkout</span>
+                  <span className="text-white/60">Shipping</span>
+                  <span
+                    className={
+                      remainingForFreeShipping === 0
+                        ? 'text-green-400 font-medium'
+                        : 'text-white/50'
+                    }
+                  >
+                    {remainingForFreeShipping === 0 ? 'FREE' : 'Calculated at checkout'}
+                  </span>
                 </div>
               </div>
 
-              <Separator />
+              <Separator className="bg-white/10" />
 
               {/* Total */}
-              <div className="flex justify-between text-lg font-semibold">
+              <div className="flex justify-between text-xl font-bold text-white">
                 <span>Total</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
 
-              {/* Actions */}
-              <SheetFooter className="flex-col gap-2 sm:flex-col">
-                <Button 
-                  className="w-full bg-indigo-600 hover:bg-indigo-700" 
-                  size="lg"
+              {/* Checkout button - large touch target */}
+              <Button
+                className="w-full bg-[#213cef] hover:bg-[#1a30c0] text-white h-14 rounded-2xl text-lg font-semibold shadow-lg shadow-[#213cef]/25"
+                asChild
+              >
+                <Link href="/shop/checkout" onClick={closeCart}>
+                  Checkout
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+
+              {/* Secondary actions */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-12 border-white/20 bg-white/5 text-white hover:bg-white/10 rounded-xl"
+                  onClick={closeCart}
                   asChild
                 >
-                  <Link href="/shop/checkout" onClick={closeCart}>
-                    Proceed to Checkout
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  <Link href="/shop">Continue Shopping</Link>
                 </Button>
-                <div className="flex gap-2 w-full">
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={closeCart}
-                    asChild
-                  >
-                    <Link href="/shop">
-                      Continue Shopping
-                    </Link>
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={clearCart}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </SheetFooter>
+                <Button
+                  variant="ghost"
+                  className="h-12 px-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl"
+                  onClick={clearCart}
+                >
+                  Clear All
+                </Button>
+              </div>
             </div>
           </>
         )}

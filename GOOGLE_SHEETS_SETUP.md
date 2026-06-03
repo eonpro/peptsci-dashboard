@@ -1,6 +1,7 @@
 # Google Sheets Setup Guide for PEPTSCI Dashboard
 
 ## Prerequisites
+
 1. A Google Account
 2. Your PEPTSCI Google Sheets with sales data
 3. Access to Google Cloud Console
@@ -70,6 +71,7 @@ SPREADSHEET_ID="your-spreadsheet-id-here"
 
 1. Stop the development server (Ctrl+C)
 2. Start it again:
+
 ```bash
 npm run dev
 ```
@@ -79,6 +81,7 @@ npm run dev
 Your Google Sheets should have these tabs with the following columns:
 
 ### Sales Tab
+
 - Column A: Date
 - Column B: Customer Name
 - Column C: Email
@@ -97,6 +100,7 @@ Your Google Sheets should have these tabs with the following columns:
 - Column P: Invoice Paid (TRUE/FALSE)
 
 ### Inventory Tab
+
 - Column A: SKU
 - Column B: Medication Name
 - Column C: Dose
@@ -106,6 +110,7 @@ Your Google Sheets should have these tabs with the following columns:
 - Column G: Inventory Available
 
 ### Retail Pricing Tab (Optional)
+
 - Column A: SKU
 - Column B: Product
 - Column C: Dose
@@ -115,25 +120,31 @@ Your Google Sheets should have these tabs with the following columns:
 ## Troubleshooting
 
 ### "Missing Google Sheets environment variables"
+
 - Make sure `.env.local` file exists and has all three required variables
 - Restart the development server after adding the file
 
 ### "Permission denied" or "404 Not Found"
+
 - Verify you shared the Google Sheet with the service account email
 - Check that the SPREADSHEET_ID is correct
 
 ### "Invalid private key"
+
 - Make sure you copied the ENTIRE private key including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`
 - Keep all the `\n` characters in the key
 
 ### Still having issues?
+
 1. Double-check the service account email has access to your sheet
 2. Verify the Spreadsheet ID is correct
 3. Make sure Google Sheets API is enabled in your Google Cloud project
 4. Check the browser console for detailed error messages
 
 ## Need Help?
+
 If you're still having trouble, check that:
+
 - Your Google Sheet is not private/restricted
 - The service account has at least "Viewer" permission
 - All environment variables are properly formatted

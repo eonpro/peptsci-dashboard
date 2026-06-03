@@ -53,7 +53,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
 
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=20`)
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           setError('Please sign in to search')
@@ -98,13 +98,16 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
   }
 
   // Group results by type
-  const groupedResults = results.reduce((acc, result) => {
-    if (!acc[result.type]) {
-      acc[result.type] = []
-    }
-    acc[result.type].push(result)
-    return acc
-  }, {} as Record<string, SearchResult[]>)
+  const groupedResults = results.reduce(
+    (acc, result) => {
+      if (!acc[result.type]) {
+        acc[result.type] = []
+      }
+      acc[result.type].push(result)
+      return acc
+    },
+    {} as Record<string, SearchResult[]>
+  )
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -122,11 +125,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
             </div>
           )}
 
-          {error && (
-            <div className="py-6 text-center text-sm text-red-500">
-              {error}
-            </div>
-          )}
+          {error && <div className="py-6 text-center text-sm text-red-500">{error}</div>}
 
           {!loading && !error && query.length >= 2 && results.length === 0 && (
             <CommandEmpty>No results found for &quot;{query}&quot;</CommandEmpty>
@@ -138,35 +137,39 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
             </div>
           )}
 
-          {!loading && !error && Object.entries(groupedResults).map(([type, items]) => {
-            const Icon = typeIcons[type as keyof typeof typeIcons]
-            const label = typeLabels[type as keyof typeof typeLabels]
+          {!loading &&
+            !error &&
+            Object.entries(groupedResults).map(([type, items]) => {
+              const Icon = typeIcons[type as keyof typeof typeIcons]
+              const label = typeLabels[type as keyof typeof typeLabels]
 
-            return (
-              <CommandGroup key={type} heading={label}>
-                {items.map((result) => (
-                  <CommandItem
-                    key={`${result.type}-${result.id}`}
-                    value={`${result.title} ${result.subtitle}`}
-                    onSelect={() => handleSelect(result)}
-                    className="cursor-pointer"
-                  >
-                    <Icon className={cn(
-                      'mr-2 h-4 w-4',
-                      type === 'customer' && 'text-blue-500',
-                      type === 'order' && 'text-green-500',
-                      type === 'product' && 'text-purple-500',
-                      type === 'inventory' && 'text-orange-500',
-                    )} />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{result.title}</span>
-                      <span className="text-xs text-muted-foreground">{result.subtitle}</span>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )
-          })}
+              return (
+                <CommandGroup key={type} heading={label}>
+                  {items.map((result) => (
+                    <CommandItem
+                      key={`${result.type}-${result.id}`}
+                      value={`${result.title} ${result.subtitle}`}
+                      onSelect={() => handleSelect(result)}
+                      className="cursor-pointer"
+                    >
+                      <Icon
+                        className={cn(
+                          'mr-2 h-4 w-4',
+                          type === 'customer' && 'text-blue-500',
+                          type === 'order' && 'text-green-500',
+                          type === 'product' && 'text-purple-500',
+                          type === 'inventory' && 'text-orange-500'
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{result.title}</span>
+                        <span className="text-xs text-muted-foreground">{result.subtitle}</span>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )
+            })}
         </CommandList>
       </Command>
     </CommandDialog>

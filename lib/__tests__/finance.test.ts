@@ -1,6 +1,10 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateMonthlyProfitLoss, calculateYearToDateProfitLoss, calculateBalanceSheet } from '../finance.ts'
+import {
+  calculateMonthlyProfitLoss,
+  calculateYearToDateProfitLoss,
+  calculateBalanceSheet,
+} from '../finance.ts'
 import type { Sale, Inventory } from '../sheets.ts'
 
 const makeSale = (overrides: Partial<Sale>): Sale => ({
@@ -94,9 +98,7 @@ describe('finance helpers', () => {
       id: 'DO-20250101-001',
       orderDate: new Date('2025-01-02T00:00:00Z'),
       vendor: 'Distributor',
-      products: [
-        { name: 'Semaglutide', dose: '10mg', quantity: 50, unitCost: 40, total: 2000 },
-      ],
+      products: [{ name: 'Semaglutide', dose: '10mg', quantity: 50, unitCost: 40, total: 2000 }],
       subtotal: 2000,
       shipping: 150,
       paypalFee: 60,
@@ -108,9 +110,7 @@ describe('finance helpers', () => {
       id: 'DO-20241215-001',
       orderDate: new Date('2024-12-15T00:00:00Z'),
       vendor: 'Distributor',
-      products: [
-        { name: 'GHK-Cu', dose: '100mg', quantity: 40, unitCost: 35, total: 1400 },
-      ],
+      products: [{ name: 'GHK-Cu', dose: '100mg', quantity: 40, unitCost: 35, total: 1400 }],
       subtotal: 1400,
       shipping: 100,
       paypalFee: 40,
@@ -151,7 +151,10 @@ describe('finance helpers', () => {
   })
 
   test('calculateBalanceSheet summarizes inventory and spend', () => {
-    const summary = calculateBalanceSheet(sampleInventory, sampleOrders, { year: 2025, asOf: new Date('2025-01-31') })
+    const summary = calculateBalanceSheet(sampleInventory, sampleOrders, {
+      year: 2025,
+      asOf: new Date('2025-01-31'),
+    })
     assert.equal(Math.round(summary.inventory.totalInventoryValue), 5300) // (80*40)+(60*35)=5300
     assert.equal(summary.inventory.totalOnHandUnits, 140)
     assert.equal(summary.spendAllTime.totalSpend, 3750) // 2210 + 1540
@@ -159,4 +162,3 @@ describe('finance helpers', () => {
     assert.equal(summary.spendYTD?.orders, 1)
   })
 })
-

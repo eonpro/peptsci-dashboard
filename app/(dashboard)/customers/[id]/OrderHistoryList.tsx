@@ -14,18 +14,18 @@ interface OrderHistoryListProps {
 // Helper function to get tracking info from tracking number
 function getTrackingInfo(trackingNumber: string) {
   const cleanTracking = trackingNumber.trim()
-  
+
   if (!cleanTracking || cleanTracking === 'NA') {
     return null
   }
-  
+
   // Remove any prefix like "FedEx" if present
   const trackingOnly = cleanTracking.replace(/^(fedex|ups|usps|dhl)[:\s]*/i, '').trim()
-  
+
   // Determine carrier based on tracking format
   let carrier = 'FedEx'
   let trackingUrl = `https://www.fedex.com/fedextrack/?trknbr=${trackingOnly}`
-  
+
   if (trackingOnly.match(/^1Z[0-9A-Z]{16}$/i)) {
     carrier = 'UPS'
     trackingUrl = `https://www.ups.com/track?tracknum=${trackingOnly}`
@@ -33,31 +33,32 @@ function getTrackingInfo(trackingNumber: string) {
     carrier = 'USPS'
     trackingUrl = `https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=${trackingOnly}`
   }
-  
+
   return { carrier, trackingUrl, trackingNumber: trackingOnly }
 }
 
 export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
-  
+
   // Group orders by date
   const groupedOrders = new Map<string, Sale[]>()
-  
-  orders.forEach(sale => {
+
+  orders.forEach((sale) => {
     if (!sale.Date) return
     const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
     const dateKey = dateObj.toISOString().split('T')[0]
-    
+
     if (!groupedOrders.has(dateKey)) {
       groupedOrders.set(dateKey, [])
     }
     groupedOrders.get(dateKey)!.push(sale)
   })
-  
+
   // Convert to array and sort by date (newest first)
-  const sortedGroupedOrders = Array.from(groupedOrders.entries())
-    .sort((a, b) => b[0].localeCompare(a[0]))
-  
+  const sortedGroupedOrders = Array.from(groupedOrders.entries()).sort((a, b) =>
+    b[0].localeCompare(a[0])
+  )
+
   const toggleOrder = (orderKey: string) => {
     const newExpanded = new Set(expandedOrders)
     if (newExpanded.has(orderKey)) {
@@ -67,7 +68,7 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
     }
     setExpandedOrders(newExpanded)
   }
-  
+
   return (
     <div className="space-y-4">
       {sortedGroupedOrders.map(([dateKey, dateOrders]) => {
@@ -81,30 +82,28 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
         const avgMarkup = totalCOGS > 0 ? (totalProfit / totalCOGS) * 100 : 0
         const hasMultipleItems = dateOrders.length > 1
         const orderID = firstOrder.OrderID || `Order-${dateKey}`
-        
+
         // Check if all items are fulfilled
-        const allFulfilled = dateOrders.every(sale => sale.TrackingNumber && sale.TrackingNumber !== 'NA')
-        const allPaid = dateOrders.every(sale => sale.InvoicePaid)
-        
+        const allFulfilled = dateOrders.every(
+          (sale) => sale.TrackingNumber && sale.TrackingNumber !== 'NA'
+        )
+        const allPaid = dateOrders.every((sale) => sale.InvoicePaid)
+
         return (
           <div key={orderKey} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
-            <div 
+            <div
               className="flex items-start justify-between cursor-pointer"
               onClick={() => hasMultipleItems && toggleOrder(orderKey)}
             >
               <div className="flex items-start gap-3">
                 {hasMultipleItems && (
-                  <ChevronRight 
-                    className={`h-4 w-4 mt-1 transition-transform ${
-                      isExpanded ? 'rotate-90' : ''
-                    }`}
+                  <ChevronRight
+                    className={`h-4 w-4 mt-1 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                   />
                 )}
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">
-                      {orderID}
-                    </span>
+                    <span className="font-semibold text-sm">{orderID}</span>
                     {orderDate && (
                       <span className="text-xs text-muted-foreground">
                         {format(orderDate, 'MMM dd, yyyy')}
@@ -126,7 +125,7 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
                       </Badge>
                     )}
                   </div>
-                  
+
                   {!hasMultipleItems ? (
                     // Single item - show details inline
                     <div className="text-sm text-muted-foreground">
@@ -137,11 +136,9 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
                     </div>
                   ) : (
                     // Multiple items - show summary
-                    <div className="text-sm text-muted-foreground">
-                      {dateOrders.length} items
-                    </div>
+                    <div className="text-sm text-muted-foreground">{dateOrders.length} items</div>
                   )}
-                  
+
                   {/* Show tracking for single items or when expanded */}
                   {(!hasMultipleItems || isExpanded) && allFulfilled && (
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -149,17 +146,21 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
                         // Get unique tracking numbers
                         const uniqueTrackingNumbers = new Set<string>()
                         const trackingLinks: JSX.Element[] = []
-                        
+
                         dateOrders.forEach((sale) => {
                           const trackingNumber = sale.TrackingNumber?.trim()
-                          if (!trackingNumber || trackingNumber === 'NA' || uniqueTrackingNumbers.has(trackingNumber)) {
+                          if (
+                            !trackingNumber ||
+                            trackingNumber === 'NA' ||
+                            uniqueTrackingNumbers.has(trackingNumber)
+                          ) {
                             return
                           }
-                          
+
                           uniqueTrackingNumbers.add(trackingNumber)
                           const tracking = getTrackingInfo(trackingNumber)
                           if (!tracking) return
-                          
+
                           trackingLinks.push(
                             <a
                               key={trackingNumber}
@@ -173,36 +174,43 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
                             </a>
                           )
                         })
-                        
+
                         return trackingLinks
                       })()}
                     </div>
                   )}
                 </div>
               </div>
-              
+
               <div className="text-right space-y-1">
                 <div className="font-bold">
-                  ${totalAmount.toLocaleString('en-US', {
+                  $
+                  {totalAmount.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    maximumFractionDigits: 2,
                   })}
                 </div>
                 <div className="text-xs text-green-600">
-                  Profit: ${totalProfit.toLocaleString('en-US', {
+                  Profit: $
+                  {totalProfit.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    maximumFractionDigits: 2,
                   })}
                 </div>
-                <div className={`text-xs ${
-                  avgMarkup >= 200 ? 'text-green-600' : 
-                  avgMarkup >= 100 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
+                <div
+                  className={`text-xs ${
+                    avgMarkup >= 200
+                      ? 'text-green-600'
+                      : avgMarkup >= 100
+                        ? 'text-yellow-600'
+                        : 'text-red-600'
+                  }`}
+                >
                   Markup: {avgMarkup.toFixed(1)}%
                 </div>
               </div>
             </div>
-            
+
             {/* Expanded item details */}
             {isExpanded && hasMultipleItems && (
               <div className="mt-4 pl-7 space-y-2 border-t pt-3">
@@ -216,9 +224,10 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
                       </span>
                     </div>
                     <span className="font-medium">
-                      ${sale.PaidAmount.toLocaleString('en-US', {
+                      $
+                      {sale.PaidAmount.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
+                        maximumFractionDigits: 2,
                       })}
                     </span>
                   </div>
@@ -228,11 +237,9 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
           </div>
         )
       })}
-      
+
       {sortedGroupedOrders.length === 0 && (
-        <p className="text-muted-foreground text-center py-8">
-          No orders found for this customer
-        </p>
+        <p className="text-muted-foreground text-center py-8">No orders found for this customer</p>
       )}
     </div>
   )

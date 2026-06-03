@@ -1,10 +1,6 @@
 import type { Inventory, Sale } from './sheets'
 
-const normalize = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[^\w]/g, '')
+const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, '').replace(/[^\w]/g, '')
 
 const baseNormalize = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim()
 
@@ -137,4 +133,3 @@ export const adjustInventoryWithSales = (inventory: Inventory[], sales: Sale[]):
     }
   })
 }
-

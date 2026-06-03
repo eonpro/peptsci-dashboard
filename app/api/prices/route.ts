@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPriceSheet } from '@/lib/sheets'
+import { getPricing, getClientPricing } from '@/lib/pricing'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -16,21 +16,32 @@ export async function GET(request: NextRequest) {
     // Rate limit check
     const rateLimitKey = getRateLimitKey(request, userId)
     const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
-    
+
     if (limited) {
       return NextResponse.json(
-        { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
-        { 
+        {
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMITED',
+        },
+        {
           status: 429,
-          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter)
+          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter),
         }
       )
     }
 
-    // Fetch data
-    const prices = await getPriceSheet()
-    
-    return successResponse(prices)
+    // Check for client-specific pricing
+    const { searchParams } = new URL(request.url)
+    const clientId = searchParams.get('clientId')
+
+    // Fetch pricing (from Postgres if available, otherwise Sheets)
+    const result = clientId ? await getClientPricing(clientId) : await getPricing()
+
+    return successResponse({
+      source: result.source,
+      prices: result.prices,
+    })
   } catch (error) {
     console.error('Error fetching prices:', error)
     return errorResponse('Failed to fetch price sheet')

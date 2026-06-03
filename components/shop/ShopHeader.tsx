@@ -6,17 +6,35 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Package, ClipboardList, User, Menu } from 'lucide-react'
+import { ShoppingCart, Package, ClipboardList, User, Menu, LayoutDashboard } from 'lucide-react'
 import { useCart } from './CartContext'
 import { CartDrawer } from './CartDrawer'
 import { useState } from 'react'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { useRole } from '@/hooks/useRole'
+import { UserButton } from '@clerk/nextjs'
+import { isClerkConfigured } from '@/lib/clerk-config'
+
+// Conditional auth wrapper
+function AuthUserButton() {
+  if (!isClerkConfigured) {
+    return (
+      <Button variant="ghost" size="icon" className="rounded-full">
+        <User className="h-5 w-5" />
+      </Button>
+    )
+  }
+
+  return (
+    <UserButton
+      appearance={{
+        elements: {
+          avatarBox: 'h-9 w-9',
+        },
+      }}
+    />
+  )
+}
 
 const navigation = [
   { name: 'Catalog', href: '/shop', icon: Package },
@@ -28,6 +46,7 @@ export function ShopHeader() {
   const pathname = usePathname()
   const { totalItems, openCart } = useCart()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { isAdmin, isLoading } = useRole()
 
   return (
     <>
@@ -36,12 +55,7 @@ export function ShopHeader() {
           {/* Mobile menu button */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-2 md:hidden"
-                aria-label="Open menu"
-              >
+              <Button variant="ghost" size="icon" className="mr-2 md:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -55,10 +69,11 @@ export function ShopHeader() {
                 <ul className="space-y-1">
                   {navigation.map((item) => {
                     const Icon = item.icon
-                    const isActive = pathname === item.href || 
+                    const isActive =
+                      pathname === item.href ||
                       (item.href === '/shop' && pathname === '/shop') ||
                       (item.href !== '/shop' && pathname.startsWith(item.href))
-                    
+
                     return (
                       <li key={item.href}>
                         <Link
@@ -79,13 +94,17 @@ export function ShopHeader() {
                   })}
                 </ul>
               </nav>
-              <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
-                <Link href="/dashboard">
-                  <Button variant="outline" className="w-full">
-                    Admin Dashboard
-                  </Button>
-                </Link>
-              </div>
+              {/* Admin link - only for admins */}
+              {!isLoading && isAdmin && (
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
+                  <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">
+                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      Admin Dashboard
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </SheetContent>
           </Sheet>
 
@@ -101,10 +120,11 @@ export function ShopHeader() {
           <nav className="hidden md:flex items-center gap-1">
             {navigation.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href || 
+              const isActive =
+                pathname === item.href ||
                 (item.href === '/shop' && pathname === '/shop') ||
                 (item.href !== '/shop' && pathname.startsWith(item.href))
-              
+
               return (
                 <Link
                   key={item.href}
@@ -124,13 +144,16 @@ export function ShopHeader() {
           </nav>
 
           {/* Right side */}
-          <div className="ml-auto flex items-center gap-2">
-            {/* Admin link - desktop only */}
-            <Link href="/dashboard" className="hidden lg:block">
-              <Button variant="ghost" size="sm" className="text-gray-500">
-                Admin
-              </Button>
-            </Link>
+          <div className="ml-auto flex items-center gap-3">
+            {/* Admin link - desktop only, for admins only */}
+            {!isLoading && isAdmin && (
+              <Link href="/dashboard" className="hidden lg:block">
+                <Button variant="ghost" size="sm" className="text-gray-500 gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Admin
+                </Button>
+              </Link>
+            )}
 
             {/* Cart button */}
             <Button
@@ -147,6 +170,9 @@ export function ShopHeader() {
                 </span>
               )}
             </Button>
+
+            {/* User button */}
+            <AuthUserButton />
           </div>
         </div>
       </header>

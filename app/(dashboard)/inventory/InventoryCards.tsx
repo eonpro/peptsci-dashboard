@@ -17,11 +17,11 @@ export default function InventoryCards({ inventory }: InventoryCardsProps) {
         const isLowStock = item.InventoryAvailable <= LOW_STOCK_THRESHOLD
 
         return (
-          <Card 
-            key={`${item.SKU || 'sku'}-${item.MedicationName}-${item.Dose}-${index}`} 
+          <Card
+            key={`${item.SKU || 'sku'}-${item.MedicationName}-${item.Dose}-${index}`}
             className={`p-4 transition-all duration-300 bg-white ${
-              isLowStock 
-                ? 'hover:bg-red-50 hover:shadow-lg hover:border-red-200' 
+              isLowStock
+                ? 'hover:bg-red-50 hover:shadow-lg hover:border-red-200'
                 : 'hover:shadow-lg'
             }`}
           >
@@ -29,11 +29,7 @@ export default function InventoryCards({ inventory }: InventoryCardsProps) {
               {/* Header with SKU and Low Stock tag */}
               <div className="flex justify-between items-start">
                 <span className="text-xs text-gray-500 font-medium">SKU: {item.SKU}</span>
-                {isLowStock && (
-                  <span className="text-xs font-medium text-red-600">
-                    #LOWSTOCK
-                  </span>
-                )}
+                {isLowStock && <span className="text-xs font-medium text-red-600">#LOWSTOCK</span>}
               </div>
 
               {/* Product Name */}
@@ -69,9 +65,10 @@ export default function InventoryCards({ inventory }: InventoryCardsProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600 font-medium">VALUE:</span>
                   <span className="text-lg font-medium text-blue-600">
-                    ${opportunityValue.toLocaleString('en-US', {
+                    $
+                    {opportunityValue.toLocaleString('en-US', {
                       minimumFractionDigits: 0,
-                      maximumFractionDigits: 0
+                      maximumFractionDigits: 0,
                     })}
                   </span>
                 </div>

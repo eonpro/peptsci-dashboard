@@ -27,16 +27,18 @@ const columns: ColumnDef<CustomerMetrics>[] = [
     cell: ({ row }) => {
       const customer = row.original
       const id = customer.email || `${customer.phone}_${customer.name}`.replace(/[^a-z0-9_]/gi, '-')
-      
+
       return (
-        <Link 
+        <Link
           href={`/customers/${encodeURIComponent(id)}`}
           className="flex items-center space-x-3 hover:text-brand-primary transition-colors"
         >
           <CustomerAvatar name={customer.name} email={customer.email} />
           <div>
             <p className="font-medium">{customer.name}</p>
-            <p className="text-sm text-muted-foreground">{customer.city}, {customer.state}</p>
+            <p className="text-sm text-muted-foreground">
+              {customer.city}, {customer.state}
+            </p>
           </div>
         </Link>
       )
@@ -49,7 +51,10 @@ const columns: ColumnDef<CustomerMetrics>[] = [
       const email = row.getValue('email') as string
       if (!email) return <span className="text-gray-400">-</span>
       return (
-        <a href={`mailto:${email}`} className="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors text-sm font-medium">
+        <a
+          href={`mailto:${email}`}
+          className="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors text-sm font-medium"
+        >
           {email}
         </a>
       )
@@ -62,7 +67,10 @@ const columns: ColumnDef<CustomerMetrics>[] = [
       const phone = row.getValue('phone') as string
       if (!phone) return <span className="text-gray-400">-</span>
       return (
-        <a href={`tel:${phone}`} className="text-gray-700 hover:text-indigo-600 transition-colors text-sm font-medium">
+        <a
+          href={`tel:${phone}`}
+          className="text-gray-700 hover:text-indigo-600 transition-colors text-sm font-medium"
+        >
           {phone}
         </a>
       )
@@ -73,9 +81,9 @@ const columns: ColumnDef<CustomerMetrics>[] = [
     header: 'Lifetime Spend',
     cell: ({ row }) => {
       const amount = row.getValue('lifetimeSpend') as number
-      return `$${amount.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${amount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -88,9 +96,9 @@ const columns: ColumnDef<CustomerMetrics>[] = [
     header: 'Avg Order',
     cell: ({ row }) => {
       const amount = row.getValue('avgOrderValue') as number
-      return `$${amount.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+      return `$${amount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })}`
     },
   },
@@ -107,7 +115,7 @@ const columns: ColumnDef<CustomerMetrics>[] = [
     cell: ({ row }) => {
       const customer = row.original
       const id = customer.email || `${customer.phone}_${customer.name}`.replace(/[^a-z0-9_]/gi, '-')
-      
+
       return (
         <Link href={`/customers/${encodeURIComponent(id)}`}>
           <Button variant="ghost" size="sm">

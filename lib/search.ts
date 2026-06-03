@@ -31,10 +31,10 @@ export function searchSales(sales: Sale[], query: string, limit = 10): SearchRes
   const results: SearchResult[] = []
   const seenCustomers = new Set<string>()
   const seenOrders = new Set<string>()
-  
+
   for (const sale of sales) {
     if (results.length >= limit * 2) break // Get enough for both types
-    
+
     // Search customers
     const customerKey = sale.CustomerEmail?.toLowerCase() || sale.CustomerName?.toLowerCase()
     if (customerKey && !seenCustomers.has(customerKey)) {
@@ -57,7 +57,7 @@ export function searchSales(sales: Sale[], query: string, limit = 10): SearchRes
         })
       }
     }
-    
+
     // Search orders
     if (sale.OrderID && !seenOrders.has(sale.OrderID)) {
       if (
@@ -80,14 +80,14 @@ export function searchSales(sales: Sale[], query: string, limit = 10): SearchRes
       }
     }
   }
-  
+
   // Sort: customers first, then orders
   results.sort((a, b) => {
     if (a.type === 'customer' && b.type !== 'customer') return -1
     if (a.type !== 'customer' && b.type === 'customer') return 1
     return 0
   })
-  
+
   return results.slice(0, limit)
 }
 
@@ -96,10 +96,10 @@ export function searchSales(sales: Sale[], query: string, limit = 10): SearchRes
  */
 export function searchInventory(inventory: Inventory[], query: string, limit = 10): SearchResult[] {
   const results: SearchResult[] = []
-  
+
   for (const item of inventory) {
     if (results.length >= limit) break
-    
+
     if (
       matches(item.MedicationName, query) ||
       matches(item.SKU, query) ||
@@ -119,7 +119,7 @@ export function searchInventory(inventory: Inventory[], query: string, limit = 1
       })
     }
   }
-  
+
   return results
 }
 
@@ -128,15 +128,11 @@ export function searchInventory(inventory: Inventory[], query: string, limit = 1
  */
 export function searchPrices(prices: PriceSheet[], query: string, limit = 10): SearchResult[] {
   const results: SearchResult[] = []
-  
+
   for (const item of prices) {
     if (results.length >= limit) break
-    
-    if (
-      matches(item.Product, query) ||
-      matches(item.SKU, query) ||
-      matches(item.Dose, query)
-    ) {
+
+    if (matches(item.Product, query) || matches(item.SKU, query) || matches(item.Dose, query)) {
       results.push({
         type: 'product',
         id: item.SKU || item.Product,
@@ -151,7 +147,7 @@ export function searchPrices(prices: PriceSheet[], query: string, limit = 10): S
       })
     }
   }
-  
+
   return results
 }
 
@@ -168,21 +164,21 @@ export function globalSearch(
   limit = 20
 ): SearchResult[] {
   if (!query || query.length < 2) return []
-  
+
   const results: SearchResult[] = []
   const perTypeLimit = Math.ceil(limit / 3)
-  
+
   if (data.sales) {
     results.push(...searchSales(data.sales, query, perTypeLimit))
   }
-  
+
   if (data.inventory) {
     results.push(...searchInventory(data.inventory, query, perTypeLimit))
   }
-  
+
   if (data.prices) {
     results.push(...searchPrices(data.prices, query, perTypeLimit))
   }
-  
+
   return results.slice(0, limit)
 }

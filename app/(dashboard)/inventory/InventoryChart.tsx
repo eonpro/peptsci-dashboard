@@ -38,7 +38,8 @@ const CustomTooltip = ({ active, payload, label }: InventoryTooltipProps) => {
         </p>
         {firstPayload.payload && typeof firstPayload.payload.srp === 'number' && (
           <p className="text-sm text-gray-600">
-            Value: ${(firstPayload.value * firstPayload.payload.srp).toLocaleString('en-US', {
+            Value: $
+            {(firstPayload.value * firstPayload.payload.srp).toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -62,14 +63,8 @@ export default function InventoryChart({ data }: InventoryChartProps) {
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis 
-          dataKey="name" 
-          tick={{ fontSize: 11 }}
-          angle={-45}
-          textAnchor="end"
-          height={100}
-        />
-        <YAxis 
+        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={100} />
+        <YAxis
           tick={{ fontSize: 12 }}
           label={{ value: 'Units', angle: -90, position: 'insideLeft' }}
         />

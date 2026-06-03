@@ -19,6 +19,8 @@ import {
   type CartLineInput,
   type CartTotals,
   type ResolvedLine,
+  type ShipSpeed,
+  type ShipTo,
 } from '@/lib/checkout-core'
 
 export interface ResolvedCart {
@@ -35,6 +37,7 @@ export interface ResolvedCart {
 export async function resolveCart(params: {
   clientId: string | null | undefined
   items: unknown
+  speed?: ShipSpeed
 }): Promise<ResolvedCart> {
   if (!prisma) throw new Error('Database not connected')
 
@@ -87,7 +90,7 @@ export async function resolveCart(params: {
     }
   })
 
-  return { lines, totals: computeCartTotals(lines) }
+  return { lines, totals: computeCartTotals(lines, params.speed ?? 'TWO_DAY') }
 }
 
 /**
@@ -100,6 +103,9 @@ export async function createDraftOrder(params: {
   cart: ResolvedCart
   shippingAddress?: Prisma.InputJsonValue
   notes?: string
+  shipTo?: ShipTo
+  shipSpeed?: ShipSpeed
+  patientId?: string | null
 }) {
   if (!prisma) throw new Error('Database not connected')
 
@@ -118,6 +124,9 @@ export async function createDraftOrder(params: {
       currency: 'USD',
       notes: params.notes,
       shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
+      shipTo: params.shipTo ?? 'PRACTICE',
+      shipSpeed: params.shipSpeed ?? 'TWO_DAY',
+      patientId: params.patientId ?? null,
       createdById: params.createdById,
       items: {
         create: cart.lines.map((l) => ({

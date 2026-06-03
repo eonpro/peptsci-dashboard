@@ -11,9 +11,24 @@
 
 export const MAX_LINE_QUANTITY = 999
 
-// No sales tax. Shipping is free over the threshold, otherwise a flat rate.
+// No sales tax. Shipping is tiered by speed and order size.
 export const FREE_SHIPPING_THRESHOLD = 500
-export const FLAT_SHIPPING_RATE = 25
+
+/** Shipping speed offered at checkout. */
+export type ShipSpeed = 'TWO_DAY' | 'OVERNIGHT'
+
+/** Where the order ships. */
+export type ShipTo = 'PRACTICE' | 'PATIENT'
+
+/**
+ * Shipping price matrix (server-authoritative):
+ *   subtotal < $500  → 2-Day $15, Overnight $25
+ *   subtotal >= $500 → 2-Day FREE, Overnight $20
+ */
+export const SHIPPING_RATES: Record<'STANDARD' | 'QUALIFIED', Record<ShipSpeed, number>> = {
+  STANDARD: { TWO_DAY: 15, OVERNIGHT: 25 },
+  QUALIFIED: { TWO_DAY: 0, OVERNIGHT: 20 },
+}
 
 export interface CartLineInput {
   sku: string
@@ -96,17 +111,32 @@ export function validateCartInput(items: unknown): CartLineInput[] {
   })
 }
 
-/** Shipping: free at/above threshold, flat rate below, zero for an empty cart. */
-export function computeShipping(subtotal: number): number {
-  if (subtotal <= 0) return 0
-  return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING_RATE
+/** Does this subtotal qualify for the discounted (free 2-day) shipping tier? */
+export function qualifiesForFreeShipping(subtotal: number): boolean {
+  return subtotal >= FREE_SHIPPING_THRESHOLD
 }
 
-/** Compute order totals from server-resolved lines. Tax is always 0. */
-export function computeCartTotals(lines: Pick<ResolvedLine, 'lineTotal'>[]): CartTotals {
+/**
+ * Shipping cost for the chosen speed, tiered by order subtotal.
+ * Empty/zero carts ship for free.
+ */
+export function computeShipping(subtotal: number, speed: ShipSpeed = 'TWO_DAY'): number {
+  if (subtotal <= 0) return 0
+  const tier = qualifiesForFreeShipping(subtotal) ? 'QUALIFIED' : 'STANDARD'
+  return SHIPPING_RATES[tier][speed]
+}
+
+/**
+ * Compute order totals from server-resolved lines. Tax is always 0.
+ * Shipping depends on the chosen speed (defaults to 2-day).
+ */
+export function computeCartTotals(
+  lines: Pick<ResolvedLine, 'lineTotal'>[],
+  speed: ShipSpeed = 'TWO_DAY'
+): CartTotals {
   const subtotal = round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
   const taxTotal = 0
-  const shippingTotal = computeShipping(subtotal)
+  const shippingTotal = computeShipping(subtotal, speed)
   const total = round2(subtotal + taxTotal + shippingTotal)
   return { subtotal, taxTotal, shippingTotal, total }
 }

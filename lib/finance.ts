@@ -122,9 +122,7 @@ const aggregateSales = (sales: Sale[]): ProfitLossTotals => {
   const netProfit = grossProfit - expenses.total
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
 
-  const productBreakdown = Array.from(productMap.values()).sort(
-    (a, b) => b.revenue - a.revenue
-  )
+  const productBreakdown = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue)
 
   return {
     revenue,
@@ -163,8 +161,17 @@ export const calculateMonthlyProfitLoss = (sales: Sale[]): MonthlyProfitLoss[] =
   const summaries: MonthlyProfitLoss[] = Array.from(monthBuckets.entries()).map(
     ([monthKey, monthSales]) => {
       const anyDate = monthSales[0].Date!
-      const { revenue, cogs, grossProfit, grossMargin, expenses, netProfit, netMargin, orderCount, productBreakdown } =
-        aggregateSales(monthSales)
+      const {
+        revenue,
+        cogs,
+        grossProfit,
+        grossMargin,
+        expenses,
+        netProfit,
+        netMargin,
+        orderCount,
+        productBreakdown,
+      } = aggregateSales(monthSales)
       const month = anyDate.getMonth() + 1
       const year = anyDate.getFullYear()
       return {
@@ -341,4 +348,3 @@ export const calculateBalanceSheet = (
     outstandingOrdersValue,
   }
 }
-

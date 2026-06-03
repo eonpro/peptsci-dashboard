@@ -44,21 +44,33 @@ export default function POGeneratorPage() {
   const [loading, setLoading] = useState(true)
   const [poNumber, setPONumber] = useState('')
   const [vendor, setVendor] = useState('')
-  
+
   // Generate PO number on mount
   useEffect(() => {
     const date = new Date()
-    const poNum = `PO-${format(date, 'yyyyMMdd')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+    const poNum = `PO-${format(date, 'yyyyMMdd')}-${Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0')}`
     setPONumber(poNum)
   }, [])
-  
+
   // Fetch products on mount
   useEffect(() => {
     async function fetchProducts() {
       try {
         const response = await fetch('/api/prices')
         const data = await response.json()
-        setProducts(data)
+        // API returns { source, prices } from Postgres or flat array from Sheets
+        const rawPrices = Array.isArray(data) ? data : data.prices ?? data
+        // Normalise to PriceSheet shape regardless of source
+        const normalised = (rawPrices as Record<string, unknown>[]).map((p) => ({
+          SKU: (p.sku ?? p.SKU ?? '') as string,
+          Product: (p.productName ?? p.Product ?? '') as string,
+          Dose: (p.dose ?? p.Dose ?? '') as string,
+          Cost: Number(p.unitCost ?? p.Cost ?? 0),
+          SRP: Number(p.srp ?? p.SRP ?? 0),
+        }))
+        setProducts(normalised as unknown as PriceSheet[])
       } catch (error) {
         console.error('Error fetching products:', error)
       } finally {
@@ -67,7 +79,7 @@ export default function POGeneratorPage() {
     }
     fetchProducts()
   }, [])
-  
+
   const addItem = () => {
     const newItem: POItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -76,68 +88,70 @@ export default function POGeneratorPage() {
       dose: '',
       cost: 0,
       quantity: 1,
-      total: 0
+      total: 0,
     }
-    setPOItems(prevItems => [...prevItems, newItem])
+    setPOItems((prevItems) => [...prevItems, newItem])
   }
-  
+
   const removeItem = (id: string) => {
-    setPOItems(prevItems => prevItems.filter(item => item.id !== id))
+    setPOItems((prevItems) => prevItems.filter((item) => item.id !== id))
   }
-  
-const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[K]) => {
-  setPOItems((prevItems) =>
-    prevItems.map((item) => {
-      if (item.id !== id) {
-        return item
-      }
 
-      const updated: POItem = { ...item, [field]: value }
-
-      if (field === 'product' && typeof value === 'string' && value) {
-        const product = products.find((p) => `${p.Product} ${p.Dose}` === value)
-        if (product) {
-          updated.product = value
-          updated.sku = product.SKU
-          updated.dose = product.Dose
-          updated.cost = product.Cost
-          updated.total = product.Cost * updated.quantity
+  const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[K]) => {
+    setPOItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item.id !== id) {
+          return item
         }
-      }
 
-      if (field === 'quantity') {
-        const quantity = typeof value === 'number' ? value : Number(value) || 0
-        updated.quantity = quantity
-        updated.total = updated.cost * quantity
-      }
+        const updated: POItem = { ...item, [field]: value }
 
-      return updated
-    })
-  )
+        if (field === 'product' && typeof value === 'string' && value) {
+          const product = products.find((p) => `${p.Product} ${p.Dose}` === value)
+          if (product) {
+            updated.product = value
+            updated.sku = product.SKU
+            updated.dose = product.Dose
+            updated.cost = product.Cost
+            updated.total = product.Cost * updated.quantity
+          }
+        }
+
+        if (field === 'quantity') {
+          const quantity = typeof value === 'number' ? value : Number(value) || 0
+          updated.quantity = quantity
+          updated.total = updated.cost * quantity
+        }
+
+        return updated
+      })
+    )
   }
-  
+
   const getTotalCost = () => {
     return poItems.reduce((sum, item) => sum + (item.total || 0), 0)
   }
-  
+
   const exportPDF = async () => {
-    if (poItems.length === 0 || poItems.every(item => !item.product)) {
+    if (poItems.length === 0 || poItems.every((item) => !item.product)) {
       alert('Please add at least one item to the purchase order')
       return
     }
-    
+
     const doc = new jsPDF()
-    
+
     // Set font to Helvetica (closest to Poppins available in jsPDF)
     doc.setFont('helvetica')
-    
+
     // Add the PEPTSCI logo
     try {
       // Use the Next.js Image API to get the logo
-      const response = await fetch('/_next/image?url=https%3A%2F%2Fstatic.wixstatic.com%2Fmedia%2Fc49a9b_dc1a4a002b144f1fbabb0bcc9b1fa5e2~mv2.png&w=256&q=75')
+      const response = await fetch(
+        '/_next/image?url=https%3A%2F%2Fstatic.wixstatic.com%2Fmedia%2Fc49a9b_dc1a4a002b144f1fbabb0bcc9b1fa5e2~mv2.png&w=256&q=75'
+      )
       const blob = await response.blob()
       const reader = new FileReader()
-      
+
       await new Promise<void>((resolve) => {
         reader.onloadend = () => {
           const base64data = reader.result as string
@@ -171,90 +185,87 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
       doc.setTextColor(33, 60, 239)
       doc.text('PEPTSCI', 15, 20)
     }
-    
+
     // Style text to look like Poppins
     doc.setFontSize(16)
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'bold')
     doc.text('PURCHASE ORDER', 105, 40, { align: 'center' })
-    
+
     // Add a line separator
     doc.setDrawColor(200, 200, 200)
     doc.setLineWidth(0.5)
     doc.line(15, 45, 195, 45)
-    
+
     // Add PO details with Poppins-like styling
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('PO Number:', 15, 55)
     doc.text('Date:', 15, 62)
     doc.text('Vendor:', 15, 69)
-    
+
     doc.setFont('helvetica', 'normal')
     doc.text(poNumber, 50, 55)
     doc.text(format(new Date(), 'MMMM dd, yyyy'), 50, 62)
     doc.text(vendor || 'TBD', 50, 69)
-    
+
     // Filter out empty items
-    const validItems = poItems.filter(item => item.product && item.quantity > 0)
-    
+    const validItems = poItems.filter((item) => item.product && item.quantity > 0)
+
     if (validItems.length === 0) {
       alert('Please add valid items with products and quantities')
       return
     }
-    
+
     // Prepare table data
-    const tableData = validItems.map(item => [
+    const tableData = validItems.map((item) => [
       item.sku || '-',
       item.product || '-',
       item.quantity.toString(),
       `$${(item.cost || 0).toFixed(2)}`,
-      `$${(item.total || 0).toFixed(2)}`
+      `$${(item.total || 0).toFixed(2)}`,
     ])
-    
+
     // Add table using autoTable plugin
     try {
       // Apply autoTable to the doc instance
       autoTable(doc, {
-      head: [['SKU', 'Product', 'Quantity', 'Unit Cost', 'Total']],
-      body: tableData,
-      startY: 80,
-      theme: 'grid',
-      styles: { 
-        fontSize: 9,
-        cellPadding: 4,
-        lineColor: [200, 200, 200],
-        lineWidth: 0.1,
-        font: 'helvetica',
-        cellWidth: 'auto',
-        halign: 'left'
-      },
-      headStyles: { 
-        fillColor: [33, 60, 239],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 10,
-        cellPadding: 5,
-        halign: 'center'
-      },
-      alternateRowStyles: {
-        fillColor: [248, 248, 248]
-      },
-      columnStyles: {
-        2: { halign: 'center' }, // Center quantity column
-        3: { halign: 'right' },  // Right align unit cost
-        4: { halign: 'right' }   // Right align total
-      },
-      foot: [[
-        '', '', '', 'Total:',
-        `$${getTotalCost().toFixed(2)}`
-      ]],
-      footStyles: {
-        fillColor: [240, 240, 240],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        fontSize: 10
-      }
+        head: [['SKU', 'Product', 'Quantity', 'Unit Cost', 'Total']],
+        body: tableData,
+        startY: 80,
+        theme: 'grid',
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1,
+          font: 'helvetica',
+          cellWidth: 'auto',
+          halign: 'left',
+        },
+        headStyles: {
+          fillColor: [33, 60, 239],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 10,
+          cellPadding: 5,
+          halign: 'center',
+        },
+        alternateRowStyles: {
+          fillColor: [248, 248, 248],
+        },
+        columnStyles: {
+          2: { halign: 'center' }, // Center quantity column
+          3: { halign: 'right' }, // Right align unit cost
+          4: { halign: 'right' }, // Right align total
+        },
+        foot: [['', '', '', 'Total:', `$${getTotalCost().toFixed(2)}`]],
+        footStyles: {
+          fillColor: [240, 240, 240],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          fontSize: 10,
+        },
       })
     } catch (error) {
       console.error('AutoTable not available, using fallback:', error)
@@ -266,19 +277,19 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
       doc.text('SKU | Product | Qty | Unit Cost | Total', 15, yPos)
       doc.setFont('helvetica', 'normal')
       yPos += 10
-      
-      validItems.forEach(item => {
+
+      validItems.forEach((item) => {
         const line = `${item.sku || '-'} | ${item.product || '-'} | ${item.quantity} | $${(item.cost || 0).toFixed(2)} | $${(item.total || 0).toFixed(2)}`
         doc.text(line, 15, yPos)
         yPos += 7
       })
-      
+
       yPos += 10
       doc.setFont('helvetica', 'bold')
       doc.text(`Total: $${getTotalCost().toFixed(2)}`, 15, yPos)
       doc.setFont('helvetica', 'normal')
     }
-    
+
     // Add footer with Poppins-like styling
     type AutoTableDoc = jsPDF & { lastAutoTable?: { finalY: number } }
     const autoTableDoc = doc as AutoTableDoc
@@ -289,7 +300,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
     doc.text('Please remit payment to: PEPTSCI LLC', 15, finalY + 15)
     doc.setTextColor(100, 100, 100)
     doc.text('Thank you for your business!', 15, finalY + 22)
-    
+
     // Add page number
     const pageCount = doc.internal.getNumberOfPages()
     doc.setFontSize(8)
@@ -297,7 +308,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
       doc.setPage(i)
       doc.text(`Page ${i} of ${pageCount}`, 195, 285, { align: 'right' })
     }
-    
+
     try {
       // Save the PDF
       doc.save(`${poNumber}.pdf`)
@@ -306,7 +317,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
       alert('Error generating PDF. Please try again.')
     }
   }
-  
+
   if (loading) {
     return (
       <div className="container mx-auto space-y-6 p-6">
@@ -317,7 +328,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
       </div>
     )
   }
-  
+
   return (
     <div className="container mx-auto space-y-6 p-6">
       {/* Header */}
@@ -328,8 +339,8 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
             Create purchase orders for inventory replenishment
           </p>
         </div>
-        <Button 
-          onClick={exportPDF} 
+        <Button
+          onClick={exportPDF}
           disabled={poItems.length === 0}
           className="bg-brand-primary hover:bg-brand-primary/90"
         >
@@ -337,7 +348,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
           Export PDF
         </Button>
       </div>
-      
+
       {/* PO Details */}
       <Card>
         <CardHeader>
@@ -347,16 +358,16 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium">PO Number</label>
-              <Input 
-                value={poNumber} 
+              <Input
+                value={poNumber}
                 onChange={(e) => setPONumber(e.target.value)}
                 className="mt-1"
               />
             </div>
             <div>
               <label className="text-sm font-medium">Date</label>
-              <Input 
-                value={format(new Date(), 'yyyy-MM-dd')} 
+              <Input
+                value={format(new Date(), 'yyyy-MM-dd')}
                 type="date"
                 className="mt-1"
                 disabled
@@ -364,7 +375,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
             </div>
             <div>
               <label className="text-sm font-medium">Vendor</label>
-              <Input 
+              <Input
                 value={vendor}
                 onChange={(e) => setVendor(e.target.value)}
                 placeholder="Enter vendor name"
@@ -374,7 +385,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Items */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -400,7 +411,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
                   <div className="col-span-1">Total</div>
                   <div className="col-span-1"></div>
                 </div>
-                
+
                 {poItems.map((item) => (
                   <div key={item.id} className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-4">
@@ -413,7 +424,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
                         </SelectTrigger>
                         <SelectContent>
                           {products.map((product) => (
-                            <SelectItem 
+                            <SelectItem
                               key={`${product.SKU}_${product.Product}_${product.Dose}`}
                               value={`${product.Product} ${product.Dose}`}
                             >
@@ -423,13 +434,13 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div className="col-span-2">
                       <Input value={item.sku} disabled />
                     </div>
-                    
+
                     <div className="col-span-2">
-                      <Input 
+                      <Input
                         type="text"
                         pattern="[0-9]*"
                         inputMode="numeric"
@@ -448,20 +459,15 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
                         }}
                       />
                     </div>
-                    
+
                     <div className="col-span-2">
-                      <Input 
-                        value={`$${item.cost.toFixed(2)}`} 
-                        disabled 
-                      />
+                      <Input value={`$${item.cost.toFixed(2)}`} disabled />
                     </div>
-                    
+
                     <div className="col-span-1">
-                      <span className="font-semibold">
-                        ${(item.total || 0).toFixed(2)}
-                      </span>
+                      <span className="font-semibold">${(item.total || 0).toFixed(2)}</span>
                     </div>
-                    
+
                     <div className="col-span-1 flex justify-center">
                       <button
                         type="button"
@@ -474,7 +480,7 @@ const updateItem = <K extends keyof POItem>(id: string, field: K, value: POItem[
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Total */}
                 <div className="pt-4 border-t">
                   <div className="flex justify-end items-center gap-4">

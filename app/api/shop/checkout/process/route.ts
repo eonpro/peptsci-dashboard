@@ -46,6 +46,9 @@ const bodySchema = z.object({
   notes: z.string().max(500).optional(),
   saveCard: z.boolean().optional(),
   savedPaymentMethodId: z.string().optional(),
+  shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
+  shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+  patientId: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -85,9 +88,34 @@ export async function POST(request: NextRequest) {
       )
     }
     const { items, shippingAddress, notes, saveCard, savedPaymentMethodId } = parsed.data
+    const shipTo = parsed.data.shipTo ?? 'PRACTICE'
+    const shipSpeed = parsed.data.shipSpeed ?? 'TWO_DAY'
 
-    // Server-authoritative pricing — client-sent amounts are ignored.
-    const cart = await resolveCart({ clientId: actor.clientId, items })
+    // Server-authoritative pricing + shipping — client-sent amounts are ignored.
+    const cart = await resolveCart({ clientId: actor.clientId, items, speed: shipSpeed })
+
+    // Resolve the ship-to address server-side. For "ship to patient" the saved
+    // patient record (owned by this client) is authoritative.
+    let resolvedShippingAddress: Prisma.InputJsonValue | undefined =
+      shippingAddress as Prisma.InputJsonValue | undefined
+    let patientId: string | null = null
+    if (shipTo === 'PATIENT') {
+      if (!parsed.data.patientId) {
+        return errorResponse('Select a patient to ship to', 400, 'PATIENT_REQUIRED')
+      }
+      const patient = await prisma.patient.findFirst({
+        where: { id: parsed.data.patientId, clientId: actor.clientId, isActive: true },
+      })
+      if (!patient) return errorResponse('Patient not found', 404, 'PATIENT_NOT_FOUND')
+      patientId = patient.id
+      const addr = patient.address as Record<string, unknown> | null
+      resolvedShippingAddress = {
+        ...(addr ?? {}),
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        phone: patient.phone ?? undefined,
+      } as Prisma.InputJsonValue
+    }
 
     const stripe = requireStripeClient()
     const customer = await getOrCreateStripeCustomer(actor.clientId)
@@ -96,8 +124,11 @@ export async function POST(request: NextRequest) {
       clientId: actor.clientId,
       createdById: actor.userId,
       cart,
-      shippingAddress: shippingAddress as Prisma.InputJsonValue | undefined,
+      shippingAddress: resolvedShippingAddress,
       notes,
+      shipTo,
+      shipSpeed,
+      patientId,
     })
 
     const amount = toCents(cart.totals.total)

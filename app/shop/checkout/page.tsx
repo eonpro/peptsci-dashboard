@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/components/shop/CartContext'
 import { Button } from '@/components/ui/button'
@@ -8,79 +8,168 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, CreditCard, Package, Truck, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { AddressFields } from '@/components/AddressFields'
+import {
+  ArrowLeft,
+  CreditCard,
+  Package,
+  Truck,
+  ChevronRight,
+  CheckCircle2,
+  Building2,
+  UserRound,
+  Plus,
+  Zap,
+  Loader2,
+} from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CheckoutPaymentSection } from '@/components/shop/CheckoutPaymentSection'
-
-const US_STATES = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
-  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
-  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
-  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
-  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
-  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
-  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
-  'Wisconsin', 'Wyoming',
-]
-
-// Must mirror server logic in lib/checkout-core.ts (server is authoritative).
-const FREE_SHIPPING_THRESHOLD = 500
-const FLAT_SHIPPING_RATE = 25
+import {
+  computeShipping,
+  FREE_SHIPPING_THRESHOLD,
+  SHIPPING_RATES,
+  type ShipSpeed,
+  type ShipTo,
+} from '@/lib/checkout-core'
+import type { Address } from '@/lib/address'
 
 type CheckoutStep = 'shipping' | 'payment'
+
+interface Patient {
+  id: string
+  firstName: string
+  lastName: string
+  address: Address
+  phone: string | null
+  email: string | null
+}
+
+const emptyAddress: Partial<Address> = { country: 'US' }
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, subtotal, clearCart, totalItems } = useCart()
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping')
 
-  const [shippingInfo, setShippingInfo] = useState({
-    firstName: '',
-    lastName: '',
-    company: '',
-    email: '',
-    phone: '',
-    address1: '',
-    address2: '',
-    city: '',
-    state: '',
-    zip: '',
-    notes: '',
-  })
+  const [shipTo, setShipTo] = useState<ShipTo>('PRACTICE')
+  const [shipSpeed, setShipSpeed] = useState<ShipSpeed>('TWO_DAY')
+
+  // Practice ship-to (prefilled from the practice profile).
+  const [practiceName, setPracticeName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [practiceAddr, setPracticeAddr] = useState<Partial<Address>>(emptyAddress)
+
+  // Patient ship-to.
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('')
+  const [showAddPatient, setShowAddPatient] = useState(false)
+  const [savingPatient, setSavingPatient] = useState(false)
+  const [newPatient, setNewPatient] = useState<{
+    firstName: string
+    lastName: string
+    phone: string
+    address: Partial<Address>
+  }>({ firstName: '', lastName: '', phone: '', address: emptyAddress })
+
+  const [notes, setNotes] = useState('')
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
 
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING_RATE
+  // Prefill the practice address from the profile.
+  useEffect(() => {
+    let active = true
+    fetch('/api/shop/profile')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !data?.profile) return
+        const p = data.profile
+        setPracticeName(p.organizationName ?? '')
+        setContactEmail(p.contactEmail ?? '')
+        setContactPhone(p.contactPhone ?? '')
+        const addr = p.shippingAddress ?? p.billingAddress
+        if (addr) setPracticeAddr(addr)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Load saved patients.
+  const loadPatients = () => {
+    fetch('/api/shop/patients')
+      .then((r) => (r.ok ? r.json() : { patients: [] }))
+      .then((data) => setPatients(data.patients ?? []))
+      .catch(() => {})
+  }
+  useEffect(() => {
+    loadPatients()
+  }, [])
+
+  const shipping = computeShipping(subtotal, shipSpeed)
   const total = subtotal + shipping // No tax (Model A)
 
+  const selectedPatient = patients.find((p) => p.id === selectedPatientId)
+
   const shippingValid =
-    shippingInfo.firstName &&
-    shippingInfo.lastName &&
-    shippingInfo.email &&
-    shippingInfo.phone &&
-    shippingInfo.address1 &&
-    shippingInfo.city &&
-    shippingInfo.state &&
-    shippingInfo.zip
+    shipTo === 'PRACTICE'
+      ? Boolean(practiceAddr.address1 && practiceAddr.city && practiceAddr.state && practiceAddr.zip)
+      : Boolean(selectedPatientId)
 
   const paymentItems = useMemo(
     () => items.map((i) => ({ sku: i.sku, quantity: i.quantity })),
     [items]
   )
 
+  const shippingAddressForOrder = useMemo(() => {
+    if (shipTo === 'PATIENT' && selectedPatient) {
+      return {
+        firstName: selectedPatient.firstName,
+        lastName: selectedPatient.lastName,
+        phone: selectedPatient.phone ?? undefined,
+        ...selectedPatient.address,
+      }
+    }
+    return {
+      company: practiceName,
+      email: contactEmail,
+      phone: contactPhone,
+      ...practiceAddr,
+    }
+  }, [shipTo, selectedPatient, practiceName, contactEmail, contactPhone, practiceAddr])
+
   const handleOrderSuccess = (orderId: string) => {
     clearCart()
     router.push(`/shop/checkout/success?order=${encodeURIComponent(orderId)}`)
+  }
+
+  const handleAddPatient = async () => {
+    setSavingPatient(true)
+    try {
+      const res = await fetch('/api/shop/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newPatient.firstName,
+          lastName: newPatient.lastName,
+          phone: newPatient.phone || undefined,
+          address: newPatient.address,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.patient) {
+        setPatients((prev) => [...prev, data.patient])
+        setSelectedPatientId(data.patient.id)
+        setShowAddPatient(false)
+        setNewPatient({ firstName: '', lastName: '', phone: '', address: emptyAddress })
+      }
+    } finally {
+      setSavingPatient(false)
+    }
   }
 
   if (items.length === 0) {
@@ -105,6 +194,21 @@ export default function CheckoutPage() {
     { id: 'payment', label: 'Payment', shortLabel: 'Pay', icon: CreditCard },
   ]
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep)
+
+  const speedOptions: { id: ShipSpeed; label: string; desc: string; price: number }[] = [
+    {
+      id: 'TWO_DAY',
+      label: '2-Day Shipping',
+      desc: 'Delivered in 2 business days',
+      price: computeShipping(subtotal, 'TWO_DAY'),
+    },
+    {
+      id: 'OVERNIGHT',
+      label: 'Overnight Shipping',
+      desc: 'Next business day',
+      price: computeShipping(subtotal, 'OVERNIGHT'),
+    },
+  ]
 
   return (
     <div className="max-w-6xl mx-auto pb-32 md:pb-8">
@@ -161,154 +265,249 @@ export default function CheckoutPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           {currentStep === 'shipping' && (
-            <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-              <CardHeader className="border-b border-white/10 bg-white/5">
-                <CardTitle className="flex items-center gap-3 text-white">
-                  <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                    <Truck className="h-5 w-5 text-[#213cef]" />
+            <>
+              {/* Ship to */}
+              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-white/10 bg-white/5">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
+                      <Truck className="h-5 w-5 text-[#213cef]" />
+                    </div>
+                    Ship To
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 space-y-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    {(
+                      [
+                        { id: 'PRACTICE', label: 'My Practice', icon: Building2 },
+                        { id: 'PATIENT', label: 'A Patient', icon: UserRound },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setShipTo(opt.id)}
+                        className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
+                          shipTo === opt.id
+                            ? 'border-[#213cef] bg-[#213cef]/10'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <opt.icon className="h-5 w-5 text-white/70" />
+                        <span className="text-white font-medium text-sm">{opt.label}</span>
+                        {shipTo === opt.id && (
+                          <CheckCircle2 className="h-5 w-5 text-[#213cef] ml-auto" />
+                        )}
+                      </button>
+                    ))}
                   </div>
-                  Shipping Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 md:p-6 space-y-4">
-                <div className="grid gap-4 grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-white/70">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      value={shippingInfo.firstName}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, firstName: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-white/70">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      value={shippingInfo.lastName}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, lastName: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="company" className="text-white/70">Company / Organization</Label>
-                  <Input
-                    id="company"
-                    value={shippingInfo.company}
-                    onChange={(e) => setShippingInfo((p) => ({ ...p, company: e.target.value }))}
-                    className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                  />
-                </div>
+                  {shipTo === 'PRACTICE' ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="email" className="text-white/70">
+                            Contact Email
+                          </Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone" className="text-white/70">
+                            Contact Phone
+                          </Label>
+                          <Input
+                            id="phone"
+                            type="tel"
+                            value={contactPhone}
+                            onChange={(e) => setContactPhone(e.target.value)}
+                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                          />
+                        </div>
+                      </div>
+                      <AddressFields
+                        value={practiceAddr}
+                        onChange={setPracticeAddr}
+                        idPrefix="practice"
+                        dark
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {patients.length > 0 && (
+                        <div className="space-y-2">
+                          {patients.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setSelectedPatientId(p.id)}
+                              className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
+                                selectedPatientId === p.id
+                                  ? 'border-[#213cef] bg-[#213cef]/10'
+                                  : 'border-white/10 bg-white/5 hover:bg-white/10'
+                              }`}
+                            >
+                              <UserRound className="h-5 w-5 text-white/70 mt-0.5" />
+                              <span className="min-w-0">
+                                <span className="block text-white text-sm font-medium">
+                                  {p.firstName} {p.lastName}
+                                </span>
+                                <span className="block text-white/50 text-xs">
+                                  {p.address.address1}, {p.address.city}, {p.address.state}{' '}
+                                  {p.address.zip}
+                                </span>
+                              </span>
+                              {selectedPatientId === p.id && (
+                                <CheckCircle2 className="h-5 w-5 text-[#213cef] ml-auto" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-white/70">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={shippingInfo.email}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, email: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-white/70">Phone *</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={shippingInfo.phone}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, phone: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
-                    />
-                  </div>
-                </div>
+                      {!showAddPatient ? (
+                        <Button
+                          variant="outline"
+                          className="w-full border-white/20 text-white hover:bg-white/10 rounded-xl"
+                          onClick={() => setShowAddPatient(true)}
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Add a patient
+                        </Button>
+                      ) : (
+                        <div className="space-y-4 p-4 rounded-xl border border-white/10 bg-white/5">
+                          <div className="grid gap-4 grid-cols-2">
+                            <div className="space-y-2">
+                              <Label className="text-white/70">First Name *</Label>
+                              <Input
+                                value={newPatient.firstName}
+                                onChange={(e) =>
+                                  setNewPatient((p) => ({ ...p, firstName: e.target.value }))
+                                }
+                                className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-white/70">Last Name *</Label>
+                              <Input
+                                value={newPatient.lastName}
+                                onChange={(e) =>
+                                  setNewPatient((p) => ({ ...p, lastName: e.target.value }))
+                                }
+                                className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-white/70">Phone</Label>
+                            <Input
+                              type="tel"
+                              value={newPatient.phone}
+                              onChange={(e) =>
+                                setNewPatient((p) => ({ ...p, phone: e.target.value }))
+                              }
+                              className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                            />
+                          </div>
+                          <AddressFields
+                            value={newPatient.address}
+                            onChange={(addr) => setNewPatient((p) => ({ ...p, address: addr }))}
+                            idPrefix="new-patient"
+                            dark
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              className="flex-1 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+                              onClick={handleAddPatient}
+                              disabled={
+                                savingPatient ||
+                                !newPatient.firstName ||
+                                !newPatient.lastName ||
+                                !newPatient.address.address1
+                              }
+                            >
+                              {savingPatient ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'Save Patient'
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10 rounded-xl"
+                              onClick={() => setShowAddPatient(false)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                <Separator className="bg-white/10 my-2" />
-
-                <div className="space-y-2">
-                  <Label htmlFor="address1" className="text-white/70">Address Line 1 *</Label>
-                  <Input
-                    id="address1"
-                    value={shippingInfo.address1}
-                    onChange={(e) => setShippingInfo((p) => ({ ...p, address1: e.target.value }))}
-                    className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address2" className="text-white/70">Address Line 2</Label>
-                  <Input
-                    id="address2"
-                    value={shippingInfo.address2}
-                    onChange={(e) => setShippingInfo((p) => ({ ...p, address2: e.target.value }))}
-                    className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                  />
-                </div>
-
-                <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-                  <div className="space-y-2 col-span-2 sm:col-span-1">
-                    <Label htmlFor="city" className="text-white/70">City *</Label>
-                    <Input
-                      id="city"
-                      value={shippingInfo.city}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, city: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state" className="text-white/70">State *</Label>
-                    <Select
-                      value={shippingInfo.state}
-                      onValueChange={(v) => setShippingInfo((p) => ({ ...p, state: v }))}
+              {/* Shipping speed */}
+              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-white/10 bg-white/5">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
+                      <Zap className="h-5 w-5 text-[#213cef]" />
+                    </div>
+                    Shipping Speed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 space-y-3">
+                  {speedOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setShipSpeed(opt.id)}
+                      className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
+                        shipSpeed === opt.id
+                          ? 'border-[#213cef] bg-[#213cef]/10'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
                     >
-                      <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white rounded-xl">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#050722] border-white/10 max-h-[300px]">
-                        {US_STATES.map((state) => (
-                          <SelectItem
-                            key={state}
-                            value={state}
-                            className="text-white focus:bg-white/10 focus:text-white"
-                          >
-                            {state}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="zip" className="text-white/70">ZIP *</Label>
-                    <Input
-                      id="zip"
-                      value={shippingInfo.zip}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, zip: e.target.value }))}
-                      className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                      required
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium">{opt.label}</p>
+                        <p className="text-white/50 text-xs">{opt.desc}</p>
+                      </div>
+                      <span
+                        className={`text-sm font-semibold ${opt.price === 0 ? 'text-green-400' : 'text-white'}`}
+                      >
+                        {opt.price === 0 ? 'FREE' : formatPrice(opt.price)}
+                      </span>
+                      {shipSpeed === opt.id && <CheckCircle2 className="h-5 w-5 text-[#213cef]" />}
+                    </button>
+                  ))}
+                  {subtotal < FREE_SHIPPING_THRESHOLD && (
+                    <p className="text-xs text-white/50">
+                      Spend {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} more to unlock FREE
+                      2-day shipping and {formatPrice(SHIPPING_RATES.QUALIFIED.OVERNIGHT)} overnight.
+                    </p>
+                  )}
+
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="notes" className="text-white/70">
+                      Order Notes (optional)
+                    </Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Special instructions for your order..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-xl min-h-[80px]"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="notes" className="text-white/70">Order Notes (optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Special instructions for your order..."
-                    value={shippingInfo.notes}
-                    onChange={(e) => setShippingInfo((p) => ({ ...p, notes: e.target.value }))}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-xl min-h-[100px]"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {currentStep === 'payment' && (
@@ -324,20 +523,12 @@ export default function CheckoutPage() {
               <CardContent className="p-4 md:p-6">
                 <CheckoutPaymentSection
                   items={paymentItems}
-                  shippingAddress={{
-                    firstName: shippingInfo.firstName,
-                    lastName: shippingInfo.lastName,
-                    company: shippingInfo.company,
-                    email: shippingInfo.email,
-                    phone: shippingInfo.phone,
-                    address1: shippingInfo.address1,
-                    address2: shippingInfo.address2,
-                    city: shippingInfo.city,
-                    state: shippingInfo.state,
-                    zip: shippingInfo.zip,
-                  }}
-                  notes={shippingInfo.notes || undefined}
+                  shippingAddress={shippingAddressForOrder}
+                  notes={notes || undefined}
                   total={total}
+                  shipTo={shipTo}
+                  shipSpeed={shipSpeed}
+                  patientId={shipTo === 'PATIENT' ? selectedPatientId : null}
                   onSuccess={handleOrderSuccess}
                 />
               </CardContent>
@@ -358,14 +549,24 @@ export default function CheckoutPage() {
                     <div key={item.id} className="flex gap-3">
                       <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-[#213cef]/20 to-[#213cef]/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {item.image ? (
-                          <Image src={item.image} alt={item.name} width={48} height={48} className="object-contain" />
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            width={48}
+                            height={48}
+                            className="object-contain"
+                          />
                         ) : (
-                          <span className="text-sm font-bold text-[#213cef]">{item.name.charAt(0)}</span>
+                          <span className="text-sm font-bold text-[#213cef]">
+                            {item.name.charAt(0)}
+                          </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                        <p className="text-xs text-white/50">{item.dose} × {item.quantity}</p>
+                        <p className="text-xs text-white/50">
+                          {item.dose} × {item.quantity}
+                        </p>
                       </div>
                       <p className="text-sm font-medium text-white">
                         {formatPrice(item.price * item.quantity)}
@@ -382,7 +583,9 @@ export default function CheckoutPage() {
                     <span className="text-white">{formatPrice(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-white/60">Shipping</span>
+                    <span className="text-white/60">
+                      Shipping ({shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'})
+                    </span>
                     <span className={shipping === 0 ? 'text-green-400' : 'text-white'}>
                       {shipping === 0 ? 'FREE' : formatPrice(shipping)}
                     </span>
@@ -395,16 +598,6 @@ export default function CheckoutPage() {
                   <span>Total</span>
                   <span>{formatPrice(total)}</span>
                 </div>
-
-                {shipping === 0 ? (
-                  <div className="text-center py-2 px-3 rounded-xl bg-green-500/10 text-green-400 text-sm">
-                    🎉 You qualify for free shipping!
-                  </div>
-                ) : (
-                  <p className="text-xs text-center text-white/50">
-                    Add {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} more for free shipping
-                  </p>
-                )}
 
                 {currentStep === 'shipping' && (
                   <Button

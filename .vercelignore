@@ -1,0 +1,8 @@
+# Never upload local env files to Vercel. These are loaded by Next.js at
+# runtime and would override the RDS IAM connection configured in the Vercel
+# dashboard. Local-only secrets (e.g. a local Docker DATABASE_URL) must stay
+# on the developer machine.
+.env
+.env.*
+!.env.example
+!env-example.txt

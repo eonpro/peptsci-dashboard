@@ -65,20 +65,22 @@ export const customerIdSchema = z.object({
 })
 
 // Product filter parameters
-export const productFilterSchema = z.object({
-  product: z.string().optional(),
-  category: z.string().optional(),
-  minPrice: z.coerce.number().min(0).optional(),
-  maxPrice: z.coerce.number().min(0).optional(),
-}).refine(
-  (data) => {
-    if (data.minPrice !== undefined && data.maxPrice !== undefined) {
-      return data.minPrice <= data.maxPrice
-    }
-    return true
-  },
-  { message: 'minPrice must be less than or equal to maxPrice' }
-)
+export const productFilterSchema = z
+  .object({
+    product: z.string().optional(),
+    category: z.string().optional(),
+    minPrice: z.coerce.number().min(0).optional(),
+    maxPrice: z.coerce.number().min(0).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.minPrice !== undefined && data.maxPrice !== undefined) {
+        return data.minPrice <= data.maxPrice
+      }
+      return true
+    },
+    { message: 'minPrice must be less than or equal to maxPrice' }
+  )
 
 /**
  * Validates query parameters from a URL search params object.
@@ -117,7 +119,5 @@ export function safeValidateQueryParams<T extends z.ZodSchema>(
  * Formats Zod validation errors into a user-friendly message.
  */
 export function formatValidationErrors(error: z.ZodError): string {
-  return error.errors
-    .map((err) => `${err.path.join('.')}: ${err.message}`)
-    .join('; ')
+  return error.errors.map((err) => `${err.path.join('.')}: ${err.message}`).join('; ')
 }

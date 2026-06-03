@@ -18,60 +18,58 @@ interface ProductComparison {
 
 export default async function CompetitorsPage() {
   const competitors = await getCompetitors()
-  
+
   // Calculate statistics
   const stats = {
-    totalProducts: new Set(competitors.map(c => c.Product)).size,
-    totalCompetitors: new Set(competitors.map(c => c.Competitor)).size,
-    betterPriceCount: competitors.filter(c => {
+    totalProducts: new Set(competitors.map((c) => c.Product)).size,
+    totalCompetitors: new Set(competitors.map((c) => c.Competitor)).size,
+    betterPriceCount: competitors.filter((c) => {
       const diff = c.Diff !== undefined ? c.Diff : c.OurSRP - c.TheirPrice
       return diff < 0
     }).length,
     averageSavings: 0,
   }
-  
+
   const savings = competitors
-    .map(c => {
+    .map((c) => {
       const diff = c.Diff !== undefined ? c.Diff : c.OurSRP - c.TheirPrice
       return diff < 0 ? Math.abs(diff) : 0
     })
-    .filter(s => s > 0)
-  
+    .filter((s) => s > 0)
+
   if (savings.length > 0) {
     stats.averageSavings = savings.reduce((a, b) => a + b, 0) / savings.length
   }
-  
+
   // Group by product for comparison
   const productComparison = competitors.reduce<Record<string, ProductComparison>>((acc, item) => {
     if (!acc[item.Product]) {
       acc[item.Product] = {
         product: item.Product,
         ourPrice: item.OurSRP,
-        competitors: []
+        competitors: [],
       }
     }
     acc[item.Product].competitors.push({
       name: item.Competitor,
       price: item.TheirPrice,
-      diff: item.Diff !== undefined ? item.Diff : item.OurSRP - item.TheirPrice
+      diff: item.Diff !== undefined ? item.Diff : item.OurSRP - item.TheirPrice,
     })
     return acc
   }, {})
 
   // Find products where we have the best price
-  const bestPrices = Object.values(productComparison).filter(product => {
-    return product.competitors.every(comp => comp.diff <= 0)
+  const bestPrices = Object.values(productComparison).filter((product) => {
+    return product.competitors.every((comp) => comp.diff <= 0)
   })
 
   return (
     <div className="container mx-auto space-y-6 p-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Competitor Analysis</h2>
-        <p className="text-muted-foreground">
-          Price comparison and market positioning
-        </p>
+        <p className="text-muted-foreground">Price comparison and market positioning</p>
       </div>
-      
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -83,7 +81,7 @@ export default async function CompetitorsPage() {
             <p className="text-xs text-muted-foreground">Being tracked</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Competitors</CardTitle>
@@ -93,7 +91,7 @@ export default async function CompetitorsPage() {
             <p className="text-xs text-muted-foreground">Being monitored</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Better Prices</CardTitle>
@@ -103,7 +101,7 @@ export default async function CompetitorsPage() {
             <p className="text-xs text-muted-foreground">Products we price better</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg Savings</CardTitle>
@@ -114,7 +112,7 @@ export default async function CompetitorsPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Products with Best Price */}
       {bestPrices.length > 0 && (
         <Card>
@@ -123,7 +121,7 @@ export default async function CompetitorsPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {bestPrices.map(product => (
+              {bestPrices.map((product) => (
                 <Badge key={product.product} className="bg-green-100 text-green-800">
                   {product.product} - ${product.ourPrice}
                 </Badge>
@@ -132,7 +130,7 @@ export default async function CompetitorsPage() {
           </CardContent>
         </Card>
       )}
-      
+
       {/* Competitor Price Chart */}
       <Card>
         <CardHeader>
@@ -143,18 +141,18 @@ export default async function CompetitorsPage() {
         </CardHeader>
         <CardContent>
           <CompetitorChart
-            data={Object.values(productComparison).map(item => ({
+            data={Object.values(productComparison).map((item) => ({
               name: item.product,
               ourPrice: item.ourPrice,
               theirPrice: Math.round(
                 item.competitors.reduce((sum, c) => sum + c.price, 0) / item.competitors.length
               ),
-              competitor: 'Average'
+              competitor: 'Average',
             }))}
           />
         </CardContent>
       </Card>
-      
+
       {/* Detailed Table */}
       <Card>
         <CardHeader>

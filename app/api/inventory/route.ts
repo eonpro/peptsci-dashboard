@@ -16,20 +16,20 @@ export async function GET(request: NextRequest) {
     // Rate limit check
     const rateLimitKey = getRateLimitKey(request, userId)
     const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
-    
+
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
-        { 
+        {
           status: 429,
-          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter)
+          headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter),
         }
       )
     }
 
     // Return inventory directly from the sheet
     const inventory = await getInventory()
-    
+
     return successResponse(inventory)
   } catch (error) {
     console.error('Error fetching inventory:', error)

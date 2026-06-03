@@ -18,19 +18,15 @@ import {
   Menu,
   X,
   User,
+  ShoppingBag,
+  Building2,
 } from 'lucide-react'
+import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
+import { isClerkConfigured } from '@/lib/clerk-config'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { SearchCommand } from './SearchCommand'
-
-// Check if Clerk is configured
-const isClerkConfigured = typeof window !== 'undefined' 
-  ? Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'))
-  : Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'))
+import { Badge } from '@/components/ui/badge'
 
 // Conditional Clerk component wrappers
 function AuthWrapper({ children, signedIn = true }: { children: ReactNode; signedIn?: boolean }) {
@@ -39,10 +35,8 @@ function AuthWrapper({ children, signedIn = true }: { children: ReactNode; signe
     // In dev mode without Clerk, we show signed-in content by default
     return signedIn ? <>{children}</> : null
   }
-  
-  // Dynamically import Clerk components only when configured
-  const ClerkComponents = require('@clerk/nextjs')
-  const Component = signedIn ? ClerkComponents.SignedIn : ClerkComponents.SignedOut
+
+  const Component = signedIn ? SignedIn : SignedOut
   return <Component>{children}</Component>
 }
 
@@ -55,8 +49,7 @@ function AuthUserButton() {
       </Button>
     )
   }
-  
-  const { UserButton } = require('@clerk/nextjs')
+
   return (
     <UserButton
       appearance={{
@@ -70,6 +63,7 @@ function AuthUserButton() {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Clients', href: '/clients', icon: Building2 },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Pricing', href: '/pricing', icon: DollarSign },
@@ -114,22 +108,28 @@ export function Header() {
         {/* Logo */}
         <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
           <Logo width={120} height={40} />
+          <Badge
+            variant="outline"
+            className="hidden sm:inline-flex text-xs font-medium border-brand-primary/30 text-brand-primary"
+          >
+            Admin
+          </Badge>
         </Link>
-        
+
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center space-x-1 text-sm font-medium">
           {navigation.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-            
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
                   'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200',
-                  isActive 
-                    ? 'text-brand-primary bg-brand-primary/10 font-semibold' 
+                  isActive
+                    ? 'text-brand-primary bg-brand-primary/10 font-semibold'
                     : 'text-muted-foreground hover:text-brand-primary hover:bg-gray-100'
                 )}
               >
@@ -142,6 +142,14 @@ export function Header() {
 
         {/* Right side actions */}
         <div className="ml-auto flex items-center space-x-2 md:space-x-4">
+          {/* Shop Link */}
+          <Link href="/shop" className="hidden md:block">
+            <Button variant="outline" size="sm" className="gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Shop
+            </Button>
+          </Link>
+
           {/* Search button - mobile */}
           <Button
             variant="ghost"
@@ -222,7 +230,7 @@ export function Header() {
                 {navigation.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-                  
+
                   return (
                     <li key={item.href}>
                       <Link
@@ -230,8 +238,8 @@ export function Header() {
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn(
                           'flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200',
-                          isActive 
-                            ? 'text-brand-primary bg-brand-primary/10 font-semibold' 
+                          isActive
+                            ? 'text-brand-primary bg-brand-primary/10 font-semibold'
                             : 'text-gray-700 hover:text-brand-primary hover:bg-gray-100'
                         )}
                       >
@@ -241,6 +249,18 @@ export function Header() {
                     </li>
                   )
                 })}
+
+                {/* Shop link in mobile menu */}
+                <li className="pt-4 border-t mt-4">
+                  <Link
+                    href="/shop"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-700 hover:text-brand-primary hover:bg-gray-100 transition-all duration-200"
+                  >
+                    <ShoppingBag className="h-5 w-5" />
+                    <span className="text-base">Client Shop</span>
+                  </Link>
+                </li>
               </ul>
             </nav>
 
@@ -250,7 +270,7 @@ export function Header() {
                 <div className="flex items-center space-x-3">
                   <AuthUserButton />
                   <div className="text-sm">
-                    <p className="font-medium text-gray-900">Account</p>
+                    <p className="font-medium text-gray-900">Admin Account</p>
                     <p className="text-muted-foreground">Manage settings</p>
                   </div>
                 </div>

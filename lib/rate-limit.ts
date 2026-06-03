@@ -45,12 +45,12 @@ export function getRateLimitKey(request: NextRequest, userId?: string | null): s
   if (userId) {
     return `user:${userId}`
   }
-  
+
   // Get IP from various headers (Vercel, Cloudflare, etc.)
   const forwardedFor = request.headers.get('x-forwarded-for')
   const realIp = request.headers.get('x-real-ip')
   const cfConnectingIp = request.headers.get('cf-connecting-ip')
-  
+
   const ip = cfConnectingIp || realIp || forwardedFor?.split(',')[0]?.trim() || 'unknown'
   return `ip:${ip}`
 }
@@ -65,7 +65,7 @@ export function checkRateLimit(
 ): { limited: boolean; remaining: number; retryAfter?: number } {
   const now = Date.now()
   const entry = rateLimitStore.get(key)
-  
+
   // No existing entry or expired - create new
   if (!entry || entry.resetTime < now) {
     rateLimitStore.set(key, {
@@ -74,17 +74,17 @@ export function checkRateLimit(
     })
     return { limited: false, remaining: config.maxRequests - 1 }
   }
-  
+
   // Check if limit exceeded
   if (entry.count >= config.maxRequests) {
     const retryAfter = Math.ceil((entry.resetTime - now) / 1000)
     return { limited: true, remaining: 0, retryAfter }
   }
-  
+
   // Increment counter
   entry.count++
   rateLimitStore.set(key, entry)
-  
+
   return { limited: false, remaining: config.maxRequests - entry.count }
 }
 
@@ -100,10 +100,10 @@ export function getRateLimitHeaders(
     'X-RateLimit-Limit': config.maxRequests.toString(),
     'X-RateLimit-Remaining': remaining.toString(),
   }
-  
+
   if (retryAfter) {
     headers['Retry-After'] = retryAfter.toString()
   }
-  
+
   return headers
 }
