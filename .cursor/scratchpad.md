@@ -1,6 +1,105 @@
-# ACTIVE PLAN — Admin Backend Performance Analysis (June 2026)  [PLANNER]
+# ACTIVE PLAN — Whole-Platform Performance Overhaul (June 2026)  [PLANNER]
 
-> **Current source of truth.** Diagnosis of why the admin backend "moves very slow," grounded in a code audit. No code changed yet — this is the analysis + prioritized remediation plan. Awaiting user go-ahead on which fixes to execute.
+> **Current source of truth.** Full-platform performance audit (admin + shop + storefront), grounded in a code audit across client rendering, the DB/API layer, and the JS bundle. Supersedes the earlier "Admin Backend Performance Analysis" (below), whose P0/P1 Sheets fixes are ✅ done. No code changed in this pass — analysis + prioritized remediation plan. **Awaiting user go-ahead** on which phase to execute.
+
+## Background and Motivation
+The platform "feels extremely slow and drags." The earlier effort fixed the Google Sheets data layer (in-process TTL cache, killed dashboard cache-busting, RSC for dashboard/P&L, RDS token cache). But the slowness is now **platform-wide** because most non-fixed surfaces share the same anti-patterns: client-only pages that fetch-after-mount behind spinners, cache-busted `no-store` fetches, a 60 s poll, eager heavy bundles (recharts/jspdf), missing DB indexes + N+1 queries, and full-catalog/full-history loads to render one row.
+
+## Diagnosis — root causes by layer (grounded in code audit, file:line)
+
+### A. Client rendering / data fetching (biggest perceived-latency driver)
+1. **~20 routes are `'use client'` + fetch-in-`useEffect` + skeleton** (no SSR): pricing (`pricing/page.tsx:1,56`), inventory (`inventory/page.tsx:1,72`), orders-expenses (`orders-expenses/page.tsx:1,71`), products (`products/page.tsx:1,100`), clients (`clients/page.tsx:42`), storefronts, fulfillment, users, shop account/orders, all `shop/storefront-manage/*`, `sf/account/orders`. Every visit = blank shell → JS hydrate → round trip → render.
+2. **Cache-busting `no-store` fetches** defeat all caching: `pricing/page.tsx:23` `/api/prices?t=${Date.now()}`, `inventory/page.tsx:58`, `orders-expenses/page.tsx:54`.
+3. **60 s poll, not tab-gated:** `pricing/page.tsx:61` re-pulls the full price list every minute on every open tab.
+4. **Duplicate child fetches:** `shop/account` loads profile, then `PatientsManager` (`:39`) + `SavedCards` (`:50`) each re-fetch on mount → 3 serial round trips.
+5. **Context values rebuilt every render:** `CartContext.tsx:154` and `StorefrontContext.tsx:153` recreate `value` (+ derived totals) each render → re-render the whole shop/sf subtree.
+6. **Heavy derivations in render w/o memo:** `DashboardClient.tsx:69` (groupByProduct/Customer/MoM), `GroupedRecentOrdersTable.tsx:33`.
+7. **Big lists, no virtualization/pagination:** inventory batches, product variants, orders-expenses, shop `ProductGrid`, `StorefrontCatalog`.
+8. **`<img>` (not `next/image`)** in storefront catalog/detail/shell; `unoptimized` on package-photo + shop order images.
+
+### B. DB / API layer
+9. **Missing indexes** on hot filter/sort columns: `Order(orderNumber)`, `Order(clientId,status,createdAt)`, `User(clientId)`, `ProductVariant(status)`, `OrderItem(orderId)`, `ProductVariant(productId)`, `InventoryBatch(createdAt)`. (schema in `prisma/schema.prisma`.)
+10. **N+1 / sequential queries:** order-label PDF `for (item of items) await allocatableBatchesForVariant()` (`api/admin/orders/[id]/labels/pdf/route.ts:42`) + per-draw `$transaction` (`:84`); CSV import 2–4 queries/row (`api/admin/products/import/route.ts:89`); client status cascade = 1 Clerk call/user (`api/admin/clients/[id]/route.ts:140`).
+11. **Full dataset → filter in JS:** shop product page loads the **entire** catalog + client price map to find one SKU (`shop/product/[sku]/page.tsx:72`, `shop/page.tsx:12`); `pricing.ts:160` full catalog for one SKU; `pricing.ts:98` double-fetches (getPricing + clientPricing).
+12. **Unbounded `findMany` (no `take`):** `pricing.ts:42`, admin clients/products/client-pricing, shop patients.
+13. **Duplicate `auth()` per request:** `requireAuth()` + `getUserMetadata()`/`getRole()` each call Clerk `auth()` separately (clinic + admin/storefronts routes).
+14. **`force-dynamic` everywhere** (53/54 API routes + 3 layouts + shop/sf pages) and **no `revalidate`/`unstable_cache`** anywhere → zero HTTP/data caching layer.
+15. **Inline heavy sync work in request path:** PDF generation (`lib/labels/peptsciLabelPdf.ts`), 10 MB photo base64-in-DB fallback (`api/admin/package-photos/route.ts:115`).
+
+### C. Bundle / build / config
+16. **No `experimental.optimizePackageImports`** (lucide-react ~120+ icons across 68 files, date-fns, recharts, radix) and **no `compiler.removeConsole`** in `next.config.mjs`.
+17. **Zero `next/dynamic` in the whole repo** — recharts ships eagerly on dashboard (`DashboardCharts.tsx`) + competitors; jspdf+autotable eager on po-generator (`po-generator/page.tsx:17`); FedEx/Receive modals + cmdk `SearchCommand` (on every admin page header) eager.
+18. **Client graph pulls server libs:** `DashboardClient.tsx:4` imports runtime `lib/kpis` → drags `date-fns-tz`; several client files value-import types from `lib/sheets` instead of `import type`.
+19. **Unused deps shipped/installed:** `jotai` (unused), `@radix-ui/react-navigation-menu|tabs|tooltip` (unused); orphaned `InventoryChart.tsx` still importing recharts.
+20. **Render-blocking Adobe Typekit `<link>`** in root `app/layout.tsx:20` (no `next/font`, no `display=swap`).
+
+## High-Level Task Breakdown (prioritized, each independently shippable, TDD where logic changes)
+
+### P0 — Quick, high-impact, low-risk (hours; biggest perceived speedup)
+- **P0-1 Bundle config:** add `optimizePackageImports` (lucide/date-fns/recharts/radix) + `compiler.removeConsole` to `next.config.mjs`; remove unused deps (`jotai`, 3 radix) + orphaned `InventoryChart.tsx`. **Success:** prod build first-load JS drops; build green.
+- **P0-2 Kill cache-busting + tame poll:** remove `?t=Date.now()`/`no-store` on pricing/inventory/orders-expenses; remove or 5-min + visibility-gate the pricing poll (match `DashboardClient`). **Success:** repeat loads cache-served; no per-minute full pulls.
+- **P0-3 Lazy heavy chunks:** `next/dynamic` for `DashboardCharts`, `CompetitorChart`, `po-generator` jspdf (import in handler), `SearchCommand`/cmdk, FedEx + Receive modals. **Success:** dashboard/admin first-load JS drops; charts/modals load on demand.
+- **P0-4 Memoize context + derivations:** `useMemo` the `value` in `CartContext`/`StorefrontContext`; memoize Dashboard KPI derivations + recent-orders grouping. **Success:** typing/nav in shop & dashboard stops re-rendering whole tree.
+
+### P1 — Server-render + index the hot paths (1–2 days)
+- **P1-5 Add DB indexes** (#9) via a Prisma migration; apply to prod via the runtime runner `/api/admin/db/migrate` (RDS IAM — CLI can't reach prod, see Lessons). **Success:** `migrate status` clean; order/list queries use indexes.
+- **P1-6 Fix N+1s** (#10): single `inventoryBatch.findMany({ where: { variantId: { in } } })` for labels + one batched `recordLabelsPrinted` tx; batch CSV import lookups. **Success:** label route makes O(1) batch queries; unit tests green.
+- **P1-7 Single-SKU fetch** for shop product page + `getProductPriceBySku` (don't load full catalog). **Success:** `/shop/product/[sku]` no longer scans the whole catalog.
+- **P1-8 Convert client pages → RSC islands:** pricing, inventory, orders-expenses (then products/clients/storefronts): fetch server-side, pass seed to a thin client island (pattern already used by dashboard/P&L). **Success:** these pages paint data at TTFB, no first-paint spinner.
+- **P1-9 De-dupe `auth()`:** one `getAuthContext()` helper returning `{ userId, role, status, clientId }` per request. **Success:** ≤1 Clerk `auth()` per request on dual-call routes.
+
+### P2 — Structural (multi-day)
+- **P2-10 Paginate/virtualize** large admin + catalog lists (server pagination or `@tanstack/react-virtual`).
+- **P2-11 Add a caching layer:** `unstable_cache`/`revalidate` (or short TTL) for read-heavy Postgres reads (pricing catalog, products, clients); remove redundant `force-dynamic` (esp. layout-level) where not needed.
+- **P2-12 `next/image` + fonts:** replace storefront `<img>`, drop `unoptimized`, add image `formats`/`minimumCacheTTL`; move Typekit to `next/font` or async load.
+- **P2-13 Offload heavy request-path work:** ensure label/photo/PDF/import paths are bounded; move 10 MB photos off base64-in-DB to blob; consider background/queue for import.
+- **P2-14 (carried from prior plan) Migrate hot analytics Sheets→Postgres** so dashboard/customers/P&L read indexed Postgres at request time.
+
+## Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| Audit | Whole-platform perf audit (client + DB + bundle), file:line | ✅ |
+| P0-1 | Bundle config + remove unused deps | ✅ `next.config.mjs` (optimizePackageImports + removeConsole + image formats); removed `jotai` + 3 unused radix (`npm i` dropped 13 pkgs); deleted orphaned `InventoryChart.tsx` |
+| P0-2 | Kill cache-busting + tame pricing poll | ✅ pricing/inventory/orders-expenses fetch w/o `?t`/`no-store` on mount (force only on manual refresh + mutations); pricing poll 60s→5min + visibility-gated |
+| P0-3 | Lazy heavy chunks (recharts/jspdf/cmdk/modals) | ✅ `next/dynamic` for DashboardCharts (ssr:false), FedEx + Receive modals; jspdf deferred to PO export handler; SearchCommand/cmdk lazy + mount-on-first-open. (CompetitorChart still eager — server-page, ssr:false N/A → P1) |
+| P0-4 | Memoize context + dashboard derivations | ✅ `useMemo` value in Cart/Storefront context; memoized Dashboard KPI/derivations + GroupedRecentOrdersTable grouping |
+| P0-verify | Build + tests | ✅ `next build` green (exit 0); /dashboard 128kB, /po-generator 152kB (recharts/jspdf out of initial); 79/79 tests pass |
+| P1-5 | Add DB indexes (migration + prod apply) | ✅ schema `@@index` added (User.clientId, ProductVariant.status/productId, Order orderNumber/createdAt/stripeChargeId + composite clientId,status,createdAt, OrderItem orderId/variantId, InventoryAdjustment variantId/orderId, InventoryBatch.createdAt, AuditLog userId/orderId/(entity,entityId), RetailOrder(storefrontId,createdAt)); idempotent migration `20260603010000_add_perf_indexes` (CREATE INDEX IF NOT EXISTS, Prisma-canonical names); client regenerated. **PROD APPLY PENDING:** deploy + admin `POST /api/admin/db/migrate {confirm:true}` |
+| P1-6 | Fix N+1s | ✅ order-label PDF: `allocatableBatchesForVariants` (1 query for all line items) + `recordLabelsPrintedMany` (1 tx for all draws). CSV import per-row loop deferred to P2 (infrequent admin path) |
+| P1-7 | Single-SKU fetch (shop product page) | ✅ `getShopProductBySku` + `getRelatedShopProducts` (category-scoped) → product page no longer maps the whole catalog (full-catalog fuzzy match kept as fallback); `getProductPriceBySku` now single indexed variant query |
+| P1-8 | Convert client pages → RSC islands | ✅ `/pricing`, `/inventory`, `/orders-expenses` now server-render data (`getPricing`/`listBatches`/`getDistributorOrders`) and seed a `*Client` island → no first-paint skeleton, no client mount round-trip. Manual refresh + visibility-gated poll preserved. All three are now `ƒ` (server-rendered on demand); admin migration helper added at `scripts/apply-prod-migrations.sh` |
+| P1-9 | De-dupe auth() per request | ❌ SKIPPED — Clerk `auth()` is already request-scoped and `cache()` doesn't dedupe across route handlers; high churn, negligible gain |
+| P1-comp | Lazy-load CompetitorChart | ✅ `CompetitorChartLazy` client wrapper (`next/dynamic` ssr:false) → recharts off `/competitors` initial load |
+| P1-verify | Build + tests | ✅ `next build` green; 79/79 tests pass |
+| P2-10 | Paginate/virtualize large lists | ✅ ASSESSED — no churn needed: shared `DataTable` (TanStack) already client-paginates (pageSize 10); raw-table pages (inventory ≤200 server cap, orders-expenses small Sheets set, pricing grouped cards) are bounded. Catalog scale (dozens–hundreds of SKUs) doesn't warrant react-virtual yet. Revisit if a list exceeds ~1k rows |
+| P2-11 | Caching layer + trim force-dynamic | ✅ Airtable catalog now `unstable_cache` (revalidate 300s, tag `catalog`, bust via `revalidateTag`/`POST /api/revalidate?tag=catalog`) — public shop no longer re-hits the slow rate-limited Airtable API every render. Sheets reads already in-process TTL-cached (60s) + `fetch next.revalidate 300`. Decided NOT to cache `getPricing` Postgres read (single indexed query, already fast; caching would add inventory staleness for negligible gain). Dashboard layout `force-dynamic` kept (auth-required, can't be static anyway) |
+| P2-12 | next/image + fonts | ✅ Typekit stylesheet now preceded by `preconnect`/`dns-prefetch` to `use.typekit.net` + `p.typekit.net` (parallel TLS/DNS → faster FCP/LCP on this render-blocking font). `<img>`/`unoptimized` cases are user-supplied arbitrary-host or base64-via-API sources → defer optimization to P2-13 when hosting is controlled (avoids broken images / over-broad remotePatterns) |
+| P2-13 | Offload heavy request-path work | 📋 RUNBOOK READY — `docs/P2-13-package-photos-s3.md`. Decision: **AWS S3**. Key insight: `lib/storage.ts` already abstracts blob/inline drivers + schema has `blobUrl`/`imageBase64` cols → additive S3 driver + idempotent backfill (`scripts/backfill-media-to-s3.ts`), reversible via env. ~1.5d. Implement next session (needs S3 bucket/IAM + can't be tested from here) |
+| P2-14 | Migrate hot analytics Sheets→Postgres | 📋 RUNBOOK READY — `docs/P2-14-analytics-sheets-to-postgres.md`. Decision: **implement**. Scope narrowed to **sales/revenue analytics** (Order/OrderItem, uses P1 indexes); distributor-expenses + competitors stay on Sheets (no transactional source). Read-through `lib/analytics/*` behind `ANALYTICS_SOURCE` env flag → instant env-only rollback. Parity check before cutover. ~2d. Implement next session (needs prod DB to validate parity) |
+
+## Executor's Feedback or Assistance Requests
+- **Need user decision:** execute **P0** first (config + cache-bust + lazy-load + memo — a few hours, low risk, big perceived speedup), then P1? Recommend yes.
+- **Measurement gap:** no real timing data captured yet. Recommend a `next build` first-load-JS snapshot + a couple Vercel function durations (`/api/prices`, `/api/sales`, order-label PDF) to quantify before/after.
+
+## Follow-up audit (Jun 2026, post P0–P2) — Phase 1 + Phase 2 implemented
+Fresh whole-app read-only audit confirmed prior fixes still in place. New, verified findings + actions:
+| Item | Status |
+|---|---|
+| DB indexes applied to PROD | ⚠️ STILL PENDING user — biggest live win; run `scripts/apply-prod-migrations.sh`. Indexes are seq-scans until then |
+| HTTP cache on `/api/prices`, `/api/sales`, `/api/inventory` | ✅ `Cache-Control: private, max-age=30, stale-while-revalidate=120` (extended `successResponse` to take headers). Manual refresh still bypasses via `?t=`+no-store |
+| Search debounce | ✅ ALREADY PRESENT — `SearchCommand` debounces 300ms; no change. (Underlying full-dataset scan is Sheets-TTL-cached) |
+| `/api/sales` payload bounding | ❌ NOT SAFE — `DashboardClient` consumes the full sales array to recompute KPIs; bounding would break it. Kept full + cached |
+| Admin list routes projection/pagination | ✅ `/api/admin/users` already paginated; `/api/admin/clients` already projected; `/api/admin/products` switched `include`→`select` (only used cols). No `take` caps added (would silently truncate admin pickers) |
+| pg_trgm search indexes | ✅ Delivered as `scripts/optional-trgm-search-indexes.sql` (NOT a Prisma migration — needs rds_superuser, would cause drift + could abort runtime migrate). Run via psql only when search volume warrants |
+| CustomerPricing waterfall fold-in | ⬜ optional, deferred (low impact; client component fetches after render) |
+| Rate limiter (in-memory, per-instance) | 📋 noted — correctness/scaling not latency; move to Redis/Upstash if abuse protection needed |
+| Verify | ✅ tsc clean, `next build` exit 0, 79/79 tests pass |
+
+---
+
+# (SUPERSEDED) ACTIVE PLAN — Admin Backend Performance Analysis (June 2026)  [PLANNER]
+
+> Earlier, narrower analysis. P0/P1 below are ✅ done; remaining items folded into the whole-platform plan above.
 
 ## Background and Motivation
 The admin portal (`/dashboard`, `/customers`, `/profit-loss`, `/inventory`, `/pricing`, `/competitors`, global search) feels slow. The platform has two data backends: **Google Sheets** (legacy: sales/inventory/pricing/competitors — powers most admin analytics) and **Postgres/RDS** (orders, clients, pricing overrides, fulfillment). The slowness is concentrated on the Sheets-backed analytics surfaces and the client-side fetch patterns around them.

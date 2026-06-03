@@ -155,9 +155,38 @@ export async function getClientPricing(clientId: string): Promise<{
 }
 
 /**
- * Get a single product's pricing by SKU.
+ * Get a single product's pricing by SKU. Queries just that variant from
+ * Postgres (indexed unique SKU) instead of loading the entire catalog; falls
+ * back to the full pricing list only when Postgres is unavailable.
  */
 export async function getProductPriceBySku(sku: string): Promise<ProductPrice | null> {
+  if (prisma) {
+    try {
+      const v = await prisma.productVariant.findUnique({
+        where: { sku },
+        include: { product: { select: { name: true } } },
+      })
+      if (v) {
+        return {
+          id: v.id,
+          sku: v.sku || `${v.product.name.substring(0, 3).toUpperCase()}-${v.dose}`,
+          productName: v.product.name,
+          dose: v.dose || '',
+          unitCost: Number(v.unitCost),
+          srp: Number(v.srp),
+          inventoryOnHand: v.inventoryOnHand,
+          status: v.status as ProductPrice['status'],
+          source: 'postgres',
+        }
+      }
+    } catch (error) {
+      logger.warn('Single-SKU price lookup failed, falling back to full pricing', {
+        sku,
+        error: String(error),
+      })
+    }
+  }
+
   const { prices } = await getPricing()
   return prices.find((p) => p.sku === sku) || null
 }

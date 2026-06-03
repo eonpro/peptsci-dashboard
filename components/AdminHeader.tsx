@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -26,7 +27,13 @@ import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { SearchCommand } from './SearchCommand'
+
+// The command palette pulls in `cmdk` and renders on every admin page. Load it
+// lazily and only mount it once the user first opens search, so it stays out of
+// the shared admin chunk.
+const SearchCommand = dynamic(() => import('./SearchCommand').then((m) => m.SearchCommand), {
+  ssr: false,
+})
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,12 +96,20 @@ export function AdminHeader() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  // Stays true after the first open so the lazy palette keeps its mounted state.
+  const [searchMounted, setSearchMounted] = useState(false)
+
+  const openSearch = () => {
+    setSearchMounted(true)
+    setSearchOpen(true)
+  }
 
   // Keyboard shortcut for search (Cmd/Ctrl + K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
+        setSearchMounted(true)
         setSearchOpen(true)
       }
     }
@@ -158,7 +173,7 @@ export function AdminHeader() {
             variant="ghost"
             size="sm"
             className="hidden md:flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/10 border border-white/20 px-3"
-            onClick={() => setSearchOpen(true)}
+            onClick={openSearch}
           >
             <Search className="h-4 w-4" />
             <span className="text-sm">Search...</span>
@@ -172,7 +187,7 @@ export function AdminHeader() {
             variant="ghost"
             size="icon"
             className="md:hidden text-white/70 hover:text-white hover:bg-white/10"
-            onClick={() => setSearchOpen(true)}
+            onClick={openSearch}
           >
             <Search className="h-5 w-5" />
           </Button>
@@ -274,7 +289,7 @@ export function AdminHeader() {
               className="w-full justify-start bg-white/10 text-white border-white/30 hover:bg-white/20 hover:text-white"
               onClick={() => {
                 setMobileMenuOpen(false)
-                setSearchOpen(true)
+                openSearch()
               }}
             >
               <Search className="mr-2 h-4 w-4" />
@@ -325,8 +340,8 @@ export function AdminHeader() {
         </SheetContent>
       </Sheet>
 
-      {/* Global Search Command */}
-      <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
+      {/* Global Search Command (lazy: only mounted after first open) */}
+      {searchMounted && <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />}
     </header>
   )
 }

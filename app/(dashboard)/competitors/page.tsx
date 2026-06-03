@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCompetitors } from '@/lib/sheets'
 import CompetitorsTable from './CompetitorsTable'
-import CompetitorChart from './CompetitorChart'
+import CompetitorChart from './CompetitorChartLazy'
 
 interface CompetitorEntry {
   name: string

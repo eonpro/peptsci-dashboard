@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,13 @@ import {
   Loader2,
   Printer,
 } from 'lucide-react'
-import FedExLabelModal, { type LabelAddress } from '@/components/shipping/FedExLabelModal'
+import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
+
+// The FedEx label modal (and its form/stripe deps) only matters once a rep
+// opens it; load it on demand instead of in the page's initial bundle.
+const FedExLabelModal = dynamic(() => import('@/components/shipping/FedExLabelModal'), {
+  ssr: false,
+})
 
 type StoredAddress = Record<string, unknown> | null
 

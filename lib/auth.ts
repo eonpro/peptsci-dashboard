@@ -136,6 +136,10 @@ export function errorResponse(message: string, status = 500, code = 'INTERNAL_ER
 /**
  * Creates a standardized success response.
  */
-export function successResponse<T>(data: T, status = 200) {
-  return NextResponse.json(data, { status })
+export function successResponse<T>(
+  data: T,
+  status = 200,
+  headers?: Record<string, string>
+) {
+  return NextResponse.json(data, { status, headers })
 }

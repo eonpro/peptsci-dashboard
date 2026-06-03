@@ -27,10 +27,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Return inventory directly from the sheet
+    // Return inventory directly from the sheet. Per-user cacheable for a short
+    // window (data is already TTL-cached server-side) to avoid re-pulling the
+    // full inventory list on quick repeat navigations.
     const inventory = await getInventory()
 
-    return successResponse(inventory)
+    return successResponse(inventory, 200, {
+      'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+    })
   } catch (error) {
     console.error('Error fetching inventory:', error)
     return errorResponse('Failed to fetch inventory data')

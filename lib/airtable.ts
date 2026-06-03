@@ -1,6 +1,10 @@
 import Airtable from 'airtable'
+import { unstable_cache } from 'next/cache'
 import { logger } from './logger'
 import type { ShopProduct } from './types/shop'
+
+/** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
+export const CATALOG_TAG = 'catalog'
 
 // -------------------------------------------------
 // Configuration
@@ -240,6 +244,19 @@ function convertToShopProduct(product: AirtableProduct, index: number): ShopProd
  * Get products from Airtable for shop display.
  * Returns unified ShopProduct type with retail pricing.
  */
+// The Airtable catalog is a slow, rate-limited external call that the public
+// shop renders constantly. Cache the converted catalog in Next's data cache
+// (revalidate every 5 min, or on demand via revalidateTag(CATALOG_TAG) from
+// product-mutation routes) so repeat renders don't re-hit Airtable.
+const getCachedAirtableCatalog = unstable_cache(
+  async (): Promise<ShopProduct[]> => {
+    const airtableProducts = await getAirtableProducts()
+    return airtableProducts.map((p, i) => convertToShopProduct(p, i))
+  },
+  ['shop-catalog'],
+  { revalidate: 300, tags: [CATALOG_TAG] }
+)
+
 export async function getProductCatalog(): Promise<{
   source: 'airtable' | 'sheets'
   products: ShopProduct[]
@@ -247,11 +264,10 @@ export async function getProductCatalog(): Promise<{
   // Try Airtable first
   if (isAirtableConfigured) {
     try {
-      const airtableProducts = await getAirtableProducts()
+      const products = await getCachedAirtableCatalog()
 
-      if (airtableProducts.length > 0) {
-        const products = airtableProducts.map((p, i) => convertToShopProduct(p, i))
-        logger.info('Loaded products from Airtable', { count: products.length })
+      if (products.length > 0) {
+        logger.info('Loaded products from Airtable (cached)', { count: products.length })
         return { source: 'airtable', products }
       }
     } catch (error) {
@@ -277,6 +293,50 @@ export async function getProductCatalog(): Promise<{
   }))
 
   return { source: 'sheets', products }
+}
+
+/**
+ * Fetch a single shop product (with retail pricing applied) by exact SKU,
+ * WITHOUT pulling the entire catalog. Returns null when Airtable is not
+ * configured or the SKU isn't found (callers can fall back to the catalog).
+ */
+export async function getShopProductBySku(sku: string): Promise<ShopProduct | null> {
+  if (!isAirtableConfigured) return null
+  const product = await getAirtableProductBySku(sku)
+  return product ? convertToShopProduct(product, 0) : null
+}
+
+/**
+ * Fetch up to `limit` shop products in the same category (for "related
+ * products"), excluding `excludeSku`. Uses a category-filtered Airtable query
+ * instead of scanning the whole catalog.
+ */
+export async function getRelatedShopProducts(
+  category: string | null,
+  excludeSku: string,
+  limit = 4
+): Promise<ShopProduct[]> {
+  if (!base || !category) return []
+  try {
+    // Escape double quotes to keep the formula well-formed.
+    const safeCategory = category.replace(/"/g, '\\"')
+    const records = await base(AIRTABLE_TABLE_ID)
+      .select({
+        filterByFormula: `{Category} = "${safeCategory}"`,
+        maxRecords: limit + 1,
+      })
+      .all()
+    return records
+      .map((r, i) => convertToShopProduct(mapRecordToProduct(r), i))
+      .filter((p) => p.sku !== excludeSku)
+      .slice(0, limit)
+  } catch (error) {
+    logger.warn('Error fetching related products by category', {
+      category,
+      error: String(error),
+    })
+    return []
+  }
 }
 
 /**

@@ -31,6 +31,8 @@ model User {
   inventoryBatches     InventoryBatch[]
   shipmentLabels       ShipmentLabel[]       @relation("LabelsCreated")
   packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
+
+  @@index([clientId])
 }
 
 model Client {
@@ -264,6 +266,7 @@ model RetailOrder {
   @@index([storefrontId])
   @@index([endCustomerId])
   @@index([peptsciOrderId])
+  @@index([storefrontId, createdAt])
 }
 
 model RetailOrderItem {
@@ -319,6 +322,9 @@ model ProductVariant {
   clientPricing       ClientPricing[]
   storefrontProducts  StorefrontProduct[]
   batches             InventoryBatch[]
+
+  @@index([status])
+  @@index([productId])
 }
 
 // -------------------------------------------------
@@ -357,6 +363,7 @@ model InventoryBatch {
   @@index([variantId])
   @@index([status])
   @@index([bud])
+  @@index([createdAt])
 }
 
 // Immutable audit trail for a batch (receipt, manual adjustment, label print, void).
@@ -409,6 +416,9 @@ model InventoryAdjustment {
   createdBy   User?                     @relation(fields: [createdById], references: [id])
   createdById String?
   createdAt   DateTime                  @default(now())
+
+  @@index([variantId])
+  @@index([orderId])
 }
 
 // -------------------------------------------------
@@ -468,6 +478,10 @@ model Order {
   @@index([clientId])
   @@index([stripePaymentIntentId])
   @@index([trackingNumber])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@index([stripeChargeId])
+  @@index([clientId, status, createdAt])
 }
 
 model OrderItem {
@@ -481,6 +495,9 @@ model OrderItem {
   discountAmount Decimal        @default(0) @db.Decimal(12, 2)
   totalPrice     Decimal        @db.Decimal(12, 2)
   createdAt      DateTime       @default(now())
+
+  @@index([orderId])
+  @@index([variantId])
 }
 
 model OrderDocument {
@@ -582,6 +599,10 @@ model AuditLog {
   createdAt DateTime @default(now())
   order     Order?   @relation(fields: [orderId], references: [id])
   orderId   String?
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([entity, entityId])
 }
 
 // -------------------------------------------------

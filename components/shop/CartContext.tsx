@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useReducer, useEffect, useMemo, ReactNode } from 'react'
 
 export interface CartItem {
   id: string
@@ -119,56 +119,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.items))
   }, [state.items])
 
-  const addItem = (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
-    dispatch({ type: 'ADD_ITEM', payload: item })
-  }
+  // Memoize the context value so consumers (the whole shop tree) only re-render
+  // when the cart contents or open state actually change — not on every render
+  // of CartProvider. `dispatch` is stable, so the handlers can be created once.
+  const value = useMemo<CartContextType>(() => {
+    const totalItems = state.items.reduce((sum, item) => sum + item.quantity, 0)
+    const subtotal = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    return {
+      items: state.items,
+      isOpen: state.isOpen,
+      addItem: (item) => dispatch({ type: 'ADD_ITEM', payload: item }),
+      removeItem: (id) => dispatch({ type: 'REMOVE_ITEM', payload: id }),
+      updateQuantity: (id, quantity) => dispatch({ type: 'UPDATE_QUANTITY', payload: { id, quantity } }),
+      clearCart: () => dispatch({ type: 'CLEAR_CART' }),
+      toggleCart: () => dispatch({ type: 'TOGGLE_CART' }),
+      openCart: () => dispatch({ type: 'OPEN_CART' }),
+      closeCart: () => dispatch({ type: 'CLOSE_CART' }),
+      totalItems,
+      subtotal,
+    }
+  }, [state.items, state.isOpen])
 
-  const removeItem = (id: string) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: id })
-  }
-
-  const updateQuantity = (id: string, quantity: number) => {
-    dispatch({ type: 'UPDATE_QUANTITY', payload: { id, quantity } })
-  }
-
-  const clearCart = () => {
-    dispatch({ type: 'CLEAR_CART' })
-  }
-
-  const toggleCart = () => {
-    dispatch({ type: 'TOGGLE_CART' })
-  }
-
-  const openCart = () => {
-    dispatch({ type: 'OPEN_CART' })
-  }
-
-  const closeCart = () => {
-    dispatch({ type: 'CLOSE_CART' })
-  }
-
-  const totalItems = state.items.reduce((sum, item) => sum + item.quantity, 0)
-  const subtotal = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-
-  return (
-    <CartContext.Provider
-      value={{
-        items: state.items,
-        isOpen: state.isOpen,
-        addItem,
-        removeItem,
-        updateQuantity,
-        clearCart,
-        toggleCart,
-        openCart,
-        closeCart,
-        totalItems,
-        subtotal,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
-  )
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
 
 export function useCart() {

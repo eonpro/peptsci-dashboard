@@ -1,6 +1,15 @@
 'use client'
 
-import { createContext, useContext, useReducer, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useReducer,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  type ReactNode,
+} from 'react'
 import type { BrandingConfig, StorefrontPublicConfig, StorefrontProductItem } from '@/lib/types/storefront'
 
 // ── Cart ──
@@ -142,36 +151,39 @@ export function StorefrontProvider({
     } catch {}
   }, [sessionKey])
 
-  function setSession(s: EndCustomerSession | null) {
-    setSessionState(s)
-    try {
-      if (s) localStorage.setItem(sessionKey, JSON.stringify(s))
-      else localStorage.removeItem(sessionKey)
-    } catch {}
-  }
-
-  const cartSubtotal = cart.items.reduce((s, i) => s + i.retailPrice * i.quantity, 0)
-  const cartItemCount = cart.items.reduce((s, i) => s + i.quantity, 0)
-
-  return (
-    <StorefrontContext.Provider
-      value={{
-        config,
-        slug,
-        cart,
-        addToCart: (item) => dispatch({ type: 'ADD_ITEM', item }),
-        removeFromCart: (id) => dispatch({ type: 'REMOVE_ITEM', storefrontProductId: id }),
-        updateQuantity: (id, qty) => dispatch({ type: 'UPDATE_QTY', storefrontProductId: id, quantity: qty }),
-        clearCart: () => dispatch({ type: 'CLEAR' }),
-        toggleCartDrawer: () => dispatch({ type: 'TOGGLE_DRAWER' }),
-        cartSubtotal,
-        cartItemCount,
-        session,
-        setSession,
-      }}
-    >
-      {children}
-    </StorefrontContext.Provider>
+  const setSession = useCallback(
+    (s: EndCustomerSession | null) => {
+      setSessionState(s)
+      try {
+        if (s) localStorage.setItem(sessionKey, JSON.stringify(s))
+        else localStorage.removeItem(sessionKey)
+      } catch {}
+    },
+    [sessionKey]
   )
+
+  // Memoize so the whole storefront tree only re-renders when cart/session/
+  // config actually change, not on every StorefrontProvider render.
+  const value = useMemo<StorefrontContextValue>(() => {
+    const cartSubtotal = cart.items.reduce((s, i) => s + i.retailPrice * i.quantity, 0)
+    const cartItemCount = cart.items.reduce((s, i) => s + i.quantity, 0)
+    return {
+      config,
+      slug,
+      cart,
+      addToCart: (item) => dispatch({ type: 'ADD_ITEM', item }),
+      removeFromCart: (id) => dispatch({ type: 'REMOVE_ITEM', storefrontProductId: id }),
+      updateQuantity: (id, qty) =>
+        dispatch({ type: 'UPDATE_QTY', storefrontProductId: id, quantity: qty }),
+      clearCart: () => dispatch({ type: 'CLEAR' }),
+      toggleCartDrawer: () => dispatch({ type: 'TOGGLE_DRAWER' }),
+      cartSubtotal,
+      cartItemCount,
+      session,
+      setSession,
+    }
+  }, [config, slug, cart, session, setSession])
+
+  return <StorefrontContext.Provider value={value}>{children}</StorefrontContext.Provider>
 }
 

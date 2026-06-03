@@ -16,7 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Adobe Fonts - Sofia Pro */}
+        {/* Adobe Fonts - Sofia Pro. Preconnect to the Typekit CSS + font-file
+            hosts so the TLS/DNS handshake happens in parallel with HTML parse,
+            shaving latency off this render-blocking stylesheet (faster FCP/LCP). */}
+        <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://p.typekit.net" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://use.typekit.net" />
         <link rel="stylesheet" href="https://use.typekit.net/rbf3ldc.css" />
       </head>
       <body className={cn('min-h-screen bg-brand-bg antialiased font-sofia')}>

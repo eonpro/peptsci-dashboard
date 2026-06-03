@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Sale } from '@/lib/sheets'
@@ -29,11 +29,14 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
-  // Group orders by customer and date
-  const groupedOrders: GroupedOrder[] = []
-  const orderMap = new Map<string, GroupedOrder>()
+  // Group orders by customer and date. This is an O(n) build + sort over the
+  // full recent-orders set; memoize on `data` so it doesn't re-run on every
+  // keystroke in the search box or page change.
+  const groupedOrders = useMemo<GroupedOrder[]>(() => {
+    const result: GroupedOrder[] = []
+    const orderMap = new Map<string, GroupedOrder>()
 
-  data.forEach((sale) => {
+    data.forEach((sale) => {
     if (!sale.Date) return
 
     const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
@@ -75,26 +78,29 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
     }
   })
 
-  groupedOrders.push(...Array.from(orderMap.values()))
+    result.push(...Array.from(orderMap.values()))
 
-  // Sort orders: unpaid first, then unfulfilled, then by date
-  groupedOrders.sort((a, b) => {
-    // First priority: unpaid invoices
-    if (a.invoicePaid !== b.invoicePaid) {
-      return a.invoicePaid ? 1 : -1
-    }
+    // Sort orders: unpaid first, then unfulfilled, then by date
+    result.sort((a, b) => {
+      // First priority: unpaid invoices
+      if (a.invoicePaid !== b.invoicePaid) {
+        return a.invoicePaid ? 1 : -1
+      }
 
-    // Second priority: unfulfilled orders (no tracking)
-    const aHasTracking = Boolean(a.trackingNumber)
-    const bHasTracking = Boolean(b.trackingNumber)
+      // Second priority: unfulfilled orders (no tracking)
+      const aHasTracking = Boolean(a.trackingNumber)
+      const bHasTracking = Boolean(b.trackingNumber)
 
-    if (aHasTracking !== bHasTracking) {
-      return aHasTracking ? 1 : -1
-    }
+      if (aHasTracking !== bHasTracking) {
+        return aHasTracking ? 1 : -1
+      }
 
-    // Otherwise sort by date (newest first)
-    return b.date.getTime() - a.date.getTime()
-  })
+      // Otherwise sort by date (newest first)
+      return b.date.getTime() - a.date.getTime()
+    })
+
+    return result
+  }, [data])
 
   // Filter by search
   const filteredOrders = searchTerm

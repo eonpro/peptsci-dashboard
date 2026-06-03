@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
     // Fetch data
     const sales = await getSales()
 
-    return successResponse(sales)
+    // Per-user cacheable for a short window (data is already TTL-cached
+    // server-side). Lets the dashboard reuse the response across quick
+    // navigations without re-pulling the full sales array each time.
+    return successResponse(sales, 200, {
+      'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+    })
   } catch (error) {
     console.error('Error fetching sales:', error)
     return errorResponse('Failed to fetch sales data')

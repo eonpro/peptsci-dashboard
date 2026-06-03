@@ -38,10 +38,18 @@ export async function GET(request: NextRequest) {
     // Fetch pricing (from Postgres if available, otherwise Sheets)
     const result = clientId ? await getClientPricing(clientId) : await getPricing()
 
-    return successResponse({
-      source: result.source,
-      prices: result.prices,
-    })
+    // Per-user cacheable for a short window. The underlying data is already
+    // TTL-cached server-side; this lets the browser reuse the response across
+    // quick navigations/polls without a fresh round trip. Manual refreshes use
+    // `?t=` + no-store, which bypass this.
+    return successResponse(
+      {
+        source: result.source,
+        prices: result.prices,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=120' }
+    )
   } catch (error) {
     console.error('Error fetching prices:', error)
     return errorResponse('Failed to fetch price sheet')

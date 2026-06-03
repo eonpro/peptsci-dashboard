@@ -3,9 +3,9 @@ import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } 
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
-  allocatableBatchesForVariant,
+  allocatableBatchesForVariants,
   planAllocation,
-  recordLabelsPrinted,
+  recordLabelsPrintedMany,
 } from '@/lib/inventory-batches'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
 
@@ -39,8 +39,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const shortfalls: Array<{ variantId: string; needed: number; short: number }> = []
     const draws: Array<{ batchId: string; qty: number }> = []
 
+    // Fetch eligible batches for every line item's variant in one query
+    // (instead of one query per item).
+    const batchesByVariant = await allocatableBatchesForVariants(
+      order.items.map((item) => item.variantId)
+    )
+
     for (const item of order.items) {
-      const batches = await allocatableBatchesForVariant(item.variantId)
+      const batches = batchesByVariant.get(item.variantId) ?? []
       const plan = planAllocation(
         batches.map((b) => ({
           id: b.id,
@@ -81,9 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const pdf = await generatePeptSciLabelsPdf(groups)
 
     if (consume) {
-      for (const d of draws) {
-        await recordLabelsPrinted(d.batchId, d.qty, { clerkUserId: userId, label: userId })
-      }
+      await recordLabelsPrintedMany(draws, { clerkUserId: userId, label: userId })
       logger.info('Order labels generated + stock consumed', { orderId: id, draws: draws.length })
     }
 

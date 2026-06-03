@@ -1,13 +1,22 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { getTotals, groupByProduct, groupByCustomer, getMonthOverMonthSales } from '@/lib/kpis'
 import { KPI } from '@/components/KPI'
 import { ChartCard } from '@/components/ChartCard'
 import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import DashboardCharts from './DashboardCharts'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
+
+// recharts is heavy (~100kB+). Load it only on the client, after the KPIs and
+// shell have painted, so it never blocks first render of the dashboard.
+const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[320px] w-full animate-pulse rounded-2xl border border-white/10 bg-[#0a0e3a]/50" />
+  ),
+})
 import type { Sale } from '@/lib/sheets'
 import { format } from 'date-fns'
 
@@ -66,20 +75,26 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
   const currentMonth = useMemo(() => format(new Date(), 'MMMM'), [])
 
-  const kpis = getTotals(sales)
-  const productMetrics = groupByProduct(sales)
-  const customerMetrics = groupByCustomer(sales)
-  const monthOverMonthData = getMonthOverMonthSales(sales)
+  // All of these are O(n) scans/sorts over the full sales history. Memoize on
+  // `sales` so they don't re-run on every render (refresh spinner, polling, etc).
+  const kpis = useMemo(() => getTotals(sales), [sales])
+  const productMetrics = useMemo(() => groupByProduct(sales), [sales])
+  const customerMetrics = useMemo(() => groupByCustomer(sales), [sales])
+  const monthOverMonthData = useMemo(() => getMonthOverMonthSales(sales), [sales])
 
-  const recentOrders = sales
-    .filter((s) => s.Date)
-    .sort((a, b) => {
-      if (!a.Date || !b.Date) return 0
-      return b.Date.getTime() - a.Date.getTime()
-    })
-    .slice(0, 20)
+  const recentOrders = useMemo(
+    () =>
+      sales
+        .filter((s) => s.Date)
+        .sort((a, b) => {
+          if (!a.Date || !b.Date) return 0
+          return b.Date.getTime() - a.Date.getTime()
+        })
+        .slice(0, 20),
+    [sales]
+  )
 
-  const topCustomers = customerMetrics.slice(0, 10)
+  const topCustomers = useMemo(() => customerMetrics.slice(0, 10), [customerMetrics])
 
   return (
     <div className="container mx-auto space-y-6 p-6">

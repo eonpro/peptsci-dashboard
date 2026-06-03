@@ -390,6 +390,33 @@ export async function allocatableBatchesForVariant(variantId: string) {
   })
 }
 
+type AllocatableBatchRow = Awaited<ReturnType<typeof allocatableBatchesForVariant>>[number]
+
+/**
+ * Batched form of {@link allocatableBatchesForVariant}: fetch eligible batches
+ * for many variants in a SINGLE query (avoids the N+1 of calling the per-variant
+ * helper in a loop), returned grouped by variantId. Within each group the FIFO
+ * order (soonest BUD first, then batch number) is preserved.
+ */
+export async function allocatableBatchesForVariants(
+  variantIds: string[]
+): Promise<Map<string, AllocatableBatchRow[]>> {
+  const grouped = new Map<string, AllocatableBatchRow[]>()
+  const ids = Array.from(new Set(variantIds))
+  if (ids.length === 0) return grouped
+
+  const rows = await db().inventoryBatch.findMany({
+    where: { variantId: { in: ids }, status: 'RECEIVED', qtyOnHand: { gt: 0 } },
+    orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
+  })
+  for (const row of rows) {
+    const list = grouped.get(row.variantId)
+    if (list) list.push(row)
+    else grouped.set(row.variantId, [row])
+  }
+  return grouped
+}
+
 /**
  * Record that `qty` labels were printed against a batch (decrements on-hand,
  * FIFO is the caller's concern when spanning batches). Used by order-label
@@ -402,37 +429,63 @@ export async function recordLabelsPrinted(
   actor: BatchActor
 ): Promise<void> {
   const client = db()
-  await client.$transaction(async (tx) => {
-    const batch = await tx.inventoryBatch.findUnique({ where: { id: batchId } })
-    if (!batch) throw new BatchValidationError('Batch not found', 'batchId')
-    const take = Math.min(batch.qtyOnHand, Math.max(0, Math.trunc(qty)))
-    if (take <= 0) return
-    const nextOnHand = batch.qtyOnHand - take
-    await tx.inventoryBatch.update({
-      where: { id: batchId },
-      data: {
-        qtyOnHand: nextOnHand,
-        status: nextOnHand <= 0 ? 'DEPLETED' : batch.status,
-        events: {
-          create: {
-            type: 'LABELS_PRINTED',
-            delta: -take,
-            performedBy: actor.label ?? null,
-          },
+  await client.$transaction((tx) => recordLabelsPrintedTx(tx, batchId, qty, actor))
+}
+
+/** Core of {@link recordLabelsPrinted}, parameterized by a transaction client. */
+async function recordLabelsPrintedTx(
+  tx: Prisma.TransactionClient,
+  batchId: string,
+  qty: number,
+  actor: BatchActor
+): Promise<void> {
+  const batch = await tx.inventoryBatch.findUnique({ where: { id: batchId } })
+  if (!batch) throw new BatchValidationError('Batch not found', 'batchId')
+  const take = Math.min(batch.qtyOnHand, Math.max(0, Math.trunc(qty)))
+  if (take <= 0) return
+  const nextOnHand = batch.qtyOnHand - take
+  await tx.inventoryBatch.update({
+    where: { id: batchId },
+    data: {
+      qtyOnHand: nextOnHand,
+      status: nextOnHand <= 0 ? 'DEPLETED' : batch.status,
+      events: {
+        create: {
+          type: 'LABELS_PRINTED',
+          delta: -take,
+          performedBy: actor.label ?? null,
         },
       },
-    })
-    await tx.productVariant.update({
-      where: { id: batch.variantId },
-      data: { inventoryOnHand: { decrement: take } },
-    })
-    await tx.inventoryAdjustment.create({
-      data: {
-        variantId: batch.variantId,
-        delta: -take,
-        reason: 'ORDER_FULFILLMENT',
-        note: `Labels printed for batch ${batch.batchNumber}`,
-      },
-    })
+    },
+  })
+  await tx.productVariant.update({
+    where: { id: batch.variantId },
+    data: { inventoryOnHand: { decrement: take } },
+  })
+  await tx.inventoryAdjustment.create({
+    data: {
+      variantId: batch.variantId,
+      delta: -take,
+      reason: 'ORDER_FULFILLMENT',
+      note: `Labels printed for batch ${batch.batchNumber}`,
+    },
+  })
+}
+
+/**
+ * Batched form of {@link recordLabelsPrinted}: apply many batch draws in a
+ * SINGLE transaction instead of opening one transaction per draw (avoids the
+ * sequential-transaction overhead when consuming a multi-line order).
+ */
+export async function recordLabelsPrintedMany(
+  draws: Array<{ batchId: string; qty: number }>,
+  actor: BatchActor
+): Promise<void> {
+  if (draws.length === 0) return
+  const client = db()
+  await client.$transaction(async (tx) => {
+    for (const draw of draws) {
+      await recordLabelsPrintedTx(tx, draw.batchId, draw.qty, actor)
+    }
   })
 }

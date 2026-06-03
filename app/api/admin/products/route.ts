@@ -27,9 +27,21 @@ export async function GET(_request: NextRequest) {
       return successResponse({ variants: [] })
     }
 
+    // Project only the columns the response uses (avoids loading every
+    // ProductVariant scalar — notes, timestamps, etc. — per row).
     const variants = await prisma.productVariant.findMany({
       where: { status: 'ACTIVE' },
-      include: { product: { select: { name: true, category: true } } },
+      select: {
+        id: true,
+        sku: true,
+        dose: true,
+        srp: true,
+        unitCost: true,
+        supplierName: true,
+        supplierSku: true,
+        inventoryOnHand: true,
+        product: { select: { name: true, category: true } },
+      },
       orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
     })
 

@@ -1,5 +1,9 @@
 import { notFound } from 'next/navigation'
-import { getProductCatalog } from '@/lib/airtable'
+import {
+  getProductCatalog,
+  getShopProductBySku,
+  getRelatedShopProducts,
+} from '@/lib/airtable'
 import { ProductDetailCard, type ProductDetailData } from '@/components/shop/ProductDetailCard'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { Button } from '@/components/ui/button'
@@ -7,6 +11,7 @@ import { ArrowLeft, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 import { getUserMetadata } from '@/lib/roles'
 import { applyClientPricing } from '@/lib/shop-pricing'
+import type { ShopProduct } from '@/lib/types/shop'
 
 // Client-specific pricing requires per-request auth context.
 export const dynamic = 'force-dynamic'
@@ -67,19 +72,36 @@ interface ProductPageProps {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { sku } = await params
-
-  // Get product catalog with the viewing client's pricing applied
-  const { products: catalog } = await getProductCatalog()
   const { clientId } = await getUserMetadata()
-  const products = await applyClientPricing(catalog, clientId)
 
-  // Find the product by SKU (case-insensitive, handling dashes)
-  const normalizedSku = sku.toLowerCase().replace(/-/g, '')
-  const product = products.find((p) => {
-    const productSku = p.sku.toLowerCase().replace(/-/g, '')
-    const productName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
-    return productSku.includes(normalizedSku) || productName.includes(normalizedSku)
-  })
+  // Fast path: fetch just this product (+ a few category peers) instead of the
+  // whole catalog. Falls back to a full-catalog fuzzy match when the SKU isn't
+  // an exact Airtable SKU (or Airtable isn't the source).
+  let product: ShopProduct | undefined
+  let relatedProducts: ShopProduct[] = []
+
+  const exact = await getShopProductBySku(sku)
+  if (exact) {
+    ;[product] = await applyClientPricing([exact], clientId)
+    const related = await getRelatedShopProducts(exact.category, exact.sku, 4)
+    relatedProducts = await applyClientPricing(related, clientId)
+  } else {
+    const { products: catalog } = await getProductCatalog()
+    const products = await applyClientPricing(catalog, clientId)
+
+    const normalizedSku = sku.toLowerCase().replace(/-/g, '')
+    product = products.find((p) => {
+      const productSku = p.sku.toLowerCase().replace(/-/g, '')
+      const productName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      return productSku.includes(normalizedSku) || productName.includes(normalizedSku)
+    })
+
+    if (product) {
+      relatedProducts = products
+        .filter((p) => p.category === product!.category && p.id !== product!.id)
+        .slice(0, 4)
+    }
+  }
 
   if (!product) {
     notFound()
@@ -90,13 +112,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     DETAILED_PRODUCTS[sku.toLowerCase()] ||
     // Try to match by product name
     Object.entries(DETAILED_PRODUCTS).find(([key]) => {
-      return product.name.toLowerCase().includes(key.replace(/-/g, ' ').replace(/-/g, ''))
+      return product!.name.toLowerCase().includes(key.replace(/-/g, ' ').replace(/-/g, ''))
     })?.[1]
-
-  // Get related products (same category)
-  const relatedProducts = products
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4)
 
   return (
     <div className="space-y-8">

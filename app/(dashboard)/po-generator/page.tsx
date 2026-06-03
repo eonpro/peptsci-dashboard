@@ -14,19 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Trash2, Plus, FileDown } from 'lucide-react'
 import { format } from 'date-fns'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-
-declare global {
-  interface Window {
-    jspdfAutoTable?: typeof autoTable
-  }
-}
-
-// Ensure autoTable is available on the jsPDF prototype
-if (typeof window !== 'undefined' && autoTable) {
-  window.jspdfAutoTable = autoTable
-}
+import type JsPDF from 'jspdf'
 
 interface POItem {
   id: string
@@ -137,6 +125,13 @@ export default function POGeneratorPage() {
       alert('Please add at least one item to the purchase order')
       return
     }
+
+    // Load the (heavy) PDF libraries only when the user actually exports, so
+    // they never ship in the initial PO-generator bundle.
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ])
 
     const doc = new jsPDF()
 
@@ -291,7 +286,7 @@ export default function POGeneratorPage() {
     }
 
     // Add footer with Poppins-like styling
-    type AutoTableDoc = jsPDF & { lastAutoTable?: { finalY: number } }
+    type AutoTableDoc = JsPDF & { lastAutoTable?: { finalY: number } }
     const autoTableDoc = doc as AutoTableDoc
     const finalY = autoTableDoc.lastAutoTable?.finalY ?? 200
     doc.setFontSize(9)
