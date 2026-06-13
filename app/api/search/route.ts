@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSales, getInventory, getPriceSheet } from '@/lib/sheets'
+import { getSales } from '@/lib/sales'
+import { getInventory } from '@/lib/inventory'
+import { getPriceSheet } from '@/lib/pricing'
 import { globalSearch } from '@/lib/search'
-import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
@@ -15,10 +17,14 @@ const searchQuerySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate request
-    const { userId, isAuthenticated } = await requireAuth()
+    // Authenticate + authorize: global search spans sales/inventory/pricing
+    // (admin ops data), so it is admin-only.
+    const { userId, isAuthenticated, isAdmin } = await requireAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
+    }
+    if (!isAdmin) {
+      return forbiddenResponse()
     }
 
     // Rate limit check

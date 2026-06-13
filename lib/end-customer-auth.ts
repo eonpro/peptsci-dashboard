@@ -2,8 +2,26 @@ import { prisma } from './prisma'
 import { logger } from './logger'
 import * as crypto from 'crypto'
 
-const JWT_SECRET = process.env.END_CUSTOMER_JWT_SECRET || 'dev-ec-secret-change-me'
+const DEV_FALLBACK_SECRET = 'dev-ec-secret-change-me'
 const TOKEN_EXPIRY_HOURS = 72
+
+/**
+ * Resolve the HMAC secret at call time (not import time, so production builds
+ * that lack the env var don't crash). In production a missing or default secret
+ * is fatal — token forgery on the public storefront would otherwise be trivial.
+ */
+function getJwtSecret(): string {
+  const secret = process.env.END_CUSTOMER_JWT_SECRET
+  if (!secret || secret === DEV_FALLBACK_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'END_CUSTOMER_JWT_SECRET must be set to a strong non-default value in production'
+      )
+    }
+    return DEV_FALLBACK_SECRET
+  }
+  return secret
+}
 
 interface EndCustomerPayload {
   endCustomerId: string
@@ -20,7 +38,7 @@ function sign(payload: EndCustomerPayload): string {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const body = base64url(JSON.stringify(payload))
   const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', getJwtSecret())
     .update(`${header}.${body}`)
     .digest('base64url')
   return `${header}.${body}.${signature}`
@@ -33,7 +51,7 @@ export function verifyEndCustomerToken(token: string): EndCustomerPayload | null
 
     const [header, body, signature] = parts
     const expected = crypto
-      .createHmac('sha256', JWT_SECRET)
+      .createHmac('sha256', getJwtSecret())
       .update(`${header}.${body}`)
       .digest('base64url')
 

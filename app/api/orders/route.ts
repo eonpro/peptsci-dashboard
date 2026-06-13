@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDistributorOrders } from '@/lib/orders'
-import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
 
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate request
-    const { userId, isAuthenticated } = await requireAuth()
+    // Authenticate + authorize: distributor orders/expenses are admin-only.
+    const { userId, isAuthenticated, isAdmin } = await requireAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
+    }
+    if (!isAdmin) {
+      return forbiddenResponse()
     }
 
     // Rate limit check

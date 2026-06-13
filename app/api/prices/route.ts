@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPricing, getClientPricing } from '@/lib/pricing'
-import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
+import {
+  requireAdmin,
+  unauthorizedResponse,
+  forbiddenResponse,
+  errorResponse,
+  successResponse,
+} from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
 
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate request
-    const { userId, isAuthenticated } = await requireAuth()
+    // Authenticate. Base SRP pricing is available to any signed-in user (the
+    // client storefront-manager needs it), but cost/margin and per-client
+    // custom pricing are admin-only — enforced below.
+    const { userId, isAuthenticated, isAdmin } = await requireAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
     }
@@ -35,8 +43,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('clientId')
 
-    // Fetch pricing (from Postgres if available, otherwise Sheets)
-    const result = clientId ? await getClientPricing(clientId) : await getPricing()
+    // Per-client custom pricing is sensitive and admin-managed. Block any
+    // attempt to read another client's pricing by id (IDOR protection).
+    if (clientId) {
+      if (!isAdmin) {
+        return forbiddenResponse()
+      }
+      const result = await getClientPricing(clientId)
+      return successResponse(
+        { source: result.source, prices: result.prices },
+        200,
+        { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=120' }
+      )
+    }
+
+    const result = await getPricing()
+
+    // Non-admins (e.g. clinic storefront managers) get SRP only — never our
+    // unit cost / margin.
+    const prices = isAdmin
+      ? result.prices
+      : result.prices.map(({ unitCost: _unitCost, ...rest }) => rest)
 
     // Per-user cacheable for a short window. The underlying data is already
     // TTL-cached server-side; this lets the browser reuse the response across
@@ -45,7 +72,7 @@ export async function GET(request: NextRequest) {
     return successResponse(
       {
         source: result.source,
-        prices: result.prices,
+        prices,
       },
       200,
       { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=120' }

@@ -27,6 +27,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+# legacy non-dotfile env (must not be committed)
+env.local
+/env.local
 
 # vercel
 .vercel

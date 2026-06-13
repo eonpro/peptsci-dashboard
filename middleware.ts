@@ -198,6 +198,15 @@ const middleware = isClerkConfigured
         return response
       }
 
+      // Production must never run without Clerk configured. Fail closed so we
+      // don't expose the entire app when the publishable key is missing.
+      if (process.env.NODE_ENV === 'production') {
+        return new NextResponse(
+          'Authentication is not configured. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.',
+          { status: 503 }
+        )
+      }
+
       // Development mode without Clerk - allow all access
       if (request.nextUrl.pathname === '/') {
         return NextResponse.redirect(new URL('/dashboard', request.url))

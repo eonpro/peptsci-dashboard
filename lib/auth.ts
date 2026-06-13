@@ -6,6 +6,10 @@ import { isAdminRole, isSuperAdminRole, type UserRole } from './access'
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
+// Dev-only auth bypass is allowed when Clerk isn't configured. In production a
+// missing/invalid Clerk key must NEVER fall open — we deny instead.
+const isProduction = process.env.NODE_ENV === 'production'
+
 export interface AuthResult {
   userId: string | null
   isAuthenticated: boolean
@@ -23,9 +27,14 @@ export interface AdminAuthResult extends AuthResult {
  * If Clerk is not configured, allows all requests (dev mode).
  */
 export async function requireAuth(): Promise<AuthResult> {
-  // If Clerk is not configured, allow requests (development mode)
+  // If Clerk is not configured, allow requests in development only. In
+  // production this must fail closed to avoid an open auth bypass.
   if (!isClerkConfigured) {
-    logger.warn('Clerk not configured - auth bypassed')
+    if (isProduction) {
+      logger.error('Clerk not configured in production - denying request (fail closed)')
+      return { userId: null, isAuthenticated: false }
+    }
+    logger.warn('Clerk not configured - auth bypassed (dev mode)')
     return {
       userId: 'dev-user',
       isAuthenticated: true,
@@ -57,6 +66,10 @@ export async function requireAuth(): Promise<AuthResult> {
  */
 export async function requireAdmin(): Promise<AdminAuthResult> {
   if (!isClerkConfigured) {
+    if (isProduction) {
+      logger.error('Clerk not configured in production - denying admin request (fail closed)')
+      return { userId: null, isAuthenticated: false, role: null, isAdmin: false, isSuperAdmin: false }
+    }
     logger.warn('Clerk not configured - admin auth bypassed (dev mode)')
     return {
       userId: 'dev-user',
@@ -86,9 +99,18 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
 
 /**
  * Like requireAdmin but for SUPER_ADMIN-only operations (e.g. role changes).
+ *
+ * Returns the resolved auth result with `isAdmin` forced to reflect SUPER_ADMIN
+ * elevation: a plain ADMIN is treated as NOT authorized (isAdmin=false) so
+ * callers that gate on `isAdmin` can't be satisfied by a non-super admin.
+ * Callers should still prefer to check `isSuperAdmin` explicitly.
  */
 export async function requireSuperAdmin(): Promise<AdminAuthResult> {
-  return requireAdmin()
+  const result = await requireAdmin()
+  if (!result.isSuperAdmin) {
+    return { ...result, isAdmin: false }
+  }
+  return result
 }
 
 /**
