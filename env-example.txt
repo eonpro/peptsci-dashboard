@@ -36,23 +36,10 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME?sslmode=require"
 # against an IAM-only RDS instance, run them with a temporary admin
 # DATABASE_URL (or from inside the VPC), not from the IAM path above.
 
-# ===========================================
-# AIRTABLE - Product Content Management
-# ===========================================
-# Get API key from: https://airtable.com/account
-AIRTABLE_API_KEY="pat..."
-# Base ID from your Airtable URL: https://airtable.com/[BASE_ID]/...
-AIRTABLE_BASE_ID="app..."
-
-# ===========================================
-# GOOGLE SHEETS - Legacy Data (Optional)
-# ===========================================
-# Keep for migration period, can remove after full Airtable migration
-GOOGLE_SHEETS_API_KEY="your-api-key"
-GOOGLE_SHEETS_SPREADSHEET_ID="your-spreadsheet-id"
-# Alternative names (supported for backwards compatibility):
-# SPREADSHEET_ID=
-# SHEETS_API_KEY=
+# NOTE: Product catalog, pricing, inventory, sales analytics, competitor
+# prices, and distributor orders all live in Postgres now. Populate them via
+# the admin UI, the CSV importers, or the Stripe sales backfill. (Google Sheets
+# and Airtable have been removed.)
 
 # ===========================================
 # STRIPE - Payments (Model A: inline pricing, Stripe Connect)
@@ -113,3 +100,18 @@ LOG_LEVEL="debug"
 NEXT_PUBLIC_ROOT_DOMAIN="peptsci.com"
 # Secret for signing end-customer JWT tokens (generate a strong random string)
 END_CUSTOMER_JWT_SECRET="change-me-to-a-random-64-char-string"
+
+# ===========================================
+# OBSERVABILITY - Sentry (optional; no-ops when unset)
+# ===========================================
+# Server + edge DSN
+SENTRY_DSN=""
+# Browser DSN (safe to expose)
+NEXT_PUBLIC_SENTRY_DSN=""
+# Trace sampling (0.0 - 1.0)
+SENTRY_TRACES_SAMPLE_RATE="0.1"
+NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE="0.1"
+# Source-map upload at build time (CI/prod only)
+SENTRY_ORG=""
+SENTRY_PROJECT=""
+SENTRY_AUTH_TOKEN=""

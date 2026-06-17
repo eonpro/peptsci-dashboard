@@ -16,6 +16,7 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'mail', 'stag
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/api/health',
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
   '/api/storefront(.*)',
