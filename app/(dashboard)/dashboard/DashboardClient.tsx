@@ -9,6 +9,7 @@ import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { SalesImportButton } from '@/components/admin/SalesImportButton'
 import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
+import { toast } from 'sonner'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
 
 // recharts is heavy (~100kB+). Load it only on the client, after the KPIs and
@@ -38,19 +39,21 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   const [sales, setSales] = useState<Sale[]>(initialSales)
   const [refreshing, setRefreshing] = useState(false)
 
-  async function loadData() {
+  async function loadData(): Promise<boolean> {
     try {
-      // The server caches parsed Sheets data briefly (see lib/sheets.ts), so we
-      // no longer cache-bust on every load. The manual Refresh button and the
-      // periodic refresh below still pick up new data within the cache window.
+      // The server caches parsed data briefly, so we no longer cache-bust on
+      // every load. The manual Refresh button and the periodic refresh below
+      // still pick up new data within the cache window.
       const response = await fetch('/api/sales')
       if (!response.ok) {
         throw new Error('Failed to fetch sales')
       }
       const data: ApiSale[] = await response.json()
       setSales(withDates(data))
+      return true
     } catch (error) {
       console.error('Error fetching sales:', error)
+      return false
     } finally {
       setRefreshing(false)
     }
@@ -72,7 +75,9 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await loadData()
+    const ok = await loadData()
+    if (ok) toast.success('Sales data refreshed')
+    else toast.error('Could not refresh sales data. Please try again.')
   }
 
   const currentMonth = useMemo(() => format(new Date(), 'MMMM'), [])

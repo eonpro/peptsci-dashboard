@@ -8,6 +8,7 @@ import { PriceSheet } from '@/lib/pricing'
 import ExportButton from './ExportButton'
 import PricingTable from './PricingTable'
 import { LayoutGrid, List, RefreshCw, Users } from 'lucide-react'
+import { toast } from 'sonner'
 import Link from 'next/link'
 
 /** Normalize the /api/prices payload (ProductPrice shape) to PriceSheet. */
@@ -33,15 +34,17 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
 
   // `force` bypasses the browser cache for an explicit manual refresh; the
   // background poll reuses the cache.
-  async function fetchPrices(force = false) {
+  async function fetchPrices(force = false): Promise<boolean> {
     try {
       const response = await fetch(force ? `/api/prices?t=${Date.now()}` : '/api/prices', {
         cache: force ? 'no-store' : 'default',
       })
       if (!response.ok) throw new Error('Failed to fetch prices')
       setPrices(normalizePrices(await response.json()))
+      return true
     } catch (error) {
       console.error('Error fetching prices:', error)
+      return false
     } finally {
       setRefreshing(false)
     }
@@ -58,7 +61,9 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchPrices(true)
+    const ok = await fetchPrices(true)
+    if (ok) toast.success('Pricing refreshed')
+    else toast.error('Could not refresh pricing. Please try again.')
   }
 
   // Group prices by product for display

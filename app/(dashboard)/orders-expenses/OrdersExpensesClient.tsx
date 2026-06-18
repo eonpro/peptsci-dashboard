@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Package, DollarSign, TrendingUp, Truck, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import type { DistributorOrder } from '@/lib/orders'
 import { DistributorOrderImportButton } from '@/components/admin/DistributorOrderImportButton'
 
@@ -42,15 +43,17 @@ export default function OrdersExpensesClient({
   const [refreshing, setRefreshing] = useState(false)
 
   // `force` bypasses the browser cache for an explicit manual refresh.
-  async function fetchOrders(force = false) {
+  async function fetchOrders(force = false): Promise<boolean> {
     try {
       const response = await fetch(force ? `/api/orders?t=${Date.now()}` : '/api/orders', {
         cache: force ? 'no-store' : 'default',
       })
       if (!response.ok) throw new Error('Failed to fetch orders')
       setOrders(await response.json())
+      return true
     } catch (error) {
       console.error('Error fetching orders:', error)
+      return false
     } finally {
       setRefreshing(false)
     }
@@ -58,7 +61,9 @@ export default function OrdersExpensesClient({
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchOrders(true)
+    const ok = await fetchOrders(true)
+    if (ok) toast.success('Orders refreshed')
+    else toast.error('Could not refresh orders. Please try again.')
   }
 
   // Calculate totals
@@ -211,6 +216,15 @@ export default function OrdersExpensesClient({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {filteredOrders.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                    {orders.length === 0
+                      ? 'No distributor orders yet. Import orders to get started.'
+                      : 'No orders match this filter.'}
+                  </TableCell>
+                </TableRow>
+              )}
               {filteredOrders.map((order) => {
                 const orderDate = toDate(order.orderDate)
                 return (

@@ -1497,3 +1497,16 @@ P1 committed as `5715646`.
 - Resolved (criticals): `@clerk/nextjs` auth-bypass, `jspdf` PDF injection. Highs: `next` (→15.5.19, DoS), `prisma` (→7.8.0), `lodash`, `minimatch`, `hono`, `js-cookie`, `flatted`, `defu`, `effect`, `picomatch`, plus moderates (dompurify, postcss-direct, svix, ajv, js-yaml, uuid, brace-expansion, chevrotain…).
 - **Skew fix:** `npm audit fix` bumped `prisma` CLI to 7.8.0 but left `@prisma/client` at 7.2.0, which broke `prisma generate` (missing wasm runtime file). Realigned `@prisma/client` → ^7.8.0; `prisma generate` green. Only manifest change is that one line; everything else was lockfile-only.
 - **Residual (7 moderate, accepted):** all require `npm audit fix --force` which would jump Next to a canary/major or break Prisma's dev CLI. They are (a) `@hono/node-server` under `@prisma/dev` (dev-only CLI tooling, not runtime) and (b) `postcss` bundled inside `next` (CSS-stringify XSS, not reachable with untrusted input at runtime). Re-evaluate when Next 16 stable / Prisma dev tooling ships fixes.
+
+Dep fixes committed as `20cfbe0`; all P0/P1/dep commits now on `origin/main` (rebased under `d989ee4`).
+
+### Executor — P2 UX (first increment, 2026-06-18) ✅
+`tsc` clean, 96/96 tests pass, lint clean.
+
+1. **Toast system** — installed `sonner`; `components/ui/sonner.tsx` wrapper (top-right, richColors, closeButton, Sofia font) mounted once in `components/Providers.tsx` (both Clerk-on and Clerk-off branches) so it works across dashboard + shop. Emit via `import { toast } from 'sonner'`.
+2. **Route-level loading** — `app/(dashboard)/loading.tsx`: dark skeleton (title + 4 KPI cards + chart row + table) shown during segment navigation while the persistent header/footer stay mounted.
+3. **Route-level error** — `app/(dashboard)/error.tsx`: dark error boundary with `Sentry.captureException`, dev-only error/digest detail, and a `reset()` retry.
+4. **Toasts wired into silent handlers** — `DashboardClient`, `OrdersExpensesClient`, `PricingClient` refresh functions now return success booleans; manual refresh shows success/error toasts (background poll stays silent to avoid noise).
+5. **Empty state** — `OrdersExpensesClient` orders table now renders a contextual empty row ("No distributor orders yet…" vs "No orders match this filter.").
+
+Remaining P2 backlog (not yet done): per-route `loading.tsx` for shop/sf segments, empty states across other admin tables, wire `ErrorBoundary` around heavy widgets, react-hook-form field validation, decompose 400–650 line client monoliths.

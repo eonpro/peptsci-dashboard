@@ -2,6 +2,7 @@
 
 import { ClerkProvider } from '@clerk/nextjs'
 import { ReactNode } from 'react'
+import { Toaster } from '@/components/ui/sonner'
 
 interface ProvidersProps {
   children: ReactNode
@@ -19,7 +20,12 @@ interface ProvidersProps {
 export function Providers({ children, publishableKey }: ProvidersProps) {
   // If Clerk is not configured, render children without ClerkProvider
   if (!publishableKey?.startsWith('pk_')) {
-    return <>{children}</>
+    return (
+      <>
+        {children}
+        <Toaster />
+      </>
+    )
   }
 
   return (
@@ -38,6 +44,7 @@ export function Providers({ children, publishableKey }: ProvidersProps) {
       }}
     >
       {children}
+      <Toaster />
     </ClerkProvider>
   )
 }
