@@ -1,6 +1,6 @@
 # PEPTSCI Dashboard
 
-A production-ready Next.js 15 dashboard for PEPTSCI that integrates with Google Sheets API to provide real-time insights into sales, inventory, pricing, competitor analysis, and financial reporting.
+A production-ready Next.js 15 dashboard for PEPTSCI, backed entirely by Postgres, providing real-time insights into sales, inventory, pricing, competitor analysis, and financial reporting. Data is populated through the admin UI, CSV importers, and a Stripe sales backfill.
 
 ## Features
 
@@ -24,14 +24,13 @@ A production-ready Next.js 15 dashboard for PEPTSCI that integrates with Google 
 - **Data Validation**: Zod
 - **Date Handling**: date-fns
 - **Icons**: Lucide React
-- **Data Source**: Google Sheets API v4
+- **Data Source**: PostgreSQL (Prisma)
 
 ## Prerequisites
 
 - Node.js 18+
 - npm or pnpm package manager
-- Google Sheets API key
-- Public Google Sheets or service account
+- A PostgreSQL database (see env-example.txt for connection modes)
 
 ## Installation
 
@@ -49,8 +48,8 @@ pnpm install
    - If not, create `.env.local` with:
 
 ```env
-GOOGLE_SHEETS_API_KEY=your_api_key_here
-GOOGLE_SHEETS_SPREADSHEET_ID=your_spreadsheet_id_here
+# Postgres connection (see env-example.txt for IAM / static modes)
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME?sslmode=require"
 ```
 
 ## Running the Application
@@ -114,8 +113,9 @@ peptsci-dashboard/
 │   ├── finance.ts          # P&L and balance sheet calculations
 │   ├── inventoryAdjustments.ts # Auto-decrement inventory by sales
 │   ├── kpis.ts             # KPI calculations
-│   ├── orders.ts           # Distributor order parsing
-│   ├── sheets.ts           # Google Sheets integration
+│   ├── orders.ts           # Distributor orders (Postgres)
+│   ├── sales.ts            # Sales analytics (Postgres SalesRecord)
+│   ├── catalog.ts          # Shop catalog (Postgres)
 │   └── utils.ts            # Utility functions
 └── public/                 # Static assets
 ```
@@ -332,54 +332,40 @@ npx tsx --test lib/__tests__/finance.test.ts
 
 ## Configuration
 
-Environment variables are validated at runtime via `lib/config.ts` using Zod:
-
-```typescript
-import { getGoogleSheetsConfig } from '@/lib/config'
-
-const config = getGoogleSheetsConfig()
-if (!config) {
-  // Handle missing configuration gracefully
-}
-```
+Environment variables are validated at runtime via `lib/config.ts` (Stripe) and
+`lib/db-url.ts` (database) using Zod. See `env-example.txt` for the full list.
 
 Required variables:
 
-- `GOOGLE_SHEETS_SPREADSHEET_ID` - Google Sheets document ID
-- `GOOGLE_SHEETS_API_KEY` - Google Sheets API key
+- A Postgres connection: `DATABASE_URL`, or `PGHOST`/`PGPASSWORD`, or RDS IAM
+  (`PGHOST` + `AWS_ROLE_ARN`). See `env-example.txt`.
+- `STRIPE_SECRET_KEY` - for payments + the Stripe sales backfill.
+
+## Data ingestion
+
+All business data lives in Postgres and is populated via:
+
+- **Admin UI** — products, pricing, inventory batches.
+- **CSV importers** — Sales (`/api/admin/sales/import`), Competitors
+  (`/api/admin/competitors/import`), and Distributor Orders
+  (`/api/admin/distributor-orders/import`). Each has a downloadable template.
+- **Stripe backfill** — `/api/admin/sales/backfill-stripe` ingests historical
+  succeeded payments into SalesRecord (deduped against platform orders).
+- **Automatic order sync** — captured platform orders mirror into SalesRecord.
 
 ## Important Notes
 
-1. **Google Sheets Access**: The Google Sheets API key can only access public sheets. If your sheet is private, you'll need to:
-   - Make the sheet public (view-only), OR
-   - Use a service account with proper permissions
-
-2. **Data Format**: Ensure your Google Sheets columns match the expected schema for proper parsing
-
-3. **Time Zone**: All date/time calculations use America/New_York timezone
-
-4. **Environment Variables**: Never commit `.env.local` to version control
-
-5. **Config Validation**: Missing or invalid environment variables are logged once and the app falls back to mock data where available
+1. **Time Zone**: All date/time calculations use America/New_York timezone
+2. **Environment Variables**: Never commit `.env.local` to version control
+3. **Schema migrations**: Production uses the runtime migration runner
+   (`POST /api/admin/db/migrate`) because RDS IAM auth blocks the Prisma CLI.
 
 ## Troubleshooting
-
-### Sheet Not Found
-
-- Verify the spreadsheet ID is correct
-- Ensure the sheet is publicly accessible
-- Check tab names match exactly (case-sensitive)
-
-### Invalid Data
-
-- Check column headers match expected schema
-- Verify date formats are parseable
-- Ensure numeric values don't contain special characters
 
 ### Performance Issues
 
 - Use the revalidation endpoint to refresh cache
-- Check network latency to Google Sheets API
+- Check database query latency and indexes
 - Consider implementing pagination for large datasets
 
 ## License

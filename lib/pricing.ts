@@ -1,13 +1,23 @@
 /**
- * Pricing module with hybrid Postgres/Sheets support.
- *
- * Reads pricing from Postgres if available, falls back to Google Sheets.
- * This allows gradual migration while maintaining backwards compatibility.
+ * Pricing module, sourced entirely from Postgres (ProductVariant). Google
+ * Sheets has been removed; the catalog is the single source of truth.
  */
 
 import { prisma } from './prisma'
-import { getPriceSheet as getSheetsPriceSheet, type PriceSheet } from './sheets'
 import { logger } from './logger'
+
+/**
+ * Price-sheet row shape (relocated from the former lib/sheets.ts). Used by the
+ * pricing exports, the PO generator, and global search.
+ */
+export interface PriceSheet {
+  SKU: string
+  Product: string
+  Dose: string
+  Cost: number
+  SRP: number
+  Notes?: string
+}
 
 // Unified pricing type
 export interface ProductPrice {
@@ -19,7 +29,7 @@ export interface ProductPrice {
   srp: number
   inventoryOnHand: number
   status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED'
-  source: 'postgres' | 'sheets'
+  source: 'postgres'
 }
 
 export interface ClientPrice extends ProductPrice {
@@ -29,81 +39,76 @@ export interface ClientPrice extends ProductPrice {
 }
 
 /**
- * Get all product pricing.
- * Uses Postgres if connected, otherwise falls back to Sheets.
+ * Get all active product pricing from Postgres.
  */
 export async function getPricing(): Promise<{
-  source: 'postgres' | 'sheets'
+  source: 'postgres'
   prices: ProductPrice[]
 }> {
-  // Try Postgres first
-  if (prisma) {
-    try {
-      const variants = await prisma.productVariant.findMany({
-        where: { status: 'ACTIVE' },
-        include: {
-          product: {
-            select: {
-              name: true,
-              category: true,
-            },
+  if (!prisma) return { source: 'postgres', prices: [] }
+
+  try {
+    const variants = await prisma.productVariant.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        product: {
+          select: {
+            name: true,
+            category: true,
           },
         },
-        orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
-      })
+      },
+      orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
+    })
 
-      if (variants.length > 0) {
-        const prices: ProductPrice[] = variants.map((v) => ({
-          id: v.id,
-          sku: v.sku || `${v.product.name.substring(0, 3).toUpperCase()}-${v.dose}`,
-          productName: v.product.name,
-          dose: v.dose || '',
-          unitCost: Number(v.unitCost),
-          srp: Number(v.srp),
-          inventoryOnHand: v.inventoryOnHand,
-          status: v.status as ProductPrice['status'],
-          source: 'postgres' as const,
-        }))
+    const prices: ProductPrice[] = variants.map((v) => ({
+      id: v.id,
+      sku: v.sku || `${v.product.name.substring(0, 3).toUpperCase()}-${v.dose}`,
+      productName: v.product.name,
+      dose: v.dose || '',
+      unitCost: Number(v.unitCost),
+      srp: Number(v.srp),
+      inventoryOnHand: v.inventoryOnHand,
+      status: v.status as ProductPrice['status'],
+      source: 'postgres' as const,
+    }))
 
-        logger.info('Fetched pricing from Postgres', { count: prices.length })
-        return { source: 'postgres', prices }
-      }
-    } catch (error) {
-      logger.warn('Postgres pricing fetch failed, falling back to Sheets', {
-        error: String(error),
-      })
-    }
+    logger.info('Fetched pricing from Postgres', { count: prices.length })
+    return { source: 'postgres', prices }
+  } catch (error) {
+    logger.error('Failed to fetch pricing', {}, error as Error)
+    return { source: 'postgres', prices: [] }
   }
+}
 
-  // Fall back to Google Sheets
-  const sheetPrices = await getSheetsPriceSheet()
-  const prices: ProductPrice[] = sheetPrices.map((p: PriceSheet) => ({
-    id: p.SKU,
-    sku: p.SKU,
-    productName: p.Product,
-    dose: p.Dose,
-    unitCost: p.Cost,
-    srp: p.SRP,
-    inventoryOnHand: 0, // Not available from sheets
-    status: 'ACTIVE' as const,
-    source: 'sheets' as const,
+/**
+ * Price-sheet view (SKU/Product/Dose/Cost/SRP) derived from Postgres pricing.
+ * Kept for the PO generator and global search which consume the `PriceSheet`
+ * shape that previously came from Google Sheets.
+ */
+export async function getPriceSheet(): Promise<PriceSheet[]> {
+  const { prices } = await getPricing()
+  return prices.map((p) => ({
+    SKU: p.sku,
+    Product: p.productName,
+    Dose: p.dose,
+    Cost: p.unitCost,
+    SRP: p.srp,
+    Notes: p.inventoryOnHand > 0 ? 'In Stock' : undefined,
   }))
-
-  return { source: 'sheets', prices }
 }
 
 /**
  * Get pricing for a specific client, including any custom pricing.
  */
 export async function getClientPricing(clientId: string): Promise<{
-  source: 'postgres' | 'sheets'
+  source: 'postgres'
   prices: ClientPrice[]
 }> {
   // Get base pricing
   const { source, prices } = await getPricing()
 
-  if (source === 'sheets' || !prisma) {
-    // No custom pricing available from Sheets
+  if (!prisma) {
     return {
       source,
       prices: prices.map((p) => ({

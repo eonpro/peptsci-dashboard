@@ -1,4 +1,5 @@
-import { getSales, getInventory } from '@/lib/sheets'
+import { getSales } from '@/lib/sales'
+import { getInventory } from '@/lib/inventory'
 import { getDistributorOrders } from '@/lib/orders'
 import ProfitLossClient from './ProfitLossClient'
 

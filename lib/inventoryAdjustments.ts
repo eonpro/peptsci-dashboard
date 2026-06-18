@@ -1,4 +1,5 @@
-import type { Inventory, Sale } from './sheets'
+import type { Inventory } from './inventory'
+import type { Sale } from './sales'
 
 const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, '').replace(/[^\w]/g, '')
 

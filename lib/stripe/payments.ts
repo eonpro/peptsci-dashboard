@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma'
 import { requireStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
 import { logger } from '@/lib/logger'
+import { syncSalesRecordFromOrder } from '@/lib/sales'
 
 /**
  * Map a Stripe PaymentIntent status to our PaymentStatus enum.
@@ -99,6 +100,13 @@ export async function reconcileOrderFromPaymentIntent(
     paymentIntentId: pi.id,
     paymentStatus,
   })
+
+  // Mirror captured orders into SalesRecord so analytics (dashboard, customers,
+  // P&L, search) reflect platform sales. Idempotent (upsert keyed by orderId);
+  // never allowed to break the payment flow.
+  if (isCaptured) {
+    await syncSalesRecordFromOrder(order.id)
+  }
 
   return { orderId: order.id, paymentStatus, matched: true }
 }

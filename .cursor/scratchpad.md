@@ -2,6 +2,56 @@
 
 > **Current source of truth.** Full-platform performance audit (admin + shop + storefront), grounded in a code audit across client rendering, the DB/API layer, and the JS bundle. Supersedes the earlier "Admin Backend Performance Analysis" (below), whose P0/P1 Sheets fixes are ✅ done. No code changed in this pass — analysis + prioritized remediation plan. **Awaiting user go-ahead** on which phase to execute.
 
+---
+
+## 🚨 INCIDENT — "still slow + freezes + no data" (Jun 4 2026) [EXECUTOR diagnosis]
+
+User report after deploying P0–P2: *"no speed at all, it freezes, no data."* Triage selection: symptom = "loads eventually but very slow, then freezes"; migration applied = "not sure".
+
+**Evidence gathered (live, read-only):**
+- ✅ **Code IS deployed.** `peptsci.com` alias → deployment `dpl_DKLQ3nrLnqEaj1ELR6Tt9CsWkb9J`, created **Jun 2 22:55:39** (my push, commit `4ea08b1`), region `iad1`, aliases include `peptsci-dashboard-git-main`. Git→Vercel auto-deploy works.
+- ❌ **NO Google Sheets env vars** in ANY environment (`vercel env ls`): missing `GOOGLE_SHEETS_SPREADSHEET_ID` + `GOOGLE_SHEETS_API_KEY` (`lib/config.ts:14-30`). → `fetchRange()` returns `[]` (`lib/sheets.ts:70-72`) → dashboard/customers/P&L/search/orders-expenses/competitors render **empty**.
+- ❌ **NO Airtable env vars**: missing `AIRTABLE_API_KEY` + `AIRTABLE_BASE_ID` (`lib/airtable.ts:13-22`) → shop catalog **empty**.
+- ⚠️ DB index migration `20260603010000_add_perf_indexes` **likely NOT applied** (user unsure; must hit `/api/admin/db/migrate`). → slow Postgres queries.
+- ⚠️ Prod DB uses **RDS IAM auth** (PG* + AWS_ROLE_ARN set, no PGPASSWORD) — per-pool STS token mint adds cold-start latency; pool `max=20`.
+- ⚠️ My RSC conversions (`/pricing`,`/inventory`,`/orders-expenses`) now fetch on the **server render** → if DB/Sheets slow → slow TTFB ("freeze"); `db()` throws if prisma null (`lib/inventory-batches.ts:53-57`).
+- Public/edge routes fast: `/`,`/shop`,`/sf` → HTTP 307 in ~0.27–0.45s. Platform is NOT down; problems are behind auth in the data layer.
+
+**Two distinct problems:**
+1. **"No data" = missing prod config** (Sheets + Airtable creds), NOT a code regression. Fix = add env vars + redeploy, OR repoint those pages to Postgres if data now lives there.
+2. **"Slow/freezes" = DB-path latency** = unapplied indexes + RDS IAM cold token + server-render blocking.
+
+**PIVOTAL QUESTION for user:** Is the source of truth still Google Sheets/Airtable (legacy → just add the missing env vars), or has data moved to Postgres (then prod DB needs seeding/migration + pages repointed)? The repo shows an in-progress Sheets/Airtable → Postgres migration (`scripts/migrate-to-postgres.ts`, `scripts/seed*.ts`, new Prisma models).
+
+**USER DECISION (Jun 4 2026):** Remove Google Sheets + Airtable entirely. Postgres becomes the sole source of truth, populated via the admin UI, CSV upload, and a Stripe backfill for historical sales. → See "RESOLUTION" below.
+
+---
+
+## ✅ RESOLUTION — Sheets/Airtable removed, Postgres is sole source of truth (Jun 4 2026) [EXECUTOR]
+
+Implemented per the approved plan (`remove_sheets_and_airtable_49657eee.plan.md`). **All 12 plan to-dos complete; `tsc --noEmit`, `next build`, and `npm test` (96 tests, 0 fail) green.**
+
+**What changed**
+- **New Postgres models** (`prisma/schema.prisma`) + idempotent migration `20260604010000_add_sales_competitor_distributor`: `SalesRecord` (flat sales row; unique `orderId`/`stripePaymentIntentId`/`externalId` for dedup), `CompetitorPrice` (unique `competitorName,productName,dose`), `DistributorOrder` + `DistributorOrderLine`.
+- **New Postgres-backed modules:** `lib/sales.ts` (`getSales`, `syncSalesRecordFromOrder`, `buildCostLookup`, `estimateUnitCost`), `lib/inventory.ts`, `lib/competitors.ts`, `lib/catalog.ts` (shop catalog from `Product`/`ProductVariant`), `lib/csv-coerce.ts` (shared coercion helpers). `lib/pricing.ts` Postgres-only (Sheets fallback dropped); `lib/orders.ts` reads `DistributorOrder`.
+- **Sales ingestion (3 writers, 1 table):** (1) platform orders mirror into `SalesRecord` on capture via `reconcileOrderFromPaymentIntent` + one-time `scripts/backfill-sales-from-orders.ts` (`npm run backfill:sales`); (2) CSV importer `/api/admin/sales/import` + `lib/sales-import.ts` + dashboard "Import Sales" button; (3) Stripe backfill `/api/admin/sales/backfill-stripe` (connected account, dedup by PI id) + dashboard button.
+- **Competitors + Distributor orders:** CSV parsers (`lib/competitor-import.ts`, `lib/distributor-order-import.ts`) + APIs + admin import buttons; competitors page/API and orders-expenses page/API repointed to Postgres.
+- **Reusable UI:** `components/admin/CsvImportDialog.tsx` (template download, client-side preview/validation, validateOnly) wrapped by Sales/Competitor/Distributor import buttons.
+- **Removed:** `lib/sheets.ts`, `lib/airtable.ts`, Sheets config in `lib/config.ts`, `GOOGLE_SHEETS_SETUP.md`, `docs/P2-14-*.md`, `scripts/migrate-to-postgres.ts`; `airtable` dep dropped; env-example/README scrubbed.
+- **Tests:** test runner switched `ts-node/register` → `tsx` (resolves extensionless TS runtime imports under ESM; ts-node could not). Added `salesImport`, `competitorImport`, `distributorOrderImport` test suites.
+
+**Deploy + data-load runbook (do in order)**
+1. **Deploy** the branch (git push → Vercel auto-deploy, same as prior commits).
+2. **Apply the new tables migration in prod:** `POST /api/admin/db/migrate` (admin-authenticated) — runs `20260604010000_add_sales_competitor_distributor` (idempotent `CREATE TABLE/INDEX IF NOT EXISTS`, safe to re-run). RDS IAM auth blocks the Prisma CLI, hence the runtime runner.
+3. **Backfill historical sales from platform orders:** `npm run backfill:sales` (uses `.env.local`) — mirrors all captured `Order`s into `SalesRecord`. Idempotent (upsert by `orderId`).
+4. **(Optional) Stripe backfill** for sales that predate platform orders: dashboard → "Backfill from Stripe" (date range). Dedups by `stripePaymentIntentId`, skips PIs already linked to platform orders. COGS uses the 35% fallback when product/vials are unknown (matches legacy behavior).
+5. **Upload CSVs** for the rest: Products (admin UI), Pricing (admin UI), then Sales / Competitors / Distributor Orders via their "Import" buttons (each has a downloadable template). Inventory/catalog derive from `Product`/`ProductVariant`.
+6. **Verify** dashboard/customers/P&L/search/competitors/orders-expenses show data and load fast (DB perf-index migration `20260603010000_add_perf_indexes` should also be applied via the same runner if not already).
+
+**Note:** the missing-Sheets/Airtable-env "no data" failure mode is gone — there are no Sheets/Airtable code paths left. Remaining slowness, if any, is purely DB-path (ensure both migrations applied).
+
+---
+
 ## Background and Motivation
 The platform "feels extremely slow and drags." The earlier effort fixed the Google Sheets data layer (in-process TTL cache, killed dashboard cache-busting, RSC for dashboard/P&L, RDS token cache). But the slowness is now **platform-wide** because most non-fixed surfaces share the same anti-patterns: client-only pages that fetch-after-mount behind spinners, cache-busted `no-store` fetches, a 60 s poll, eager heavy bundles (recharts/jspdf), missing DB indexes + N+1 queries, and full-catalog/full-history loads to render one row.
 
@@ -593,6 +643,8 @@ B2B controlled-substance-adjacent sales: confirm the Stripe account is approved 
 - **PROD SCHEMA CHANGES (cross-account RDS):** the prod Aurora cluster is in a different AWS account (`631413806260`) than the local dev creds, inside a VPC, reachable only from the Vercel runtime via IAM. The Prisma CLI can't reach it from a laptop. Pattern for additive migrations: (1) `prisma migrate dev` locally to create the migration file + apply to local Docker; (2) deploy; (3) run the exact `ADD COLUMN IF NOT EXISTS` DDL via a temporary secret-gated `POST /api/diag-migrate` endpoint that runs in the Vercel runtime (IAM), and insert a `_prisma_migrations` row (sha256 checksum of the migration.sql) to keep the CLI consistent; (4) remove the endpoint + redeploy. IMPORTANT ordering: apply the prod DDL immediately after deploy, because Prisma `findMany` SELECTs the new scalar columns and will 500 on every read until they exist.
 - **CSV PRODUCT IMPORT (Jun 2 2026):** added `ProductVariant.supplierName` + `supplierSku` (migration `20260602022835_add_supplier_fields`). `lib/product-import.ts` = pure RFC-4180 CSV parser + header-alias mapping + per-row validation (9 unit tests). `POST /api/admin/products/import` upserts Product-by-name (case-insensitive) + ProductVariant-by-SKU; supports `validateOnly`. New `/products` admin page (nav "Products") with template download, drag/drop upload, client-side preview, and import results. GET `/api/admin/products` now returns supplier fields.
 - **PROD-DB OUTAGE ROOT CAUSE (Jun 2 2026):** every `/api/admin/*` route 500'd in production with `Can't reach database server at 127.0.0.1:5433`. Cause: an untracked local `.env` containing `DATABASE_URL=postgresql://peptsci:peptsci123@127.0.0.1:5433/...` was being **uploaded by `vercel --prod` (CLI deploy)** and loaded by Next.js at runtime. Because `getDatabaseUrl()` returns `DATABASE_URL` whenever set, it short-circuited the RDS IAM path (`shouldUseRdsIamAuth`), so prod pointed at the dev Docker DB. Fix: added `.vercelignore` excluding `.env`/`.env.*` so local env files never ship to Vercel; prod then falls through to PGHOST+AWS_ROLE_ARN IAM auth. Confirmed via a temporary secret-gated `/api/diag-db` endpoint (since removed): IAM connect OK, 19 tables present (DB was already migrated). Lesson: when deploying via the CLI from a local dir, anything not in `.vercelignore` (incl. gitignored `.env`) can be shipped and override dashboard env vars.
+- **TEST RUNNER: `tsx` not `ts-node` for node:test (Jun 4 2026):** `package.json` had no `"type": "module"`, so Node reparses `.ts` test files as ESM (the `MODULE_TYPELESS_PACKAGE_JSON` warning). Under that ESM path, `ts-node/register` (a CJS hook) does **not** resolve extensionless runtime relative imports — e.g. `import { parseCsv } from './product-import'` inside a tested module throws `ERR_MODULE_NOT_FOUND`. Existing tested modules (`product-import.ts`, `finance.ts`) only ever used `import type` for siblings (erased) or were self-contained, so they never hit this. New importer modules (`sales-import`/`competitor-import`/`distributor-order-import`) import `parseCsv` at runtime and failed. Fix: switch the `test`/`test:finance` scripts to `node --import tsx --test …` (tsx was already a devDep). tsx resolves extensionless TS imports under ESM, runs faster, and needed no source/tsconfig changes (keeps Next's bundler resolution untouched). Don't add `.ts` extensions to imports — tsconfig uses `moduleResolution: bundler` without `allowImportingTsExtensions` and Next would need extra config.
+- **DATA-SOURCE MIGRATION COMPLETE (Jun 4 2026):** Google Sheets + Airtable fully removed; Postgres is the sole source of truth. New models `SalesRecord`/`CompetitorPrice`/`DistributorOrder(+Line)` (migration `20260604010000_add_sales_competitor_distributor`, idempotent). Sales has 3 writers into one table deduped by `orderId`/`stripePaymentIntentId`/`externalId`: platform-order capture sync, CSV import, and a Stripe backfill. Prod load order: deploy → `POST /api/admin/db/migrate` → `npm run backfill:sales` → (optional) Stripe backfill → CSV uploads. The legacy "missing Sheets/Airtable env = no data" failure mode no longer exists.
 
 ---
 
@@ -1374,3 +1426,74 @@ Vercel Observability: 98% error rate on `/api/webhooks/stripe` (98 reqs). Two er
 
 ### Action required (user)
 Go to `/settings/stripe` → Database schema → **Check** then **Apply pending migrations**.
+
+---
+
+## Platform Maturity Assessment (Planner, 2026-06-11)
+
+Benchmarked against `eonpro/eonpro` (which has GitHub Actions CI + security-scan + pre-deploy-check, Sentry, Vitest + Playwright, Docker, CONTRIBUTING/DEPLOYMENT docs, HIPAA audit docs).
+
+### Scores (1-10)
+| Area | Score | Headline |
+|------|-------|----------|
+| Database schema | 8 | Best-in-repo: normalized, indexed, snapshots, idempotency keys, audit models |
+| API layer / security | 5.5 | Good new-route patterns; legacy read APIs miss admin RBAC; IDOR on /api/prices |
+| Code structure | 7 | Clean lib/ separation, strict TS, only 2 `any`s; some dead code (validation.ts, ErrorBoundary) |
+| UI/UX | 6 | Shop portal polished; admin console has no toasts, silent fetch errors, 400-650 line monoliths |
+| Engineering ops | 5 | 12 unit test files, but no CI, no Sentry, no e2e; tracked `env.local` with live API key |
+
+### Critical findings (P0)
+1. `env.local` (no leading dot) tracked in git with a live Google Sheets API key → rotate + purge history.
+2. Legacy APIs `/api/sales`, `/api/inventory`, `/api/competitors`, `/api/orders`, `/api/search` use `requireAuth()` only — any CLIENT can read full ops data. `/api/prices?clientId=` is an IDOR.
+3. `requireSuperAdmin()` in lib/auth.ts is an alias of `requireAdmin()` (no-op elevation).
+4. Clerk-missing fallback = full auth bypass (middleware + lib/auth.ts dev bypass).
+5. `END_CUSTOMER_JWT_SECRET` falls back to a hardcoded dev secret in lib/end-customer-auth.ts.
+
+### High-value gaps vs eonpro
+- No GitHub Actions CI (eonpro: ci.yml, security-scan.yml, pre-deploy-check.yml, migrate.yml)
+- No Sentry / error tracking (eonpro: sentry.client/server.config.ts)
+- No e2e tests (eonpro: Playwright) and no component tests (eonpro: Vitest)
+- In-memory rate limiting (single-instance only on Vercel)
+- No /api/health endpoint; no toast system; ErrorBoundary + lib/validation.ts unused
+- finance.test.ts imports deleted lib/sheets.ts → broken on current branch
+
+### Proposed remediation order (pending user approval)
+- P0 (security): rotate+purge env.local secret; add admin gate to 6 legacy APIs; fix /api/prices scoping; real requireSuperAdmin; fail-fast on missing Clerk/JWT secrets in prod
+- P1 (ops): GitHub Actions (typecheck+lint+test), fix finance.test.ts, Sentry, /api/health
+- P2 (UX): toast system, route-level loading/error boundaries, wire ErrorBoundary, empty states
+- P3 (hardening): Upstash rate limit, AuditLog on imports/role changes/migrations, decompose 500+ line clients
+
+### Executor — P0 security fixes (2026-06-12) ✅ COMPLETE
+All P0 items implemented; `tsc --noEmit` clean; 96/96 unit tests pass.
+
+1. **Secret hygiene** — `git rm --cached env.local` (file kept on disk, now gitignored via new `env.local` + `/env.local` rules). ⚠️ **User must still: (a) rotate the exposed `GOOGLE_SHEETS_API_KEY` in Google Cloud, (b) purge it from git history (BFG/`git filter-repo`) + force-push.** Untracking alone does NOT remove it from past commits.
+2. **Legacy RBAC** — `/api/sales`, `/api/inventory`, `/api/competitors`, `/api/orders`, `/api/search` now `requireAdmin()` → 403 for non-admins (was any authenticated user). SearchCommand only renders in AdminHeader (legacy `components/Header.tsx` is unused), so no client breakage.
+3. **/api/prices IDOR** — `?clientId=` branch now admin-only (403 otherwise); base SRP branch strips `unitCost`/margin for non-admins (shop storefront-manager only consumes `srp`). Admin dashboard/PO-generator still get full data.
+4. **requireSuperAdmin()** — no longer an alias; forces `isAdmin=false` when caller is not SUPER_ADMIN. (No current callers, but now safe for future use.)
+5. **Fail-closed secrets** — `lib/auth.ts` `requireAuth`/`requireAdmin` deny in production when Clerk unconfigured (dev bypass kept for local). `middleware.ts` returns 503 in prod when Clerk key missing. `lib/end-customer-auth.ts` resolves JWT secret at call time and throws in production if missing/default (build-safe — not evaluated at import).
+
+Files changed: `.gitignore`, `lib/auth.ts`, `middleware.ts`, `lib/end-customer-auth.ts`, `app/api/{sales,inventory,competitors,orders,search,prices}/route.ts`.
+
+Not done (needs user / out of P0 scope): key rotation + history purge, Upstash rate limiting, AuditLog expansion, PENDING/SUSPENDED enforcement at API layer.
+
+P0 committed as `0303c31` (focused security commit; 11 files).
+
+### Executor — P1 ops/observability (2026-06-12) ✅ COMPLETE
+`tsc` clean, 96/96 tests pass, `next lint` clean (pre-existing warnings only).
+
+1. **/api/health** — new public, unauthenticated probe (`app/api/health/route.ts`) that runs `SELECT 1`, returns 200 healthy / 503 degraded with db latency + commit sha. Added `/api/health` to middleware public routes.
+2. **GitHub Actions CI** — `.github/workflows/ci.yml`: on push/PR to main, Node 22, `npm ci` → `prisma generate` → `typecheck` → `lint` → `test`. Concurrency-cancels superseded runs. Added `typecheck` script to package.json. (No `next build` step — needs DB/Clerk secrets.)
+3. **Sentry** — installed `@sentry/nextjs@10.57`. Added `sentry.server.config.ts`, `sentry.edge.config.ts`, `instrumentation.ts` (register + `onRequestError`), `instrumentation-client.ts`; wrapped `next.config.mjs` with `withSentryConfig`. All init calls `enabled: Boolean(dsn)` → zero overhead/no-op without DSN. Wired explicit capture in `app/error.tsx` and `components/ErrorBoundary.tsx`. Documented env vars in env-example.txt.
+
+⚠️ Notes: `npm audit` reports 30 vulns (mostly transitive, surfaced by the Sentry dep tree) — review separately, did not run `npm audit fix` (risk of breaking changes). `next build` not run locally (needs env); CI covers typecheck/lint/test. Audit's "broken finance.test.ts" claim was stale — finance tests pass.
+
+Files changed (P1, uncommitted): `app/api/health/route.ts`, `middleware.ts`, `.github/workflows/ci.yml`, `package.json`, `package-lock.json`, `next.config.mjs`, `instrumentation.ts`, `instrumentation-client.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, `app/error.tsx`, `components/ErrorBoundary.tsx`, `env-example.txt`.
+
+P1 committed as `5715646`.
+
+### Executor — Dependency vuln triage (2026-06-17) ✅ COMPLETE
+`npm audit fix` (no --force). Result: **31 → 7 vulns; all 3 critical + 15 high + 2 low eliminated.** `tsc` clean, 96/96 tests pass, lint clean.
+
+- Resolved (criticals): `@clerk/nextjs` auth-bypass, `jspdf` PDF injection. Highs: `next` (→15.5.19, DoS), `prisma` (→7.8.0), `lodash`, `minimatch`, `hono`, `js-cookie`, `flatted`, `defu`, `effect`, `picomatch`, plus moderates (dompurify, postcss-direct, svix, ajv, js-yaml, uuid, brace-expansion, chevrotain…).
+- **Skew fix:** `npm audit fix` bumped `prisma` CLI to 7.8.0 but left `@prisma/client` at 7.2.0, which broke `prisma generate` (missing wasm runtime file). Realigned `@prisma/client` → ^7.8.0; `prisma generate` green. Only manifest change is that one line; everything else was lockfile-only.
+- **Residual (7 moderate, accepted):** all require `npm audit fix --force` which would jump Next to a canary/major or break Prisma's dev CLI. They are (a) `@hono/node-server` under `@prisma/dev` (dev-only CLI tooling, not runtime) and (b) `postcss` bundled inside `next` (CSS-stringify XSS, not reachable with untrusted input at runtime). Re-evaluate when Next 16 stable / Prisma dev tooling ships fixes.

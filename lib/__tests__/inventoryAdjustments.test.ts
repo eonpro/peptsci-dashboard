@@ -1,7 +1,8 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { adjustInventoryWithSales } from '../inventoryAdjustments.ts'
-import type { Inventory, Sale } from '../sheets'
+import type { Inventory } from '../inventory'
+import type { Sale } from '../sales'
 
 const makeInventory = (overrides: Partial<Inventory>): Inventory => ({
   SKU: overrides.SKU ?? 'SKU-1',

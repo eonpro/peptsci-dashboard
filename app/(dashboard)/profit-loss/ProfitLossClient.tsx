@@ -29,7 +29,8 @@ import {
   type YearToDateProfitLoss,
   type BalanceSheetSummary,
 } from '@/lib/finance'
-import type { Sale, Inventory } from '@/lib/sheets'
+import type { Sale } from '@/lib/sales'
+import type { Inventory } from '@/lib/inventory'
 
 type DistributorOrder = Parameters<typeof calculateBalanceSheet>[1][number]
 

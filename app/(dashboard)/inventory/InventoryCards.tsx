@@ -1,6 +1,6 @@
 'use client'
 
-import { Inventory } from '@/lib/sheets'
+import { Inventory } from '@/lib/inventory'
 import { Card } from '@/components/ui/card'
 
 interface InventoryCardsProps {

@@ -1,5 +1,6 @@
 import { format, startOfMonth, endOfMonth } from 'date-fns'
-import type { Sale, Inventory } from './sheets'
+import type { Sale } from './sales'
+import type { Inventory } from './inventory'
 import type { DistributorOrder } from './orders'
 
 export interface ProductContribution {

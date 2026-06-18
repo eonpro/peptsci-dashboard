@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
-import { PriceSheet } from '@/lib/sheets'
+import { PriceSheet } from '@/lib/pricing'
 
 interface ExportButtonProps {
   data: PriceSheet[]

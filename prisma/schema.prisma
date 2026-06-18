@@ -585,6 +585,101 @@ model PackagePhoto {
 }
 
 // -------------------------------------------------
+// Analytics: Sales records (replaces Google Sheets "Sales" tab)
+// -------------------------------------------------
+
+// A flat per-order sales record powering dashboard / customers / P&L / search.
+// Populated by three writers, each with its own dedup key so re-runs are safe:
+//   - Platform orders  -> upsert by `orderId` (real COGS from ProductVariant)
+//   - Stripe backfill   -> upsert by `stripePaymentIntentId` (PIs with no order)
+//   - CSV upload        -> upsert by `externalId` when provided, else insert
+model SalesRecord {
+  id                    String    @id @default(cuid())
+  date                  DateTime?
+  orderRef              String    @default("") // display order id, e.g. "P-0604-001" or "#1234"
+  customerName          String    @default("")
+  customerEmail         String    @default("")
+  customerPhone         String    @default("")
+  address               String    @default("")
+  city                  String    @default("")
+  state                 String    @default("")
+  zip                   String    @default("")
+  trackingNumber        String    @default("")
+  invoicePaid           Boolean   @default(false)
+  paidAmount            Decimal   @default(0) @db.Decimal(12, 2)
+  vials                 Int       @default(0)
+  amountPerVial         Decimal   @default(0) @db.Decimal(12, 2)
+  product               String    @default("")
+  notes                 String    @default("")
+  unitCost              Decimal   @default(0) @db.Decimal(12, 2)
+  cogs                  Decimal   @default(0) @db.Decimal(12, 2)
+  source                String    @default("manual") // manual | csv | stripe | order
+  orderId               String?   @unique // links to Order.id when source = order
+  stripePaymentIntentId String?   @unique // links to Stripe PI when source = stripe
+  externalId            String?   @unique // CSV-provided stable id for re-import upserts
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([date])
+  @@index([customerEmail])
+}
+
+// -------------------------------------------------
+// Analytics: Competitor price comparison (replaces "Competitor Comparison" tab)
+// -------------------------------------------------
+
+model CompetitorPrice {
+  id             String   @id @default(cuid())
+  competitorName String
+  productName    String
+  dose           String   @default("")
+  theirPrice     Decimal  @db.Decimal(12, 2)
+  ourSrp         Decimal  @db.Decimal(12, 2)
+  diff           Decimal? @db.Decimal(12, 2) // ourSrp - theirPrice; computed on write when omitted
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([competitorName, productName, dose])
+  @@index([productName])
+}
+
+// -------------------------------------------------
+// Purchasing: Distributor orders + expenses (replaces "Orders /Expenses" tab)
+// -------------------------------------------------
+
+model DistributorOrder {
+  id             String                 @id @default(cuid())
+  externalId     String?                @unique // e.g. "DO-20260604-001" for re-import upserts
+  orderDate      DateTime?
+  vendor         String                 @default("Distributor")
+  subtotal       Decimal                @default(0) @db.Decimal(12, 2)
+  shipping       Decimal                @default(0) @db.Decimal(12, 2)
+  paypalFee      Decimal                @default(0) @db.Decimal(12, 2)
+  total          Decimal                @default(0) @db.Decimal(12, 2)
+  status         String                 @default("delivered") // pending | shipped | delivered
+  trackingNumber String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  lines          DistributorOrderLine[]
+
+  @@index([orderDate])
+}
+
+model DistributorOrderLine {
+  id          String           @id @default(cuid())
+  order       DistributorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  productName String
+  dose        String           @default("")
+  quantity    Int              @default(0)
+  unitCost    Decimal          @default(0) @db.Decimal(12, 2)
+  lineTotal   Decimal          @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime         @default(now())
+
+  @@index([orderId])
+}
+
+// -------------------------------------------------
 // Audit & Notifications
 // -------------------------------------------------
 

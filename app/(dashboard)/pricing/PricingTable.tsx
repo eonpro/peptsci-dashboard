@@ -3,7 +3,7 @@
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { ColumnDef } from '@tanstack/react-table'
-import { PriceSheet } from '@/lib/sheets'
+import { PriceSheet } from '@/lib/pricing'
 
 const columns: ColumnDef<PriceSheet>[] = [
   {

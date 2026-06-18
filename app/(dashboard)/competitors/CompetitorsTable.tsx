@@ -4,7 +4,7 @@ import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { ColumnDef } from '@tanstack/react-table'
 import { TrendingDown, TrendingUp, Minus } from 'lucide-react'
-import { Competitor } from '@/lib/sheets'
+import { Competitor } from '@/lib/competitors'
 
 const columns: ColumnDef<Competitor>[] = [
   {

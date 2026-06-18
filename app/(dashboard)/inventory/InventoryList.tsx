@@ -1,6 +1,6 @@
 'use client'
 
-import { Inventory } from '@/lib/sheets'
+import { Inventory } from '@/lib/inventory'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/DataTable'
 import { ColumnDef } from '@tanstack/react-table'

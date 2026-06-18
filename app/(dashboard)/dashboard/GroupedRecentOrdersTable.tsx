@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { Sale } from '@/lib/sheets'
+import { Sale } from '@/lib/sales'
 
 interface GroupedOrder {
   date: Date

@@ -1,5 +1,5 @@
 import { getPricing } from '@/lib/pricing'
-import type { PriceSheet } from '@/lib/sheets'
+import type { PriceSheet } from '@/lib/pricing'
 import PricingClient from './PricingClient'
 
 // Pricing is per-request data (DB/Sheets); render dynamically and seed the

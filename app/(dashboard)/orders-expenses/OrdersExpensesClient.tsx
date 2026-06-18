@@ -22,6 +22,7 @@ import {
 import { Package, DollarSign, TrendingUp, Truck, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import type { DistributorOrder } from '@/lib/orders'
+import { DistributorOrderImportButton } from '@/components/admin/DistributorOrderImportButton'
 
 /** date-fns `format` needs a Date; the refresh path returns ISO strings. */
 function toDate(value: Date | string | null): Date | null {
@@ -96,10 +97,13 @@ export default function OrdersExpensesClient({
           <h1 className="text-3xl font-bold">Orders & Expenses</h1>
           <p className="text-muted-foreground">Track distributor orders and shipping expenses</p>
         </div>
-        <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <DistributorOrderImportButton />
+          <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}

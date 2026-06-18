@@ -1,4 +1,5 @@
-import { Sale, Inventory } from './sheets'
+import { Sale } from './sales'
+import { Inventory } from './inventory'
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 

@@ -7,6 +7,8 @@ import { KPI } from '@/components/KPI'
 import { ChartCard } from '@/components/ChartCard'
 import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SalesImportButton } from '@/components/admin/SalesImportButton'
+import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
 
 // recharts is heavy (~100kB+). Load it only on the client, after the KPIs and
@@ -17,7 +19,7 @@ const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
     <div className="h-[320px] w-full animate-pulse rounded-2xl border border-white/10 bg-[#0a0e3a]/50" />
   ),
 })
-import type { Sale } from '@/lib/sheets'
+import type { Sale } from '@/lib/sales'
 import { format } from 'date-fns'
 
 type ApiSale = Omit<Sale, 'Date'> & { Date: string | null }
@@ -100,16 +102,20 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          size="sm"
-          disabled={refreshing}
-          className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <SalesImportButton />
+          <StripeBackfillButton />
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            size="sm"
+            disabled={refreshing}
+            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Sale } from '@/lib/sheets'
+import { Sale } from '@/lib/sales'
 import { ChevronRight, Package, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'

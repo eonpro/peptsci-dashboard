@@ -1,4 +1,4 @@
-import { getSales } from '@/lib/sheets'
+import { getSales } from '@/lib/sales'
 import DashboardClient from './DashboardClient'
 
 // Fetch sales on the server so the first paint already includes KPIs/charts

@@ -1,4 +1,4 @@
-import { getSales } from '@/lib/sheets'
+import { getSales } from '@/lib/sales'
 import { groupByCustomer } from '@/lib/kpis'
 import CustomersTable from './CustomersTable'
 

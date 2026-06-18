@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getSales } from '@/lib/sheets'
+import { getSales } from '@/lib/sales'
 import { getCustomerById } from '@/lib/kpis'
 import { CustomerAvatar } from '@/components/CustomerAvatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

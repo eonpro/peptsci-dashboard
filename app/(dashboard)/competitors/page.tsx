@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { getCompetitors } from '@/lib/sheets'
+import { getCompetitors } from '@/lib/competitors'
 import CompetitorsTable from './CompetitorsTable'
 import CompetitorChart from './CompetitorChartLazy'
+import { CompetitorImportButton } from '@/components/admin/CompetitorImportButton'
 
 interface CompetitorEntry {
   name: string
@@ -65,9 +66,12 @@ export default async function CompetitorsPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Competitor Analysis</h2>
-        <p className="text-muted-foreground">Price comparison and market positioning</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Competitor Analysis</h2>
+          <p className="text-muted-foreground">Price comparison and market positioning</p>
+        </div>
+        <CompetitorImportButton />
       </div>
 
       {/* Stats Cards */}

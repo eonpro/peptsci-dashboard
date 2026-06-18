@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { getProductCatalog } from '@/lib/airtable'
+import { getProductCatalog } from '@/lib/catalog'
 import { ProductGrid } from '@/components/shop/ProductGrid'
 import { CatalogFilters } from '@/components/shop/CatalogFilters'
 import { CatalogHero } from '@/components/shop/CatalogHero'

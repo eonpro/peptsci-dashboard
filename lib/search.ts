@@ -1,4 +1,6 @@
-import type { Sale, Inventory, PriceSheet } from './sheets'
+import type { Sale } from './sales'
+import type { Inventory } from './inventory'
+import type { PriceSheet } from './pricing'
 
 export interface SearchResult {
   type: 'customer' | 'order' | 'product' | 'inventory'

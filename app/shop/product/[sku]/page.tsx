@@ -3,7 +3,7 @@ import {
   getProductCatalog,
   getShopProductBySku,
   getRelatedShopProducts,
-} from '@/lib/airtable'
+} from '@/lib/catalog'
 import { ProductDetailCard, type ProductDetailData } from '@/components/shop/ProductDetailCard'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { Button } from '@/components/ui/button'
