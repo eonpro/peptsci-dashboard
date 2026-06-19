@@ -20,6 +20,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
   '/api/storefront(.*)',
+  // TEMPORARY: secret-gated one-off migration runner (delete after use).
+  '/api/ops/migrate',
 ])
 
 // Admin-only routes
