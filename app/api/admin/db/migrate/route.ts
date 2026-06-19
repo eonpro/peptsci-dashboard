@@ -78,6 +78,10 @@ interface SchemaProbe {
   shipmentLabelTable: boolean
   packagePhotoTable: boolean
   orderTrackingNumberColumn: boolean
+  salesRecordTable: boolean
+  competitorPriceTable: boolean
+  distributorOrderTable: boolean
+  distributorOrderLineTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -85,7 +89,10 @@ async function probeSchema(): Promise<SchemaProbe> {
   const tables = await db.$queryRaw<{ table_name: string }[]>`
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto')
+      AND table_name IN (
+        'PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto',
+        'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine'
+      )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
     SELECT table_name, column_name FROM information_schema.columns
@@ -104,7 +111,15 @@ async function probeSchema(): Promise<SchemaProbe> {
     shipmentLabelTable: tableNames.has('ShipmentLabel'),
     packagePhotoTable: tableNames.has('PackagePhoto'),
     orderTrackingNumberColumn: colKeys.has('Order.trackingNumber'),
+    salesRecordTable: tableNames.has('SalesRecord'),
+    competitorPriceTable: tableNames.has('CompetitorPrice'),
+    distributorOrderTable: tableNames.has('DistributorOrder'),
+    distributorOrderLineTable: tableNames.has('DistributorOrderLine'),
   }
+}
+
+function isSchemaUpToDate(schema: SchemaProbe): boolean {
+  return Object.values(schema).every(Boolean)
 }
 
 export async function GET() {
@@ -114,15 +129,7 @@ export async function GET() {
 
   try {
     const [migrations, schema] = await Promise.all([listMigrationDirs(), probeSchema()])
-    const upToDate =
-      schema.paymentMethodTable &&
-      schema.webhookEventTable &&
-      schema.orderShippingTotalColumn &&
-      schema.clientStripeCustomerIdColumn &&
-      schema.shipmentLabelTable &&
-      schema.packagePhotoTable &&
-      schema.orderTrackingNumberColumn
-    return successResponse({ migrations, schema, upToDate })
+    return successResponse({ migrations, schema, upToDate: isSchemaUpToDate(schema) })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Schema probe failed'
     logger.error('[DB MIGRATE] probe error', { message })
@@ -197,14 +204,7 @@ export async function POST(request: NextRequest) {
     }
 
     const schema = await probeSchema()
-    const upToDate =
-      schema.paymentMethodTable &&
-      schema.webhookEventTable &&
-      schema.orderShippingTotalColumn &&
-      schema.clientStripeCustomerIdColumn &&
-      schema.shipmentLabelTable &&
-      schema.packagePhotoTable &&
-      schema.orderTrackingNumberColumn
+    const upToDate = isSchemaUpToDate(schema)
     const hadFatal = results.some((r) => r.error && r.error !== 'sql_not_found')
 
     logger.info('[DB MIGRATE] run complete', {
