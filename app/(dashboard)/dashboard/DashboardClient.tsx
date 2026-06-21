@@ -9,6 +9,7 @@ import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { SalesImportButton } from '@/components/admin/SalesImportButton'
 import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
+import { OrdersBackfillButton } from '@/components/admin/OrdersBackfillButton'
 import { toast } from 'sonner'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
 
@@ -109,6 +110,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
         <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
         <div className="flex items-center gap-2">
           <SalesImportButton />
+          <OrdersBackfillButton />
           <StripeBackfillButton />
           <Button
             onClick={handleRefresh}
