@@ -2,6 +2,15 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+// Localized fallback so a single chart failing to render (e.g. malformed data)
+// degrades gracefully to a message instead of crashing the whole page segment.
+const chartFallback = (
+  <div className="flex h-[320px] w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-400 dark:border-white/10 dark:text-white/40">
+    Chart unavailable
+  </div>
+)
 
 interface ChartCardProps {
   title: string
@@ -52,7 +61,9 @@ export function ChartCard({ title, description, children, className, loading }: 
         )}
       </CardHeader>
 
-      <CardContent className="relative z-10 mt-6 pt-0">{children}</CardContent>
+      <CardContent className="relative z-10 mt-6 pt-0">
+        <ErrorBoundary fallback={chartFallback}>{children}</ErrorBoundary>
+      </CardContent>
     </Card>
   )
 }

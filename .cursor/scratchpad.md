@@ -52,6 +52,48 @@ Implemented per the approved plan (`remove_sheets_and_airtable_49657eee.plan.md`
 
 ---
 
+## 🧭 ROADMAP — "Make it comprehensive like EonPro" (Jun 21 2026) [PLANNER]
+
+> Strategic gap analysis grounded in the current codebase (42 pages, 60 API routes, 25-model Prisma schema). EonPro (`logosrx.eonpro.io`) is referenced as the source of the FedEx-label + package-photo modules, implying a more mature **Rx / telehealth / pharmacy-ops** platform. EonPro's repo is NOT in this workspace, so the EonPro-specific items below are *inferred* from that domain and must be confirmed with the user before building.
+
+### Current-state capability map (what already exists — strong base)
+- **Identity/RBAC:** Clerk auth; `CLIENT / ADMIN / SUPER_ADMIN`; user status lifecycle; pending-approval gate; NPI-verified onboarding.
+- **B2B core:** Clients (practices) w/ NPI registry snapshot, license/DEA/insurance docs, custom per-client pricing; Patients (ship-to); saved cards (Stripe).
+- **Catalog/inventory:** Product/Variant (cost, SRP, supplier), inventory-on-hand + reorder level; **inventory batches** w/ BUD, batch#, Code128 barcode, label PDF, immutable batch event audit.
+- **Orders/payments:** full order lifecycle, Stripe PaymentIntents + Connect, webhook idempotency (`WebhookEvent`), refunds status; FedEx labels + tracking writeback; package-photo proof-of-shipment.
+- **White-label storefronts:** per-client subdomain, branding, storefront products + retail pricing, end-customer accounts (bcrypt), retail orders → auto-generate PeptSci orders.
+- **Analytics:** SalesRecord, CompetitorPrice, DistributorOrder/Line; KPIs, P&L, balance sheet; CSV importers + Stripe backfill.
+- **Ops:** AuditLog, Sentry, `/api/health`, CI, rate-limit util, structured logger, runtime migration runner.
+
+### Gap analysis by domain (what "comprehensive" adds)
+1. **Notifications (highest-leverage gap):** no transactional email/SMS anywhere. Need order/shipping/approval/payment-failure emails (Resend/SendGrid) + SMS (Twilio), templates, and a notification log. Abandoned-cart + review-request later.
+2. **Background jobs / scheduling:** no queue or cron. Needed for emails, FedEx tracking polling (DELIVERED status), BUD/expiry alerts, reorder alerts, subscription runs, nightly reports. (Vercel Cron + a `Job`/outbox table, or QStash/Inngest.)
+3. **Subscriptions / auto-refill / recurring orders:** none. Big revenue feature for both B2B reorders and storefront retail (Stripe subscriptions or scheduled order generation).
+4. **Returns / RMA / cancellations / partial refunds UI:** only an inventory `RETURN` reason exists; no customer-facing or admin RMA workflow, no partial-refund UI, no restock flow.
+5. **Telehealth / Rx workflow (likely EonPro's core):** no prescription intake, provider/prescriber review queue, e-sign, Rx approval gating, or lab/intake forms. If PeptSci must dispense to patients (not just sell B2B), this is the largest net-new domain. **Needs user confirmation.**
+6. **Fulfillment depth:** single-carrier (FedEx). Add packing slips, pick/pack queue (the `/fulfillment` page exists — verify depth), batch label printing, end-of-day manifest, multi-carrier (USPS/UPS), address validation, and FEFO (expiry-first) batch allocation on order fulfillment.
+7. **Inventory depth:** add lot/expiry-aware allocation, multi-location/warehouse, cycle counts, COGS valuation methods, low-stock + expiring-soon dashboards, and tie batch consumption to order fulfillment (currently batches and order fulfillment look loosely coupled).
+8. **CRM / marketing:** no segmentation, campaigns, email automation, or customer timelines. Add a client/customer 360 view + lifecycle automations.
+9. **Reporting / BI / accounting:** KPIs exist but no scheduled reports, CSV/PDF exports everywhere, cohort/retention, or **QuickBooks/Xero** export for sales + COGS + fees. Tax handling (TaxJar/Stripe Tax) is currently flat.
+10. **Compliance / security hardening (regulated data):** HIPAA posture (BAA coverage for Clerk/Stripe/Resend/Vercel, PHI minimization — Patients table is PII), audit-log *viewer* + tamper-evidence, restricted Stripe keys, per-route rate-limit coverage, field-level encryption for sensitive docs, data-retention policy, and a documented DR/backup + RPO/RTO plan.
+11. **Search / UX scale:** add the optional `pg_trgm` indexes (already scripted), saved table views, bulk admin actions, command-palette coverage, and pagination/virtualization on the remaining large lists.
+12. **Quality gates:** broaden test coverage toward the ≥85% target (importers/finance are covered; orders, checkout, fulfillment, webhooks, RBAC need integration tests), add E2E (Playwright) for the critical money paths, and load testing.
+13. **Patient/customer portal depth:** order tracking timeline, reorder-in-one-click, document upload, messaging.
+14. **AI (per project rules, responsibly):** product Q&A/assistant, demand forecasting for reorder levels, anomaly detection on sales/fraud, support-ticket triage — all with PHI/PII anonymization before any third-party model.
+
+### Suggested phasing (each independently shippable, TDD where logic changes)
+- **P0 — Operational backbone (unblocks everything):** transactional email+SMS + notification log; background-job/outbox + Vercel Cron; FedEx tracking poller → DELIVERED; expiring-BUD + low-stock alerts.
+- **P1 — Revenue + correctness:** subscriptions/auto-refill; returns/RMA + partial refunds; FEFO batch allocation tied to fulfillment; Stripe Tax; QuickBooks export.
+- **P2 — Growth + scale:** CRM/customer-360 + marketing automation; reporting/BI + scheduled reports; search/UX scale; E2E + load tests; AI assist features.
+- **P3 — New domain (only if confirmed):** telehealth/Rx intake + prescriber review + e-sign + dispensing compliance.
+
+### Open questions for the user (calibrate scope before building)
+- What does EonPro actually do that PeptSci lacks (telehealth/Rx? subscriptions? CRM? multi-pharmacy)? Can we get read access to its repo/feature list?
+- Does PeptSci need to handle **prescriptions / dispense to patients**, or stay **B2B distribution + white-label retail**? (Determines whether P3 exists and the entire compliance surface.)
+- Which outcome matters most next quarter: revenue (subscriptions/RMA), trust/compliance (HIPAA/audit), or growth (CRM/marketing)?
+
+---
+
 ## Background and Motivation
 The platform "feels extremely slow and drags." The earlier effort fixed the Google Sheets data layer (in-process TTL cache, killed dashboard cache-busting, RSC for dashboard/P&L, RDS token cache). But the slowness is now **platform-wide** because most non-fixed surfaces share the same anti-patterns: client-only pages that fetch-after-mount behind spinners, cache-busted `no-store` fetches, a 60 s poll, eager heavy bundles (recharts/jspdf), missing DB indexes + N+1 queries, and full-catalog/full-history loads to render one row.
 
@@ -1509,4 +1551,12 @@ Dep fixes committed as `20cfbe0`; all P0/P1/dep commits now on `origin/main` (re
 4. **Toasts wired into silent handlers** — `DashboardClient`, `OrdersExpensesClient`, `PricingClient` refresh functions now return success booleans; manual refresh shows success/error toasts (background poll stays silent to avoid noise).
 5. **Empty state** — `OrdersExpensesClient` orders table now renders a contextual empty row ("No distributor orders yet…" vs "No orders match this filter.").
 
-Remaining P2 backlog (not yet done): per-route `loading.tsx` for shop/sf segments, empty states across other admin tables, wire `ErrorBoundary` around heavy widgets, react-hook-form field validation, decompose 400–650 line client monoliths.
+### Executor — P2 UX (second increment, 2026-06-21) ✅
+`tsc` clean, 96/96 tests pass, lint clean.
+
+6. **Shop loading/error** — `app/shop/loading.tsx` (dark catalog skeleton) + `app/shop/error.tsx` (dark boundary, Sentry capture, retry).
+7. **Storefront (sf) loading/error** — `app/sf/loading.tsx` + `app/sf/error.tsx`, theme-neutral via `currentColor`/`color-mix` so they adapt to each tenant's branding; retry button uses `--sf-primary`.
+8. **ErrorBoundary activated** — wrapped `ChartCard`'s content in the (previously dead) `ErrorBoundary` with a "Chart unavailable" fallback; protects every chart across dashboard/competitors/P&L from taking down the page.
+9. **Empty-state audit** — confirmed users/clients/products/client-pricing/CustomerPricing already handle loading+empty; the real gap (OrdersExpensesClient) was fixed in increment 1. DataTable has a built-in "No results." row.
+
+Remaining P2 backlog (deferred, larger refactors): react-hook-form field-level validation, decompose 400–650 line client monoliths (shop/checkout 655, profit-loss 575, products 526, po-generator 495), shop/sf per-page granular skeletons.
