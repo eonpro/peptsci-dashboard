@@ -92,6 +92,30 @@ Implemented per the approved plan (`remove_sheets_and_airtable_49657eee.plan.md`
 - Does PeptSci need to handle **prescriptions / dispense to patients**, or stay **B2B distribution + white-label retail**? (Determines whether P3 exists and the entire compliance surface.)
 - Which outcome matters most next quarter: revenue (subscriptions/RMA), trust/compliance (HIPAA/audit), or growth (CRM/marketing)?
 
+### ✅ DECISIONS (Jun 21 2026)
+- **Scope locked: B2B distribution + white-label retail only. NO patient Rx/telehealth.** → P3 (Rx domain) is OUT. Compliance stays at PII/PCI + standard SOC2-style hygiene; no PHI/dispensing surface.
+- **Priority: P0 operational backbone first** (notifications, background jobs/cron, alerts).
+- **EonPro repo: user will add it to the workspace** so P0 patterns can be matched to EonPro's implementation before/while building. Until it lands, P0 design below is the working baseline.
+
+### P0 — Operational backbone (detailed plan, pending provider confirm + EonPro repo)
+**Goal:** the platform can reliably *talk to people* and *do scheduled work*. Everything downstream (subscriptions, RMA, alerts) depends on this.
+
+1. **Notification service + log**
+   - New `Notification` model (channel email|sms, template, to, payload JSON, status QUEUED|SENT|FAILED, providerId, error, dedupeKey, timestamps) — mirrors `WebhookEvent` for idempotency/audit.
+   - `lib/notifications/` with a provider-agnostic `send()` + templates. Email via **Resend** (recommended) or SendGrid; SMS via **Twilio** (Twilio plugin available in this workspace).
+   - Wire transactional triggers: order submitted/approved/rejected, payment captured/failed, label created (tracking #), shipment delivered, client approved, low-stock/expiry (see #3).
+2. **Background jobs / outbox + scheduler**
+   - `Job`/outbox table (type, payload, runAt, status, attempts, lastError) drained by an internal worker route; **Vercel Cron** triggers (`vercel.json`) on a schedule. (Alt: Inngest/QStash if EonPro uses one.)
+   - Notifications enqueue to the outbox so a failed email/SMS retries with backoff instead of blocking the request path.
+3. **Scheduled jobs (first set)**
+   - FedEx tracking poller → update `Order.shippingStatus` to DELIVERED + fire delivered notification.
+   - Expiring-BUD scan (InventoryBatch.bud within N days) → admin alert.
+   - Low-stock scan (ProductVariant.inventoryOnHand ≤ reorderLevel) → admin reorder alert.
+   - Nightly KPI/sales digest email to admins (optional).
+4. **Success criteria:** sending is idempotent + logged; a provider outage degrades gracefully (queued + retried, request still succeeds); cron runs visible in the Notification/Job logs; tsc + build + tests green; admin can see a notification/job log.
+
+**Provider/infra decisions still needed:** email provider (Resend vs SendGrid), SMS (confirm Twilio), scheduler (Vercel Cron vs Inngest/QStash), and whether to match EonPro's exact stack once its repo is in the workspace.
+
 ---
 
 ## Background and Motivation
@@ -1560,3 +1584,20 @@ Dep fixes committed as `20cfbe0`; all P0/P1/dep commits now on `origin/main` (re
 9. **Empty-state audit** — confirmed users/clients/products/client-pricing/CustomerPricing already handle loading+empty; the real gap (OrdersExpensesClient) was fixed in increment 1. DataTable has a built-in "No results." row.
 
 Remaining P2 backlog (deferred, larger refactors): react-hook-form field-level validation, decompose 400–650 line client monoliths (shop/checkout 655, profit-loss 575, products 526, po-generator 495), shop/sf per-page granular skeletons.
+
+### Executor — Email infrastructure (AWS SES) (2026-06-22) ✅
+Decisions: AWS SES (matches eonpro), full account lifecycle, from `no-reply@peptsci.com`. `tsc` clean, 96/96 tests, lint clean.
+
+**New module `lib/email/`:**
+- `client.ts` — SES v2 driver (`@aws-sdk/client-sesv2`). `sendEmail()` never throws; returns `{ok,skipped,messageId,error}`. **Gated by `EMAIL_ENABLED==='true'`** — logs + skips otherwise (build/dev/preview safe). Lazy client construction; region from `EMAIL_AWS_REGION`→`AWS_REGION`→`us-east-1`; optional `EMAIL_REPLY_TO`, `EMAIL_CONFIGURATION_SET`.
+- `templates.ts` — branded inline-style HTML + plain-text for: welcome, partnerApproved, partnerRejected (optional reason), partnerNeedsInfo (optional message). Shared `layout()` with PeptSci palette + CTA.
+- `index.ts` — intent senders: `sendWelcomeEmail`, `sendPartnerApprovedEmail`, `sendPartnerRejectedEmail`, `sendPartnerNeedsInfoEmail`.
+
+**Wired in:**
+- `app/api/webhooks/clerk/route.ts` → welcome email on `user.created` (to primary email).
+- `app/api/admin/users/[id]/approve/route.ts` → approved email (looks up user email/firstName from DB).
+- `app/api/admin/clients/[id]/route.ts` PATCH → approved / rejected / needs-info based on `onboardingStatus`; recipients = practice `contactEmail` + linked user emails (deduped).
+
+**Env (env-example.txt):** `EMAIL_ENABLED` (default false), `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_AWS_REGION`, `EMAIL_CONFIGURATION_SET`. AWS creds via standard provider chain; IAM needs `ses:SendEmail`.
+
+⚠️ Go-live (user): verify the `peptsci.com` domain (or sender) in SES, move SES out of sandbox, grant `ses:SendEmail` to the deploy IAM principal, then set `EMAIL_ENABLED=true`. Until then sends are logged-and-skipped (no errors).

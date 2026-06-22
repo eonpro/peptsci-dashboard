@@ -22,6 +22,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1074.0",
     "@aws-sdk/rds-signer": "^3.1057.0",
     "@clerk/nextjs": "^6.36.8",
     "@pdf-lib/fontkit": "^1.1.1",

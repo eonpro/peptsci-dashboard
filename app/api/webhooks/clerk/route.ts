@@ -4,6 +4,7 @@ import { Webhook } from 'svix'
 import { clerkClient } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { sendWelcomeEmail } from '@/lib/email'
 
 // Clerk webhook event types
 interface ClerkEmailAddress {
@@ -116,6 +117,11 @@ export async function POST(req: Request) {
           },
         })
         logger.info('User created in database', { userId: id, status: 'PENDING' })
+      }
+
+      // Welcome / under-review email. Never throws; safe to await before 200.
+      if (primaryEmail) {
+        await sendWelcomeEmail({ to: primaryEmail, firstName: first_name })
       }
     }
 

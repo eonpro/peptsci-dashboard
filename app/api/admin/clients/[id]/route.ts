@@ -13,6 +13,11 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { addressSchema } from '@/lib/address'
 import { npiSchema, serializeClientProfile } from '@/lib/profile'
+import {
+  sendPartnerApprovedEmail,
+  sendPartnerRejectedEmail,
+  sendPartnerNeedsInfoEmail,
+} from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,7 +124,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       client = await prisma.client.update({
         where: { id },
         data,
-        select: { ...clientSelect, users: { select: { id: true, clerkUserId: true } } },
+        select: {
+          ...clientSelect,
+          users: { select: { id: true, clerkUserId: true, email: true } },
+        },
       })
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -154,6 +162,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         )
       }
       logger.info('[ADMIN CLIENTS] status cascade', { clientId: id, newStatus })
+    }
+
+    // Notify the partner of the onboarding decision. Recipients = the practice
+    // contact + any linked user emails. Senders never throw.
+    if (input.onboardingStatus) {
+      const recipients = Array.from(
+        new Set(
+          [client.contactEmail, ...client.users.map((u) => u.email)].filter(
+            (e): e is string => Boolean(e)
+          )
+        )
+      )
+      const name = client.contactName || client.organizationName
+      if (recipients.length > 0) {
+        if (input.onboardingStatus === 'APPROVED') {
+          await sendPartnerApprovedEmail({ to: recipients, name })
+        } else if (input.onboardingStatus === 'REJECTED') {
+          await sendPartnerRejectedEmail({ to: recipients, name })
+        } else if (input.onboardingStatus === 'NEEDS_INFO') {
+          await sendPartnerNeedsInfoEmail({ to: recipients, name })
+        }
+      }
     }
 
     return successResponse({ profile: serializeClientProfile(client) })

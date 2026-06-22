@@ -115,3 +115,21 @@ NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE="0.1"
 SENTRY_ORG=""
 SENTRY_PROJECT=""
 SENTRY_AUTH_TOKEN=""
+
+# ===========================================
+# EMAIL - AWS SES (transactional)
+# ===========================================
+# Master switch. Sends are logged + skipped until this is exactly "true",
+# so nothing goes out until the SES identity/domain is verified.
+EMAIL_ENABLED="false"
+# Verified SES sender (domain or address must be verified in the SES region)
+EMAIL_FROM="no-reply@peptsci.com"
+# Optional Reply-To shown to recipients (also used as support address in footers)
+EMAIL_REPLY_TO="support@peptsci.com"
+# SES region (falls back to AWS_REGION / AWS_DEFAULT_REGION, then us-east-1)
+EMAIL_AWS_REGION="us-east-1"
+# Optional SES configuration set (open/click tracking, dedicated IP pool, etc.)
+EMAIL_CONFIGURATION_SET=""
+# AWS credentials come from the standard provider chain (AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY, or the Vercel OIDC role). The IAM principal needs
+# ses:SendEmail on the verified identity.

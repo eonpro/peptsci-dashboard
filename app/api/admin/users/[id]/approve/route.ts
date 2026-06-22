@@ -10,6 +10,7 @@ import {
 import { getUserMetadata } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { sendPartnerApprovedEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,14 +51,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     // Update database if configured
+    let approvedUser: { email: string | null; firstName: string | null } | null = null
     if (prisma) {
       await prisma.user.updateMany({
         where: { clerkUserId: targetUserId },
         data: { status: 'ACTIVE' },
       })
+      approvedUser = await prisma.user.findFirst({
+        where: { clerkUserId: targetUserId },
+        select: { email: true, firstName: true },
+      })
     }
 
     logger.info('User approved', { targetUserId, approvedBy: userId })
+
+    // Notify the partner that they're approved. Never throws.
+    if (approvedUser?.email) {
+      await sendPartnerApprovedEmail({ to: approvedUser.email, name: approvedUser.firstName })
+    }
 
     return successResponse({
       message: 'User approved successfully',
