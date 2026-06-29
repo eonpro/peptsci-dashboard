@@ -20,6 +20,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
   '/api/storefront(.*)',
+  // Public self-service shipment tracking (no PII; see app/tracking).
+  '/tracking(.*)',
 ])
 
 // Admin-only routes
