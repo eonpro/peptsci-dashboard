@@ -208,6 +208,16 @@ On inspecting the actual repo (my roadmap notes were stale), PeptSci has **alrea
 - **Tests:** new `lib/__tests__/reservations.test.ts`. `npm test` 147 pass, `tsc --noEmit` clean, `next build` green.
 - **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the column + table.
 
+### ✅ DONE — Gap F: warehouse pick/pack ops (Jun 28 2026)
+- **Schema:** `OrderFulfillment` 1:1 with `Order` (`stage` `FulfillmentStage` NOT_STARTED/PICKING/PICKED/PACKED, `pickedAt/pickedById`, `packedAt/packedById`, `verifiedItems` Json snapshot, `notes`) + `Order.fulfillment` back-relation. Idempotent migration `20260628140000_add_order_fulfillment` (`CREATE TYPE`, `CREATE TABLE IF NOT EXISTS`, unique on `orderId`, FK cascade). Probe extended (`orderFulfillmentTable`).
+- **Pure core** (`lib/fulfillment/pick-list-core.ts`, unit-tested): `planLineDraws` (FIFO oldest-BUD-first, ties by batch #, carries BUD through) + `buildPickList` (aggregates repeated variants, totals units/shortfall, `fullyAllocatable`). Dependency-free; mirrors `planAllocation`.
+- **Service** (`lib/fulfillment/service.ts`): `buildOrderPickList` (order items → variant/product + `allocatableBatchesForVariants` → pick list), `buildPackingSlipData`, `getOrderFulfillment`, `advanceFulfillment(orderId, 'pick'|'pack'|'reset', userId, verifiedItems?)` (idempotent upsert).
+- **PDFs** (`lib/fulfillment/pdf.ts`, pdf-lib + Standard-14, serverless-safe): `generatePickListPdf` (per-line batch draws, shortfall flagged in red, picker sign-off) + `generatePackingSlipPdf` (customer-facing, ship-to + qty only, no prices, RUO footer).
+- **APIs:** `GET /orders/[id]/pick-list` (JSON), `GET /orders/[id]/pick-list/pdf`, `GET /orders/[id]/packing-slip/pdf`, `GET|POST /orders/[id]/fulfillment` (advance stage). Orders list now returns `fulfillmentStage`.
+- **UI:** fulfillment page shows a stage badge + per-order Pick List / Packing Slip PDF downloads and Mark Picked → Mark Packed → Reset actions. Physical stock still consumed via the order-labels `?consume=true` path; pick/pack only records who/when + verification.
+- **Tests:** new `lib/__tests__/pickList.test.ts`. `npm test` 154 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the `OrderFulfillment` table.
+
 ---
 
 ## Background and Motivation

@@ -15,6 +15,9 @@ import {
   ExternalLink,
   Loader2,
   Printer,
+  ClipboardList,
+  FileText,
+  CheckCircle2,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 
@@ -39,8 +42,16 @@ type OrderRow = {
   shippedAt: string | null
   shippingAddress: StoredAddress
   client: { id: string; organizationName: string; contactName: string | null; contactPhone: string | null } | null
+  fulfillmentStage: 'NOT_STARTED' | 'PICKING' | 'PICKED' | 'PACKED'
   photoCount: number
   labelCount: number
+}
+
+const STAGE_META: Record<OrderRow['fulfillmentStage'], { label: string; className: string }> = {
+  NOT_STARTED: { label: 'Not started', className: 'border-white/15 text-white/50' },
+  PICKING: { label: 'Picking', className: 'border-amber-400/40 text-amber-300' },
+  PICKED: { label: 'Picked', className: 'border-sky-400/40 text-sky-300' },
+  PACKED: { label: 'Packed', className: 'border-emerald-400/40 text-emerald-300' },
 }
 
 function str(v: unknown): string {
@@ -75,6 +86,7 @@ export default function FulfillmentPage() {
   const [search, setSearch] = useState('')
   const [shipped, setShipped] = useState<'true' | 'false' | 'all'>('false')
   const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
+  const [advancing, setAdvancing] = useState<string | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -95,6 +107,29 @@ export default function FulfillmentPage() {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
   }, [load])
+
+  const advance = useCallback(
+    async (orderId: string, action: 'pick' | 'pack' | 'reset') => {
+      setAdvancing(`${orderId}:${action}`)
+      try {
+        const r = await fetch(`/api/admin/orders/${orderId}/fulfillment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        })
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}))
+          throw new Error(data.message || data.error || 'Failed to update fulfillment')
+        }
+        load()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to update fulfillment')
+      } finally {
+        setAdvancing(null)
+      }
+    },
+    [load]
+  )
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
@@ -170,6 +205,12 @@ export default function FulfillmentPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-white">Order #{order.orderNumber}</span>
                       <Badge variant="outline" className="text-xs">{order.status}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${STAGE_META[order.fulfillmentStage].className}`}
+                      >
+                        {STAGE_META[order.fulfillmentStage].label}
+                      </Badge>
                       {order.photoCount > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs text-white/50">
                           <Camera className="h-3 w-3" /> {order.photoCount}
@@ -200,7 +241,63 @@ export default function FulfillmentPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <Button size="sm" variant="ghost" asChild>
+                      <a
+                        href={`/api/admin/orders/${order.id}/pick-list/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ClipboardList className="mr-2 h-4 w-4" /> Pick List
+                      </a>
+                    </Button>
+                    <Button size="sm" variant="ghost" asChild>
+                      <a
+                        href={`/api/admin/orders/${order.id}/packing-slip/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileText className="mr-2 h-4 w-4" /> Packing Slip
+                      </a>
+                    </Button>
+                    {order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={advancing === `${order.id}:pick`}
+                        onClick={() => advance(order.id, 'pick')}
+                      >
+                        {advancing === `${order.id}:pick` ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                        )}
+                        Mark Picked
+                      </Button>
+                    ) : order.fulfillmentStage === 'PICKED' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={advancing === `${order.id}:pack`}
+                        onClick={() => advance(order.id, 'pack')}
+                      >
+                        {advancing === `${order.id}:pack` ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                        )}
+                        Mark Packed
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={advancing === `${order.id}:reset`}
+                        onClick={() => advance(order.id, 'reset')}
+                      >
+                        Reset
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => setModalOrder(order)}>
                       <Printer className="mr-2 h-4 w-4" />
                       {order.trackingNumber ? 'New Label' : 'Create Label'}

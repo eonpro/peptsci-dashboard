@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
           shippedAt: true,
           shippingAddress: true,
           client: { select: { id: true, organizationName: true, contactName: true, contactPhone: true } },
+          fulfillment: { select: { stage: true } },
           _count: { select: { packagePhotos: true, shipmentLabels: true } },
         },
       }),
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
       shippedAt: o.shippedAt?.toISOString() ?? null,
       shippingAddress: o.shippingAddress,
       client: o.client,
+      fulfillmentStage: o.fulfillment?.stage ?? 'NOT_STARTED',
       photoCount: o._count.packagePhotos,
       labelCount: o._count.shipmentLabels,
     }))

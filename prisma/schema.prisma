@@ -485,6 +485,7 @@ model Order {
   retailOrder           RetailOrder?
   returnRequests        ReturnRequest[]
   reservations          InventoryReservation[]
+  fulfillment           OrderFulfillment?
 
   @@index([clientId])
   @@index([stripePaymentIntentId])
@@ -798,6 +799,31 @@ model ReturnItem {
 }
 
 // -------------------------------------------------
+// Warehouse pick/pack fulfillment state for an order (1:1). Tracks the pick →
+// pack workflow distinct from Order.status/shippingStatus. verifiedItems is a
+// snapshot of the operator's pack count per line ([{variantId, productName,
+// expected, packed}]). Physical stock consumption still happens via the batch
+// label-consume path; this records who picked/packed and when.
+// -------------------------------------------------
+
+model OrderFulfillment {
+  id            String           @id @default(cuid())
+  order         Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       String           @unique
+  stage         FulfillmentStage @default(NOT_STARTED)
+  pickedAt      DateTime?
+  pickedById    String?
+  packedAt      DateTime?
+  packedById    String?
+  verifiedItems Json?
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([stage])
+}
+
+// -------------------------------------------------
 // Inventory reservations (order-linked stock commitments). Reserving an order's
 // lines increments ProductVariant.inventoryReserved without touching on-hand, so
 // availability for new orders is (inventoryOnHand - inventoryReserved). Lifecycle:
@@ -833,6 +859,13 @@ enum ReservationStatus {
   ACTIVE
   RELEASED
   CONSUMED
+}
+
+enum FulfillmentStage {
+  NOT_STARTED
+  PICKING
+  PICKED
+  PACKED
 }
 
 enum ReturnStatus {
