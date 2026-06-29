@@ -34,6 +34,7 @@ const isAdminRoute = createRouteMatcher([
   '/pricing(.*)',
   '/competitors(.*)',
   '/orders-expenses(.*)',
+  '/returns(.*)',
   '/profit-loss(.*)',
   '/po-generator(.*)',
   '/storefronts(.*)',

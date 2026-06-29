@@ -116,6 +116,88 @@ Implemented per the approved plan (`remove_sheets_and_airtable_49657eee.plan.md`
 
 **Provider/infra decisions still needed:** email provider (Resend vs SendGrid), SMS (confirm Twilio), scheduler (Vercel Cron vs Inngest/QStash), and whether to match EonPro's exact stack once its repo is in the workspace.
 
+### 🔎 EonPro reference located + analyzed (Jun 28 2026)
+GitHub org `eonpro`. Cloned two references next to the repo (shallow, outside the PeptSci git tree):
+- **`../eonpro-fulfillment`** (repo `eonpro/fulfillment-platform`) — **THE north star.** Same stack as PeptSci (Next.js 16 + Prisma 7 + Clerk + pg + Stripe + FedEx), multi-tenant **fulfillment ops** platform, **no Rx**. Its schema/libs are the concrete blueprint for PeptSci's "comprehensive."
+- **`../eonpro-mono`** (repo `eonpro/eonpro`) — large **HIPAA telehealth** platform (Zoom, DoseSpot e-Rx, Twilio chat). Mostly **out of scope** (no Rx) except backbone ideas.
+- Other org repos for reference only: `pharmax` (Rx fulfillment), `logosrx-website`, `logos-rx-invoicing`, `weightlossintake`, several intake/checkout apps.
+- ⚠️ `~/Downloads/EonPro.txt` contains a live "Primary Sub Key" secret — recommend deleting + rotating.
+
+**EonPro's actual backbone patterns (to mirror, not telehealth):**
+- **Notifications:** `Notification` + `NotificationPreference` models; `lib/services/notification.service.ts` writes a DB row, sends **AWS SES** email (`lib/email/*`) + **Twilio** SMS (`lib/sms/*`), and fires an optional outbound **webhook** — all non-blocking (`.catch`). A `notification-bell` UI component.
+- **Events:** lightweight **in-process event-bus** (`lib/events/event-bus.ts`, typed `DomainEvent` union + `on/emit`, ring-buffer audit) + `subscribers.ts` — NOT a durable queue.
+- **Scheduling:** cron routes guarded by `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron). Example: `api/tracking/poll` iterates active shipments, calls FedEx, updates status + writes `ShipmentEvent`, emits notifications. Also `api/reports/send-weekly`.
+- **Storage:** AWS S3 (`lib/integrations/aws/*`) for labels/photos.
+
+### Feature gaps PeptSci ← fulfillment-platform (the real "comprehensive" list)
+1. **Notifications backbone** (email SES + SMS Twilio + Notification model + bell + prefs + webhooks). ← P0
+2. **Cron/event backbone** (`CRON_SECRET` routes + in-process event-bus + subscribers). ← P0
+3. **FedEx tracking poller** → Shipment status timeline (`Shipment` + `ShipmentEvent`) + delivered notifications. ← P0
+4. **Returns / RMA** (`ReturnRequest`/`ReturnItem`, RMA #, status workflow, restock endpoint). ← P1
+5. **Billing & invoicing** (`BillableEvent`, `Invoice`/`InvoiceLineItem`, billing.service, invoice PDF, public `/pay/[invoiceId]` Stripe page). ← P1
+6. **Warehouse ops**: `FulfillmentTask` queue + kanban board, `PickList`/`PickListItem`, `PackVerification`, batch label printing, packing-slip PDF, richer order status (`NEW→NEEDS_REVIEW→READY_TO_PICK→PICKED→PACKED→LABEL_CREATED→SHIPPED→DELIVERED→EXCEPTION/HOLD`) + `OrderDisposition`. ← P1/P2
+7. **Inventory reservations**: `InventoryRecord` (onHand/reserved/reorderPoint/bin/lastCounted) + `InventoryTransaction` ledger (RESERVED/RELEASED/SHIPPED…). ← P1
+8. **Shipping intelligence**: rules-engine, rate-shop, order-router, address validation/autocomplete, service recommend. ← P2
+9. **Channel integrations**: WooCommerce + Shopify sync (`IntegrationConnection`, `SyncJob`, webhooks). ← P2 (if PeptSci sells via external channels)
+10. **Reporting/BI**: weekly report email, demand-forecast, SLA service + `/api/sla`, ExcelJS export everywhere. ← P2
+11. **Public self-service tracking page** `/tracking/[trackingNumber]`. ← P1
+12. **Resilience/ops**: circuit-breaker, rate-limiter coverage, feature-flags, cache, observability, tenant-context isolation. ← cross-cutting
+
+### ✅ RESOLVED P0 stack (match EonPro)
+- **Email = AWS SES** (`@aws-sdk/client-ses`; PeptSci already uses AWS SDKs + RDS IAM). **SMS = Twilio** (`twilio`). **Scheduler = Vercel Cron + `CRON_SECRET`-guarded routes.** **Events = in-process event-bus** (port `lib/events`), not a queue. Storage stays on existing `lib/storage.ts` (add S3 later if needed).
+- **P0 build order (modeled on fulfillment-platform):**
+  1. Port `lib/events/event-bus.ts` (typed PeptSci `DomainEvent`s: ORDER_SUBMITTED/APPROVED/REJECTED, PAYMENT_CAPTURED/FAILED, LABEL_CREATED, SHIPMENT_DELIVERED, LOW_STOCK, BUD_EXPIRING, CLIENT_APPROVED).
+  2. `Notification` + `NotificationPreference` Prisma models + idempotent migration; notification-bell + `/api/notifications` (list/markRead/unread-count).
+  3. `lib/email` (SES + templates) + `lib/sms` (Twilio) + `lib/services/notification.service.ts`; wire emits from existing order/payment/label paths (reuse `reconcileOrderFromPaymentIntent`, label creation).
+  4. `CRON_SECRET`-guarded cron routes + Vercel `vercel.json` crons: `api/cron/tracking-poll` (FedEx → Order.shippingStatus DELIVERED + notify), `api/cron/inventory-alerts` (low-stock + expiring-BUD), optional nightly KPI digest.
+  5. TDD for pure bits (event-bus, template rendering, status mapping); tsc + build + tests green; admin notification log/bell visible.
+- **New env/infra:** `CRON_SECRET`, SES creds/verified sender (or reuse IAM role), `TWILIO_*`. Confirm SES sender domain + Twilio number exist before wiring sends.
+
+### ⚠️ BASELINE CORRECTION (Jun 28 2026) — P0 IS ALREADY BUILT
+On inspecting the actual repo (my roadmap notes were stale), PeptSci has **already ported the entire P0 backbone from eonpro/eonpro**:
+- **Notifications:** `Notification` model + `NotificationCategory`/`NotificationPriority` enums (with `(userId,sourceType,sourceId)` dedup); `lib/notifications/service.ts` (create/notifyAdmins/notifyUser, pagination, unread count, mark/archive/cleanup); `components/NotificationBell.tsx`; `lib/__tests__/notifications.test.ts`.
+- **Email:** `lib/email/client.ts` = AWS **SES v2** sender gated by `EMAIL_ENABLED` (no-op + log when off — exactly the provider-agnostic pattern), `lib/email/index.ts` intent senders + templates (welcome, partner approved/rejected/needs-info).
+- **Cron:** `vercel.json` → `/api/cron/fedex-tracking` (hourly), `/api/cron/low-stock` (daily), `/api/cron/expiring-batches` (daily); guarded by `verifyCronAuth` (`lib/cron/auth.ts`, `CRON_SECRET`).
+- **FedEx/shipping:** `lib/fedex.ts`, `lib/fedex-services.ts`, `lib/shipping/fedex-status.ts`, `lib/shipping/fedex-tracking-poller.ts` (writes status back to Order + notifies admins on delivery), `components/shipping/FedExLabelModal.tsx`, label/rate API routes. `Order` already carries `carrier/trackingNumber/trackingUrl/shippingStatus/shippedAt`; `ShipmentLabel` + `PackagePhoto` models exist.
+- **Order workflow:** richer than fulfillment-platform on the approval side (`DRAFT→SUBMITTED→UNDER_REVIEW→AWAITING_DOCUMENTS→APPROVED→REJECTED→FULFILLED→SHIPPED→COMPLETED→CANCELLED`).
+→ **Conclusion:** P0 is DONE. Do NOT rebuild. The remaining work is the P1/P2 feature surface below.
+
+### ✅ ACCURATE remaining gaps vs `eonpro/fulfillment-platform`
+| # | Gap | Notes / scope | Needs new account? |
+|---|-----|---------------|--------------------|
+| A | **Customer-facing shipment emails** (shipped / delivered / exception) | PeptSci notifies *admins in-app* only; templates today are partner-onboarding only. Reuse existing SES + poller. | No (SES already wired) |
+| B | **Public self-service tracking page** `/tracking/[trackingNumber]` | Customer/clinic looks up status without login. | No |
+| C | **SMS notifications (Twilio)** | Entirely absent. Layer onto notification triggers. | Yes (Twilio) |
+| D | **Returns / RMA** | `ReturnRequest`/`ReturnItem`, RMA #, status workflow, restock. Absent. | No |
+| E | **Inventory reservations + ledger** | Has `InventoryBatch`; lacks reserved/available split + RESERVED/RELEASED/SHIPPED transactions tied to orders. | No |
+| F | **Warehouse pick/pack ops** | PickList, PackVerification, fulfillment task kanban, batch label print, packing-slip PDF. | No |
+| G | **Billing & invoicing** | `BillableEvent`/`Invoice` + invoice PDF + public `/pay/[invoiceId]`. NOTE: separate repo `eonpro/logos-rx-invoicing` exists — confirm before duplicating. | No |
+| H | **Reporting/BI** | Weekly report email, demand forecast, SLA tracking, ExcelJS exports. | No |
+| I | **Per-recipient NotificationPreference + outbound webhooks** | Channel prefs + partner webhooks. | No |
+
+**Recommended next increment (no new account, clearly in-scope, high value):** A + B together — customer shipment emails wired into the existing FedEx poller/label flow, plus a public tracking page. Then D (Returns) or E (inventory reservations). C (SMS) once Twilio creds exist. Confirm G against the separate invoicing repo first.
+
+### ✅ DONE — Gap A + B (Jun 28 2026)
+- **A. Customer shipment emails** (reuse existing SES, no new env):
+  - `lib/email/templates.ts`: `orderShippedEmail` / `orderDeliveredEmail` / `orderExceptionEmail` (branded, PHI-free, CTA → public tracking page) + `ShipmentEmailOpts`, `detailPanel()` helper.
+  - `lib/email/index.ts`: `sendOrderShippedEmail` / `sendOrderDeliveredEmail` / `sendOrderExceptionEmail` (fire-and-forget; no-op when `EMAIL_ENABLED!==true`).
+  - **Triggers:** label creation route emails "shipped" to `client.contactEmail`; FedEx poller emails "delivered" + "exception" on transition, and now also alerts admins on EXCEPTION (HIGH). Admin notif dedup keys made per-status (`${orderId}:DELIVERED` / `:EXCEPTION`).
+- **B. Public tracking page** (`/tracking` + `/tracking/[trackingNumber]`, added to middleware `isPublicRoute`):
+  - `lib/shipping/tracking.ts` `getPublicTracking()` — returns ONLY order #, carrier, tracking #, status, shippedAt (no PII).
+  - `lib/shipping/fedex-status.ts`: pure `describeShippingStatus` / `trackingTimeline` / `isExceptionStatus` / labels.
+  - Branded result page with status timeline + carrier deep-link; standalone lookup form; `noindex`.
+- **Tests:** extended `fedexStatus.test.ts` (timeline/labels/exception) + new `shipmentEmails.test.ts`. `npm test` 130 pass, `tsc --noEmit` clean, `next build` green.
+- **No new env required.** Customer emails simply start flowing once `EMAIL_ENABLED=true` + verified SES sender (already the email gate). Tracking links use `NEXT_PUBLIC_APP_URL`.
+
+### ✅ DONE — Gap D: Returns / RMA (Jun 28 2026)
+- **Schema:** `ReturnRequest` + `ReturnItem` models with `ReturnStatus` (REQUESTED→…→CLOSED) + `ReturnItemCondition` (GOOD/DAMAGED/MISSING) enums; back-relations on `Order`/`Client`/`OrderItem`/`ProductVariant`. Idempotent SQL migration `20260628010000_add_returns_rma` (no DO blocks — matches runner's `;`-splitter; CREATE TYPE re-runs ignored as "already exists"). Probe in `/api/admin/db/migrate` extended for the two new tables.
+- **Pure core** (`lib/returns/core.ts`, fully unit-tested): `formatRmaNumber` (`RMA-YYYYMMDD-NNN`), `canTransition`/`nextStatuses` state machine (CLOSED reachable from any non-terminal, CLOSED terminal), `isRestockEligible` (GOOD + RECEIVED/INSPECTED + not-yet-restocked).
+- **Service** (`lib/returns/service.ts`): `createReturnRequest` (resolves order/client, per-day RMA seq with unique-collision retry, notifies admins → `/returns/{id}`), `updateReturnStatus` (transition-validated, stamps approved/received/closed timestamps), `restockReturnItems` (per-item tx: `inventoryOnHand += qty` + `InventoryAdjustment{reason:RETURN, orderId}` + mark restocked; idempotent; auto-advances to RESTOCKED), `listReturnRequests`/`getReturnRequest`.
+- **API (admin-gated):** `GET/POST /api/admin/returns`, `GET/PATCH /api/admin/returns/[id]`, `POST /api/admin/returns/[id]/restock`, `GET /api/admin/returns/order-lookup` (resolves order → returnable line items with variant linkage).
+- **UI:** `/returns` list (status tabs + New Return dialog: order lookup → pick items/qty/condition → submit) and `/returns/[id]` detail (items, workflow timeline, status-advance Select limited to valid transitions, refund input on REFUNDED, Restock button). Nav link added to `AdminHeader`; `/returns(.*)` added to middleware `isAdminRoute`.
+- **Tests:** new `lib/__tests__/returns.test.ts`. `npm test` 138 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to create the two tables (Prisma CLI can't reach RDS).
+
 ---
 
 ## Background and Motivation
@@ -1601,3 +1683,55 @@ Decisions: AWS SES (matches eonpro), full account lifecycle, from `no-reply@pept
 **Env (env-example.txt):** `EMAIL_ENABLED` (default false), `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_AWS_REGION`, `EMAIL_CONFIGURATION_SET`. AWS creds via standard provider chain; IAM needs `ses:SendEmail`.
 
 ⚠️ Go-live (user): verify the `peptsci.com` domain (or sender) in SES, move SES out of sandbox, grant `ses:SendEmail` to the deploy IAM principal, then set `EMAIL_ENABLED=true`. Until then sends are logged-and-skipped (no errors).
+
+---
+
+## P0 BACKBONE — In-app Notifications + Vercel Cron (Jun 28 2026) [PLANNER]
+
+> **Grounded in the real `eonpro/eonpro` repo** (cloned to `../eonpro-ref`). EonPro is a HIPAA telehealth/pharmacy monorepo; we port only the commerce/fulfillment-relevant backbone and skip all Rx/telehealth (rx-queue, soap-note, dosespot, bloodwork, prescriber, appointments, affiliates). Email (AWS SES), FedEx labels, and package photos are **already built** in PeptSci. The remaining P0 gap from the roadmap is the **in-app Notification system + background jobs/Vercel Cron**.
+
+### What EonPro actually does (reference patterns, verified by reading the code)
+- **`Notification` model** (`prisma/schema/notification.prisma`): category enum (PRESCRIPTION/PATIENT/ORDER/SYSTEM/APPOINTMENT/MESSAGE/PAYMENT/REFILL/SHIPMENT), priority (LOW/NORMAL/HIGH/URGENT), title/message/actionUrl/metadata(Json), isRead/readAt, isArchived/archivedAt, **sourceType+sourceId for dedup/audit**, indexed by (userId,isRead), (userId,createdAt desc), (sourceType,sourceId). Plus an `EmailLog` with a full delivery lifecycle (QUEUED→SENT→DELIVERED→OPENED→CLICKED→BOUNCED→COMPLAINED→FAILED→SUPPRESSED).
+- **`notificationService`** (`src/services/notification/notificationService.ts`): `createNotification` skips duplicates when `sourceType+sourceId` already exists; optional templated email send (non-blocking, gated by a user `emailNotificationsEnabled` flag); `notifyAdmins`/`notifyProviders` bulk broadcast; paginated `getUserNotifications` with unreadCount; `markAsRead`/`markManyAsRead`/`markAllAsRead`; `archive*`; `cleanupOldNotifications(90d)`. WebSocket push is best-effort/optional.
+- **Cron auth** (`src/lib/cron/tenant-isolation.ts` → `verifyCronAuth(req)`): require `Authorization: Bearer ${CRON_SECRET}`; if `CRON_SECRET` unset in prod, fall back to trusting Vercel's `x-vercel-cron` header (logged as degraded). Each cron route: `export const dynamic='force-dynamic'`, `maxDuration`, GET+POST → `verifyCronAuth` → 401 if bad.
+- **`vercel.json` `crons[]`**: e.g. `fedex-tracking` hourly `0 * * * *`, `shipment-reminders` `0 10 * * *`, `process-scheduled-emails` `*/5 * * * *`, `email-digest` weekly, `health-monitor` `*/5 * * * *`.
+- **Outbox**: `WebhookDelivery` gains `idempotencyKey` (unique per webhook), `nextAttemptAt` (drain cursor), `movedToDlqAt`/`dlqReason` (DLQ), drained by `cron/outbound-webhook-drain`.
+
+### Mapping onto PeptSci (decisions locked)
+- **D-NOTIF-RECIPIENT** → Notifications target **admin `User`s** (role ADMIN/SUPER_ADMIN). Client-facing alerts stay email-only for now (clients already get SES emails). `userId` scopes to `User.id` (String cuid); optional `clientId` for future client-portal notifications.
+- **D-NOTIF-CATEGORY** → trim to PeptSci domain: `ORDER`, `PAYMENT`, `SHIPMENT`, `INVENTORY`, `CLIENT`, `SYSTEM`. (Drop PRESCRIPTION/APPOINTMENT/REFILL — out of B2B scope.)
+- **D-NOTIF-EMAIL** → reuse existing `lib/email` intent senders; notification service optionally fires an email (non-blocking, never throws). No new EmailLog table in this increment (defer delivery-event tracking to a follow-up); rely on SES configuration set + existing logging.
+- **D-NOTIF-REALTIME** → **no WebSocket** (Vercel serverless). Admin bell **polls** `/api/admin/notifications/unread-count` every ~60s; full list on open. (WebSocket/SSE is a later optional upgrade.)
+- **D-CRON-AUTH** → port `verifyCronAuth` verbatim (Bearer `CRON_SECRET` + `x-vercel-cron` safety net). Add `CRON_SECRET` to env-example.
+- **D-MIGRATION** → idempotent SQL migration (`CREATE TABLE IF NOT EXISTS` + enum guard) consistent with existing runtime migrate runner `/api/admin/db/migrate`; extend its `probeSchema()` to report the `Notification` table.
+
+### Phase 1 — Notification core (schema + service + APIs + bell UI)
+1. **Schema + migration.** Add `Notification` model + `NotificationCategory`/`NotificationPriority` enums to `schema.prisma` (mirror EonPro, trimmed). Author idempotent `prisma/migrations/<ts>_add_notifications/migration.sql`. Extend `/api/admin/db/migrate` `probeSchema()` + `isSchemaUpToDate` for the new table. **Success:** `prisma generate` + `tsc` clean; migrate-runner reports the table.
+2. **`lib/notifications/service.ts`.** Port `notificationService` (no WebSocket): `createNotification` (sourceType+sourceId dedup), `notifyAdmins`, `notifyUser`, `getUserNotifications` (paginated + unreadCount), `getUnreadCount`, `markAsRead`/`markManyAsRead`/`markAllAsRead`, `archive*`, `cleanupOldNotifications`. Optional non-blocking email hook. **TDD:** unit-test dedup + unread counting with a mocked prisma. **Success:** tests green.
+3. **Admin APIs.** `GET /api/admin/notifications` (paginated list), `GET /api/admin/notifications/unread-count`, `POST /api/admin/notifications/mark-read` (ids[] | all), `POST /api/admin/notifications/[id]/archive`. All `requireAdmin()`-gated, scoped to the caller's `User.id`. **Success:** authz enforced; tsc clean.
+4. **Bell UI.** Notification bell + dropdown in `components/AdminHeader.tsx` (unread badge from a 60s poll; mark-read on open; "view all" → list; actionUrl deep-links). Toasts via existing `sonner`. **Success:** badge updates; clicking marks read; deep-links work.
+
+### Phase 2 — Vercel Cron jobs (the operational value)
+5. **`lib/cron/auth.ts`** — port `verifyCronAuth`. Add `vercel.json` with the `crons[]` schedule. Add `CRON_SECRET` to `env-example.txt`. **Success:** unauthorized cron → 401; Vercel-triggered → runs.
+6. **FedEx tracking poller** — add `trackShipment()` to `lib/fedex.ts` (FedEx Track API; degrades to 422 `FEDEX_UNCONFIGURED` when creds absent) + `lib/shipping/fedex-tracking-poller.ts` that selects non-terminal orders (`trackingNumber` set, `shippingStatus` not DELIVERED), updates `Order.shippingStatus`/`shippedAt`, and fires an `ORDER`/`SHIPMENT` notification (+ optional client email) on DELIVERED. Route `app/api/cron/fedex-tracking/route.ts` (`0 * * * *`). **TDD:** poller status-mapping + terminal-state guard. **Success:** sandbox tracking transitions an order to DELIVERED + notifies.
+7. **Low-stock alert** — `app/api/cron/low-stock/route.ts` (`0 13 * * *`): scan `ProductVariant.inventoryOnHand <= reorderLevel` (active), dedup by `sourceId=variantId+yyyymmdd`, notify admins (`INVENTORY`). **Success:** below-threshold variants produce one notification/day.
+8. **Expiring-BUD alert** — `app/api/cron/expiring-batches/route.ts` (`0 13 * * *`): scan `InventoryBatch.bud` within N days (RECEIVED, qtyOnHand>0), dedup per batch/window, notify admins (`INVENTORY`). **Success:** soon-to-expire batches notify once.
+
+### Out of scope this increment (tracked for later)
+- `EmailLog` delivery-event webhook (SES → bounce/complaint/open tracking) + email-analytics page.
+- Webhook **outbox** (`WebhookDelivery` idempotency/DLQ + drain cron) — current Stripe webhook already idempotent via `WebhookEvent`; outbox is a hardening follow-up.
+- SMS via Twilio (plugin available) — add once a transactional SMS use-case is confirmed.
+- Client-portal (shop) notification center; WebSocket/SSE realtime.
+
+### Global success criteria
+`prisma generate` + `tsc --noEmit` + `next lint` + `npm test` all green; notifications are idempotent (sourceType+sourceId) and email sends never block/throw; crons are `CRON_SECRET`-guarded and visible via the admin notification log; degrade gracefully when FedEx/SES/CRON_SECRET unset.
+
+### Status board
+- [ ] P0-N1 Notification schema + idempotent migration + migrate-runner probe
+- [ ] P0-N2 lib/notifications/service.ts (+ unit tests)
+- [ ] P0-N3 Admin notification APIs (list/unread/mark-read/archive)
+- [ ] P0-N4 Admin header notification bell + dropdown
+- [ ] P0-N5 lib/cron/auth.ts (verifyCronAuth) + vercel.json + CRON_SECRET env
+- [ ] P0-N6 FedEx tracking poller cron → DELIVERED + notify (+ trackShipment in lib/fedex.ts)
+- [ ] P0-N7 Low-stock alert cron
+- [ ] P0-N8 Expiring-BUD alert cron

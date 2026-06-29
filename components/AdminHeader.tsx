@@ -21,6 +21,7 @@ import {
   Settings,
   Store,
   Truck,
+  RotateCcw,
 } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -87,6 +88,7 @@ const navigation = [
   { name: 'Competitors', href: '/competitors', icon: TrendingUp },
   { name: 'Orders/Expenses', href: '/orders-expenses', icon: Receipt },
   { name: 'Fulfillment', href: '/fulfillment', icon: Truck },
+  { name: 'Returns', href: '/returns', icon: RotateCcw },
   { name: 'P&L', href: '/profit-loss', icon: Calculator },
   { name: 'PO Generator', href: '/po-generator', icon: FileText },
   { name: 'Storefronts', href: '/storefronts', icon: Store },

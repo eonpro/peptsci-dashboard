@@ -83,6 +83,8 @@ interface SchemaProbe {
   distributorOrderTable: boolean
   distributorOrderLineTable: boolean
   notificationTable: boolean
+  returnRequestTable: boolean
+  returnItemTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -93,7 +95,7 @@ async function probeSchema(): Promise<SchemaProbe> {
       AND table_name IN (
         'PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto',
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
-        'Notification'
+        'Notification', 'ReturnRequest', 'ReturnItem'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -118,6 +120,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     distributorOrderTable: tableNames.has('DistributorOrder'),
     distributorOrderLineTable: tableNames.has('DistributorOrderLine'),
     notificationTable: tableNames.has('Notification'),
+    returnRequestTable: tableNames.has('ReturnRequest'),
+    returnItemTable: tableNames.has('ReturnItem'),
   }
 }
 
