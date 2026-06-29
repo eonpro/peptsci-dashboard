@@ -20,6 +20,9 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
   '/api/storefront(.*)',
+  // Vercel Cron endpoints authenticate via CRON_SECRET inside each route
+  // (lib/cron/auth.ts), not a Clerk session.
+  '/api/cron(.*)',
   // Public self-service shipment tracking (no PII; see app/tracking).
   '/tracking(.*)',
 ])
@@ -35,6 +38,8 @@ const isAdminRoute = createRouteMatcher([
   '/competitors(.*)',
   '/orders-expenses(.*)',
   '/returns(.*)',
+  '/invoices(.*)',
+  '/reports(.*)',
   '/profit-loss(.*)',
   '/po-generator(.*)',
   '/storefronts(.*)',

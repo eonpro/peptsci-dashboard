@@ -11,7 +11,10 @@ import {
   orderShippedEmail,
   orderDeliveredEmail,
   orderExceptionEmail,
+  invoiceIssuedEmail,
+  invoiceOverdueEmail,
   type ShipmentEmailOpts,
+  type InvoiceEmailOpts,
 } from './templates'
 
 export { isEmailEnabled, type SendEmailResult }
@@ -70,5 +73,21 @@ export async function sendOrderExceptionEmail(
   opts: { to: string | string[] } & ShipmentEmailOpts
 ): Promise<SendEmailResult> {
   const { subject, html, text } = orderExceptionEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Billing (account-facing) ──
+
+export async function sendInvoiceIssuedEmail(
+  opts: { to: string | string[] } & InvoiceEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = invoiceIssuedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendInvoiceOverdueEmail(
+  opts: { to: string | string[] } & InvoiceEmailOpts & { daysPastDue: number }
+): Promise<SendEmailResult> {
+  const { subject, html, text } = invoiceOverdueEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }

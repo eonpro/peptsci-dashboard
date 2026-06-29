@@ -67,6 +67,7 @@ model Client {
   notifications    Notification[]
   returnRequests   ReturnRequest[]
   storefront       Storefront?
+  invoices         Invoice[]
 }
 
 // Saved ship-to recipient for a practice ("ship to patient" at checkout).
@@ -486,6 +487,7 @@ model Order {
   returnRequests        ReturnRequest[]
   reservations          InventoryReservation[]
   fulfillment           OrderFulfillment?
+  invoiceLineItems      InvoiceLineItem[]
 
   @@index([clientId])
   @@index([stripePaymentIntentId])
@@ -512,6 +514,92 @@ model OrderItem {
 
   @@index([orderId])
   @@index([variantId])
+}
+
+// -------------------------------------------------
+// Billing & invoicing (B2B accounts receivable). An Invoice consolidates one or
+// more orders (or manual lines) for a Client over a billing period, with Net
+// payment terms, partial payments, discounts/surcharges, balance-forward, and
+// aging. Pure totals/aging/status logic lives in lib/invoicing/core.ts (adapted
+// from eonpro/logos-rx-invoicing). The heavyweight double-entry GL, fiscal
+// periods, and Plaid reconciliation from that repo are intentionally omitted.
+// -------------------------------------------------
+
+model Invoice {
+  id               String              @id @default(cuid())
+  invoiceNumber    Int                 @unique @default(autoincrement())
+  client           Client              @relation(fields: [clientId], references: [id])
+  clientId         String
+  status           InvoiceStatus       @default(DRAFT)
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  issueDate        DateTime            @default(now())
+  paymentTermsDays Int                 @default(30)
+  dueDate          DateTime?
+  // Unpaid balance carried in from a prior invoice (Decimal dollars).
+  balanceForward   Decimal             @default(0) @db.Decimal(12, 2)
+  currency         String              @default("USD")
+  notes            String?
+  createdById      String?
+  voidedAt         DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  lineItems        InvoiceLineItem[]
+  payments         InvoicePayment[]
+  adjustments      InvoiceAdjustment[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([clientId, status])
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  order       Order?   @relation(fields: [orderId], references: [id])
+  orderId     String?
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([orderId])
+}
+
+model InvoiceAdjustment {
+  id        String         @id @default(cuid())
+  invoice   Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId String
+  kind      AdjustmentKind
+  // Exactly one of amount (FIXED dollars) / percent (PERCENT of subtotal) is set.
+  // Negative = discount/credit, positive = surcharge/fee.
+  amount    Decimal?       @db.Decimal(12, 2)
+  percent   Decimal?       @db.Decimal(6, 3)
+  reason    String         @default("")
+  createdBy String?
+  createdAt DateTime       @default(now())
+
+  @@index([invoiceId])
+}
+
+model InvoicePayment {
+  id                    String   @id @default(cuid())
+  invoice               Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId             String
+  amount                Decimal  @db.Decimal(12, 2)
+  method                String? // wire | ach | check | card | stripe | other
+  reference             String?
+  stripePaymentIntentId String?  @unique
+  notes                 String?
+  paidAt                DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  @@index([invoiceId])
 }
 
 model OrderDocument {
@@ -866,6 +954,20 @@ enum FulfillmentStage {
   PICKING
   PICKED
   PACKED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum AdjustmentKind {
+  FIXED
+  PERCENT
 }
 
 enum ReturnStatus {

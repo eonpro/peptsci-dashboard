@@ -218,6 +218,18 @@ On inspecting the actual repo (my roadmap notes were stale), PeptSci has **alrea
 - **Tests:** new `lib/__tests__/pickList.test.ts`. `npm test` 154 pass, `tsc --noEmit` clean, `next build` green.
 - **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the `OrderFulfillment` table.
 
+### ✅ DONE — Gap G: billing & invoicing (Jun 29 2026)
+- **Confirmed vs `eonpro/logos-rx-invoicing`** (public, Drizzle): ported its *proven pure math* (totals, aging buckets, status, terms/due-date, discount/surcharge split) and the Invoice/LineItem/Adjustment/Payment shape. **Intentionally omitted** its heavyweight double-entry GL (chart of accounts, journal entries, fiscal periods, account balances) and Plaid bank reconciliation — over-engineering for PeptSci's B2B AR.
+- **Schema:** `Invoice` (clientId, `invoiceNumber` SEQUENCE, `InvoiceStatus` DRAFT/OPEN/PARTIAL/PAID/OVERDUE/VOID, period, `paymentTermsDays`, `dueDate`, `balanceForward`, notes, voidedAt/paidAt) + `InvoiceLineItem` (optional `orderId` link) + `InvoiceAdjustment` (`AdjustmentKind` FIXED/PERCENT) + `InvoicePayment` (method, reference, unique `stripePaymentIntentId`). Back-relations on `Client.invoices` + `Order.invoiceLineItems`. Idempotent migration `20260629120000_add_invoicing` (CREATE TYPE/SEQUENCE/TABLE IF NOT EXISTS, FKs). Probe extended (invoice* tables).
+- **Pure core** (`lib/invoicing/core.ts`, unit-tested 16 cases): `computeInvoiceTotals` (subtotal→discounts/surcharges→grossTotal→amountDue/creditBalance, balance-forward), `deriveDueDate`, `daysPastDue`, `agingBucket` (current/net30/60/90/over90), `deriveInvoiceStatus` (DRAFT/VOID sticky), `formatInvoiceNumber`. Dependency-free; money as plain `number`.
+- **Service** (`lib/invoicing/service.ts`): `createInvoice` (from unbilled orders and/or manual lines), `getUnbilledOrders`, `recordPayment` (idempotent on Stripe PI), `addAdjustment`, `recomputeStatus`/`issueInvoice`/`voidInvoice`, `listInvoices` (paged + aging), `markOverdueInvoices` (cron sweep). Decimal↔number at the boundary.
+- **PDF** (`lib/invoicing/pdf.ts`, pdf-lib): professional invoice — bill-to, meta (issue/due/terms/status/period), line items + adjustments, totals block, highlighted Amount Due, PAST DUE flag, notes/footer.
+- **Email:** `invoiceIssuedEmail` + `invoiceOverdueEmail` templates (branded layout) + `sendInvoiceIssuedEmail`/`sendInvoiceOverdueEmail` senders (SES, fire-and-forget).
+- **APIs:** `GET|POST /api/admin/invoices`, `GET|PATCH /api/admin/invoices/[id]` (issue/void), `POST …/payments`, `POST …/adjustments`, `GET …/pdf`, `POST …/send`, `GET /api/admin/invoices/unbilled?clientId`. Overdue cron `GET|POST /api/cron/invoices-overdue` (flips past-due → OVERDUE + emails clients) wired in `vercel.json` (`0 14 * * *`). Added `/api/cron(.*)` to middleware public routes (each cron self-authenticates via `CRON_SECRET`).
+- **UI:** `/invoices` list (status tabs, amount due/of total, aging badge) + New Invoice dialog (pick client → select unbilled orders → terms → issue) and `/invoices/[id]` detail (line items + adjustments, totals, payments, Record Payment / Add Adjustment dialogs, Issue / Email / Void / PDF actions). Nav link added (`ReceiptText`); `/invoices` + `/reports` added to admin route matcher.
+- **Tests:** new `lib/__tests__/invoicing.test.ts`. `npm test` 170 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the invoicing tables; optional `CRON_SECRET` secures the overdue sweep.
+
 ---
 
 ## Background and Motivation

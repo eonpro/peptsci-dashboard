@@ -88,6 +88,10 @@ interface SchemaProbe {
   inventoryReservationTable: boolean
   inventoryReservedColumn: boolean
   orderFulfillmentTable: boolean
+  invoiceTable: boolean
+  invoiceLineItemTable: boolean
+  invoicePaymentTable: boolean
+  invoiceAdjustmentTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -99,7 +103,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto',
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
         'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation',
-        'OrderFulfillment'
+        'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
+        'InvoiceAdjustment'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -130,6 +135,10 @@ async function probeSchema(): Promise<SchemaProbe> {
     inventoryReservationTable: tableNames.has('InventoryReservation'),
     inventoryReservedColumn: colKeys.has('ProductVariant.inventoryReserved'),
     orderFulfillmentTable: tableNames.has('OrderFulfillment'),
+    invoiceTable: tableNames.has('Invoice'),
+    invoiceLineItemTable: tableNames.has('InvoiceLineItem'),
+    invoicePaymentTable: tableNames.has('InvoicePayment'),
+    invoiceAdjustmentTable: tableNames.has('InvoiceAdjustment'),
   }
 }
 

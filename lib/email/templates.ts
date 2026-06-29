@@ -260,6 +260,79 @@ If anything looks wrong, contact us at ${SUPPORT_EMAIL}.
   return { subject, html, text }
 }
 
+// -------------------------------------------------
+// Billing & invoicing (account-facing): invoice issued + overdue reminder.
+// Sent to the practice's billing/contact email. No PHI — invoice number,
+// amounts, and due date only.
+// -------------------------------------------------
+
+export interface InvoiceEmailOpts {
+  customerName?: string | null
+  invoiceNumber: string
+  amountDue: string
+  dueDate: string
+  /** Optional link to a hosted/printable invoice. */
+  invoiceUrl?: string | null
+}
+
+export function invoiceIssuedEmail(opts: InvoiceEmailOpts): EmailContent {
+  const subject = `PeptSci invoice ${opts.invoiceNumber} — ${opts.amountDue} due ${opts.dueDate}`
+  const html = layout({
+    heading: `Invoice ${opts.invoiceNumber}`,
+    body:
+      para(greeting(opts.customerName)) +
+      para('A new invoice is available for your PeptSci account. A summary is below.') +
+      detailPanel([
+        ['Invoice', opts.invoiceNumber],
+        ['Amount due', opts.amountDue],
+        ['Due date', opts.dueDate],
+      ]) +
+      para('Please remit payment by the due date. Reach out if you have any questions about this invoice.'),
+    cta: opts.invoiceUrl ? { label: 'View invoice', href: opts.invoiceUrl } : undefined,
+  })
+  const text = `${greeting(opts.customerName)}
+
+A new invoice is available for your PeptSci account.
+
+Invoice: ${opts.invoiceNumber}
+Amount due: ${opts.amountDue}
+Due date: ${opts.dueDate}
+${opts.invoiceUrl ? `\nView invoice: ${opts.invoiceUrl}\n` : ''}
+Please remit payment by the due date. Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function invoiceOverdueEmail(opts: InvoiceEmailOpts & { daysPastDue: number }): EmailContent {
+  const subject = `Past due: PeptSci invoice ${opts.invoiceNumber} (${opts.amountDue})`
+  const html = layout({
+    heading: 'Payment past due',
+    body:
+      para(greeting(opts.customerName)) +
+      para(
+        `Our records show invoice ${opts.invoiceNumber} is now <strong>${opts.daysPastDue} day(s) past due</strong>. Please arrange payment at your earliest convenience.`
+      ) +
+      detailPanel([
+        ['Invoice', opts.invoiceNumber],
+        ['Amount due', opts.amountDue],
+        ['Due date', opts.dueDate],
+      ]) +
+      para(`If you have already sent payment, thank you — please disregard this notice or contact us at ${SUPPORT_EMAIL}.`),
+    cta: opts.invoiceUrl ? { label: 'View invoice', href: opts.invoiceUrl } : undefined,
+  })
+  const text = `${greeting(opts.customerName)}
+
+Invoice ${opts.invoiceNumber} is now ${opts.daysPastDue} day(s) past due. Please arrange payment at your earliest convenience.
+
+Invoice: ${opts.invoiceNumber}
+Amount due: ${opts.amountDue}
+Due date: ${opts.dueDate}
+${opts.invoiceUrl ? `\nView invoice: ${opts.invoiceUrl}\n` : ''}
+If you have already sent payment, thank you — please disregard. Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
 export function orderExceptionEmail(opts: ShipmentEmailOpts): EmailContent {
   const carrier = opts.carrier?.trim() || 'FedEx'
   const ord = orderLabel(opts.orderNumber)
