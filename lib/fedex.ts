@@ -481,6 +481,42 @@ export async function getRateQuote(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Track API — poll live status for a tracking number
+// ---------------------------------------------------------------------------
+
+export type FedExTrackResult = {
+  trackingNumber: string
+  /** FedEx derived status code, e.g. 'DL', 'IT', 'OD', 'OC'. */
+  statusCode: string | null
+  statusDescription: string | null
+  /** ISO timestamp of actual delivery, when FedEx reports one. */
+  deliveredAt: string | null
+}
+
+export async function trackShipment(
+  credentials: FedExCredentials,
+  trackingNumber: string
+): Promise<FedExTrackResult> {
+  const result = await fedexRequest<any>(credentials, 'POST', '/track/v1/trackingnumbers', {
+    includeDetailedScans: false,
+    trackingInfo: [{ trackingNumberInfo: { trackingNumber } }],
+  })
+
+  const trackResult = result.output?.completeTrackResults?.[0]?.trackResults?.[0]
+  const latest = trackResult?.latestStatusDetail
+  const deliveryScan = (trackResult?.dateAndTimes || []).find(
+    (d: any) => d.type === 'ACTUAL_DELIVERY'
+  )
+
+  return {
+    trackingNumber,
+    statusCode: latest?.code ?? latest?.derivedCode ?? null,
+    statusDescription: latest?.statusByLocale || latest?.description || null,
+    deliveredAt: deliveryScan?.dateTime ?? null,
+  }
+}
+
 /**
  * Build the public FedEx tracking URL for a tracking number.
  */

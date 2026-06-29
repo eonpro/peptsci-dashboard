@@ -31,6 +31,7 @@ model User {
   inventoryBatches     InventoryBatch[]
   shipmentLabels       ShipmentLabel[]       @relation("LabelsCreated")
   packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
+  notifications        Notification[]
 
   @@index([clientId])
 }
@@ -63,6 +64,7 @@ model Client {
   patients         Patient[]
   shipmentLabels   ShipmentLabel[]
   packagePhotos    PackagePhoto[]
+  notifications    Notification[]
   storefront       Storefront?
 }
 
@@ -700,9 +702,57 @@ model AuditLog {
   @@index([entity, entityId])
 }
 
+// In-app notification for an admin user (ported from eonpro/eonpro, trimmed to
+// the B2B commerce/fulfillment domain). Created by transactional triggers and
+// the Vercel Cron jobs. Deduplicated by (userId, sourceType, sourceId) so a
+// repeated cron run or webhook redelivery never double-notifies.
+model Notification {
+  id         String               @id @default(cuid())
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  client     Client?              @relation(fields: [clientId], references: [id])
+  clientId   String?
+  category   NotificationCategory
+  priority   NotificationPriority @default(NORMAL)
+  title      String
+  message    String
+  actionUrl  String?              // deep-link to the relevant admin page
+  metadata   Json?                // extra context (orderId, variantId, batchId, …)
+  isRead     Boolean              @default(false)
+  readAt     DateTime?
+  isArchived Boolean              @default(false)
+  archivedAt DateTime?
+  // Source tracking for dedup + audit: e.g. ('cron:fedex-tracking', orderId).
+  sourceType String?
+  sourceId   String?
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isArchived])
+  @@index([sourceType, sourceId])
+}
+
 // -------------------------------------------------
 // Enums
 // -------------------------------------------------
+
+enum NotificationCategory {
+  ORDER // order lifecycle (submitted, approved, fulfilled)
+  PAYMENT // payment captured / failed / refunded
+  SHIPMENT // label created, in transit, delivered
+  INVENTORY // low stock, expiring batches
+  CLIENT // onboarding / approval
+  SYSTEM // alerts, cron health, maintenance
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
 
 enum UserRole {
   CLIENT

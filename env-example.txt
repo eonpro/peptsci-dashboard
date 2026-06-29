@@ -133,3 +133,12 @@ EMAIL_CONFIGURATION_SET=""
 # AWS credentials come from the standard provider chain (AWS_ACCESS_KEY_ID /
 # AWS_SECRET_ACCESS_KEY, or the Vercel OIDC role). The IAM principal needs
 # ses:SendEmail on the verified identity.
+
+# ===========================================
+# CRON (Vercel Scheduled Functions)
+# ===========================================
+# Shared secret for the /api/cron/* routes (vercel.json). Vercel sends it as
+# `Authorization: Bearer <CRON_SECRET>` on scheduled invocations. Generate with
+# `openssl rand -hex 32`. If unset in production, crons fall back to trusting
+# Vercel's `x-vercel-cron` header (logged as degraded) — set this to lock them.
+CRON_SECRET=""

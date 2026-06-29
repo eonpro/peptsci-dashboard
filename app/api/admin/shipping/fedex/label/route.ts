@@ -15,6 +15,7 @@ import {
 import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
+import { sendOrderShippedEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -86,12 +87,33 @@ export async function POST(request: NextRequest) {
       return errorResponse('FedEx is not configured. Contact your administrator.', 422, 'FEDEX_UNCONFIGURED')
     }
 
-    // Resolve the linked order (optional) to attach tracking + clientId.
-    let order: { id: string; clientId: string; status: string } | null = null
+    // Resolve the linked order (optional) to attach tracking + clientId, plus
+    // the practice contact so we can email a shipment confirmation.
+    let order:
+      | {
+          id: string
+          clientId: string
+          status: string
+          orderNumber: number
+          client: {
+            contactEmail: string | null
+            contactName: string | null
+            organizationName: string
+          } | null
+        }
+      | null = null
     if (data.orderId) {
       order = await prisma.order.findUnique({
         where: { id: data.orderId },
-        select: { id: true, clientId: true, status: true },
+        select: {
+          id: true,
+          clientId: true,
+          status: true,
+          orderNumber: true,
+          client: {
+            select: { contactEmail: true, contactName: true, organizationName: true },
+          },
+        },
       })
       if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
     }
@@ -204,6 +226,23 @@ export async function POST(request: NextRequest) {
       serviceType: data.serviceType,
       environment: fedexEnvironment(),
     })
+
+    // Notify the practice that their order shipped. Fire-and-forget: a mail
+    // failure must never fail label creation. No-ops when EMAIL_ENABLED is off.
+    if (order?.client?.contactEmail) {
+      void sendOrderShippedEmail({
+        to: order.client.contactEmail,
+        customerName: order.client.contactName || order.client.organizationName,
+        orderNumber: order.orderNumber,
+        trackingNumber: result.trackingNumber,
+        carrier: 'FedEx',
+      }).catch((err) =>
+        logger.warn('[FedEx label] shipped email failed (non-blocking)', {
+          orderId: order?.id ?? null,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      )
+    }
 
     return successResponse({
       id: label.id,

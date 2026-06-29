@@ -19,7 +19,6 @@ import {
   Menu,
   User,
   Settings,
-  Bell,
   Store,
   Truck,
 } from 'lucide-react'
@@ -27,6 +26,7 @@ import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { NotificationBell } from '@/components/NotificationBell'
 
 // The command palette pulls in `cmdk` and renders on every admin page. Load it
 // lazily and only mount it once the user first opens search, so it stays out of
@@ -193,14 +193,7 @@ export function AdminHeader() {
           </Button>
 
           {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white/70 hover:text-white hover:bg-white/10 relative"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-[#213cef] rounded-full" />
-          </Button>
+          <NotificationBell />
 
           {/* Settings Dropdown */}
           <DropdownMenu>

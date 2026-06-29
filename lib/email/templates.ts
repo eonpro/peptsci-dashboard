@@ -59,7 +59,34 @@ function para(text: string): string {
   return `<tr><td style="padding:0 0 14px;">${text}</td></tr>`
 }
 
+/** A boxed key/value detail panel (order #, tracking #, carrier). */
+function detailPanel(rows: Array<[string, string]>): string {
+  const inner = rows
+    .map(
+      ([k, v]) =>
+        `<tr>
+           <td style="padding:6px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${k}</td>
+           <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:14px;font-weight:600;text-align:right;">${v}</td>
+         </tr>`
+    )
+    .join('')
+  return `<tr><td style="padding:4px 0 18px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};border-radius:12px;padding:8px 18px;">
+      ${inner}
+    </table>
+  </td></tr>`
+}
+
 const greeting = (name?: string | null) => (name && name.trim() ? `Hi ${name.trim()},` : 'Hello,')
+
+/** Public tracking page link for a tracking number (see app/tracking/[trackingNumber]). */
+function trackingPageUrl(trackingNumber: string): string {
+  return `${APP_URL}/tracking/${encodeURIComponent(trackingNumber)}`
+}
+
+function orderLabel(orderNumber: number | string): string {
+  return `#${orderNumber}`
+}
 
 export function welcomeEmail(opts: { firstName?: string | null }): EmailContent {
   const subject = 'Welcome to PeptSci — your account is under review'
@@ -148,6 +175,119 @@ ${opts.message ? `\nWhat we need: ${opts.message}\n` : ''}
 Update your application: ${APP_URL}/onboarding
 
 Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+// -------------------------------------------------
+// Shipment lifecycle (customer-facing): shipped / delivered / exception.
+// Sent to the practice's contact email. Carry no PHI — order number + tracking
+// only. CTA points at the public tracking page (app/tracking/[trackingNumber]).
+// -------------------------------------------------
+
+export interface ShipmentEmailOpts {
+  customerName?: string | null
+  orderNumber: number | string
+  trackingNumber: string
+  carrier?: string | null
+  /** Optional ETA, pre-formatted for display (e.g. "Tue, Jul 1"). */
+  eta?: string | null
+}
+
+export function orderShippedEmail(opts: ShipmentEmailOpts): EmailContent {
+  const carrier = opts.carrier?.trim() || 'FedEx'
+  const ord = orderLabel(opts.orderNumber)
+  const subject = `Your PeptSci order ${ord} has shipped`
+  const rows: Array<[string, string]> = [
+    ['Order', ord],
+    ['Carrier', carrier],
+    ['Tracking #', opts.trackingNumber],
+  ]
+  if (opts.eta) rows.push(['Estimated delivery', opts.eta])
+  const html = layout({
+    heading: 'Your order is on its way 📦',
+    body:
+      para(greeting(opts.customerName)) +
+      para(`Good news — your PeptSci order ${ord} has shipped via ${carrier}.`) +
+      detailPanel(rows) +
+      para('You can follow its progress with the button below.'),
+    cta: { label: 'Track your shipment', href: trackingPageUrl(opts.trackingNumber) },
+  })
+  const text = `${greeting(opts.customerName)}
+
+Good news — your PeptSci order ${ord} has shipped via ${carrier}.
+
+Order: ${ord}
+Carrier: ${carrier}
+Tracking #: ${opts.trackingNumber}${opts.eta ? `\nEstimated delivery: ${opts.eta}` : ''}
+
+Track your shipment: ${trackingPageUrl(opts.trackingNumber)}
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function orderDeliveredEmail(opts: ShipmentEmailOpts): EmailContent {
+  const carrier = opts.carrier?.trim() || 'FedEx'
+  const ord = orderLabel(opts.orderNumber)
+  const subject = `Your PeptSci order ${ord} was delivered`
+  const html = layout({
+    heading: 'Delivered ✅',
+    body:
+      para(greeting(opts.customerName)) +
+      para(`Your PeptSci order ${ord} was delivered by ${carrier}.`) +
+      detailPanel([
+        ['Order', ord],
+        ['Carrier', carrier],
+        ['Tracking #', opts.trackingNumber],
+      ]) +
+      para(`If anything looks wrong with your delivery, reply to this email or contact us at ${SUPPORT_EMAIL}.`),
+    cta: { label: 'View delivery details', href: trackingPageUrl(opts.trackingNumber) },
+  })
+  const text = `${greeting(opts.customerName)}
+
+Your PeptSci order ${ord} was delivered by ${carrier}.
+
+Order: ${ord}
+Carrier: ${carrier}
+Tracking #: ${opts.trackingNumber}
+
+Delivery details: ${trackingPageUrl(opts.trackingNumber)}
+
+If anything looks wrong, contact us at ${SUPPORT_EMAIL}.
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function orderExceptionEmail(opts: ShipmentEmailOpts): EmailContent {
+  const carrier = opts.carrier?.trim() || 'FedEx'
+  const ord = orderLabel(opts.orderNumber)
+  const subject = `Update on your PeptSci order ${ord}`
+  const html = layout({
+    heading: 'There&rsquo;s a delay with your shipment',
+    body:
+      para(greeting(opts.customerName)) +
+      para(`${carrier} reported a delivery exception for your PeptSci order ${ord}. This can happen due to weather, an address issue, or a missed delivery attempt.`) +
+      detailPanel([
+        ['Order', ord],
+        ['Carrier', carrier],
+        ['Tracking #', opts.trackingNumber],
+      ]) +
+      para(`Check the latest status below. If you need help, reply to this email or contact us at ${SUPPORT_EMAIL}.`),
+    cta: { label: 'Check shipment status', href: trackingPageUrl(opts.trackingNumber) },
+  })
+  const text = `${greeting(opts.customerName)}
+
+${carrier} reported a delivery exception for your PeptSci order ${ord}. This can happen due to weather, an address issue, or a missed delivery attempt.
+
+Order: ${ord}
+Carrier: ${carrier}
+Tracking #: ${opts.trackingNumber}
+
+Check shipment status: ${trackingPageUrl(opts.trackingNumber)}
+
+Need help? ${SUPPORT_EMAIL}
 © ${new Date().getFullYear()} PeptSci`
   return { subject, html, text }
 }

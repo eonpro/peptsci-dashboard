@@ -8,6 +8,10 @@ import {
   partnerApprovedEmail,
   partnerRejectedEmail,
   partnerNeedsInfoEmail,
+  orderShippedEmail,
+  orderDeliveredEmail,
+  orderExceptionEmail,
+  type ShipmentEmailOpts,
 } from './templates'
 
 export { isEmailEnabled, type SendEmailResult }
@@ -43,5 +47,28 @@ export async function sendPartnerNeedsInfoEmail(opts: {
   message?: string
 }): Promise<SendEmailResult> {
   const { subject, html, text } = partnerNeedsInfoEmail({ name: opts.name, message: opts.message })
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Shipment lifecycle (customer-facing) ──
+
+export async function sendOrderShippedEmail(
+  opts: { to: string | string[] } & ShipmentEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = orderShippedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendOrderDeliveredEmail(
+  opts: { to: string | string[] } & ShipmentEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = orderDeliveredEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendOrderExceptionEmail(
+  opts: { to: string | string[] } & ShipmentEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = orderExceptionEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
