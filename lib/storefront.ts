@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { logger } from './logger'
+import { reserveForOrder } from './inventory/reservations'
 import type { BrandingConfig, StorefrontProductItem, StorefrontPublicConfig } from './types/storefront'
 
 function toJsonInput(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -400,6 +401,15 @@ export async function createRetailOrder(data: {
     peptsciOrderId: result.peptsciOrder.id,
     total,
   })
+
+  // Reserve stock against the auto-generated PeptSci order. Non-blocking: a
+  // reservation hiccup must not fail an otherwise-successful storefront order.
+  await reserveForOrder(result.peptsciOrder.id).catch((e) =>
+    log.warn('reserveForOrder failed (non-blocking)', {
+      peptsciOrderId: result.peptsciOrder.id,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  )
 
   return result
 }

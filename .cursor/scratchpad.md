@@ -198,6 +198,16 @@ On inspecting the actual repo (my roadmap notes were stale), PeptSci has **alrea
 - **Tests:** new `lib/__tests__/returns.test.ts`. `npm test` 138 pass, `tsc --noEmit` clean, `next build` green.
 - **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to create the two tables (Prisma CLI can't reach RDS).
 
+### ✅ DONE — Gap E: inventory reservations + ledger (Jun 28 2026)
+- **Schema:** `ProductVariant.inventoryReserved Int @default(0)` + `InventoryReservation` model (order+variant, qty, `ReservationStatus` ACTIVE/RELEASED/CONSUMED, `@@unique([orderId, variantId])`) with back-relations on `Order`/`OrderItem`/`ProductVariant`. Idempotent migration `20260628130000_add_inventory_reservations` (`ADD COLUMN IF NOT EXISTS`, `CREATE TYPE`, FKs). Probe extended (table + column).
+- **Model:** availability for new orders = `inventoryOnHand − inventoryReserved`. Reserving bumps the reserved counter only (on-hand untouched); fulfillment frees reserved while the existing batch consume drops on-hand → no double count.
+- **Pure core** (`lib/inventory/reservations-core.ts`, unit-tested): `availableQty`, `isOversold`, `canReserve`, reservation transition rules, `aggregateByVariant`.
+- **Service** (`lib/inventory/reservations.ts`): `reserveForOrder` (idempotent, aggregates lines per variant, txn-safe counter), `releaseForOrder`/`consumeForOrder` (close ACTIVE → RELEASED/CONSUMED, decrement counter), `getVariantAvailability`, `getOrderReservations`, `listActiveReservations`.
+- **Wiring (all non-blocking):** reserve on B2B capture (`reconcileOrderFromPaymentIntent`) + storefront order creation (`createRetailOrder`); release on `charge.refunded`; consume at fulfillment (order label PDF `?consume=true`). `getInventory()` now nets reserved out of `InventoryAvailable` and adds `OnHand`/`Reserved`. New `GET /api/admin/inventory/reservations`.
+- **Decision:** reservation is non-blocking (allows oversell, surfaced as negative available / `isOversold`) so unmaintained stock counts never block checkout; `canReserve` is shipped for future hard enforcement.
+- **Tests:** new `lib/__tests__/reservations.test.ts`. `npm test` 147 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the column + table.
+
 ---
 
 ## Background and Motivation

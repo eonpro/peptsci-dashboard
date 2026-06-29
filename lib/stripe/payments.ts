@@ -13,6 +13,7 @@ import { requireStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
 import { logger } from '@/lib/logger'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
+import { reserveForOrder } from '@/lib/inventory/reservations'
 
 /**
  * Map a Stripe PaymentIntent status to our PaymentStatus enum.
@@ -106,6 +107,14 @@ export async function reconcileOrderFromPaymentIntent(
   // never allowed to break the payment flow.
   if (isCaptured) {
     await syncSalesRecordFromOrder(order.id)
+    // Reserve stock against the now-committed order. Idempotent and never
+    // allowed to break the payment flow.
+    await reserveForOrder(order.id).catch((e) =>
+      logger.warn('[STRIPE] reserveForOrder failed (non-blocking)', {
+        orderId: order.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
   }
 
   return { orderId: order.id, paymentStatus, matched: true }

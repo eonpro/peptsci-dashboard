@@ -7,6 +7,7 @@ import {
   planAllocation,
   recordLabelsPrintedMany,
 } from '@/lib/inventory-batches'
+import { consumeForOrder } from '@/lib/inventory/reservations'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
 
 export const runtime = 'nodejs'
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (consume) {
       await recordLabelsPrintedMany(draws, { clerkUserId: userId, label: userId })
+      // Free the order's reservations now that stock is physically drawn (on-hand
+      // was decremented by the batch consume above). Non-blocking.
+      await consumeForOrder(id).catch((e) =>
+        logger.warn('consumeForOrder failed (non-blocking)', {
+          orderId: id,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      )
       logger.info('Order labels generated + stock consumed', { orderId: id, draws: draws.length })
     }
 

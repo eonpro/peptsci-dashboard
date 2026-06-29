@@ -85,6 +85,8 @@ interface SchemaProbe {
   notificationTable: boolean
   returnRequestTable: boolean
   returnItemTable: boolean
+  inventoryReservationTable: boolean
+  inventoryReservedColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -95,7 +97,7 @@ async function probeSchema(): Promise<SchemaProbe> {
       AND table_name IN (
         'PaymentMethod', 'WebhookEvent', 'ShipmentLabel', 'PackagePhoto',
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
-        'Notification', 'ReturnRequest', 'ReturnItem'
+        'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -103,7 +105,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     WHERE table_schema = 'public'
       AND ((table_name = 'Order' AND column_name = 'shippingTotal')
         OR (table_name = 'Order' AND column_name = 'trackingNumber')
-        OR (table_name = 'Client' AND column_name = 'stripeCustomerId'))
+        OR (table_name = 'Client' AND column_name = 'stripeCustomerId')
+        OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved'))
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -122,6 +125,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     notificationTable: tableNames.has('Notification'),
     returnRequestTable: tableNames.has('ReturnRequest'),
     returnItemTable: tableNames.has('ReturnItem'),
+    inventoryReservationTable: tableNames.has('InventoryReservation'),
+    inventoryReservedColumn: colKeys.has('ProductVariant.inventoryReserved'),
   }
 }
 

@@ -21,6 +21,7 @@ import {
   reconcileOrderFromPaymentIntent,
   persistPaymentMethodFromStripe,
 } from '@/lib/stripe/payments'
+import { releaseForOrder } from '@/lib/inventory/reservations'
 
 export const dynamic = 'force-dynamic'
 
@@ -160,6 +161,8 @@ async function processEvent(event: Stripe.Event): Promise<ProcessResult> {
           where: { id: order.id },
           data: { paymentStatus: PaymentStatus.REFUNDED },
         })
+        // Free any stock reserved for this order (non-blocking).
+        await releaseForOrder(order.id).catch(() => {})
       }
       return { success: true, details: { chargeId: charge.id, orderMatched: !!order } }
     }
