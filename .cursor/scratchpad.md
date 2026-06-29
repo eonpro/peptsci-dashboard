@@ -230,6 +230,16 @@ On inspecting the actual repo (my roadmap notes were stale), PeptSci has **alrea
 - **Tests:** new `lib/__tests__/invoicing.test.ts`. `npm test` 170 pass, `tsc --noEmit` clean, `next build` green.
 - **Deploy note:** run `POST /api/admin/db/migrate { "confirm": true }` once in prod to add the invoicing tables; optional `CRON_SECRET` secures the overdue sweep.
 
+### ✅ DONE — Gap H: reporting / BI (Jun 29 2026)
+- **Pure core** (`lib/reports/core.ts`, unit-tested 9 cases): `revenueSummary` (rev/cogs/profit/margin/units/orders, date-range filter), `revenueByMonth`, `topProducts`, `arAgingSummary` (current/net30/60/90/over90 buckets), `fulfillmentSla` (avg/median hours-to-ship + within-SLA %), `forecastNextPeriod` (SMA blended with linear trend, floored at 0), `lowStockSummary`. Dependency-free.
+- **Service** (`lib/reports/service.ts`): `getReportsDashboard(days)` + `getWeeklySummary()` compose live data — `SalesRecord` (via `getSales`), open invoices (AR via `computeInvoiceTotals`), `ProductVariant` (available = onHand − reserved vs `reorderLevel`), and `Order.createdAt→shippedAt` (SLA). Plus CSV builders `buildSalesCsv` / `buildInventoryCsv` / `buildArAgingCsv` (Excel-friendly, no new dep).
+- **Weekly email:** `weeklyReportEmail` template + `sendWeeklyReportEmail`; cron `GET|POST /api/cron/weekly-report` (Mondays `0 13 * * 1`) emails `REPORT_EMAIL_TO` (revenue WoW, AR, SLA, stock, top products); no-op without recipients/EMAIL_ENABLED.
+- **APIs:** `GET /api/admin/reports?days=` (dashboard payload) + `GET /api/admin/reports/export?type=sales|inventory|ar` (CSV download).
+- **UI:** `/reports` dashboard — range toggle (7/30/90/365d), KPI cards (revenue + WoW delta, profit/margin, orders/units, next-month forecast), AR aging bar + buckets, fulfillment SLA panel, top-products + low-stock lists, and CSV export buttons. Nav link added (`BarChart3`).
+- **Decision:** delivered CSV exports rather than pulling in ExcelJS — opens directly in Excel, avoids a heavy serverless dependency. Can upgrade to multi-sheet `.xlsx` later if needed.
+- **Tests:** new `lib/__tests__/reports.test.ts`. `npm test` 179 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** set `REPORT_EMAIL_TO` (comma-separated) for the weekly email; CSV exports + dashboard work with no extra config.
+
 ---
 
 ## Background and Motivation

@@ -333,6 +333,73 @@ If you have already sent payment, thank you — please disregard. Questions? ${S
   return { subject, html, text }
 }
 
+// -------------------------------------------------
+// Weekly business report (internal/admin-facing): revenue, AR, SLA, stock.
+// -------------------------------------------------
+
+export interface WeeklyReportEmailOpts {
+  weekRange: string
+  revenue: string
+  revenueDelta: string
+  orders: number
+  units: number
+  arOutstanding: string
+  arOverdue: string
+  slaPct: string
+  lowStockCount: number
+  outOfStockCount: number
+  topProducts: Array<{ name: string; revenue: string }>
+  dashboardUrl?: string
+}
+
+export function weeklyReportEmail(opts: WeeklyReportEmailOpts): EmailContent {
+  const subject = `PeptSci weekly report — ${opts.weekRange}`
+  const topRows =
+    opts.topProducts.length > 0
+      ? opts.topProducts
+          .map(
+            (p) =>
+              `<tr><td style="padding:4px 0;color:${BRAND.text};font-size:13px;">${p.name}</td>
+               <td style="padding:4px 0;text-align:right;color:${BRAND.text};font-size:13px;font-weight:600;">${p.revenue}</td></tr>`
+          )
+          .join('')
+      : `<tr><td style="padding:4px 0;color:${BRAND.muted};font-size:13px;">No sales this week.</td></tr>`
+
+  const html = layout({
+    heading: `Weekly report`,
+    body:
+      para(`Here's your PeptSci summary for <strong>${opts.weekRange}</strong>.`) +
+      detailPanel([
+        ['Revenue', `${opts.revenue} (${opts.revenueDelta} vs prior week)`],
+        ['Orders', String(opts.orders)],
+        ['Units', String(opts.units)],
+        ['AR outstanding', opts.arOutstanding],
+        ['AR overdue', opts.arOverdue],
+        ['Ship-within-SLA', opts.slaPct],
+        ['Low / out of stock', `${opts.lowStockCount} low · ${opts.outOfStockCount} out`],
+      ]) +
+      `<tr><td style="padding:6px 0 4px;color:${BRAND.muted};font-size:12px;text-transform:uppercase;letter-spacing:0.4px;">Top products</td></tr>` +
+      `<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${topRows}</table></td></tr>`,
+    cta: opts.dashboardUrl ? { label: 'Open reports', href: opts.dashboardUrl } : undefined,
+  })
+
+  const text = `PeptSci weekly report — ${opts.weekRange}
+
+Revenue: ${opts.revenue} (${opts.revenueDelta} vs prior week)
+Orders: ${opts.orders}
+Units: ${opts.units}
+AR outstanding: ${opts.arOutstanding}
+AR overdue: ${opts.arOverdue}
+Ship-within-SLA: ${opts.slaPct}
+Low/out of stock: ${opts.lowStockCount} low, ${opts.outOfStockCount} out
+
+Top products:
+${opts.topProducts.map((p) => `- ${p.name}: ${p.revenue}`).join('\n') || '- No sales this week.'}
+${opts.dashboardUrl ? `\nReports: ${opts.dashboardUrl}\n` : ''}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
 export function orderExceptionEmail(opts: ShipmentEmailOpts): EmailContent {
   const carrier = opts.carrier?.trim() || 'FedEx'
   const ord = orderLabel(opts.orderNumber)

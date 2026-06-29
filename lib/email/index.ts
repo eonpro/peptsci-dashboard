@@ -13,8 +13,10 @@ import {
   orderExceptionEmail,
   invoiceIssuedEmail,
   invoiceOverdueEmail,
+  weeklyReportEmail,
   type ShipmentEmailOpts,
   type InvoiceEmailOpts,
+  type WeeklyReportEmailOpts,
 } from './templates'
 
 export { isEmailEnabled, type SendEmailResult }
@@ -89,5 +91,14 @@ export async function sendInvoiceOverdueEmail(
   opts: { to: string | string[] } & InvoiceEmailOpts & { daysPastDue: number }
 ): Promise<SendEmailResult> {
   const { subject, html, text } = invoiceOverdueEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Internal reporting ──
+
+export async function sendWeeklyReportEmail(
+  opts: { to: string | string[] } & WeeklyReportEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = weeklyReportEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }

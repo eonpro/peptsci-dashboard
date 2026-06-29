@@ -23,6 +23,7 @@ import {
   Truck,
   RotateCcw,
   ReceiptText,
+  BarChart3,
 } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -92,6 +93,7 @@ const navigation = [
   { name: 'Returns', href: '/returns', icon: RotateCcw },
   { name: 'Invoices', href: '/invoices', icon: ReceiptText },
   { name: 'P&L', href: '/profit-loss', icon: Calculator },
+  { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'PO Generator', href: '/po-generator', icon: FileText },
   { name: 'Storefronts', href: '/storefronts', icon: Store },
 ]
