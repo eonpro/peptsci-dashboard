@@ -135,6 +135,21 @@ EMAIL_CONFIGURATION_SET=""
 # ses:SendEmail on the verified identity.
 
 # ===========================================
+# SMS - Twilio (transactional, optional)
+# ===========================================
+# Master switch. Like EMAIL_ENABLED: sends are logged + skipped until this is
+# exactly "true" AND credentials + a sender are set, so nothing texts in
+# dev/preview. Customer SMS only goes out when the client has a phone on file.
+SMS_ENABLED="false"
+# Twilio Account SID + Auth Token (Console → Account Info)
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+# Sender: set EITHER a verified From number (E.164, e.g. +18885551234) OR a
+# Messaging Service SID (recommended for compliance/number pooling).
+TWILIO_FROM_NUMBER=""
+TWILIO_MESSAGING_SERVICE_SID=""
+
+# ===========================================
 # CRON (Vercel Scheduled Functions)
 # ===========================================
 # Shared secret for the /api/cron/* routes (vercel.json). Vercel sends it as
@@ -142,3 +157,5 @@ EMAIL_CONFIGURATION_SET=""
 # `openssl rand -hex 32`. If unset in production, crons fall back to trusting
 # Vercel's `x-vercel-cron` header (logged as degraded) — set this to lock them.
 CRON_SECRET=""
+# Recipients for the weekly BI summary email (comma-separated). No-op when unset.
+REPORT_EMAIL_TO=""

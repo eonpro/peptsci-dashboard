@@ -240,6 +240,17 @@ On inspecting the actual repo (my roadmap notes were stale), PeptSci has **alrea
 - **Tests:** new `lib/__tests__/reports.test.ts`. `npm test` 179 pass, `tsc --noEmit` clean, `next build` green.
 - **Deploy note:** set `REPORT_EMAIL_TO` (comma-separated) for the weekly email; CSV exports + dashboard work with no extra config.
 
+### ✅ DONE — Gap C: SMS notifications (Twilio) (Jun 29 2026)
+- **Scaffolded to no-op when unconfigured** (mirrors the SES email layer): nothing texts until `SMS_ENABLED="true"` **and** Twilio creds + a sender are set, and only when the client has a phone on file. Build/dev/preview safe.
+- **No new dependency:** Twilio is called over the REST API with `fetch` (Basic auth, form-encoded `Messages.json`) instead of the `twilio` SDK — avoids serverless cold-start/bundle cost (same spirit as the CSV-over-ExcelJS call).
+- **Pure core** (`lib/sms/phone.ts`, unit-tested): `toE164US` (10-digit → `+1…`, `1`+10 → `+…`, existing E.164 kept, junk → null) + `isValidPhone`. Dependency-free.
+- **Templates** (`lib/sms/templates.ts`): short, PHI-free bodies — `orderShippedSms` / `orderDeliveredSms` / `orderExceptionSms` (order # + public `/tracking/<n>` link) and `invoiceOverdueSms`.
+- **Client** (`lib/sms/client.ts`): `isSmsEnabled()` + `sendSms({to,body})` — normalizes the number, never throws, returns `SendSmsResult { ok, skipped?, sid?, error? }`. **Senders** (`lib/sms/index.ts`): `sendOrderShippedSms` / `…Delivered` / `…Exception` / `sendInvoiceOverdueSms`.
+- **Wired in parallel with existing emails** (all fire-and-forget, never block the request/cron): label route (`…/fedex/label`, shipped), FedEx tracking poller (delivered + exception), and overdue-invoice cron (`/api/cron/invoices-overdue`, now reports `texted`). Added `contactPhone` to those client selects + `INVOICE_INCLUDE`.
+- **Env:** `SMS_ENABLED`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` *or* `TWILIO_MESSAGING_SERVICE_SID` (plus a backfilled `REPORT_EMAIL_TO`) added to `env-example.txt`.
+- **Tests:** new `lib/__tests__/sms.test.ts` (9 cases). `npm test` 188 pass, `tsc --noEmit` clean, `next build` green.
+- **Deploy note:** set the `TWILIO_*` vars + `SMS_ENABLED="true"` (a Messaging Service SID is recommended over a bare From number) to turn SMS on; no migration needed (reuses `Client.contactPhone`).
+
 ---
 
 ## Background and Motivation

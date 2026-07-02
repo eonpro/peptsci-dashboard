@@ -33,7 +33,15 @@ const num = (d: Prisma.Decimal | number | null | undefined): number =>
   d == null ? 0 : typeof d === 'number' ? d : d.toNumber()
 
 const INVOICE_INCLUDE = {
-  client: { select: { id: true, organizationName: true, contactEmail: true, billingAddress: true } },
+  client: {
+    select: {
+      id: true,
+      organizationName: true,
+      contactEmail: true,
+      contactPhone: true,
+      billingAddress: true,
+    },
+  },
   lineItems: { orderBy: { createdAt: 'asc' } },
   adjustments: { orderBy: { createdAt: 'asc' } },
   payments: { orderBy: { paidAt: 'asc' } },

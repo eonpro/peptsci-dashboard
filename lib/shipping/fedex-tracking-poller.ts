@@ -16,6 +16,7 @@ import { getCredentials, trackShipment, fedexTrackingUrl } from '@/lib/fedex'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { mapFedExStatusToShipping } from '@/lib/shipping/fedex-status'
 import { sendOrderDeliveredEmail, sendOrderExceptionEmail } from '@/lib/email'
+import { sendOrderDeliveredSms, sendOrderExceptionSms } from '@/lib/sms'
 
 export interface PollResult {
   skipped?: boolean
@@ -48,7 +49,12 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
       shippingStatus: true,
       carrier: true,
       client: {
-        select: { organizationName: true, contactName: true, contactEmail: true },
+        select: {
+          organizationName: true,
+          contactName: true,
+          contactEmail: true,
+          contactPhone: true,
+        },
       },
     },
     orderBy: { updatedAt: 'asc' },
@@ -76,6 +82,7 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
       const carrier = order.carrier ?? 'FedEx'
       const org = order.client?.organizationName ?? 'a client'
       const customerEmail = order.client?.contactEmail ?? null
+      const customerPhone = order.client?.contactPhone ?? null
       const customerName = order.client?.contactName || order.client?.organizationName || null
 
       if (mapped === 'DELIVERED') {
@@ -110,6 +117,19 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
             })
           )
         }
+        if (customerPhone) {
+          void sendOrderDeliveredSms({
+            to: customerPhone,
+            orderNumber: order.orderNumber,
+            trackingNumber: order.trackingNumber,
+            carrier,
+          }).catch((e) =>
+            logger.warn('[fedex-poller] delivered SMS failed (non-blocking)', {
+              orderId: order.id,
+              error: e instanceof Error ? e.message : String(e),
+            })
+          )
+        }
       } else if (mapped === 'EXCEPTION') {
         await notifyAdmins({
           category: 'SHIPMENT',
@@ -136,6 +156,19 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
             carrier,
           }).catch((e) =>
             logger.warn('[fedex-poller] exception email failed (non-blocking)', {
+              orderId: order.id,
+              error: e instanceof Error ? e.message : String(e),
+            })
+          )
+        }
+        if (customerPhone) {
+          void sendOrderExceptionSms({
+            to: customerPhone,
+            orderNumber: order.orderNumber,
+            trackingNumber: order.trackingNumber,
+            carrier,
+          }).catch((e) =>
+            logger.warn('[fedex-poller] exception SMS failed (non-blocking)', {
               orderId: order.id,
               error: e instanceof Error ? e.message : String(e),
             })

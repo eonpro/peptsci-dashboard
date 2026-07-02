@@ -16,6 +16,7 @@ import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
 import { sendOrderShippedEmail } from '@/lib/email'
+import { sendOrderShippedSms } from '@/lib/sms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
           client: {
             contactEmail: string | null
             contactName: string | null
+            contactPhone: string | null
             organizationName: string
           } | null
         }
@@ -111,7 +113,12 @@ export async function POST(request: NextRequest) {
           status: true,
           orderNumber: true,
           client: {
-            select: { contactEmail: true, contactName: true, organizationName: true },
+            select: {
+              contactEmail: true,
+              contactName: true,
+              contactPhone: true,
+              organizationName: true,
+            },
           },
         },
       })
@@ -238,6 +245,22 @@ export async function POST(request: NextRequest) {
         carrier: 'FedEx',
       }).catch((err) =>
         logger.warn('[FedEx label] shipped email failed (non-blocking)', {
+          orderId: order?.id ?? null,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      )
+    }
+
+    // Parallel SMS to the practice. Fire-and-forget; no-ops when SMS_ENABLED is
+    // off or no phone is on file.
+    if (order?.client?.contactPhone) {
+      void sendOrderShippedSms({
+        to: order.client.contactPhone,
+        orderNumber: order.orderNumber,
+        trackingNumber: result.trackingNumber,
+        carrier: 'FedEx',
+      }).catch((err) =>
+        logger.warn('[FedEx label] shipped SMS failed (non-blocking)', {
           orderId: order?.id ?? null,
           error: err instanceof Error ? err.message : String(err),
         })
