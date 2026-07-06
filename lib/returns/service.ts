@@ -228,7 +228,15 @@ export async function restockReturnItems(
       continue
     }
     const variantId = item.variantId
-    await client.$transaction(async (tx) => {
+    // Atomic claim: only proceed if THIS call flips restocked false→true. A
+    // concurrent restock (double-click / two tabs) that already flipped it
+    // affects 0 rows here and is skipped, so on-hand is never double-incremented.
+    const applied = await client.$transaction(async (tx) => {
+      const claim = await tx.returnItem.updateMany({
+        where: { id: item.id, restocked: false },
+        data: { restocked: true },
+      })
+      if (claim.count === 0) return false
       await tx.productVariant.update({
         where: { id: variantId },
         data: { inventoryOnHand: { increment: item.quantity } },
@@ -243,13 +251,12 @@ export async function restockReturnItems(
           createdById: actorId && actorId !== 'dev-user' ? actorId : null,
         },
       })
-      await tx.returnItem.update({
-        where: { id: item.id },
-        data: { restocked: true },
-      })
+      return true
     })
-    restocked += 1
-    totalUnits += item.quantity
+    if (applied) {
+      restocked += 1
+      totalUnits += item.quantity
+    }
   }
 
   const skipped = eligible.length - restocked

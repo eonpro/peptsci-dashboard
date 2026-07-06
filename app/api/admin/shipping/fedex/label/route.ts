@@ -15,6 +15,7 @@ import {
 import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
+import { consumeOrderInventory } from '@/lib/fulfillment/service'
 import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
 
@@ -207,6 +208,31 @@ export async function POST(request: NextRequest) {
       return created
     })
 
+    // Shipping must draw down inventory: consume the order's stock + reservations
+    // now that a label exists and the order is SHIPPED. Idempotent — if the order
+    // was already consumed via the labels-PDF path this is a no-op, so we never
+    // double-draw. Not requireFull: a short/again-consumed order should still
+    // ship. A failure here must not fail the (already-created) FedEx label.
+    if (order) {
+      try {
+        const consumed = await consumeOrderInventory(order.id, {
+          clerkUserId: userId && userId !== 'dev-user' ? userId : null,
+          label: userId ?? null,
+        })
+        if (consumed.shortfall > 0) {
+          logger.warn('[FedEx label] shipped with inventory shortfall', {
+            orderId: order.id,
+            shortfall: consumed.shortfall,
+          })
+        }
+      } catch (consumeErr) {
+        logger.error('[FedEx label] inventory consume failed (label already created)', {
+          orderId: order.id,
+          error: consumeErr instanceof Error ? consumeErr.message : String(consumeErr),
+        })
+      }
+    }
+
     if (userId && userId !== 'dev-user') {
       await prisma.auditLog
         .create({
@@ -362,6 +388,13 @@ export async function DELETE(request: NextRequest) {
         },
       })
       if (label.orderId) {
+        // Voiding the only label must not leave the order stuck in SHIPPED with
+        // no tracking. Roll a SHIPPED order back to APPROVED (a pre-ship state)
+        // and clear the shipped timestamp; other statuses are left untouched.
+        const linked = await tx.order.findUnique({
+          where: { id: label.orderId },
+          select: { status: true },
+        })
         await tx.order.update({
           where: { id: label.orderId },
           data: {
@@ -369,6 +402,9 @@ export async function DELETE(request: NextRequest) {
             trackingUrl: null,
             carrier: null,
             shippingStatus: null,
+            ...(linked?.status === 'SHIPPED'
+              ? { status: 'APPROVED' as const, shippedAt: null }
+              : {}),
           },
         })
       }

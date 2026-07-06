@@ -44,6 +44,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     const msg = error instanceof Error ? error.message : ''
     if (msg.includes('positive')) return errorResponse(msg, 400, 'INVALID_AMOUNT')
+    if (msg === 'Invoice not found') return errorResponse(msg, 404, 'NOT_FOUND')
+    if (msg.includes('void invoice')) return errorResponse(msg, 409, 'INVOICE_VOID')
+    if (msg.includes('different invoice')) return errorResponse(msg, 409, 'PAYMENT_ALREADY_RECORDED')
     logger.error('[admin/invoices/:id/payments] error', {}, error instanceof Error ? error : new Error(String(error)))
     return errorResponse('Failed to record payment')
   }

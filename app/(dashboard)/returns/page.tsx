@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -190,6 +190,8 @@ function NewReturnDialog({
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // Sequence lookups so a slow, older response can't overwrite a newer one.
+  const lookupSeqRef = useRef(0)
 
   const reset = () => {
     setOrderQuery('')
@@ -203,6 +205,7 @@ function NewReturnDialog({
 
   const lookup = () => {
     if (!orderQuery.trim()) return
+    const seq = ++lookupSeqRef.current
     setLookupLoading(true)
     setLookupError(null)
     fetch(`/api/admin/returns/order-lookup?orderNumber=${encodeURIComponent(orderQuery.trim())}`)
@@ -212,6 +215,7 @@ function NewReturnDialog({
         return data.data ?? data
       })
       .then((order) => {
+        if (seq !== lookupSeqRef.current) return
         setOrderId(order.id)
         setOrderNumber(order.orderNumber)
         setItems(
@@ -224,11 +228,14 @@ function NewReturnDialog({
         )
       })
       .catch((e) => {
+        if (seq !== lookupSeqRef.current) return
         setLookupError(e instanceof Error ? e.message : 'Order not found')
         setOrderId(null)
         setItems([])
       })
-      .finally(() => setLookupLoading(false))
+      .finally(() => {
+        if (seq === lookupSeqRef.current) setLookupLoading(false)
+      })
   }
 
   const submit = () => {
@@ -250,7 +257,8 @@ function NewReturnDialog({
           orderItemId: i.orderItemId,
           variantId: i.variantId ?? undefined,
           productName: i.productName,
-          quantity: i.quantity,
+          // Never request more than was ordered, even if state got out of sync.
+          quantity: Math.min(i.quantity, i.quantityOrdered),
           condition: i.condition,
         })),
       }),
@@ -334,7 +342,15 @@ function NewReturnDialog({
                       onChange={(e) =>
                         setItems((prev) =>
                           prev.map((p, i) =>
-                            i === idx ? { ...p, quantity: Math.max(1, Number(e.target.value) || 1) } : p
+                            i === idx
+                              ? {
+                                  ...p,
+                                  quantity: Math.min(
+                                    p.quantityOrdered,
+                                    Math.max(1, Number(e.target.value) || 1)
+                                  ),
+                                }
+                              : p
                           )
                         )
                       }

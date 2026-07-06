@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { logger } from './logger'
-import { isAdminRole, isSuperAdminRole, type UserRole } from './access'
+import { isAdminRole, isSuperAdminRole, type UserRole, type UserStatus } from './access'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -13,12 +13,25 @@ const isProduction = process.env.NODE_ENV === 'production'
 export interface AuthResult {
   userId: string | null
   isAuthenticated: boolean
+  /** Account status from Clerk metadata. SUSPENDED accounts are denied. */
+  status?: UserStatus | null
+  /** True when the account has been suspended (access must be denied). */
+  isSuspended?: boolean
 }
 
 export interface AdminAuthResult extends AuthResult {
   role: UserRole | null
   isAdmin: boolean
   isSuperAdmin: boolean
+}
+
+/**
+ * Read the account status from Clerk session claims metadata.
+ * Defaults to PENDING when unset (never silently ACTIVE).
+ */
+function statusFromClaims(sessionClaims: unknown): UserStatus {
+  const meta = (sessionClaims as { metadata?: { status?: UserStatus } } | null)?.metadata
+  return meta?.status ?? 'PENDING'
 }
 
 /**
@@ -42,16 +55,23 @@ export async function requireAuth(): Promise<AuthResult> {
   }
 
   try {
-    const { userId } = await auth()
+    const { userId, sessionClaims } = await auth()
+    const status = userId ? statusFromClaims(sessionClaims) : null
+    const isSuspended = status === 'SUSPENDED'
+    // A suspended account must be denied even with a valid Clerk session.
     return {
       userId,
-      isAuthenticated: !!userId,
+      isAuthenticated: !!userId && !isSuspended,
+      status,
+      isSuspended,
     }
   } catch (error) {
     logger.error('Auth error', {}, error instanceof Error ? error : new Error(String(error)))
     return {
       userId: null,
       isAuthenticated: false,
+      status: null,
+      isSuspended: false,
     }
   }
 }
@@ -84,16 +104,30 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
     const { userId, sessionClaims } = await auth()
     const role =
       ((sessionClaims?.metadata as { role?: UserRole } | undefined)?.role as UserRole) ?? 'CLIENT'
+    const status = userId ? statusFromClaims(sessionClaims) : null
+    const isSuspended = status === 'SUSPENDED'
+    // Suspended accounts lose admin access regardless of their role.
+    const authed = !!userId && !isSuspended
     return {
       userId,
-      isAuthenticated: !!userId,
+      isAuthenticated: authed,
+      status,
+      isSuspended,
       role,
-      isAdmin: isAdminRole(role),
-      isSuperAdmin: isSuperAdminRole(role),
+      isAdmin: authed && isAdminRole(role),
+      isSuperAdmin: authed && isSuperAdminRole(role),
     }
   } catch (error) {
     logger.error('Admin auth error', {}, error instanceof Error ? error : new Error(String(error)))
-    return { userId: null, isAuthenticated: false, role: null, isAdmin: false, isSuperAdmin: false }
+    return {
+      userId: null,
+      isAuthenticated: false,
+      status: null,
+      isSuspended: false,
+      role: null,
+      isAdmin: false,
+      isSuperAdmin: false,
+    }
   }
 }
 

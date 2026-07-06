@@ -215,6 +215,16 @@ async function fedexRequest<T>(
 
       if (!response.ok) {
         const errorBody = await response.text()
+        // A 401 means the cached token is bad/expired early — evict it so the
+        // next attempt (and later calls) mint a fresh one instead of reusing
+        // the rejected token until the refresh buffer elapses.
+        if (response.status === 401) {
+          tokenCache.delete(credentials.clientId)
+          if (attempt < MAX_RETRIES) {
+            lastError = new Error(`FedEx API error: 401`)
+            continue
+          }
+        }
         // Retry only on 5xx / 429 — client errors (4xx) are deterministic.
         if ((response.status >= 500 || response.status === 429) && attempt < MAX_RETRIES) {
           lastError = new Error(`FedEx API error: ${response.status}`)

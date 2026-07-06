@@ -6,6 +6,8 @@
  * @module lib/reports/service
  */
 
+import { format, subDays } from 'date-fns'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { prisma } from '../prisma'
 import { getSales } from '../sales'
 import { computeInvoiceTotals, deriveDueDate } from '../invoicing/core'
@@ -17,6 +19,8 @@ import {
   fulfillmentSla,
   forecastNextPeriod,
   lowStockSummary,
+  BUSINESS_TIME_ZONE,
+  nyDayString,
   type SaleLike,
   type RevenueSummary,
   type ProductRevenue,
@@ -27,6 +31,16 @@ import {
 function db() {
   if (!prisma) throw new Error('Database is not configured')
   return prisma
+}
+
+/**
+ * UTC instant of America/New_York midnight, `days` NY calendar days before the
+ * NY day containing `from`. Keeps trailing-window filters aligned with the NY
+ * day/month bucketing used by revenueByMonth and the KPI helpers.
+ */
+function startOfNyDaysAgo(from: Date, days: number): Date {
+  const zonedDay = subDays(toZonedTime(from, BUSINESS_TIME_ZONE), days)
+  return fromZonedTime(`${format(zonedDay, 'yyyy-MM-dd')}T00:00:00`, BUSINESS_TIME_ZONE)
 }
 
 /** Adapt the analytics `Sale` shape to the pure-core `SaleLike`. */
@@ -129,9 +143,11 @@ export interface ReportsDashboard {
 
 /** Assemble the full /reports dashboard payload for a trailing-N-day window. */
 export async function getReportsDashboard(rangeDays = 30): Promise<ReportsDashboard> {
+  // Window boundaries snap to America/New_York day starts so the summary
+  // agrees with the NY-month bucketing in revenueByMonth.
   const end = new Date()
-  const start = new Date(end.getTime() - rangeDays * 24 * 60 * 60 * 1000)
-  const prevStart = new Date(start.getTime() - rangeDays * 24 * 60 * 60 * 1000)
+  const start = startOfNyDaysAgo(end, rangeDays)
+  const prevStart = startOfNyDaysAgo(end, rangeDays * 2)
 
   const [sales, lowStock, arRows, slaInputs] = await Promise.all([
     loadSaleLikes(),
@@ -170,8 +186,8 @@ export interface WeeklySummary {
 /** Compact summary for the weekly report email (trailing 7 days vs prior 7). */
 export async function getWeeklySummary(now: Date = new Date()): Promise<WeeklySummary> {
   const end = now
-  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const priorStart = new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const start = startOfNyDaysAgo(end, 7)
+  const priorStart = startOfNyDaysAgo(end, 14)
 
   const [sales, lowStock, arRows, slaInputs] = await Promise.all([
     loadSaleLikes(),
@@ -203,7 +219,13 @@ export async function getWeeklySummary(now: Date = new Date()): Promise<WeeklySu
 // ── CSV export builders (Excel-compatible, no extra deps) ──
 
 function csvCell(v: unknown): string {
-  const s = v == null ? '' : String(v)
+  let s = v == null ? '' : String(v)
+  // Neutralize spreadsheet formula execution (CSV injection): prefix cells
+  // starting with = + - @ or tab/CR with a quote. Plain numbers (e.g. a
+  // negative profit "-5.00") are left intact so numeric columns still parse.
+  if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+(\.\d+)?$/.test(s)) {
+    s = `'${s}`
+  }
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
@@ -218,7 +240,7 @@ export async function buildSalesCsv(): Promise<string> {
   return toCsv(
     ['Date', 'Order', 'Customer', 'Product', 'Units', 'Revenue', 'COGS', 'Profit', 'MarginPct'],
     sales.map((s) => [
-      s.Date ? s.Date.toISOString().slice(0, 10) : '',
+      s.Date ? nyDayString(s.Date) : '',
       s.OrderID,
       s.CustomerName,
       s.Product,

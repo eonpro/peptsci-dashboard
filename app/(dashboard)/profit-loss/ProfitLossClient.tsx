@@ -20,7 +20,7 @@ import {
   Calendar,
   Wallet,
 } from 'lucide-react'
-import { format, subMonths } from 'date-fns'
+import { format } from 'date-fns'
 import {
   calculateMonthlyProfitLoss,
   calculateYearToDateProfitLoss,
@@ -46,60 +46,16 @@ const formatCurrency = (value: number) => currencyFormatter.format(value)
 const formatNumber = (value: number) => numberFormatter.format(value)
 const formatPercent = (value: number) => `${Number.isFinite(value) ? value.toFixed(1) : '0.0'}%`
 
-const generateMockSales = (): Sale[] => {
-  const products = [
-    { name: 'Semaglutide 10mg', avgPrice: 400, avgCost: 90 },
-    { name: 'Tirzepatide 60mg', avgPrice: 850, avgCost: 230 },
-    { name: 'BPC-157 10mg', avgPrice: 300, avgCost: 82 },
-    { name: 'GHK-Cu 100mg', avgPrice: 450, avgCost: 125 },
-    { name: 'Retatrutide 20mg', avgPrice: 650, avgCost: 220 },
-  ]
-
-  const sales: Sale[] = []
-  const now = new Date()
-
-  for (let monthOffset = 0; monthOffset < 6; monthOffset++) {
-    const month = subMonths(now, monthOffset)
-    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
-    const numSales = Math.floor(Math.random() * 20) + 40
-
-    for (let i = 0; i < numSales; i++) {
-      const product = products[Math.floor(Math.random() * products.length)]
-      const day = Math.floor(Math.random() * daysInMonth) + 1
-      const vials = Math.floor(Math.random() * 3) + 1
-      const paidAmount = product.avgPrice * vials
-      const cogs = product.avgCost * vials
-      const profit = paidAmount - cogs
-
-      sales.push({
-        Date: new Date(month.getFullYear(), month.getMonth(), day),
-        OrderID: `P-${format(month, 'MM')}${String(day).padStart(2, '0')}-${String(i + 1).padStart(
-          3,
-          '0'
-        )}`,
-        CustomerName: `Customer ${i + 1}`,
-        CustomerEmail: '',
-        CustomerPhone: '',
-        Address: '',
-        City: '',
-        State: '',
-        Zip: '',
-        TrackingNumber: '',
-        InvoicePaid: true,
-        PaidAmount: paidAmount,
-        Vials: vials,
-        AmountPerVial: product.avgPrice,
-        Product: product.name,
-        Notes: 'Fulfilled',
-        COGS: cogs,
-        Profit: profit,
-        ProfitMargin: paidAmount > 0 ? (profit / paidAmount) * 100 : 0,
-        Markup: cogs > 0 ? (profit / cogs) * 100 : 0,
-      })
-    }
-  }
-
-  return sales
+/**
+ * Normalize Date fields on the server-provided seed. Depending on the data
+ * source/serialization, `Date` can arrive as a string, which would make
+ * downstream `.getTime()` calls crash or silently drop rows.
+ */
+function withDates(data: Sale[]): Sale[] {
+  return data.map((sale) => ({
+    ...sale,
+    Date: sale.Date ? new Date(sale.Date) : null,
+  }))
 }
 
 export interface ProfitLossClientProps {
@@ -113,11 +69,10 @@ export default function ProfitLossClient({
   initialInventory,
   initialOrders,
 }: ProfitLossClientProps) {
-  // Seed from server-rendered data (see page.tsx). Fall back to mock sales only
-  // when the source returned nothing, preserving the previous demo behavior.
-  const [sales] = useState<Sale[]>(() =>
-    initialSales.length > 0 ? initialSales : generateMockSales()
-  )
+  // Seed from server-rendered data (see page.tsx), normalizing dates so the
+  // first paint never crashes on string dates. When there are no paid sales we
+  // render the empty state below instead of fabricated demo data.
+  const [sales] = useState<Sale[]>(() => withDates(initialSales))
   const [inventory] = useState<Inventory[]>(initialInventory)
   const [orders] = useState<DistributorOrder[]>(initialOrders)
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('')

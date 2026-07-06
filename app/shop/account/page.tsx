@@ -71,7 +71,43 @@ export default function AccountPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Mirror lib/profile.ts (profileUpdateSchema + addressSchema) so failures
+  // are caught before the request and name the offending field.
+  const validateProfile = (): string | null => {
+    if (!profile?.npiLocked && organizationName.trim().length < 2) {
+      return 'Practice / Organization name must be at least 2 characters.'
+    }
+    if (contactName.trim().length < 2) {
+      return 'Contact Name must be at least 2 characters.'
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      return 'Enter a valid Email address.'
+    }
+    const phone = contactPhone.trim()
+    if (phone.length < 7 || phone.length > 30) {
+      return 'Phone must be between 7 and 30 characters.'
+    }
+    const checkAddress = (addr: Partial<Address>, label: string): string | null => {
+      if (!addr.address1?.trim()) return `${label}: street address is required.`
+      if (!addr.city?.trim()) return `${label}: city is required.`
+      if ((addr.state?.trim().length ?? 0) < 2) return `${label}: state is required.`
+      if (!/^\d{5}(-\d{4})?$/.test(addr.zip?.trim() ?? '')) {
+        return `${label}: enter a valid ZIP code (e.g. 12345 or 12345-6789).`
+      }
+      return null
+    }
+    return (
+      checkAddress(billing, 'Billing Address') ??
+      checkAddress(shipping, 'Practice Shipping Address')
+    )
+  }
+
   const handleSave = async () => {
+    const validationError = validateProfile()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setSaving(true)
     setError(null)
     try {

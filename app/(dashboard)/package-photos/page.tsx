@@ -48,9 +48,11 @@ export default function PackagePhotosPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [photos, setPhotos] = useState<PhotoRow[]>([])
   const [loadingList, setLoadingList] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
     setLoadingList(true)
+    setListError(null)
     Promise.all([
       fetch('/api/admin/package-photos?stats=true').then((r) => (r.ok ? r.json() : null)),
       fetch('/api/admin/package-photos?limit=25').then((r) => (r.ok ? r.json() : { data: [] })),
@@ -59,7 +61,7 @@ export default function PackagePhotosPage() {
         if (s) setStats(s)
         setPhotos(list?.data ?? [])
       })
-      .catch(() => {})
+      .catch(() => setListError('Could not load recent captures. Please refresh the page.'))
       .finally(() => setLoadingList(false))
   }, [])
 
@@ -67,9 +69,42 @@ export default function PackagePhotosPage() {
     refresh()
   }, [refresh])
 
+  // Mirror the server limits so bad files fail fast with a clear message
+  // instead of a slow, failed upload.
+  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB, matches the server limit
+  const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+
+  const validateFile = (f: File): string | null => {
+    const isHeic =
+      f.type === 'image/heic' ||
+      f.type === 'image/heif' ||
+      /\.hei[cf]$/i.test(f.name)
+    if (isHeic) {
+      return 'HEIC photos are not supported. On iPhone, go to Settings → Camera → Formats and choose "Most Compatible", or re-save the photo as JPEG.'
+    }
+    if (!ALLOWED_TYPES.includes(f.type)) {
+      return 'Invalid file type. Upload a JPEG, PNG, or WebP image.'
+    }
+    if (f.size > MAX_FILE_SIZE) {
+      return `File is too large (${(f.size / (1024 * 1024)).toFixed(1)}MB). Maximum size is 10MB.`
+    }
+    return null
+  }
+
   const onFileChange = (f: File | null) => {
-    setFile(f)
     setError(null)
+    if (f) {
+      const validationError = validateFile(f)
+      if (validationError) {
+        setError(validationError)
+        setFile(null)
+        if (preview) URL.revokeObjectURL(preview)
+        setPreview(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+    }
+    setFile(f)
     if (preview) URL.revokeObjectURL(preview)
     setPreview(f ? URL.createObjectURL(f) : null)
   }
@@ -87,6 +122,8 @@ export default function PackagePhotosPage() {
     setSuccess(null)
     if (!orderRef.trim()) return setError('Order number is required')
     if (!file) return setError('Please capture or select a photo')
+    const validationError = validateFile(file)
+    if (validationError) return setError(validationError)
 
     setSubmitting(true)
     try {
@@ -194,7 +231,7 @@ export default function PackagePhotosPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 capture="environment"
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
                 className="hidden"
@@ -238,6 +275,11 @@ export default function PackagePhotosPage() {
             {loadingList ? (
               <div className="flex items-center justify-center py-10 text-white/60">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading…
+              </div>
+            ) : listError ? (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                {listError}
               </div>
             ) : photos.length === 0 ? (
               <p className="py-10 text-center text-white/50">No photos captured yet.</p>

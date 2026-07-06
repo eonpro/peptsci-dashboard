@@ -51,12 +51,14 @@ export async function POST(request: NextRequest) {
       connectRequestOptions()
     )
 
-    // Ownership check: the PI must belong to this caller's client.
-    if (intent.metadata?.clientId && intent.metadata.clientId !== clientId) {
+    // Ownership check: the PI must belong to this caller's client. Fail closed —
+    // a PaymentIntent with no clientId in metadata is rejected rather than
+    // trusted, so a caller can't confirm someone else's (or an unattributed) PI.
+    if (intent.metadata?.clientId !== clientId) {
       logger.warn('[CHECKOUT] confirm ownership mismatch', {
         userId,
         clientId,
-        piClientId: intent.metadata.clientId,
+        piClientId: intent.metadata?.clientId ?? null,
       })
       return forbiddenResponse('This payment does not belong to your account')
     }

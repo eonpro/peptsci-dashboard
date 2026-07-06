@@ -17,7 +17,7 @@ import { Logo } from '@/components/Logo'
 import { AddressFields } from '@/components/AddressFields'
 import { NpiLookup } from '@/components/NpiLookup'
 import type { Address } from '@/lib/address'
-import type { NormalizedProvider } from '@/lib/npi'
+import { isValidNpi, cleanNpi, type NormalizedProvider } from '@/lib/npi'
 import { Building2, Stethoscope, MapPin, User, Loader2, CheckCircle2, LogOut } from 'lucide-react'
 
 const emptyAddress: Partial<Address> = { country: 'US' }
@@ -75,6 +75,25 @@ export default function OnboardingPage() {
     }
     if (p.phone) setContactPhone((prev) => prev || p.phone!)
   }
+
+  // Mirror the server onboardingSchema requirements so the submit button only
+  // enables once the NPI, contact details, and address(es) are filled in.
+  const addressComplete = (addr: Partial<Address>) =>
+    Boolean(
+      addr.address1?.trim() &&
+        addr.city?.trim() &&
+        (addr.state?.trim().length ?? 0) >= 2 &&
+        /^\d{5}(-\d{4})?$/.test(addr.zip?.trim() ?? '')
+    )
+  const canSubmit =
+    isValidNpi(cleanNpi(npiNumber)) &&
+    providerName.trim().length >= 2 &&
+    organizationName.trim().length >= 2 &&
+    contactName.trim().length >= 2 &&
+    contactEmail.trim().length > 0 &&
+    contactPhone.trim().length >= 7 &&
+    addressComplete(billing) &&
+    (sameAsBilling || addressComplete(shipping))
 
   const handleSubmit = async () => {
     setError(null)
@@ -275,7 +294,7 @@ export default function OnboardingPage() {
             <Button
               className="w-full h-12 bg-brand-primary hover:bg-brand-primary/90 text-white text-base font-semibold"
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || !canSubmit}
             >
               {submitting ? (
                 <>

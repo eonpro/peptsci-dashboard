@@ -49,6 +49,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (error) {
     const msg = error instanceof Error ? error.message : ''
     if (msg === 'Invoice not found') return errorResponse('Invoice not found', 404, 'NOT_FOUND')
+    if (msg.includes('recorded payments')) return errorResponse(msg, 409, 'INVOICE_HAS_PAYMENTS')
     logger.error('[admin/invoices/:id] PATCH error', {}, error instanceof Error ? error : new Error(String(error)))
     return errorResponse('Failed to update invoice')
   }

@@ -8,6 +8,7 @@
  */
 
 import { parseCsv } from './product-import'
+import { parseLocaleNumber } from './csv-coerce'
 
 export interface DistributorLineRow {
   rowNumber: number
@@ -112,13 +113,8 @@ const HEADER_ALIASES: Record<string, Field> = {
   'item total': 'lineTotal',
 }
 
-function toNumber(raw: string | undefined): number | undefined {
-  if (raw == null) return undefined
-  const cleaned = raw.replace(/[$,\s]/g, '').trim()
-  if (cleaned === '') return undefined
-  const n = Number(cleaned)
-  return Number.isFinite(n) ? n : NaN
-}
+// Locale-aware ("1,234.56" and "1.234,56" both parse): see lib/csv-coerce.ts.
+const toNumber = parseLocaleNumber
 
 export function parseDistributorOrderCsv(input: string): DistributorParseResult {
   const matrix = parseCsv(input)
@@ -216,32 +212,38 @@ export function parseDistributorOrderCsv(input: string): DistributorParseResult 
 
 /** Group validated line rows into distributor orders by orderId. */
 export function groupDistributorOrders(rows: DistributorLineRow[]): DistributorOrderImport[] {
-  const byId = new Map<string, DistributorOrderImport>()
+  // Accumulator keeps order-level fields optional so we can distinguish
+  // "never provided" from "provided on some row"; defaults apply at the end.
+  interface OrderAcc {
+    externalId: string
+    orderDate?: string
+    vendor?: string
+    status?: string
+    trackingNumber?: string
+    shipping?: number
+    paypalFee?: number
+    total?: number
+    lines: DistributorOrderImport['lines']
+  }
+  const byId = new Map<string, OrderAcc>()
 
   for (const row of rows) {
     let order = byId.get(row.orderId)
     if (!order) {
-      order = {
-        externalId: row.orderId,
-        orderDate: row.orderDate,
-        vendor: row.vendor || 'Distributor',
-        status: (row.status || 'delivered').toLowerCase(),
-        trackingNumber: row.trackingNumber,
-        shipping: row.shipping ?? 0,
-        paypalFee: row.paypalFee ?? 0,
-        subtotal: 0,
-        total: 0,
-        lines: [],
-      }
+      order = { externalId: row.orderId, lines: [] }
       byId.set(row.orderId, order)
     }
-    // Order-level fields: fill from any row that carries them.
-    if (row.orderDate && !order.orderDate) order.orderDate = row.orderDate
-    if (row.vendor) order.vendor = row.vendor
-    if (row.status) order.status = row.status.toLowerCase()
-    if (row.trackingNumber) order.trackingNumber = row.trackingNumber
-    if (row.shipping !== undefined) order.shipping = row.shipping
-    if (row.paypalFee !== undefined) order.paypalFee = row.paypalFee
+    // Order-level fields: the first non-empty occurrence wins, so blank or
+    // defaulted values on later line rows never clobber real values.
+    if (order.orderDate === undefined && row.orderDate) order.orderDate = row.orderDate
+    if (order.vendor === undefined && row.vendor) order.vendor = row.vendor
+    if (order.status === undefined && row.status) order.status = row.status.toLowerCase()
+    if (order.trackingNumber === undefined && row.trackingNumber)
+      order.trackingNumber = row.trackingNumber
+    if (order.shipping === undefined && row.shipping !== undefined) order.shipping = row.shipping
+    if (order.paypalFee === undefined && row.paypalFee !== undefined)
+      order.paypalFee = row.paypalFee
+    if (order.total === undefined && row.total !== undefined) order.total = row.total
 
     order.lines.push({
       productName: row.product,
@@ -252,19 +254,24 @@ export function groupDistributorOrders(rows: DistributorLineRow[]): DistributorO
     })
   }
 
-  // Finalize subtotal/total. An explicit per-order `total` (from any row) wins.
-  const explicitTotalById = new Map<string, number>()
-  for (const row of rows) {
-    if (row.total !== undefined) explicitTotalById.set(row.orderId, row.total)
-  }
-
-  for (const order of byId.values()) {
-    order.subtotal = order.lines.reduce((sum, l) => sum + l.lineTotal, 0)
-    const explicit = explicitTotalById.get(order.externalId)
-    order.total = explicit ?? order.subtotal + order.shipping + order.paypalFee
-  }
-
-  return Array.from(byId.values())
+  // Finalize defaults + subtotal/total. An explicit per-order `total` wins.
+  return Array.from(byId.values()).map((acc) => {
+    const shipping = acc.shipping ?? 0
+    const paypalFee = acc.paypalFee ?? 0
+    const subtotal = acc.lines.reduce((sum, l) => sum + l.lineTotal, 0)
+    return {
+      externalId: acc.externalId,
+      orderDate: acc.orderDate,
+      vendor: acc.vendor || 'Distributor',
+      status: acc.status || 'delivered',
+      trackingNumber: acc.trackingNumber,
+      shipping,
+      paypalFee,
+      subtotal,
+      total: acc.total ?? subtotal + shipping + paypalFee,
+      lines: acc.lines,
+    }
+  })
 }
 
 export function distributorOrderImportTemplate(): string {

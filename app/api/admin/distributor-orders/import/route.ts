@@ -18,6 +18,9 @@ import { coerceDate } from '@/lib/csv-coerce'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Each order is imported in its own small transaction (idempotent upsert by
+// externalId), never one giant transaction, so allow up to 5 minutes.
+export const maxDuration = 300
 
 const bodySchema = z.object({
   csv: z.string().min(1, 'csv is required'),
@@ -26,6 +29,9 @@ const bodySchema = z.object({
 
 interface ImportSummary {
   totalRows: number
+  totalOrders: number
+  /** Orders actually attempted against the DB (progress even on partial runs). */
+  processed: number
   created: number
   updated: number
   failed: number
@@ -62,6 +68,8 @@ export async function POST(request: NextRequest) {
 
     const summary: ImportSummary = {
       totalRows: rows.length + errors.length,
+      totalOrders: 0,
+      processed: 0,
       created: 0,
       updated: 0,
       failed: errors.length,
@@ -77,9 +85,11 @@ export async function POST(request: NextRequest) {
     if (validateOnly) return successResponse(summary)
 
     const orders = groupDistributorOrders(rows)
+    summary.totalOrders = orders.length
     const db = prisma
 
     for (const order of orders) {
+      summary.processed++
       try {
         await db.$transaction(async (tx) => {
           const existing = await tx.distributorOrder.findUnique({

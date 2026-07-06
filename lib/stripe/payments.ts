@@ -14,6 +14,20 @@ import { connectRequestOptions } from '@/lib/stripe/connect'
 import { logger } from '@/lib/logger'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { reserveForOrder } from '@/lib/inventory/reservations'
+import { toCents } from '@/lib/stripe'
+
+/**
+ * Monotonic "progress" rank for a payment status. Used to prevent an
+ * out-of-order webhook (e.g. a delayed `payment_intent.processing` arriving
+ * after `succeeded`) from regressing a captured/refunded order backwards.
+ */
+const STATUS_RANK: Record<PaymentStatus, number> = {
+  [PaymentStatus.PENDING]: 0,
+  [PaymentStatus.AUTHORIZED]: 1,
+  [PaymentStatus.FAILED]: 1,
+  [PaymentStatus.CAPTURED]: 3,
+  [PaymentStatus.REFUNDED]: 4,
+}
 
 /**
  * Map a Stripe PaymentIntent status to our PaymentStatus enum.
@@ -77,9 +91,40 @@ export async function reconcileOrderFromPaymentIntent(
     return { matched: false }
   }
 
-  const paymentStatus = mapPaymentIntentStatus(pi.status, pi.last_payment_error)
+  const mappedStatus = mapPaymentIntentStatus(pi.status, pi.last_payment_error)
+
+  // Monotonic guard: never let a stale/out-of-order event move the order to a
+  // lower-progress status than it already has (e.g. a late `processing` event
+  // must not downgrade an order that already `succeeded`). REFUNDED is terminal
+  // for this path (refunds are handled by the charge.refunded handler).
+  const currentRank = STATUS_RANK[order.paymentStatus]
+  const isRegression = STATUS_RANK[mappedStatus] < currentRank
+  const paymentStatus = isRegression ? order.paymentStatus : mappedStatus
+  if (isRegression) {
+    logger.warn('[STRIPE] Ignored out-of-order payment status regression', {
+      orderId: order.id,
+      paymentIntentId: pi.id,
+      current: order.paymentStatus,
+      incoming: mappedStatus,
+    })
+  }
+
   const isCaptured = paymentStatus === PaymentStatus.CAPTURED
   const isFailed = paymentStatus === PaymentStatus.FAILED
+
+  // Amount verification: the amount Stripe actually processed must match the
+  // server-computed order total. A mismatch means the PI was created/edited
+  // out-of-band — surface it loudly rather than silently trusting Stripe.
+  const expectedCents = toCents(Number(order.total))
+  const amountMismatch = isCaptured && typeof pi.amount === 'number' && pi.amount !== expectedCents
+  if (amountMismatch) {
+    logger.error('[STRIPE] PaymentIntent amount does not match order total', {
+      orderId: order.id,
+      paymentIntentId: pi.id,
+      piAmount: pi.amount,
+      expectedCents,
+    })
+  }
 
   await prisma.order.update({
     where: { id: order.id },
@@ -87,7 +132,11 @@ export async function reconcileOrderFromPaymentIntent(
       paymentStatus,
       stripePaymentIntentId: pi.id,
       stripeChargeId: chargeIdFromIntent(pi),
-      paymentFailureReason: isFailed ? (pi.last_payment_error?.message ?? 'Payment failed') : null,
+      paymentFailureReason: isFailed
+        ? (pi.last_payment_error?.message ?? 'Payment failed')
+        : amountMismatch
+          ? `Amount mismatch: charged ${pi.amount}¢, expected ${expectedCents}¢`
+          : null,
       // Advance to SUBMITTED on capture (only from DRAFT so we never regress).
       ...(isCaptured && order.status === 'DRAFT'
         ? { status: 'SUBMITTED', submittedAt: new Date() }

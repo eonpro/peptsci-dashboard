@@ -103,7 +103,12 @@ export async function getUnbilledOrders(clientId: string) {
     where: {
       clientId,
       status: { not: 'DRAFT' },
-      invoiceLineItems: { none: {} },
+      // Already-collected orders must NOT be billable on AR terms — a card
+      // payment at checkout (CAPTURED) or a refund means there's nothing to
+      // invoice. Only orders still owed (PENDING/AUTHORIZED/FAILED) qualify.
+      paymentStatus: { notIn: ['CAPTURED', 'REFUNDED'] },
+      // Exclude orders already on a non-void invoice.
+      invoiceLineItems: { none: { invoice: { status: { not: 'VOID' } } } },
     },
     orderBy: { createdAt: 'desc' },
     select: { id: true, orderNumber: true, total: true, createdAt: true, status: true, paymentStatus: true },
@@ -118,59 +123,100 @@ export async function getUnbilledOrders(clientId: string) {
   }))
 }
 
-/** Create an invoice from selected orders and/or manual lines. */
+/**
+ * Create an invoice from selected orders and/or manual lines.
+ *
+ * The order-selection + line creation runs in a single transaction so two
+ * concurrent invoice creations can't both attach the same order (double
+ * billing). NOTE: the durable fix is a unique index on InvoiceLineItem.orderId
+ * (partial, excluding VOID invoices) — until that exists, this transactional
+ * re-check closes the window in practice.
+ */
 export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceView> {
   const client = db()
   const issueDate = input.issueDate ?? new Date()
   const paymentTermsDays = input.paymentTermsDays ?? 30
 
-  const lines: Prisma.InvoiceLineItemCreateWithoutInvoiceInput[] = []
+  const created = await client.$transaction(async (tx) => {
+    const lines: Prisma.InvoiceLineItemCreateWithoutInvoiceInput[] = []
+    const orderIdsToLink: string[] = []
 
-  if (input.orderIds && input.orderIds.length > 0) {
-    const orders = await client.order.findMany({
-      where: { id: { in: input.orderIds }, clientId: input.clientId },
-      select: { id: true, orderNumber: true, total: true, createdAt: true },
-    })
-    for (const o of orders) {
-      const total = num(o.total)
+    if (input.orderIds && input.orderIds.length > 0) {
+      const requestedIds = Array.from(new Set(input.orderIds))
+      const orders = await tx.order.findMany({
+        // Only this client's non-draft, still-owed orders are billable.
+        where: {
+          id: { in: requestedIds },
+          clientId: input.clientId,
+          status: { not: 'DRAFT' },
+          paymentStatus: { notIn: ['CAPTURED', 'REFUNDED'] },
+        },
+        select: { id: true, orderNumber: true, total: true, createdAt: true },
+      })
+
+      // Fail loudly if any requested order was dropped (wrong client, draft,
+      // already paid, or nonexistent) — don't silently bill a subset.
+      if (orders.length !== requestedIds.length) {
+        const found = new Set(orders.map((o) => o.id))
+        const missing = requestedIds.filter((id) => !found.has(id))
+        throw new Error(`Some orders are not billable or not found: ${missing.join(', ')}`)
+      }
+
+      // Reject orders already attached to a non-void invoice (dedupe / race).
+      const alreadyLinked = await tx.invoiceLineItem.findMany({
+        where: { orderId: { in: requestedIds }, invoice: { status: { not: 'VOID' } } },
+        select: { orderId: true },
+      })
+      if (alreadyLinked.length > 0) {
+        const dupes = Array.from(new Set(alreadyLinked.map((l) => l.orderId).filter(Boolean)))
+        throw new Error(`Orders already invoiced: ${dupes.join(', ')}`)
+      }
+
+      for (const o of orders) {
+        const total = num(o.total)
+        orderIdsToLink.push(o.id)
+        lines.push({
+          order: { connect: { id: o.id } },
+          description: `Order #${o.orderNumber} — ${o.createdAt.toISOString().slice(0, 10)}`,
+          quantity: 1,
+          unitPrice: new Prisma.Decimal(total),
+          amount: new Prisma.Decimal(total),
+        })
+      }
+    }
+
+    for (const li of input.lineItems ?? []) {
+      if (li.unitPrice < 0) {
+        throw new Error('Line item unit price cannot be negative; use an adjustment for credits')
+      }
+      const amount = Math.round((li.quantity * li.unitPrice + Number.EPSILON) * 100) / 100
       lines.push({
-        order: { connect: { id: o.id } },
-        description: `Order #${o.orderNumber} — ${o.createdAt.toISOString().slice(0, 10)}`,
-        quantity: 1,
-        unitPrice: new Prisma.Decimal(total),
-        amount: new Prisma.Decimal(total),
+        ...(li.orderId ? { order: { connect: { id: li.orderId } } } : {}),
+        description: li.description,
+        quantity: li.quantity,
+        unitPrice: new Prisma.Decimal(li.unitPrice),
+        amount: new Prisma.Decimal(amount),
       })
     }
-  }
 
-  for (const li of input.lineItems ?? []) {
-    const amount = Math.round((li.quantity * li.unitPrice + Number.EPSILON) * 100) / 100
-    lines.push({
-      ...(li.orderId ? { order: { connect: { id: li.orderId } } } : {}),
-      description: li.description,
-      quantity: li.quantity,
-      unitPrice: new Prisma.Decimal(li.unitPrice),
-      amount: new Prisma.Decimal(amount),
+    if (lines.length === 0) throw new Error('An invoice needs at least one line item')
+
+    return tx.invoice.create({
+      data: {
+        clientId: input.clientId,
+        status: input.issue ? 'OPEN' : 'DRAFT',
+        issueDate,
+        paymentTermsDays,
+        dueDate: deriveDueDate(issueDate, paymentTermsDays),
+        periodStart: input.periodStart ?? null,
+        periodEnd: input.periodEnd ?? null,
+        balanceForward: new Prisma.Decimal(input.balanceForward ?? 0),
+        notes: input.notes,
+        createdById: input.createdById,
+        lineItems: { create: lines },
+      },
+      include: INVOICE_INCLUDE,
     })
-  }
-
-  if (lines.length === 0) throw new Error('An invoice needs at least one line item')
-
-  const created = await client.invoice.create({
-    data: {
-      clientId: input.clientId,
-      status: input.issue ? 'OPEN' : 'DRAFT',
-      issueDate,
-      paymentTermsDays,
-      dueDate: deriveDueDate(issueDate, paymentTermsDays),
-      periodStart: input.periodStart ?? null,
-      periodEnd: input.periodEnd ?? null,
-      balanceForward: new Prisma.Decimal(input.balanceForward ?? 0),
-      notes: input.notes,
-      createdById: input.createdById,
-      lineItems: { create: lines },
-    },
-    include: INVOICE_INCLUDE,
   })
 
   // Recompute so a fully-zero or already-paid invoice lands in the right state.
@@ -192,7 +238,11 @@ export async function recomputeStatus(invoiceId: string): Promise<InvoiceView> {
     dueDate: inv.dueDate ?? deriveDueDate(inv.issueDate, inv.paymentTermsDays),
   }) as PrismaInvoiceStatus
 
-  const paidAt = nextStatus === 'PAID' ? (inv.paidAt ?? new Date()) : null
+  // Preserve the original paid timestamp. Set it when the invoice first reaches
+  // PAID; never wipe it if a later adjustment (e.g. a surcharge/late fee) pushes
+  // the invoice back to PARTIAL/OVERDUE — the historical paid date is an audit
+  // fact, not a live flag.
+  const paidAt = nextStatus === 'PAID' ? (inv.paidAt ?? new Date()) : inv.paidAt
   if (nextStatus !== inv.status || (paidAt?.getTime() ?? null) !== (inv.paidAt?.getTime() ?? null)) {
     const updated = await client.invoice.update({
       where: { id: invoiceId },
@@ -232,11 +282,26 @@ export async function recordPayment(
   const client = db()
   if (!(input.amount > 0)) throw new Error('Payment amount must be positive')
 
+  const target = await client.invoice.findUnique({
+    where: { id: invoiceId },
+    select: { id: true, status: true },
+  })
+  if (!target) throw new Error('Invoice not found')
+  if (target.status === 'VOID') throw new Error('Cannot record a payment on a void invoice')
+
   if (input.stripePaymentIntentId) {
     const existing = await client.invoicePayment.findUnique({
       where: { stripePaymentIntentId: input.stripePaymentIntentId },
     })
-    if (existing) return recomputeStatus(invoiceId)
+    if (existing) {
+      // This PI is already recorded. Only treat it as idempotent when it belongs
+      // to THIS invoice — otherwise it's a mis-keyed call and must not silently
+      // succeed against the wrong invoice.
+      if (existing.invoiceId !== invoiceId) {
+        throw new Error('This payment is already recorded on a different invoice')
+      }
+      return recomputeStatus(invoiceId)
+    }
   }
 
   await client.invoicePayment.create({
@@ -266,6 +331,12 @@ export async function addAdjustment(
   input: AddAdjustmentInput
 ): Promise<InvoiceView> {
   const client = db()
+  const target = await client.invoice.findUnique({
+    where: { id: invoiceId },
+    select: { id: true, status: true },
+  })
+  if (!target) throw new Error('Invoice not found')
+  if (target.status === 'VOID') throw new Error('Cannot adjust a void invoice')
   if (input.kind === 'FIXED' && typeof input.amount !== 'number') {
     throw new Error('Fixed adjustment requires an amount')
   }
@@ -285,15 +356,46 @@ export async function addAdjustment(
   return recomputeStatus(invoiceId)
 }
 
-/** Void an invoice (terminal, reversible only by a new invoice). */
+/**
+ * Void an invoice (terminal, reversible only by a new invoice).
+ *
+ * Refuses to void an invoice that already has payments recorded — voiding would
+ * leave collected money attached to a "void" invoice. Such cases need a
+ * credit/refund, not a void. On void, the linked orders are unlinked from their
+ * line items so they become billable again (a mistaken void doesn't strand the
+ * orders out of the unbilled list forever).
+ */
 export async function voidInvoice(invoiceId: string): Promise<InvoiceView> {
   const client = db()
-  const updated = await client.invoice.update({
+  const inv = await client.invoice.findUnique({
     where: { id: invoiceId },
-    data: { status: 'VOID', voidedAt: new Date() },
-    include: INVOICE_INCLUDE,
+    include: { payments: { select: { id: true } } },
+  })
+  if (!inv) throw new Error('Invoice not found')
+  if (inv.status === 'VOID') return decorateInvoice(await requireInvoice(invoiceId))
+  if (inv.payments.length > 0) {
+    throw new Error('Cannot void an invoice with recorded payments; issue a credit or refund instead')
+  }
+
+  const updated = await client.$transaction(async (tx) => {
+    // Free the orders so they reappear as unbilled and can be re-invoiced.
+    await tx.invoiceLineItem.updateMany({
+      where: { invoiceId, orderId: { not: null } },
+      data: { orderId: null },
+    })
+    return tx.invoice.update({
+      where: { id: invoiceId },
+      data: { status: 'VOID', voidedAt: new Date() },
+      include: INVOICE_INCLUDE,
+    })
   })
   return decorateInvoice(updated)
+}
+
+async function requireInvoice(invoiceId: string): Promise<InvoiceWithRelations> {
+  const inv = await db().invoice.findUnique({ where: { id: invoiceId }, include: INVOICE_INCLUDE })
+  if (!inv) throw new Error('Invoice not found')
+  return inv
 }
 
 export interface ListInvoicesParams {

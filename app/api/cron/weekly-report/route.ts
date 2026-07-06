@@ -7,9 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/prisma'
 import { verifyCronAuth } from '@/lib/cron/auth'
 import { getWeeklySummary } from '@/lib/reports/service'
+import { nyDayString } from '@/lib/reports/core'
 import { sendWeeklyReportEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -29,6 +32,40 @@ function recipients(): string[] {
     .filter(Boolean)
 }
 
+// Send-idempotency marker, stored in AuditLog (entity/entityId indexed), so a
+// cron retry or overlapping invocation on the same NY day never double-sends.
+// Check-before-send narrows the race; a DB unique index on
+// AuditLog(entity, entityId) would make it fully atomic (recommended follow-up).
+const MARKER_ENTITY = 'cron:weekly-report'
+
+async function alreadySent(periodKey: string): Promise<boolean> {
+  if (!prisma) return false
+  const marker = await prisma.auditLog.findFirst({
+    where: { entity: MARKER_ENTITY, entityId: periodKey },
+    select: { id: true },
+  })
+  return Boolean(marker)
+}
+
+async function recordSent(periodKey: string, meta: Record<string, unknown>): Promise<void> {
+  if (!prisma) return
+  try {
+    await prisma.auditLog.create({
+      data: {
+        entity: MARKER_ENTITY,
+        entityId: periodKey,
+        action: 'SENT',
+        metadata: meta as Prisma.InputJsonValue,
+      },
+    })
+  } catch (err) {
+    // P2002 = the partial unique index (cron:% markers) says another overlapping
+    // run recorded the marker first — that's the dedup working, not an error.
+    if ((err as { code?: string })?.code === 'P2002') return
+    throw err
+  }
+}
+
 async function run(req: NextRequest) {
   if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -38,6 +75,13 @@ async function run(req: NextRequest) {
     if (to.length === 0) {
       logger.warn('[CRON weekly-report] no recipients (set REPORT_EMAIL_TO) — skipping')
       return NextResponse.json({ ok: true, skipped: 'no-recipients' })
+    }
+
+    // One send per NY calendar day: dedupes cron retries and overlapping runs.
+    const periodKey = nyDayString(new Date())
+    if (await alreadySent(periodKey)) {
+      logger.info('[CRON weekly-report] already sent for period — skipping', { periodKey })
+      return NextResponse.json({ ok: true, skipped: 'already-sent', periodKey })
     }
 
     const s = await getWeeklySummary()
@@ -57,6 +101,12 @@ async function run(req: NextRequest) {
       topProducts: s.topProducts.map((p) => ({ name: p.product, revenue: usd(p.revenue) })),
       dashboardUrl: `${appUrl}/reports`,
     })
+
+    // Only record the marker on an actual successful send (a failed or
+    // EMAIL_ENABLED-skipped send should not block a retry).
+    if (result.ok && !result.skipped) {
+      await recordSent(periodKey, { recipients: to.length, weekStart: s.weekStart, weekEnd: s.weekEnd })
+    }
 
     logger.info('[CRON weekly-report] complete', { sent: result.ok, recipients: to.length })
     return NextResponse.json({ ok: true, sent: result.ok, skipped: result.skipped ?? false })

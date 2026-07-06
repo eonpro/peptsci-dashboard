@@ -162,6 +162,22 @@ const middleware = isClerkConfigured
         return NextResponse.redirect(new URL('/onboarding', request.url))
       }
 
+      // Suspended accounts are denied everywhere. API routes get a 403 JSON
+      // (so clients don't follow a redirect to an HTML page); page routes are
+      // sent to the pending-approval screen which explains the account state.
+      if (status === 'SUSPENDED') {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'Forbidden', message: 'Account suspended', code: 'ACCOUNT_SUSPENDED' },
+            { status: 403 }
+          )
+        }
+        if (!pathname.startsWith('/pending-approval')) {
+          return NextResponse.redirect(new URL('/pending-approval', request.url))
+        }
+        return NextResponse.next()
+      }
+
       // Check if user is pending approval
       if (status === 'PENDING' && !pathname.startsWith('/pending-approval')) {
         return NextResponse.redirect(new URL('/pending-approval', request.url))

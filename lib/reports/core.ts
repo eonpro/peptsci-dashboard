@@ -63,6 +63,31 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
+// ── America/New_York calendar bucketing ──
+// The business operates on US Eastern days; bucketing by UTC shifts evening
+// sales into the next day/month. These shared helpers keep kpis.ts,
+// reports/core.ts, and reports/service.ts agreeing on the same calendar.
+
+export const BUSINESS_TIME_ZONE = 'America/New_York'
+
+// en-CA yields ISO-style YYYY-MM-DD.
+const nyDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+/** `YYYY-MM-DD` for the America/New_York calendar day containing `d`. */
+export function nyDayString(d: Date): string {
+  return nyDayFormatter.format(d)
+}
+
+/** `YYYY-MM` for the America/New_York calendar month containing `d`. */
+export function nyMonthKey(d: Date): string {
+  return nyDayString(d).slice(0, 7)
+}
+
 function inRange(d: Date | null, start?: Date, end?: Date): boolean {
   if (!d) return false
   if (start && d.getTime() < start.getTime()) return false
@@ -93,14 +118,14 @@ export function revenueSummary(sales: SaleLike[], start?: Date, end?: Date): Rev
   }
 }
 
-/** `YYYY-MM` revenue/profit series, ascending. */
+/** `YYYY-MM` revenue/profit series (America/New_York months), ascending. */
 export function revenueByMonth(
   sales: SaleLike[]
 ): Array<{ month: string; revenue: number; profit: number; units: number }> {
   const map = new Map<string, { revenue: number; profit: number; units: number }>()
   for (const s of sales) {
     if (!s.date) continue
-    const key = `${s.date.getUTCFullYear()}-${String(s.date.getUTCMonth() + 1).padStart(2, '0')}`
+    const key = nyMonthKey(s.date)
     const cur = map.get(key) ?? { revenue: 0, profit: 0, units: 0 }
     cur.revenue += s.revenue
     cur.profit += s.revenue - s.cogs

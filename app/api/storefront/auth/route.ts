@@ -1,8 +1,9 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { errorResponse, successResponse } from '@/lib/auth'
 import { registerEndCustomer, loginEndCustomer } from '@/lib/end-customer-auth'
 import { getStorefrontBySlug } from '@/lib/storefront'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,17 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Public endpoint — rate limit by IP to blunt credential stuffing and
+    // registration abuse (no authenticated user id is available here).
+    const rateLimitKey = getRateLimitKey(request)
+    const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
+    if (limited) {
+      return NextResponse.json(
+        { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
+        { status: 429, headers: getRateLimitHeaders(remaining, RATE_LIMITS.auth, retryAfter) }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
 

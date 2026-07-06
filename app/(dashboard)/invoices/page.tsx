@@ -62,6 +62,7 @@ export default function InvoicesPage() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setError(null)
     const qs = new URLSearchParams()
     if (status !== 'ALL') qs.set('status', status)
     fetch(`/api/admin/invoices?${qs.toString()}`)

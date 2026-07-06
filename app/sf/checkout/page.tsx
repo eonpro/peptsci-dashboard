@@ -31,9 +31,12 @@ export default function CheckoutPage() {
     country: 'US',
   })
 
-  const shippingCost = cartSubtotal > 500 ? 0 : 25
-  const tax = Math.round(cartSubtotal * 0.08 * 100) / 100
-  const total = Math.round((cartSubtotal + shippingCost + tax) * 100) / 100
+  // Guard against NaN (e.g. a stale cart item without a valid price) so the
+  // summary never renders "$NaN".
+  const safeSubtotal = Number.isFinite(cartSubtotal) ? cartSubtotal : 0
+  const shippingCost = safeSubtotal > 500 ? 0 : 25
+  const tax = Math.round(safeSubtotal * 0.08 * 100) / 100
+  const total = Math.round((safeSubtotal + shippingCost + tax) * 100) / 100
 
   function isShippingValid() {
     return (
@@ -323,7 +326,9 @@ export default function CheckoutPage() {
                         <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
                       </div>
                       <p className="text-sm font-semibold">
-                        ${(item.retailPrice * item.quantity).toFixed(2)}
+                        {Number.isFinite(item.retailPrice)
+                          ? `$${(item.retailPrice * item.quantity).toFixed(2)}`
+                          : '—'}
                       </p>
                     </div>
                   ))}
@@ -359,7 +364,7 @@ export default function CheckoutPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItemCount} items)</span>
-                <span>${cartSubtotal.toFixed(2)}</span>
+                <span>${safeSubtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
@@ -374,9 +379,9 @@ export default function CheckoutPage() {
                 <span style={{ color: branding?.colors.primary }}>${total.toFixed(2)}</span>
               </div>
             </div>
-            {cartSubtotal < 500 && shippingCost > 0 && (
+            {safeSubtotal < 500 && shippingCost > 0 && (
               <p className="text-xs text-gray-500 mt-3">
-                Add ${(500 - cartSubtotal).toFixed(2)} more for free shipping
+                Add ${(500 - safeSubtotal).toFixed(2)} more for free shipping
               </p>
             )}
           </div>

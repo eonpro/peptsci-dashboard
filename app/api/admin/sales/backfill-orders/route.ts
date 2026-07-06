@@ -12,6 +12,9 @@ import { syncSalesRecordFromOrder } from '@/lib/sales'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Row-by-row idempotent upserts (no giant transaction); allow up to 5 minutes.
+// A re-run after a timeout safely resumes since each order syncs by orderId.
+export const maxDuration = 300
 
 /**
  * POST /api/admin/sales/backfill-orders
@@ -43,9 +46,10 @@ export async function POST(request: NextRequest) {
       orderBy: { createdAt: 'asc' },
     })
 
-    const summary = { total: orders.length, synced: 0, failed: 0 }
+    const summary = { total: orders.length, processed: 0, synced: 0, failed: 0 }
 
     for (const o of orders) {
+      summary.processed++
       try {
         await syncSalesRecordFromOrder(o.id)
         summary.synced++

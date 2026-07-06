@@ -19,6 +19,20 @@ const BRAND = {
   muted: '#6b7280',
 }
 
+/**
+ * Escape user-controlled values before interpolating them into email HTML.
+ * Apply to any name, address, reason/message, or product string coming from
+ * user input; never to intentional HTML structure (paras, panels, CTAs).
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 /** Shared responsive shell. `body` is trusted, pre-escaped HTML. */
 function layout(opts: { heading: string; body: string; cta?: { label: string; href: string } }): string {
   const cta = opts.cta
@@ -59,14 +73,14 @@ function para(text: string): string {
   return `<tr><td style="padding:0 0 14px;">${text}</td></tr>`
 }
 
-/** A boxed key/value detail panel (order #, tracking #, carrier). */
+/** A boxed key/value detail panel (order #, tracking #, carrier). Values are escaped here. */
 function detailPanel(rows: Array<[string, string]>): string {
   const inner = rows
     .map(
       ([k, v]) =>
         `<tr>
-           <td style="padding:6px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${k}</td>
-           <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:14px;font-weight:600;text-align:right;">${v}</td>
+           <td style="padding:6px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${escapeHtml(k)}</td>
+           <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:14px;font-weight:600;text-align:right;">${escapeHtml(v)}</td>
          </tr>`
     )
     .join('')
@@ -77,7 +91,11 @@ function detailPanel(rows: Array<[string, string]>): string {
   </td></tr>`
 }
 
+// Plain-text greeting (for the text/plain body).
 const greeting = (name?: string | null) => (name && name.trim() ? `Hi ${name.trim()},` : 'Hello,')
+// HTML greeting — the name is user-controlled, so escape it.
+const greetingHtml = (name?: string | null) =>
+  name && name.trim() ? `Hi ${escapeHtml(name.trim())},` : 'Hello,'
 
 /** Public tracking page link for a tracking number (see app/tracking/[trackingNumber]). */
 function trackingPageUrl(trackingNumber: string): string {
@@ -93,7 +111,7 @@ export function welcomeEmail(opts: { firstName?: string | null }): EmailContent 
   const html = layout({
     heading: 'Welcome to PeptSci',
     body:
-      para(greeting(opts.firstName)) +
+      para(greetingHtml(opts.firstName)) +
       para('Thanks for creating your PeptSci account. Our team is reviewing your registration to verify your practice credentials.') +
       para('You&rsquo;ll receive another email as soon as your account is approved and ready to place orders. This usually takes 1&ndash;2 business days.'),
     cta: { label: 'View your account', href: `${APP_URL}/pending-approval` },
@@ -116,7 +134,7 @@ export function partnerApprovedEmail(opts: { name?: string | null }): EmailConte
   const html = layout({
     heading: 'You&rsquo;re approved! 🎉',
     body:
-      para(greeting(opts.name)) +
+      para(greetingHtml(opts.name)) +
       para('Great news — your PeptSci partner account has been approved. You now have full access to browse the catalog, view your pricing, and place orders.') +
       para('Sign in to get started.'),
     cta: { label: 'Go to your portal', href: `${APP_URL}/shop` },
@@ -135,12 +153,12 @@ Questions? ${SUPPORT_EMAIL}
 export function partnerRejectedEmail(opts: { name?: string | null; reason?: string }): EmailContent {
   const subject = 'Update on your PeptSci application'
   const reasonBlock = opts.reason
-    ? para(`<strong>Reason:</strong> ${opts.reason}`)
+    ? para(`<strong>Reason:</strong> ${escapeHtml(opts.reason)}`)
     : ''
   const html = layout({
     heading: 'Update on your application',
     body:
-      para(greeting(opts.name)) +
+      para(greetingHtml(opts.name)) +
       para('Thank you for your interest in partnering with PeptSci. After review, we&rsquo;re unable to approve your account at this time.') +
       reasonBlock +
       para(`If you believe this was a mistake or have additional documentation, please reply to this email or contact us at ${SUPPORT_EMAIL}.`),
@@ -158,12 +176,12 @@ If you believe this was a mistake or have additional documentation, contact us a
 export function partnerNeedsInfoEmail(opts: { name?: string | null; message?: string }): EmailContent {
   const subject = 'Action needed: more information for your PeptSci application'
   const messageBlock = opts.message
-    ? para(`<strong>What we need:</strong> ${opts.message}`)
+    ? para(`<strong>What we need:</strong> ${escapeHtml(opts.message)}`)
     : para('Please sign in to review what&rsquo;s needed and update your details.')
   const html = layout({
     heading: 'We need a bit more information',
     body:
-      para(greeting(opts.name)) +
+      para(greetingHtml(opts.name)) +
       para('We&rsquo;re reviewing your PeptSci application and need some additional information before we can approve your account.') +
       messageBlock,
     cta: { label: 'Update your application', href: `${APP_URL}/onboarding` },
@@ -207,8 +225,8 @@ export function orderShippedEmail(opts: ShipmentEmailOpts): EmailContent {
   const html = layout({
     heading: 'Your order is on its way 📦',
     body:
-      para(greeting(opts.customerName)) +
-      para(`Good news — your PeptSci order ${ord} has shipped via ${carrier}.`) +
+      para(greetingHtml(opts.customerName)) +
+      para(`Good news — your PeptSci order ${escapeHtml(ord)} has shipped via ${escapeHtml(carrier)}.`) +
       detailPanel(rows) +
       para('You can follow its progress with the button below.'),
     cta: { label: 'Track your shipment', href: trackingPageUrl(opts.trackingNumber) },
@@ -235,8 +253,8 @@ export function orderDeliveredEmail(opts: ShipmentEmailOpts): EmailContent {
   const html = layout({
     heading: 'Delivered ✅',
     body:
-      para(greeting(opts.customerName)) +
-      para(`Your PeptSci order ${ord} was delivered by ${carrier}.`) +
+      para(greetingHtml(opts.customerName)) +
+      para(`Your PeptSci order ${escapeHtml(ord)} was delivered by ${escapeHtml(carrier)}.`) +
       detailPanel([
         ['Order', ord],
         ['Carrier', carrier],
@@ -280,7 +298,7 @@ export function invoiceIssuedEmail(opts: InvoiceEmailOpts): EmailContent {
   const html = layout({
     heading: `Invoice ${opts.invoiceNumber}`,
     body:
-      para(greeting(opts.customerName)) +
+      para(greetingHtml(opts.customerName)) +
       para('A new invoice is available for your PeptSci account. A summary is below.') +
       detailPanel([
         ['Invoice', opts.invoiceNumber],
@@ -308,7 +326,7 @@ export function invoiceOverdueEmail(opts: InvoiceEmailOpts & { daysPastDue: numb
   const html = layout({
     heading: 'Payment past due',
     body:
-      para(greeting(opts.customerName)) +
+      para(greetingHtml(opts.customerName)) +
       para(
         `Our records show invoice ${opts.invoiceNumber} is now <strong>${opts.daysPastDue} day(s) past due</strong>. Please arrange payment at your earliest convenience.`
       ) +
@@ -359,8 +377,8 @@ export function weeklyReportEmail(opts: WeeklyReportEmailOpts): EmailContent {
       ? opts.topProducts
           .map(
             (p) =>
-              `<tr><td style="padding:4px 0;color:${BRAND.text};font-size:13px;">${p.name}</td>
-               <td style="padding:4px 0;text-align:right;color:${BRAND.text};font-size:13px;font-weight:600;">${p.revenue}</td></tr>`
+              `<tr><td style="padding:4px 0;color:${BRAND.text};font-size:13px;">${escapeHtml(p.name)}</td>
+               <td style="padding:4px 0;text-align:right;color:${BRAND.text};font-size:13px;font-weight:600;">${escapeHtml(p.revenue)}</td></tr>`
           )
           .join('')
       : `<tr><td style="padding:4px 0;color:${BRAND.muted};font-size:13px;">No sales this week.</td></tr>`
@@ -407,8 +425,8 @@ export function orderExceptionEmail(opts: ShipmentEmailOpts): EmailContent {
   const html = layout({
     heading: 'There&rsquo;s a delay with your shipment',
     body:
-      para(greeting(opts.customerName)) +
-      para(`${carrier} reported a delivery exception for your PeptSci order ${ord}. This can happen due to weather, an address issue, or a missed delivery attempt.`) +
+      para(greetingHtml(opts.customerName)) +
+      para(`${escapeHtml(carrier)} reported a delivery exception for your PeptSci order ${escapeHtml(ord)}. This can happen due to weather, an address issue, or a missed delivery attempt.`) +
       detailPanel([
         ['Order', ord],
         ['Carrier', carrier],

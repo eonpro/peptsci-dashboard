@@ -45,6 +45,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     return successResponse({ invoice: view }, 201)
   } catch (error) {
+    const msg = error instanceof Error ? error.message : ''
+    if (msg === 'Invoice not found') return errorResponse(msg, 404, 'NOT_FOUND')
+    if (msg.includes('void invoice')) return errorResponse(msg, 409, 'INVOICE_VOID')
     logger.error('[admin/invoices/:id/adjustments] error', {}, error instanceof Error ? error : new Error(String(error)))
     return errorResponse('Failed to add adjustment')
   }

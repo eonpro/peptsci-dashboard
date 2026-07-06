@@ -7,17 +7,17 @@ import { logger } from '@/lib/logger'
  * Secure path: when `CRON_SECRET` is set, require the
  * `Authorization: Bearer <CRON_SECRET>` header that Vercel automatically sends
  * to scheduled invocations (or an explicit `x-cron-secret` header). The
- * `x-vercel-cron` header alone is NOT accepted while a secret is set, because
- * any caller hitting the public URL could forge it.
+ * `x-vercel-cron` header alone is NEVER accepted, because any caller hitting the
+ * public URL could forge it.
  *
- * Degraded safety net: if `CRON_SECRET` is missing in production we fall back to
- * trusting Vercel's `x-vercel-cron: 1` marker and log loudly, rather than
- * silently 401'ing every cron (a failure mode that's easy to miss). This
- * loosening only applies while the secret is unset.
+ * Fail closed: if `CRON_SECRET` is missing in production we DENY (and log
+ * loudly). We do NOT fall back to trusting the client-controllable
+ * `x-vercel-cron: 1` marker — that let anyone trigger customer emails/SMS,
+ * FedEx polling, and invoice status changes. Only local dev/test is allowed
+ * without a secret.
  */
 export function verifyCronAuth(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1'
 
   if (cronSecret) {
     const authHeader = request.headers.get('authorization')
@@ -28,13 +28,10 @@ export function verifyCronAuth(request: NextRequest): boolean {
 
   if (process.env.NODE_ENV !== 'production') return true // dev/test: allow
 
-  if (isVercelCron) {
-    logger.error(
-      '[cron-auth] CRON_SECRET is not set in production — allowing this cron via the ' +
-        'x-vercel-cron header as a safety net. Set CRON_SECRET to secure cron endpoints.'
-    )
-    return true
-  }
+  logger.error(
+    '[cron-auth] CRON_SECRET is not set in production — denying cron request. ' +
+      'Set CRON_SECRET to enable scheduled jobs.'
+  )
   return false
 }
 

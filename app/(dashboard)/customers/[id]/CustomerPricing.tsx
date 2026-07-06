@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,73 +30,181 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DollarSign, Plus, Trash2, Percent, Tag } from 'lucide-react'
+import { DollarSign, Plus, Trash2, Percent, Tag, Loader2, AlertCircle } from 'lucide-react'
 
 interface CustomerPricingProps {
   customerId: string
   customerName: string
+  customerEmail?: string | null
 }
 
-// Mock products - in production this would come from API
-const mockProducts = [
-  { id: 'prod-1', name: 'Semaglutide 2.5mg', sku: 'SEM-2.5', srp: 299.0 },
-  { id: 'prod-2', name: 'Semaglutide 5mg', sku: 'SEM-5', srp: 399.0 },
-  { id: 'prod-3', name: 'Tirzepatide 5mg', sku: 'TIR-5', srp: 449.0 },
-  { id: 'prod-4', name: 'Tirzepatide 10mg', sku: 'TIR-10', srp: 549.0 },
-  { id: 'prod-5', name: 'BPC-157 10mg', sku: 'BPC-10', srp: 189.0 },
-  { id: 'prod-6', name: 'NAD+ 500mg', sku: 'NAD-500', srp: 299.0 },
-]
-
-interface CustomPrice {
+interface ClientRecord {
   id: string
-  productId: string
+  organizationName: string
+  contactName: string | null
+  contactEmail: string | null
+}
+
+interface VariantOption {
+  id: string
+  sku: string | null
   productName: string
-  productSku: string
+  dose: string | null
+  srp: number
+}
+
+interface ClientPricingRow {
+  id: string
+  clientId: string
+  variantId: string
+  variantSku: string | null
+  productName: string
+  dose: string | null
   standardPrice: number
   customPrice: number
-  discountPercent: number
-  notes?: string
+  discountPercent: number | null
+  notes: string | null
 }
 
-export function CustomerPricing({ customerId, customerName }: CustomerPricingProps) {
-  const [customPrices, setCustomPrices] = useState<CustomPrice[]>([])
+export function CustomerPricing({ customerId, customerName, customerEmail }: CustomerPricingProps) {
+  const [client, setClient] = useState<ClientRecord | null>(null)
+  const [variants, setVariants] = useState<VariantOption[]>([])
+  const [customPrices, setCustomPrices] = useState<ClientPricingRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [newPricing, setNewPricing] = useState({
-    productId: '',
+    variantId: '',
     customPrice: '',
     notes: '',
   })
 
-  const selectedProduct = mockProducts.find((p) => p.id === newPricing.productId)
-  const availableProducts = mockProducts.filter(
-    (p) => !customPrices.some((cp) => cp.productId === p.id)
+  const loadPricing = useCallback(async (clientId: string) => {
+    const res = await fetch(`/api/admin/client-pricing?clientId=${encodeURIComponent(clientId)}`)
+    if (!res.ok) throw new Error('Failed to load custom pricing')
+    const data = await res.json()
+    setCustomPrices(Array.isArray(data) ? data : (data.prices ?? []))
+  }, [])
+
+  // Resolve the sales customer to a Client record (the URL id is an email or
+  // name slug from the sales sheet, not a Client id), load the real product
+  // catalog, then load any existing custom pricing for that client.
+  useEffect(() => {
+    let active = true
+    async function loadAll() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [cRes, vRes] = await Promise.all([
+          fetch('/api/admin/clients'),
+          fetch('/api/admin/products'),
+        ])
+        if (!cRes.ok || !vRes.ok) throw new Error('Failed to load pricing data')
+        const cData = await cRes.json()
+        const vData = await vRes.json()
+        if (!active) return
+
+        setVariants(vData.variants ?? [])
+
+        const clients: ClientRecord[] = cData.clients ?? []
+        const idLower = customerId.toLowerCase()
+        const emailLower = customerEmail?.toLowerCase() ?? ''
+        const nameLower = customerName.toLowerCase()
+        const match =
+          clients.find((c) => c.id === customerId) ??
+          clients.find((c) => c.contactEmail?.toLowerCase() === idLower) ??
+          (emailLower
+            ? clients.find((c) => c.contactEmail?.toLowerCase() === emailLower)
+            : undefined) ??
+          clients.find(
+            (c) =>
+              c.organizationName.toLowerCase() === nameLower ||
+              c.contactName?.toLowerCase() === nameLower
+          ) ??
+          null
+
+        setClient(match)
+        if (match) {
+          await loadPricing(match.id)
+        }
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : 'Failed to load pricing data')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadAll()
+    return () => {
+      active = false
+    }
+  }, [customerId, customerName, customerEmail, loadPricing])
+
+  const selectedVariant = variants.find((v) => v.id === newPricing.variantId)
+  const availableVariants = variants.filter(
+    (v) => !customPrices.some((cp) => cp.variantId === v.id)
   )
 
-  const handleAddPricing = () => {
-    if (!selectedProduct || !newPricing.customPrice) return
+  const variantLabel = (v: { productName: string; dose: string | null }) =>
+    `${v.productName}${v.dose ? ` ${v.dose}` : ''}`
 
+  const handleAddPricing = async () => {
+    if (!client || !selectedVariant || !newPricing.customPrice) return
     const customPrice = parseFloat(newPricing.customPrice)
-    const discountPercent = ((selectedProduct.srp - customPrice) / selectedProduct.srp) * 100
-
-    const newItem: CustomPrice = {
-      id: `cp-${Date.now()}`,
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      productSku: selectedProduct.sku,
-      standardPrice: selectedProduct.srp,
-      customPrice,
-      discountPercent: Math.round(discountPercent * 10) / 10,
-      notes: newPricing.notes,
+    if (!Number.isFinite(customPrice) || customPrice <= 0) {
+      setError('Enter a valid custom price greater than zero')
+      return
     }
-
-    setCustomPrices([...customPrices, newItem])
-    setNewPricing({ productId: '', customPrice: '', notes: '' })
-    setIsAddDialogOpen(false)
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/client-pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: client.id,
+          variantId: selectedVariant.id,
+          customPrice,
+          notes: newPricing.notes.trim() || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.message || body.error || 'Failed to save pricing')
+      }
+      setNewPricing({ variantId: '', customPrice: '', notes: '' })
+      setIsAddDialogOpen(false)
+      await loadPricing(client.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save pricing')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleRemovePricing = (id: string) => {
-    setCustomPrices(customPrices.filter((cp) => cp.id !== id))
+  const handleRemovePricing = async (id: string) => {
+    if (!client) return
+    setError(null)
+    const prev = customPrices
+    setCustomPrices((p) => p.filter((cp) => cp.id !== id)) // optimistic
+    try {
+      const res = await fetch(`/api/admin/client-pricing?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.message || body.error || 'Failed to remove pricing')
+      }
+    } catch (e) {
+      setCustomPrices(prev) // rollback
+      setError(e instanceof Error ? e.message : 'Failed to remove pricing')
+    }
   }
+
+  const discountPreview =
+    selectedVariant && newPricing.customPrice && selectedVariant.srp > 0
+      ? ((selectedVariant.srp - parseFloat(newPricing.customPrice)) / selectedVariant.srp) * 100
+      : null
 
   return (
     <Card className="rounded-2xl bg-card border-border">
@@ -113,7 +221,10 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+              <Button
+                className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                disabled={loading || !client}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Custom Price
               </Button>
@@ -131,28 +242,28 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Product</Label>
                   <Select
-                    value={newPricing.productId}
-                    onValueChange={(value) => setNewPricing({ ...newPricing, productId: value })}
+                    value={newPricing.variantId}
+                    onValueChange={(value) => setNewPricing({ ...newPricing, variantId: value })}
                   >
                     <SelectTrigger className="bg-background border-input text-foreground">
                       <SelectValue placeholder="Select a product" />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {availableProducts.length === 0 ? (
+                    <SelectContent className="bg-popover border-border max-h-[300px]">
+                      {availableVariants.length === 0 ? (
                         <SelectItem value="none" disabled className="text-muted-foreground">
                           All products have custom pricing
                         </SelectItem>
                       ) : (
-                        availableProducts.map((product) => (
+                        availableVariants.map((variant) => (
                           <SelectItem
-                            key={product.id}
-                            value={product.id}
+                            key={variant.id}
+                            value={variant.id}
                             className="text-foreground focus:bg-accent focus:text-accent-foreground"
                           >
                             <div className="flex justify-between items-center w-full">
-                              <span>{product.name}</span>
+                              <span>{variantLabel(variant)}</span>
                               <span className="text-muted-foreground ml-2">
-                                ${product.srp.toFixed(2)}
+                                ${variant.srp.toFixed(2)}
                               </span>
                             </div>
                           </SelectItem>
@@ -160,9 +271,9 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                       )}
                     </SelectContent>
                   </Select>
-                  {selectedProduct && (
+                  {selectedVariant && (
                     <p className="text-sm text-muted-foreground">
-                      Standard price: ${selectedProduct.srp.toFixed(2)}
+                      Standard price: ${selectedVariant.srp.toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -183,15 +294,10 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                       className="pl-9 bg-background border-input text-foreground"
                     />
                   </div>
-                  {selectedProduct && newPricing.customPrice && (
+                  {discountPreview !== null && Number.isFinite(discountPreview) && (
                     <p className="text-sm text-green-400">
                       <Percent className="inline h-3 w-3 mr-1" />
-                      {(
-                        ((selectedProduct.srp - parseFloat(newPricing.customPrice)) /
-                          selectedProduct.srp) *
-                        100
-                      ).toFixed(1)}
-                      % discount from standard price
+                      {discountPreview.toFixed(1)}% discount from standard price
                     </p>
                   )}
                 </div>
@@ -217,9 +323,10 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                 </Button>
                 <Button
                   onClick={handleAddPricing}
-                  disabled={!newPricing.productId || !newPricing.customPrice}
+                  disabled={!newPricing.variantId || !newPricing.customPrice || saving}
                   className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
                 >
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Add Pricing
                 </Button>
               </DialogFooter>
@@ -228,7 +335,29 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
         </div>
       </CardHeader>
       <CardContent>
-        {customPrices.length === 0 ? (
+        {error && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Loading pricing…
+          </div>
+        ) : !client ? (
+          <div className="text-center py-8">
+            <div className="bg-muted/20 p-4 rounded-full w-fit mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground">Custom pricing not available</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              {customerName} isn&apos;t linked to a client account yet, so custom pricing can&apos;t
+              be set here.
+            </p>
+          </div>
+        ) : customPrices.length === 0 ? (
           <div className="text-center py-8">
             <div className="bg-muted/20 p-4 rounded-full w-fit mx-auto mb-4">
               <Tag className="h-8 w-8 text-muted-foreground" />
@@ -254,8 +383,10 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
             <TableBody>
               {customPrices.map((item) => (
                 <TableRow key={item.id} className="border-border hover:bg-muted/10">
-                  <TableCell className="font-medium text-foreground">{item.productName}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.productSku}</TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    {variantLabel(item)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{item.variantSku || '-'}</TableCell>
                   <TableCell className="text-muted-foreground text-right line-through">
                     ${item.standardPrice.toFixed(2)}
                   </TableCell>
@@ -264,7 +395,9 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant="secondary" className="bg-green-500/10 text-green-400 border-0">
-                      -{item.discountPercent}%
+                      {item.discountPercent != null
+                        ? `-${item.discountPercent.toFixed(1)}%`
+                        : '—'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">

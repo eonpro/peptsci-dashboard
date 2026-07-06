@@ -35,19 +35,21 @@ export function PatientsManager() {
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
     fetch('/api/shop/patients')
       .then((r) => (r.ok ? r.json() : { patients: [] }))
       .then((data) => setPatients(data.patients ?? []))
-      .catch(() => {})
+      .catch(() => setError('Could not load patients. Please refresh and try again.'))
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
 
   const startEdit = (p: Patient) => {
     setEditingId(p.id)
+    setError(null)
     setForm({
       firstName: p.firstName,
       lastName: p.lastName,
@@ -59,11 +61,13 @@ export function PatientsManager() {
 
   const startAdd = () => {
     setEditingId('new')
+    setError(null)
     setForm(emptyForm)
   }
 
   const save = async () => {
     setSaving(true)
+    setError(null)
     try {
       const body = {
         firstName: form.firstName,
@@ -88,15 +92,30 @@ export function PatientsManager() {
         setEditingId(null)
         setForm(emptyForm)
         load()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.message || data.error || 'Could not save the patient. Please try again.')
       }
+    } catch {
+      setError('Could not save the patient. Please check your connection and try again.')
     } finally {
       setSaving(false)
     }
   }
 
   const remove = async (id: string) => {
-    await fetch(`/api/shop/patients/${id}`, { method: 'DELETE' })
-    load()
+    setError(null)
+    try {
+      const res = await fetch(`/api/shop/patients/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.message || data.error || 'Could not remove the patient. Please try again.')
+        return
+      }
+      load()
+    } catch {
+      setError('Could not remove the patient. Please check your connection and try again.')
+    }
   }
 
   const canSave = form.firstName && form.lastName && form.address.address1 && form.address.city &&
@@ -104,6 +123,11 @@ export function PatientsManager() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
+          {error}
+        </div>
+      )}
       {loading ? (
         <div className="flex items-center justify-center py-8 text-white/40">
           <Loader2 className="h-6 w-6 animate-spin" />

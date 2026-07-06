@@ -22,14 +22,16 @@ export function StorefrontProductDetail({
   const name = product.displayName || product.productName
   const description = product.displayDescription
   const primaryImage = product.media.find((m) => m.isPrimary)?.url ?? product.media[0]?.url
+  const hasValidPrice = typeof product.retailPrice === 'number' && Number.isFinite(product.retailPrice)
 
   function handleAdd() {
+    if (!hasValidPrice || product.retailPrice == null) return
     addToCart({
       storefrontProductId: product.id,
       name,
       sku: product.sku,
       dose: product.dose,
-      retailPrice: product.retailPrice!,
+      retailPrice: product.retailPrice,
       quantity,
       image: primaryImage,
     })
@@ -82,9 +84,9 @@ export function StorefrontProductDetail({
           {/* Price */}
           <div className="flex items-baseline gap-3 mb-6">
             <span className="text-3xl font-bold" style={{ color: branding.colors.primary }}>
-              ${product.retailPrice?.toFixed(2)}
+              {hasValidPrice ? `$${product.retailPrice!.toFixed(2)}` : 'Price unavailable'}
             </span>
-            {product.compareAtPrice && product.retailPrice && product.compareAtPrice > product.retailPrice && (
+            {hasValidPrice && product.compareAtPrice && product.retailPrice && product.compareAtPrice > product.retailPrice && (
               <>
                 <span className="text-lg text-gray-400 line-through">
                   ${product.compareAtPrice.toFixed(2)}
@@ -135,7 +137,7 @@ export function StorefrontProductDetail({
 
             <button
               onClick={handleAdd}
-              disabled={product.inventoryOnHand <= 0}
+              disabled={product.inventoryOnHand <= 0 || !hasValidPrice}
               className="flex-1 py-3 px-6 rounded-lg text-white font-medium text-sm transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ backgroundColor: branding.colors.primary }}
             >
@@ -185,7 +187,9 @@ export function StorefrontProductDetail({
                   <div className="p-3">
                     <p className="text-sm font-medium line-clamp-1">{rName}</p>
                     <p className="text-sm font-bold mt-1" style={{ color: branding.colors.primary }}>
-                      ${p.retailPrice?.toFixed(2)}
+                      {typeof p.retailPrice === 'number' && Number.isFinite(p.retailPrice)
+                        ? `$${p.retailPrice.toFixed(2)}`
+                        : 'Price unavailable'}
                     </p>
                   </div>
                 </Link>

@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import {
-  allocatableBatchesForVariants,
-  planAllocation,
-  recordLabelsPrintedMany,
-} from '@/lib/inventory-batches'
-import { consumeForOrder } from '@/lib/inventory/reservations'
+import { allocatableBatchesForVariants, planAllocation } from '@/lib/inventory-batches'
+import { consumeOrderInventory } from '@/lib/fulfillment/service'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
 
 export const runtime = 'nodejs'
@@ -38,7 +34,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const groups: PeptSciLabelGroup[] = []
     const shortfalls: Array<{ variantId: string; needed: number; short: number }> = []
-    const draws: Array<{ batchId: string; qty: number }> = []
 
     // Fetch eligible batches for every line item's variant in one query
     // (instead of one query per item).
@@ -46,8 +41,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       order.items.map((item) => item.variantId)
     )
 
+    // Aggregate quantities by variant BEFORE planning — a variant appearing on
+    // more than one order line must be planned against the shared batch stock
+    // once, otherwise each line plans against full on-hand and the label sheet
+    // (and any consume) can exceed physical inventory.
+    const qtyByVariant = new Map<string, number>()
     for (const item of order.items) {
-      const batches = batchesByVariant.get(item.variantId) ?? []
+      qtyByVariant.set(item.variantId, (qtyByVariant.get(item.variantId) ?? 0) + item.quantity)
+    }
+
+    for (const [variantId, needed] of qtyByVariant) {
+      const batches = batchesByVariant.get(variantId) ?? []
       const plan = planAllocation(
         batches.map((b) => ({
           id: b.id,
@@ -55,10 +59,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           bud: b.bud,
           qtyOnHand: b.qtyOnHand,
         })),
-        item.quantity
+        needed
       )
       if (plan.shortfall > 0) {
-        shortfalls.push({ variantId: item.variantId, needed: item.quantity, short: plan.shortfall })
+        shortfalls.push({ variantId, needed, short: plan.shortfall })
       }
       for (const draw of plan.draws) {
         const batch = batches.find((b) => b.id === draw.batchId)!
@@ -73,7 +77,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           },
           quantity: draw.qty,
         })
-        draws.push({ batchId: draw.batchId, qty: draw.qty })
       }
     }
 
@@ -88,16 +91,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const pdf = await generatePeptSciLabelsPdf(groups)
 
     if (consume) {
-      await recordLabelsPrintedMany(draws, { clerkUserId: userId, label: userId })
-      // Free the order's reservations now that stock is physically drawn (on-hand
-      // was decremented by the batch consume above). Non-blocking.
-      await consumeForOrder(id).catch((e) =>
-        logger.warn('consumeForOrder failed (non-blocking)', {
+      // Single transaction: draw stock atomically (per-batch conditional
+      // decrement) AND move reservations to CONSUMED. Idempotent — a repeat
+      // consume on an already-fulfilled order is a no-op.
+      try {
+        const res = await consumeOrderInventory(id, { clerkUserId: userId, label: userId }, { requireFull: true })
+        logger.info('Order labels generated + stock consumed', {
           orderId: id,
-          error: e instanceof Error ? e.message : String(e),
+          draws: res.draws,
+          alreadyConsumed: res.alreadyConsumed,
         })
-      )
-      logger.info('Order labels generated + stock consumed', { orderId: id, draws: draws.length })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('Insufficient batch stock')) {
+          return errorResponse(
+            'Insufficient batch stock to fulfill this order. Receive more inventory before consuming.',
+            409,
+            'INSUFFICIENT_STOCK'
+          )
+        }
+        if (msg.includes('changed during fulfillment')) {
+          return errorResponse('Inventory changed during fulfillment; please retry.', 409, 'CONCURRENT_MODIFICATION')
+        }
+        throw e
+      }
     }
 
     return new NextResponse(new Uint8Array(pdf), {

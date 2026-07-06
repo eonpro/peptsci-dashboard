@@ -403,13 +403,30 @@ export async function createRetailOrder(data: {
   })
 
   // Reserve stock against the auto-generated PeptSci order. Non-blocking: a
-  // reservation hiccup must not fail an otherwise-successful storefront order.
-  await reserveForOrder(result.peptsciOrder.id).catch((e) =>
-    log.warn('reserveForOrder failed (non-blocking)', {
+  // reservation hiccup must not fail an otherwise-successful storefront order,
+  // but it must NOT be silently swallowed either — retry once, then escalate to
+  // an error log so ops can reconcile the un-reserved order (reserveForOrder is
+  // idempotent, so the retry is safe).
+  try {
+    await reserveForOrder(result.peptsciOrder.id)
+  } catch (firstErr) {
+    log.warn('reserveForOrder failed; retrying once', {
       peptsciOrderId: result.peptsciOrder.id,
-      error: e instanceof Error ? e.message : String(e),
+      error: firstErr instanceof Error ? firstErr.message : String(firstErr),
     })
-  )
+    try {
+      await reserveForOrder(result.peptsciOrder.id)
+    } catch (retryErr) {
+      log.error(
+        'reserveForOrder failed after retry — order has NO stock reservation; reconcile manually',
+        {
+          peptsciOrderId: result.peptsciOrder.id,
+          orderNumber,
+          error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+        }
+      )
+    }
+  }
 
   return result
 }

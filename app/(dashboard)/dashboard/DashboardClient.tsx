@@ -24,9 +24,9 @@ const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
 import type { Sale } from '@/lib/sales'
 import { format } from 'date-fns'
 
-type ApiSale = Omit<Sale, 'Date'> & { Date: string | null }
+type ApiSale = Omit<Sale, 'Date'> & { Date: string | Date | null }
 
-/** Re-hydrate Date fields that arrive as strings from JSON. */
+/** Re-hydrate Date fields that arrive as strings from JSON/serialization. */
 function withDates(data: ApiSale[]): Sale[] {
   return data.map((sale) => ({
     ...sale,
@@ -37,7 +37,9 @@ function withDates(data: ApiSale[]): Sale[] {
 export default function DashboardClient({ initialSales }: { initialSales: Sale[] }) {
   // Seed from server-rendered data so the first paint already shows KPIs/charts
   // (no skeleton, no client round trip). Refresh/polling keep it up to date.
-  const [sales, setSales] = useState<Sale[]>(initialSales)
+  // Normalize the seed too: depending on serialization, Date fields can arrive
+  // as strings, which would crash the `.getTime()` sort on first paint.
+  const [sales, setSales] = useState<Sale[]>(() => withDates(initialSales))
   const [refreshing, setRefreshing] = useState(false)
 
   async function loadData(): Promise<boolean> {

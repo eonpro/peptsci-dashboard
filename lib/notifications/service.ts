@@ -47,21 +47,41 @@ export interface NotificationFilters {
   endDate?: Date
 }
 
+/** Prisma unique-constraint violation (P2002). */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === 'P2002'
+  )
+}
+
 /**
  * Create a single notification, skipping it when an identical
  * (userId, sourceType, sourceId) row already exists.
+ *
+ * Dedup strategy: check-then-create narrows the window, and a unique-violation
+ * (P2002) on create is treated as a concurrent dedup hit rather than an error,
+ * so racing cron runs / webhook redeliveries can't double-notify.
+ * NOTE: the durable fix is a DB unique index —
+ * `@@unique([userId, sourceType, sourceId])` on Notification in schema.prisma
+ * (currently only a non-unique index exists); this code already handles it.
  */
 export async function createNotification(input: CreateNotificationInput): Promise<Notification> {
   const client = db()
+  const dedupable = isDedupable(input.sourceType, input.sourceId)
 
-  if (isDedupable(input.sourceType, input.sourceId)) {
-    const existing = await client.notification.findFirst({
+  const findExisting = () =>
+    client.notification.findFirst({
       where: {
         userId: input.userId,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
       },
     })
+
+  if (dedupable) {
+    const existing = await findExisting()
     if (existing) {
       logger.debug('Duplicate notification skipped', {
         userId: input.userId,
@@ -72,20 +92,38 @@ export async function createNotification(input: CreateNotificationInput): Promis
     }
   }
 
-  const notification = await client.notification.create({
-    data: {
-      userId: input.userId,
-      clientId: input.clientId ?? undefined,
-      category: input.category,
-      priority: input.priority ?? 'NORMAL',
-      title: input.title,
-      message: input.message,
-      actionUrl: input.actionUrl ?? undefined,
-      metadata: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
-      sourceType: input.sourceType ?? undefined,
-      sourceId: input.sourceId ?? undefined,
-    },
-  })
+  let notification: Notification
+  try {
+    notification = await client.notification.create({
+      data: {
+        userId: input.userId,
+        clientId: input.clientId ?? undefined,
+        category: input.category,
+        priority: input.priority ?? 'NORMAL',
+        title: input.title,
+        message: input.message,
+        actionUrl: input.actionUrl ?? undefined,
+        metadata: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        sourceType: input.sourceType ?? undefined,
+        sourceId: input.sourceId ?? undefined,
+      },
+    })
+  } catch (err) {
+    // A concurrent writer created the same (userId, sourceType, sourceId) row
+    // between our check and create — treat the unique violation as a dedup.
+    if (dedupable && isUniqueViolation(err)) {
+      const existing = await findExisting()
+      if (existing) {
+        logger.debug('Duplicate notification skipped (concurrent create)', {
+          userId: input.userId,
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+        })
+        return existing
+      }
+    }
+    throw err
+  }
 
   logger.info('Notification created', {
     notificationId: notification.id,

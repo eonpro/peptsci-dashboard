@@ -135,7 +135,10 @@ export function deriveInvoiceStatus(params: {
 }): Exclude<InvoiceStatus, 'DRAFT' | 'VOID'> {
   const { totals, dueDate } = params
   const now = params.now ?? new Date()
-  if (totals.grossTotal > 0 && totals.amountDue <= 0) return 'PAID'
+  // Nothing owed → settled. Covers normal payoffs and zero/credit-balance
+  // invoices (e.g. 100% discount or negative balance-forward) which previously
+  // got stuck OPEN/OVERDUE because they required grossTotal > 0.
+  if (totals.amountDue <= 0) return 'PAID'
   if (daysPastDue(dueDate, now) > 0) return 'OVERDUE'
   if (totals.totalPayments > 0) return 'PARTIAL'
   return 'OPEN'

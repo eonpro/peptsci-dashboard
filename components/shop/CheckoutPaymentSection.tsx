@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Elements,
   PaymentElement,
@@ -87,8 +87,28 @@ export function CheckoutPaymentSection({
     publishableKey: string
     orderId: string
     connectedAccountId?: string
+    signature: string
   } | null>(null)
   const [creatingPi, setCreatingPi] = useState(false)
+  // Signature of everything that affects the server-side PaymentIntent amount
+  // and setup_future_usage. When it changes after an intent exists, the intent
+  // is stale and must be recreated so Stripe charges the displayed total.
+  const checkoutSignature = useMemo(
+    () =>
+      JSON.stringify({
+        items,
+        shippingAddress,
+        notes: notes ?? null,
+        saveCard,
+        shipTo,
+        shipSpeed,
+        patientId: patientId ?? null,
+      }),
+    [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId]
+  )
+  // Last signature we attempted a creation for — prevents retry loops when a
+  // creation fails and guards against redundant recreations.
+  const requestedSignatureRef = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -109,8 +129,12 @@ export function CheckoutPaymentSection({
   }, [])
 
   const createNewCardIntent = useCallback(async () => {
+    requestedSignatureRef.current = checkoutSignature
     setCreatingPi(true)
     setError(null)
+    // Drop any stale intent immediately so the pay button can't submit an
+    // amount that no longer matches the cart/shipping selection.
+    setPi(null)
     try {
       const res = await fetch('/api/shop/checkout/process', {
         method: 'POST',
@@ -126,21 +150,28 @@ export function CheckoutPaymentSection({
         publishableKey: data.publishableKey,
         orderId: data.orderId,
         connectedAccountId: data.connectedAccountId,
+        signature: checkoutSignature,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start payment')
     } finally {
       setCreatingPi(false)
     }
-  }, [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId])
+  }, [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId, checkoutSignature])
 
-  // Create the PaymentIntent when the new-card option becomes active.
+  // Create the PaymentIntent when the new-card option becomes active, and
+  // recreate it whenever the cart, shipping, save-card choice, or ship-to
+  // details change after an intent exists (otherwise Stripe would charge the
+  // stale amount). The signature check prevents redundant recreations/loops.
   useEffect(() => {
-    if (selected === 'new' && !pi && !creatingPi) {
+    if (selected !== 'new' || creatingPi) return
+    const stale = pi
+      ? pi.signature !== checkoutSignature
+      : requestedSignatureRef.current !== checkoutSignature
+    if (stale) {
       void createNewCardIntent()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected])
+  }, [selected, checkoutSignature, pi, creatingPi, createNewCardIntent])
 
   const paySavedCard = useCallback(async () => {
     setPlacing(true)
@@ -308,9 +339,14 @@ function NewCardForm({
   const stripe = useStripe()
   const elements = useElements()
   const [submitting, setSubmitting] = useState(false)
+  // Synchronous guard: React state updates are async, so a fast double-click
+  // could otherwise call confirmPayment twice before the re-render disables
+  // the button.
+  const submittingRef = useRef(false)
 
   const handlePay = async () => {
-    if (!stripe || !elements) return
+    if (!stripe || !elements || submittingRef.current) return
+    submittingRef.current = true
     setSubmitting(true)
     onError(null)
     try {
@@ -339,6 +375,7 @@ function NewCardForm({
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Payment failed')
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }

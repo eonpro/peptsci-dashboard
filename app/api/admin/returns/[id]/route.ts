@@ -63,6 +63,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return errorResponse(parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR')
     }
 
+    // RESTOCKED is a system outcome of the restock action (POST .../restock),
+    // not a manual step. Allowing a manual jump to RESTOCKED would make items
+    // ineligible for the actual restock and silently skip returning stock.
+    if (parsed.data.status === 'RESTOCKED') {
+      return errorResponse(
+        'Use the restock action to restock items; RESTOCKED cannot be set manually',
+        400,
+        'USE_RESTOCK_ACTION'
+      )
+    }
+
     const updated = await updateReturnStatus(id, parsed.data.status, {
       refundAmount: parsed.data.refundAmount,
       notes: parsed.data.notes,

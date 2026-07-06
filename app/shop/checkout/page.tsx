@@ -67,6 +67,7 @@ export default function CheckoutPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>('')
   const [showAddPatient, setShowAddPatient] = useState(false)
   const [savingPatient, setSavingPatient] = useState(false)
+  const [addPatientError, setAddPatientError] = useState<string | null>(null)
   const [newPatient, setNewPatient] = useState<{
     firstName: string
     lastName: string
@@ -147,8 +148,21 @@ export default function CheckoutPage() {
     router.push(`/shop/checkout/success?order=${encodeURIComponent(orderId)}`)
   }
 
+  // Mirror the server addressSchema: address1, city, and state required, ZIP
+  // must be 5 digits (optionally +4).
+  const newPatientAddressValid = Boolean(
+    newPatient.address.address1?.trim() &&
+      newPatient.address.city?.trim() &&
+      (newPatient.address.state?.trim().length ?? 0) >= 2 &&
+      /^\d{5}(-\d{4})?$/.test(newPatient.address.zip?.trim() ?? '')
+  )
+  const canSaveNewPatient = Boolean(
+    newPatient.firstName.trim() && newPatient.lastName.trim() && newPatientAddressValid
+  )
+
   const handleAddPatient = async () => {
     setSavingPatient(true)
+    setAddPatientError(null)
     try {
       const res = await fetch('/api/shop/patients', {
         method: 'POST',
@@ -160,13 +174,17 @@ export default function CheckoutPage() {
           address: newPatient.address,
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (res.ok && data.patient) {
         setPatients((prev) => [...prev, data.patient])
         setSelectedPatientId(data.patient.id)
         setShowAddPatient(false)
         setNewPatient({ firstName: '', lastName: '', phone: '', address: emptyAddress })
+      } else {
+        setAddPatientError(data.message || data.error || 'Could not save the patient. Please try again.')
       }
+    } catch {
+      setAddPatientError('Could not save the patient. Please check your connection and try again.')
     } finally {
       setSavingPatient(false)
     }
@@ -420,16 +438,16 @@ export default function CheckoutPage() {
                             idPrefix="new-patient"
                             dark
                           />
+                          {addPatientError && (
+                            <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
+                              {addPatientError}
+                            </div>
+                          )}
                           <div className="flex gap-2">
                             <Button
                               className="flex-1 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
                               onClick={handleAddPatient}
-                              disabled={
-                                savingPatient ||
-                                !newPatient.firstName ||
-                                !newPatient.lastName ||
-                                !newPatient.address.address1
-                              }
+                              disabled={savingPatient || !canSaveNewPatient}
                             >
                               {savingPatient ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -440,7 +458,10 @@ export default function CheckoutPage() {
                             <Button
                               variant="outline"
                               className="border-white/20 text-white hover:bg-white/10 rounded-xl"
-                              onClick={() => setShowAddPatient(false)}
+                              onClick={() => {
+                                setShowAddPatient(false)
+                                setAddPatientError(null)
+                              }}
                             >
                               Cancel
                             </Button>

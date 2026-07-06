@@ -13,6 +13,9 @@ import { parseCompetitorCsv, type RowError } from '@/lib/competitor-import'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Large CSVs are processed row-by-row (each row idempotent via upsert-by-key,
+// no giant transaction), so allow up to 5 minutes.
+export const maxDuration = 300
 
 const bodySchema = z.object({
   csv: z.string().min(1, 'csv is required'),
@@ -21,6 +24,8 @@ const bodySchema = z.object({
 
 interface ImportSummary {
   totalRows: number
+  /** Rows actually attempted against the DB (progress even on partial runs). */
+  processed: number
   created: number
   updated: number
   failed: number
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
 
     const summary: ImportSummary = {
       totalRows: rows.length + errors.length,
+      processed: 0,
       created: 0,
       updated: 0,
       failed: errors.length,
@@ -72,6 +78,7 @@ export async function POST(request: NextRequest) {
     if (validateOnly) return successResponse(summary)
 
     for (const row of rows) {
+      summary.processed++
       try {
         const diff = row.diff ?? row.ourSrp - row.theirPrice
         const data = {

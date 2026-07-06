@@ -21,6 +21,30 @@ const LINE = rgb(0.82, 0.82, 0.86)
 
 type Fonts = { reg: PDFFont; bold: PDFFont }
 
+/**
+ * Standard-14 PDF fonts only support WinAnsi (CP-1252). Any glyph outside it
+ * (™, curly quotes, accented letters, emoji, CJK) makes pdf-lib's drawText
+ * throw and 500s the whole document. Map the common typographic characters to
+ * ASCII equivalents and replace anything still unrepresentable with '?', so a
+ * product/customer name with unusual characters can never crash label/slip
+ * generation.
+ */
+function S(input: string | null | undefined): string {
+  if (!input) return ''
+  const mapped = input
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\u2122/g, '(TM)')
+    .replace(/[\u00AE]/g, '(R)')
+    .replace(/\u00A0/g, ' ')
+  // Drop anything outside the printable WinAnsi range (approximation: keep
+  // ASCII + Latin-1 supplement) and fall back to '?' so widths stay valid.
+  // eslint-disable-next-line no-control-regex
+  return mapped.replace(/[^\u0000-\u00FF]/g, '?')
+}
+
 function formatAddress(addr: unknown): string[] {
   if (!addr || typeof addr !== 'object') return []
   const a = addr as Record<string, unknown>
@@ -84,7 +108,7 @@ export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
   const page = doc.addPage([PAGE_W, PAGE_H])
   let y = drawHeader(page, fonts, 'PICK LIST', `Order #${pl.orderNumber}`)
 
-  page.drawText(`Client: ${pl.clientName ?? '—'}`, { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })
+  page.drawText(S(`Client: ${pl.clientName ?? '—'}`), { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })
   page.drawText(`Ordered: ${fmtDate(pl.createdAt)}`, {
     x: MARGIN + 280,
     y,
@@ -137,14 +161,14 @@ export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
       y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, 'PICK LIST', `Order #${pl.orderNumber}`)
     }
     const pageRef = doc.getPages()[doc.getPageCount() - 1]
-    pageRef.drawText(line.productName.slice(0, 40), {
+    pageRef.drawText(S(line.productName).slice(0, 40), {
       x: cols.product,
       y,
       size: 10,
       font: fonts.bold,
       color: INK,
     })
-    pageRef.drawText(line.dose || '—', { x: cols.dose, y, size: 10, font: fonts.reg, color: INK })
+    pageRef.drawText(S(line.dose) || '—', { x: cols.dose, y, size: 10, font: fonts.reg, color: INK })
     pageRef.drawText(String(line.quantityNeeded), {
       x: cols.qty,
       y,
@@ -154,9 +178,9 @@ export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
     })
     const drawText =
       line.draws.length > 0
-        ? line.draws.map((d) => `${d.batchNumber} (${d.bud}) ×${d.qty}`).join('   ')
-        : '— no stock —'
-    pageRef.drawText(drawText.slice(0, 70), {
+        ? line.draws.map((d) => `${d.batchNumber} (${d.bud}) x${d.qty}`).join('   ')
+        : '- no stock -'
+    pageRef.drawText(S(drawText).slice(0, 70), {
       x: cols.batch,
       y,
       size: 9,
@@ -201,7 +225,7 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
   const addrLines = formatAddress(slip.shippingAddress)
   const shipTo = addrLines.length > 0 ? addrLines : [slip.client?.organizationName ?? '—']
   for (const ln of shipTo) {
-    page.drawText(ln.slice(0, 60), { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })
+    page.drawText(S(ln).slice(0, 60), { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })
     y -= 13
   }
 
@@ -219,7 +243,7 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
   ]
   for (const [k, v] of meta) {
     page.drawText(k, { x: metaX, y: metaY, size: 9, font: fonts.bold, color: MUTED })
-    page.drawText(v.slice(0, 28), { x: metaX + 60, y: metaY, size: 9, font: fonts.reg, color: INK })
+    page.drawText(S(v).slice(0, 28), { x: metaX + 60, y: metaY, size: 9, font: fonts.reg, color: INK })
     metaY -= 13
   }
 
@@ -249,15 +273,15 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
       y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, 'PACKING SLIP', `Order #${slip.orderNumber}`)
     }
     const pageRef = doc.getPages()[doc.getPageCount() - 1]
-    pageRef.drawText(ln.productName.slice(0, 46), {
+    pageRef.drawText(S(ln.productName).slice(0, 46), {
       x: cols.product,
       y,
       size: 10,
       font: fonts.reg,
       color: INK,
     })
-    pageRef.drawText(ln.dose || '—', { x: cols.dose, y, size: 10, font: fonts.reg, color: INK })
-    pageRef.drawText(ln.sku || '—', { x: cols.sku, y, size: 9, font: fonts.reg, color: MUTED })
+    pageRef.drawText(S(ln.dose) || '—', { x: cols.dose, y, size: 10, font: fonts.reg, color: INK })
+    pageRef.drawText(S(ln.sku) || '—', { x: cols.sku, y, size: 9, font: fonts.reg, color: MUTED })
     pageRef.drawText(String(ln.quantity), { x: cols.qty, y, size: 10, font: fonts.bold, color: INK })
     y -= 18
   }

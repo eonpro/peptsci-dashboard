@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
+import {
+  requireAdmin,
+  unauthorizedResponse,
+  forbiddenResponse,
+  errorResponse,
+  successResponse,
+} from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic' // Use dynamic rendering for authenticated routes
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate request
-    const { userId, isAuthenticated } = await requireAuth()
+    // Cache invalidation is an admin-only operation — a plain client must not be
+    // able to force expensive revalidation of arbitrary paths/tags (DoS vector).
+    const { userId, isAuthenticated, isAdmin } = await requireAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
+    }
+    if (!isAdmin) {
+      return forbiddenResponse('Admin access required')
     }
 
     // Rate limit check (use export limits since revalidation is expensive)

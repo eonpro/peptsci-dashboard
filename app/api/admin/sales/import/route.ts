@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
@@ -15,6 +16,9 @@ import { coerceDate } from '@/lib/csv-coerce'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Large CSVs are processed row-by-row (each row idempotent, no giant
+// transaction), so allow up to 5 minutes.
+export const maxDuration = 300
 
 const bodySchema = z.object({
   csv: z.string().min(1, 'csv is required'),
@@ -23,11 +27,37 @@ const bodySchema = z.object({
 
 interface ImportSummary {
   totalRows: number
+  /** Rows actually attempted against the DB (progress even on partial runs). */
+  processed: number
   created: number
   updated: number
   failed: number
   validateOnly: boolean
   errors: RowError[]
+}
+
+/** Stripe PaymentIntent ids look like `pi_...`. */
+const STRIPE_PI_RE = /^pi_[A-Za-z0-9]+$/
+
+/**
+ * Deterministic synthetic externalId for CSV rows without an orderId, so
+ * re-importing the same file updates in place instead of duplicating.
+ */
+function syntheticExternalId(row: {
+  customerName?: string
+  product?: string
+  date?: string
+  paidAmount: number
+  vials: number
+}): string {
+  const fingerprint = [
+    (row.customerName ?? '').trim().toLowerCase(),
+    (row.product ?? '').trim().toLowerCase(),
+    (row.date ?? '').trim(),
+    String(row.paidAmount),
+    String(row.vials),
+  ].join('|')
+  return `csv:${createHash('sha256').update(fingerprint).digest('hex')}`
 }
 
 /**
@@ -36,10 +66,11 @@ interface ImportSummary {
  * Bulk-import historical sales rows from CSV text into SalesRecord.
  * Body: { csv: string, validateOnly?: boolean }
  *
- * Dedup: rows carrying an `orderId` upsert by `externalId` (re-import safe);
- * rows without one are inserted. COGS is taken from the CSV when present, else
- * computed from unitCost*vials, else estimated from the catalog (35% fallback).
- * Admin only.
+ * Dedup: every row is upserted on a stable unique key (see the dedupe
+ * precedence comment in the row loop), so re-imports and re-runs after a
+ * timeout update in place instead of duplicating. COGS is taken from the CSV
+ * when present, else computed from unitCost*vials, else estimated from the
+ * catalog (35% fallback). Admin only.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -65,6 +96,7 @@ export async function POST(request: NextRequest) {
 
     const summary: ImportSummary = {
       totalRows: rows.length + errors.length,
+      processed: 0,
       created: 0,
       updated: 0,
       failed: errors.length,
@@ -83,7 +115,20 @@ export async function POST(request: NextRequest) {
 
     const costLookup = await buildCostLookup()
 
+    // Dedupe precedence — SalesRecord has three unique keys written by three
+    // sources (orderId: platform order sync, stripePaymentIntentId: Stripe
+    // backfill, externalId: CSV). To keep one row per real sale:
+    //   1. If the CSV orderId looks like a Stripe PaymentIntent id (`pi_...`)
+    //      or matches an existing SalesRecord.stripePaymentIntentId, upsert on
+    //      stripePaymentIntentId so the Stripe backfill and CSV land on the
+    //      SAME row instead of creating a parallel externalId row.
+    //   2. Otherwise, rows with an orderId upsert by externalId = orderId.
+    //   3. Rows without an orderId upsert by a deterministic synthetic
+    //      externalId (`csv:` + hash of customerName|product|date|paid|vials)
+    //      so re-importing the same file updates instead of duplicating.
+    // Each row is idempotent, so a re-run after a timeout is safe.
     for (const row of rows) {
+      summary.processed++
       try {
         const product = row.product ?? ''
         const vials = row.vials
@@ -110,6 +155,8 @@ export async function POST(request: NextRequest) {
           state: row.state ?? '',
           zip: row.zip ?? '',
           trackingNumber: row.trackingNumber ?? '',
+          // Respect an explicit invoicePaid value (including paidAmount = 0);
+          // fall back to `paidAmount > 0` only when the flag is truly absent.
           invoicePaid: row.invoicePaid ?? row.paidAmount > 0,
           paidAmount: row.paidAmount,
           vials,
@@ -121,17 +168,30 @@ export async function POST(request: NextRequest) {
           source: 'csv',
         }
 
-        if (row.orderId) {
-          await prisma.salesRecord.upsert({
-            where: { externalId: row.orderId },
-            create: { externalId: row.orderId, ...data },
-            update: data,
-          })
-          summary.updated++
+        // Resolve which unique key this row upserts on (precedence above).
+        let where: { stripePaymentIntentId: string } | { externalId: string }
+        if (row.orderId && STRIPE_PI_RE.test(row.orderId)) {
+          where = { stripePaymentIntentId: row.orderId }
+        } else if (
+          row.orderId &&
+          (await prisma.salesRecord.findUnique({
+            where: { stripePaymentIntentId: row.orderId },
+            select: { id: true },
+          }))
+        ) {
+          where = { stripePaymentIntentId: row.orderId }
         } else {
-          await prisma.salesRecord.create({ data })
-          summary.created++
+          where = { externalId: row.orderId ?? syntheticExternalId(row) }
         }
+
+        const existing = await prisma.salesRecord.findUnique({ where, select: { id: true } })
+        await prisma.salesRecord.upsert({
+          where,
+          create: { ...where, ...data },
+          update: data,
+        })
+        if (existing) summary.updated++
+        else summary.created++
       } catch (rowErr) {
         summary.failed++
         summary.errors.push({

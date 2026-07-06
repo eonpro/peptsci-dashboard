@@ -10,6 +10,7 @@
  */
 
 import { parseCsv } from './product-import'
+import { parseLocaleNumber } from './csv-coerce'
 
 export interface SalesImportRow {
   /** 1-based row number in the source file (header = row 1). */
@@ -121,17 +122,17 @@ const HEADER_ALIASES: Record<string, SalesField> = {
   cogs: 'cogs',
 }
 
-function toNumber(raw: string | undefined): number | undefined {
-  if (raw == null) return undefined
-  const cleaned = raw.replace(/[$,\s]/g, '').trim()
-  if (cleaned === '') return undefined
-  const n = Number(cleaned)
-  return Number.isFinite(n) ? n : NaN
-}
+// Locale-aware ("1,234.56" and "1.234,56" both parse): see lib/csv-coerce.ts.
+const toNumber = parseLocaleNumber
 
-function toBool(raw: string | undefined): boolean {
-  if (!raw) return false
+/**
+ * Tri-state boolean: blank/missing cells return `undefined` (truly absent) so
+ * callers can fall back to a heuristic; only explicit values map to a boolean.
+ */
+function toBool(raw: string | undefined): boolean | undefined {
+  if (raw == null) return undefined
   const v = raw.trim().toLowerCase()
+  if (v === '') return undefined
   return v === 'yes' || v === 'paid' || v === 'true' || v === '1' || v === 'y'
 }
 

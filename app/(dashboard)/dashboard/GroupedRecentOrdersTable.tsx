@@ -45,7 +45,7 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
 
     if (!orderMap.has(customerKey)) {
       orderMap.set(customerKey, {
-        date: sale.Date,
+        date: dateObj,
         customerName: sale.CustomerName,
         customerEmail: sale.CustomerEmail || '',
         orderId: sale.OrderID,

@@ -5,6 +5,7 @@
  */
 
 import { parseCsv } from './product-import'
+import { parseLocaleNumber } from './csv-coerce'
 
 export interface CompetitorImportRow {
   rowNumber: number
@@ -60,13 +61,8 @@ const HEADER_ALIASES: Record<string, Field> = {
   difference: 'diff',
 }
 
-function toNumber(raw: string | undefined): number | undefined {
-  if (raw == null) return undefined
-  const cleaned = raw.replace(/[$,\s]/g, '').trim()
-  if (cleaned === '') return undefined
-  const n = Number(cleaned)
-  return Number.isFinite(n) ? n : NaN
-}
+// Locale-aware ("1,234.56" and "1.234,56" both parse): see lib/csv-coerce.ts.
+const toNumber = parseLocaleNumber
 
 export function parseCompetitorCsv(input: string): CompetitorParseResult {
   const matrix = parseCsv(input)

@@ -97,6 +97,17 @@ export async function resolveCart(params: {
  * Create (or refresh) a DRAFT order for a checkout attempt. Returns the order
  * with its server-computed totals. Payment is captured separately via Stripe.
  */
+/** Stable fingerprint of a cart's lines (variant + qty + unit price). */
+function cartLineFingerprint(lines: ResolvedCart['lines']): string {
+  return lines
+    .map((l) => `${l.variantId}:${l.quantity}:${l.unitPrice}`)
+    .sort()
+    .join('|')
+}
+
+/** How long a DRAFT/PENDING order stays reusable for de-duping resubmits. */
+const REUSABLE_DRAFT_WINDOW_MS = 30 * 60 * 1000
+
 export async function createDraftOrder(params: {
   clientId: string
   createdById: string
@@ -111,6 +122,49 @@ export async function createDraftOrder(params: {
 
   const { cart } = params
 
+  // Idempotency for double-submits/retries: if this client already has a recent
+  // DRAFT order still awaiting payment that matches this exact cart + shipping
+  // options, reuse it instead of creating a parallel payable order. Because the
+  // Stripe idempotency key is derived from the order id (`pi_create_${id}`),
+  // reusing the order also makes Stripe return the same PaymentIntent.
+  const shipTo = params.shipTo ?? 'PRACTICE'
+  const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
+  const patientId = params.patientId ?? null
+  const fingerprint = cartLineFingerprint(cart.lines)
+
+  const candidates = await prisma.order.findMany({
+    where: {
+      clientId: params.clientId,
+      status: 'DRAFT',
+      paymentStatus: 'PENDING',
+      shipTo,
+      shipSpeed,
+      patientId,
+      total: cart.totals.total,
+      createdAt: { gte: new Date(Date.now() - REUSABLE_DRAFT_WINDOW_MS) },
+    },
+    orderBy: { createdAt: 'desc' },
+    include: { items: { select: { variantId: true, quantity: true, unitPrice: true } } },
+    take: 5,
+  })
+  const reusable = candidates.find(
+    (o) =>
+      cartLineFingerprint(
+        o.items.map((it) => ({
+          variantId: it.variantId,
+          quantity: it.quantity,
+          unitPrice: Number(it.unitPrice),
+        })) as ResolvedCart['lines']
+      ) === fingerprint
+  )
+  if (reusable) {
+    logger.info('[CHECKOUT] Reusing existing draft order for resubmit', {
+      orderId: reusable.id,
+      clientId: params.clientId,
+    })
+    return reusable
+  }
+
   const order = await prisma.order.create({
     data: {
       clientId: params.clientId,
@@ -124,9 +178,9 @@ export async function createDraftOrder(params: {
       currency: 'USD',
       notes: params.notes,
       shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
-      shipTo: params.shipTo ?? 'PRACTICE',
-      shipSpeed: params.shipSpeed ?? 'TWO_DAY',
-      patientId: params.patientId ?? null,
+      shipTo,
+      shipSpeed,
+      patientId,
       createdById: params.createdById,
       items: {
         create: cart.lines.map((l) => ({

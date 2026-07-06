@@ -40,23 +40,30 @@ function getTrackingInfo(trackingNumber: string) {
 export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
 
-  // Group orders by date
+  // Group line items by OrderID so two different orders placed on the same day
+  // render as two entries. Rows without an OrderID fall back to a per-day key
+  // (the legacy behavior for old rows that never had order numbers).
   const groupedOrders = new Map<string, Sale[]>()
 
   orders.forEach((sale) => {
     if (!sale.Date) return
     const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
     const dateKey = dateObj.toISOString().split('T')[0]
+    const groupKey = sale.OrderID ? `order_${sale.OrderID}` : `date_${dateKey}`
 
-    if (!groupedOrders.has(dateKey)) {
-      groupedOrders.set(dateKey, [])
+    if (!groupedOrders.has(groupKey)) {
+      groupedOrders.set(groupKey, [])
     }
-    groupedOrders.get(dateKey)!.push(sale)
+    groupedOrders.get(groupKey)!.push(sale)
   })
 
-  // Convert to array and sort by date (newest first)
-  const sortedGroupedOrders = Array.from(groupedOrders.entries()).sort((a, b) =>
-    b[0].localeCompare(a[0])
+  // Convert to array and sort by each group's order date (newest first)
+  const groupDate = (sales: Sale[]) => {
+    const d = sales[0].Date
+    return d ? (d instanceof Date ? d : new Date(d)).getTime() : 0
+  }
+  const sortedGroupedOrders = Array.from(groupedOrders.entries()).sort(
+    (a, b) => groupDate(b[1]) - groupDate(a[1])
   )
 
   const toggleOrder = (orderKey: string) => {
@@ -71,8 +78,8 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
 
   return (
     <div className="space-y-4">
-      {sortedGroupedOrders.map(([dateKey, dateOrders]) => {
-        const orderKey = dateKey
+      {sortedGroupedOrders.map(([groupKey, dateOrders]) => {
+        const orderKey = groupKey
         const isExpanded = expandedOrders.has(orderKey)
         const firstOrder = dateOrders[0]
         const orderDate = firstOrder.Date ? toZonedTime(firstOrder.Date, 'America/New_York') : null
@@ -81,7 +88,7 @@ export default function OrderHistoryList({ orders }: OrderHistoryListProps) {
         const totalCOGS = dateOrders.reduce((sum, sale) => sum + sale.COGS, 0)
         const avgMarkup = totalCOGS > 0 ? (totalProfit / totalCOGS) * 100 : 0
         const hasMultipleItems = dateOrders.length > 1
-        const orderID = firstOrder.OrderID || `Order-${dateKey}`
+        const orderID = firstOrder.OrderID || `Order-${groupKey.replace(/^date_/, '')}`
 
         // Check if all items are fulfilled
         const allFulfilled = dateOrders.every(

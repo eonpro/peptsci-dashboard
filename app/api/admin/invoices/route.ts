@@ -30,7 +30,7 @@ const createBody = z.object({
       z.object({
         description: z.string().min(1),
         quantity: z.number().int().positive(),
-        unitPrice: z.number(),
+        unitPrice: z.number().min(0),
         orderId: z.string().optional(),
       })
     )
@@ -92,6 +92,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to create invoice'
     if (msg.includes('at least one line item')) return errorResponse(msg, 400, 'NO_LINES')
+    if (msg.includes('already invoiced')) return errorResponse(msg, 409, 'ORDER_ALREADY_INVOICED')
+    if (msg.includes('not billable or not found')) return errorResponse(msg, 400, 'ORDER_NOT_BILLABLE')
+    if (msg.includes('unit price cannot be negative')) return errorResponse(msg, 400, 'NEGATIVE_UNIT_PRICE')
     logger.error('[admin/invoices] POST error', {}, error instanceof Error ? error : new Error(String(error)))
     return errorResponse('Failed to create invoice')
   }

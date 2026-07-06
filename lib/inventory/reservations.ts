@@ -19,6 +19,7 @@
  * Server-only.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { aggregateByVariant, availableQty } from './reservations-core'
@@ -115,35 +116,59 @@ export interface ReservationCloseResult {
  * reserved counter by each. `consume` frees reserved at fulfillment (on-hand is
  * dropped by the batch consume); `release` frees reserved on cancel/refund.
  */
-async function closeReservations(
+/**
+ * Transactional core of {@link closeReservations}. Each reservation is moved to
+ * its terminal state with a `status: 'ACTIVE'` guard in the WHERE clause so a
+ * concurrent release+consume (e.g. a refund webhook racing a labels consume)
+ * can only decrement the reserved counter ONCE — whichever path wins the
+ * compare-and-swap. The loser's update affects 0 rows and skips the decrement,
+ * so `inventoryReserved` never goes negative.
+ */
+export async function closeReservationsTx(
+  tx: Prisma.TransactionClient,
   orderId: string,
   to: 'RELEASED' | 'CONSUMED'
 ): Promise<ReservationCloseResult> {
-  const client = db()
-  const active = await client.inventoryReservation.findMany({
+  const active = await tx.inventoryReservation.findMany({
     where: { orderId, status: 'ACTIVE' },
     select: { id: true, variantId: true, quantity: true },
   })
 
   let units = 0
+  let affected = 0
   const stamp = to === 'RELEASED' ? { releasedAt: new Date() } : { consumedAt: new Date() }
 
   for (const r of active) {
-    await client.$transaction(async (tx) => {
-      await tx.inventoryReservation.update({
-        where: { id: r.id },
-        data: { status: to, ...stamp },
-      })
+    const res = await tx.inventoryReservation.updateMany({
+      where: { id: r.id, status: 'ACTIVE' },
+      data: { status: to, ...stamp },
+    })
+    if (res.count === 1) {
       await tx.productVariant.update({
         where: { id: r.variantId },
         data: { inventoryReserved: { decrement: r.quantity } },
       })
-    })
-    units += r.quantity
+      units += r.quantity
+      affected += 1
+    }
   }
 
-  logger.info('Closed reservations for order', { orderId, to, affected: active.length, units })
-  return { orderId, affected: active.length, units }
+  return { orderId, affected, units }
+}
+
+async function closeReservations(
+  orderId: string,
+  to: 'RELEASED' | 'CONSUMED'
+): Promise<ReservationCloseResult> {
+  const client = db()
+  const result = await client.$transaction((tx) => closeReservationsTx(tx, orderId, to))
+  logger.info('Closed reservations for order', {
+    orderId,
+    to,
+    affected: result.affected,
+    units: result.units,
+  })
+  return result
 }
 
 export function releaseForOrder(orderId: string): Promise<ReservationCloseResult> {

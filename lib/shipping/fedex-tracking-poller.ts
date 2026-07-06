@@ -40,6 +40,9 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
   const orders = await prisma.order.findMany({
     where: {
       trackingNumber: { not: null },
+      // Only poll FedEx shipments — sending a non-FedEx tracking number to the
+      // FedEx Track API just generates errors and wastes the cron budget.
+      carrier: { contains: 'fedex', mode: 'insensitive' },
       OR: [{ shippingStatus: null }, { shippingStatus: { notIn: ['DELIVERED', 'CANCELLED'] } }],
     },
     select: {

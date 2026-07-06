@@ -53,6 +53,38 @@ describe('groupDistributorOrders', () => {
     assert.equal(o.total, 2050 + 25 + 12.5)
   })
 
+  test('blank later rows never clobber order-level values from earlier rows', () => {
+    const csv = [
+      'orderId,orderDate,vendor,status,shipping,paypalFee,product,quantity,unitCost,lineTotal',
+      'DO-3,2026-02-01,Acme,shipped,25,12.50,Tirzepatide,10,160,1600',
+      'DO-3,,,,,,Semaglutide,5,90,450',
+      'DO-3,,,,,,Retatrutide,2,120,240',
+    ].join('\n')
+    const { rows, errors } = parseDistributorOrderCsv(csv)
+    assert.equal(errors.length, 0)
+    const orders = groupDistributorOrders(rows)
+    assert.equal(orders.length, 1)
+    const o = orders[0]
+    assert.equal(o.orderDate, '2026-02-01')
+    assert.equal(o.vendor, 'Acme')
+    assert.equal(o.status, 'shipped')
+    assert.equal(o.shipping, 25)
+    assert.equal(o.paypalFee, 12.5)
+    assert.equal(o.lines.length, 3)
+  })
+
+  test('order-level fields fill from a later row when the first row is blank', () => {
+    const csv = [
+      'orderId,vendor,shipping,product,quantity,unitCost',
+      'DO-4,,,Tirzepatide,10,160',
+      'DO-4,Acme,25,Semaglutide,5,90',
+    ].join('\n')
+    const { rows } = parseDistributorOrderCsv(csv)
+    const orders = groupDistributorOrders(rows)
+    assert.equal(orders[0].vendor, 'Acme')
+    assert.equal(orders[0].shipping, 25)
+  })
+
   test('explicit order total overrides computed total', () => {
     const csv = [
       'orderId,total,product,quantity,unitCost',

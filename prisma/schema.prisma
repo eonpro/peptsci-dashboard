@@ -560,7 +560,12 @@ model InvoiceLineItem {
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoiceId   String
   order       Order?   @relation(fields: [orderId], references: [id])
-  orderId     String?
+  // Unique: an order can be billed on at most ONE line item. Voiding an invoice
+  // sets orderId NULL on its lines (see voidInvoice), so voided invoices don't
+  // hold the slot and the order becomes billable again. NULLs are distinct, so
+  // manual (order-less) lines are unlimited. This is the durable double-billing
+  // guard behind the transactional check in createInvoice.
+  orderId     String?  @unique
   description String
   quantity    Int      @default(1)
   unitPrice   Decimal  @db.Decimal(12, 2)
@@ -568,7 +573,6 @@ model InvoiceLineItem {
   createdAt   DateTime @default(now())
 
   @@index([invoiceId])
-  @@index([orderId])
 }
 
 model InvoiceAdjustment {
@@ -832,6 +836,10 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, isArchived])
   @@index([sourceType, sourceId])
+  // Durable dedup: racing cron runs / webhook redeliveries can't double-notify.
+  // Rows with NULL sourceType/sourceId are exempt (Postgres treats NULLs as
+  // distinct), so non-dedupable notifications are unaffected.
+  @@unique([userId, sourceType, sourceId])
 }
 
 // -------------------------------------------------

@@ -165,7 +165,15 @@ export function StorefrontProvider({
   // Memoize so the whole storefront tree only re-renders when cart/session/
   // config actually change, not on every StorefrontProvider render.
   const value = useMemo<StorefrontContextValue>(() => {
-    const cartSubtotal = cart.items.reduce((s, i) => s + i.retailPrice * i.quantity, 0)
+    // Skip items without a valid price (e.g. stale localStorage carts) so the
+    // subtotal never becomes NaN and renders as "$NaN".
+    const cartSubtotal = cart.items.reduce(
+      (s, i) =>
+        typeof i.retailPrice === 'number' && Number.isFinite(i.retailPrice)
+          ? s + i.retailPrice * i.quantity
+          : s,
+      0
+    )
     const cartItemCount = cart.items.reduce((s, i) => s + i.quantity, 0)
     return {
       config,

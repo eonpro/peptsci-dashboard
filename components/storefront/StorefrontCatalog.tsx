@@ -11,14 +11,18 @@ function ProductCard({ product }: { product: StorefrontProductItem }) {
   const branding = config?.branding
   const name = product.displayName || product.productName
   const primaryImage = product.media.find((m) => m.isPrimary)?.url ?? product.media[0]?.url
+  const hasValidPrice = typeof product.retailPrice === 'number' && Number.isFinite(product.retailPrice)
+  const inStock = product.inventoryOnHand > 0
+  const canAdd = inStock && hasValidPrice
 
   function handleAdd() {
+    if (!canAdd || product.retailPrice == null) return
     addToCart({
       storefrontProductId: product.id,
       name,
       sku: product.sku,
       dose: product.dose,
-      retailPrice: product.retailPrice!,
+      retailPrice: product.retailPrice,
       quantity: 1,
       image: primaryImage,
     })
@@ -66,19 +70,23 @@ function ProductCard({ product }: { product: StorefrontProductItem }) {
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold" style={{ color: branding?.colors.primary }}>
-              ${product.retailPrice?.toFixed(2)}
+              {hasValidPrice ? `$${product.retailPrice!.toFixed(2)}` : 'Price unavailable'}
             </span>
-            {product.compareAtPrice && product.retailPrice && product.compareAtPrice > product.retailPrice && (
-              <span className="text-sm text-gray-400 line-through">
-                ${product.compareAtPrice.toFixed(2)}
-              </span>
-            )}
+            {hasValidPrice &&
+              product.compareAtPrice &&
+              product.retailPrice &&
+              product.compareAtPrice > product.retailPrice && (
+                <span className="text-sm text-gray-400 line-through">
+                  ${product.compareAtPrice.toFixed(2)}
+                </span>
+              )}
           </div>
           <button
             onClick={handleAdd}
-            className="p-2 rounded-lg text-white transition-colors hover:opacity-90"
+            disabled={!canAdd}
+            className="p-2 rounded-lg text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: branding?.colors.primary ?? '#213cef' }}
-            title="Add to cart"
+            title={!inStock ? 'Out of stock' : !hasValidPrice ? 'Price unavailable' : 'Add to cart'}
           >
             <ShoppingCart className="h-4 w-4" />
           </button>

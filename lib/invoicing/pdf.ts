@@ -6,7 +6,7 @@
  */
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
-import { formatInvoiceNumber } from './core'
+import { formatInvoiceNumber, resolveAdjustmentAmount } from './core'
 import { decorateInvoice, type InvoiceView } from './service'
 
 const PT = 72
@@ -160,10 +160,16 @@ export async function generateInvoicePdf(view: InvoiceView): Promise<Buffer> {
       adj.kind === 'PERCENT'
         ? `Adjustment (${Number(adj.percent)}%)${adj.reason ? ` — ${adj.reason}` : ''}`
         : `Adjustment${adj.reason ? ` — ${adj.reason}` : ''}`
-    const amt =
-      adj.kind === 'PERCENT'
-        ? (totals.subtotal * Number(adj.percent ?? 0)) / 100
-        : Number(adj.amount ?? 0)
+    // Use the same rounded resolution as the totals block so per-row amounts
+    // reconcile to the cent (no $33.333333-style drift).
+    const amt = resolveAdjustmentAmount(
+      {
+        kind: adj.kind as 'FIXED' | 'PERCENT',
+        amount: adj.amount == null ? null : Number(adj.amount),
+        percent: adj.percent == null ? null : Number(adj.percent),
+      },
+      totals.subtotal
+    )
     if (y < MARGIN + 120) {
       pageRef = doc.addPage([PAGE_W, PAGE_H])
       y = PAGE_H - MARGIN - 20

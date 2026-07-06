@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -87,8 +87,11 @@ export default function FulfillmentPage() {
   const [shipped, setShipped] = useState<'true' | 'false' | 'all'>('false')
   const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
+  // Sequence searches so a slow, older response can't overwrite a newer one.
+  const loadSeqRef = useRef(0)
 
   const load = useCallback(() => {
+    const seq = ++loadSeqRef.current
     setLoading(true)
     const qs = new URLSearchParams({ shipped })
     if (search.trim()) qs.set('search', search.trim())
@@ -98,9 +101,17 @@ export default function FulfillmentPage() {
         if (!r.ok) throw new Error(data.message || data.error || 'Failed to load orders')
         return data
       })
-      .then((data) => setOrders(data.orders ?? []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load orders'))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (seq !== loadSeqRef.current) return
+        setOrders(data.orders ?? [])
+      })
+      .catch((e) => {
+        if (seq !== loadSeqRef.current) return
+        setError(e instanceof Error ? e.message : 'Failed to load orders')
+      })
+      .finally(() => {
+        if (seq === loadSeqRef.current) setLoading(false)
+      })
   }, [shipped, search])
 
   useEffect(() => {

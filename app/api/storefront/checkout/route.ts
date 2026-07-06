@@ -58,12 +58,22 @@ export async function POST(request: NextRequest) {
 
     if (!prisma) return errorResponse('Database not connected')
 
-    // Resolve end customer (from token or guest)
+    // Resolve end customer (from token or guest). The token is bound to a
+    // storefront — reject a token minted for a DIFFERENT storefront so an
+    // order on storefront B can't be attached to storefront A's customer.
     let endCustomerId: string | undefined
     if (endCustomerToken) {
       const { verifyEndCustomerToken } = await import('@/lib/end-customer-auth')
       const payload = verifyEndCustomerToken(endCustomerToken)
-      if (payload) endCustomerId = payload.endCustomerId
+      if (payload && payload.storefrontId === config.id) {
+        endCustomerId = payload.endCustomerId
+      } else if (payload) {
+        logger.warn('Storefront checkout token/storefront mismatch', {
+          tokenStorefrontId: payload.storefrontId,
+          checkoutStorefrontId: config.id,
+        })
+        return errorResponse('Session does not belong to this storefront', 403, 'STOREFRONT_MISMATCH')
+      }
     }
 
     // If not logged in, try to find or create a guest end customer

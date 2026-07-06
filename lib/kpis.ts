@@ -2,6 +2,10 @@ import { Sale } from './sales'
 import { Inventory } from './inventory'
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
+import { nyDayString, nyMonthKey } from './reports/core'
+
+/** Normalize a Sale date (Date at runtime, ISO string after JSON round-trips). */
+const toDateObj = (d: Date | string): Date => (d instanceof Date ? d : new Date(d))
 
 interface SalesKPIs {
   totalSales: number
@@ -74,9 +78,8 @@ export function getTotals(sales: Sale[]): SalesKPIs {
     // Create unique order key: customer identifier + date
     if (sale.Date && (sale.CustomerEmail || sale.CustomerName)) {
       const customerKey = sale.CustomerEmail?.toLowerCase() || sale.CustomerName.toLowerCase()
-      // Ensure Date is a Date object
-      const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-      const dateKey = dateObj.toISOString().split('T')[0]
+      // Bucket by the America/New_York calendar day, not UTC.
+      const dateKey = nyDayString(toDateObj(sale.Date))
       const orderKey = `${customerKey}_${dateKey}`
       uniqueOrders.add(orderKey)
     }
@@ -129,8 +132,7 @@ export function groupByProduct(sales: Sale[]): ProductMetrics[] {
     // Track unique orders (customer+date) for this product
     if (sale.Date && (sale.CustomerEmail || sale.CustomerName)) {
       const customerKey = sale.CustomerEmail?.toLowerCase() || sale.CustomerName.toLowerCase()
-      const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-      const dateKey = dateObj.toISOString().split('T')[0]
+      const dateKey = nyDayString(toDateObj(sale.Date))
       const orderKey = `${customerKey}_${dateKey}`
       productOrders.get(product)!.add(orderKey)
     }
@@ -210,9 +212,7 @@ export function groupByCustomer(sales: Sale[]): CustomerMetrics[] {
 
     metrics.orders.forEach((sale) => {
       if (sale.Date) {
-        const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-        const dateKey = dateObj.toISOString().split('T')[0]
-        uniqueOrderDates.add(dateKey)
+        uniqueOrderDates.add(nyDayString(toDateObj(sale.Date)))
       }
     })
 
@@ -239,8 +239,7 @@ export function getDailyRevenue(sales: Sale[]): Array<{
   sales.forEach((sale) => {
     // Check if sale is in current month (November 2025)
     if (sale.Date && isWithinInterval(sale.Date, { start: monthStart, end: monthEnd })) {
-      const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-      const dateKey = dateObj.toISOString().split('T')[0]
+      const dateKey = nyDayString(toDateObj(sale.Date))
       const current = dailyMap.get(dateKey) || 0
       dailyMap.set(dateKey, current + sale.PaidAmount)
     }
@@ -314,9 +313,8 @@ export function getMonthOverMonthSales(sales: Sale[]): Array<{
   sales.forEach((sale) => {
     if (!sale.Date) return
 
-    // Get month/year key
-    const date = toZonedTime(sale.Date, 'America/New_York')
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    // Bucket by the America/New_York calendar month.
+    const monthKey = nyMonthKey(toDateObj(sale.Date))
 
     // Get or create month data
     let monthData = monthlyData.get(monthKey)
@@ -328,10 +326,9 @@ export function getMonthOverMonthSales(sales: Sale[]): Array<{
     // Add sales
     monthData.sales += sale.PaidAmount
 
-    // Track unique order (customer + date combination)
+    // Track unique order (customer + NY calendar day combination)
     const customerKey = sale.CustomerEmail?.toLowerCase() || sale.CustomerName.toLowerCase()
-    const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-    const dateKey = dateObj.toISOString().split('T')[0]
+    const dateKey = nyDayString(toDateObj(sale.Date))
     const orderKey = `${customerKey}_${dateKey}`
     monthData.orders.add(orderKey)
   })

@@ -15,6 +15,9 @@ import { connectRequestOptions } from '@/lib/stripe/connect'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Pages of 100 PIs, each upserted idempotently by stripePaymentIntentId; a
+// re-run after a timeout is safe. Allow up to 5 minutes.
+export const maxDuration = 300
 
 const bodySchema = z.object({
   confirm: z.boolean().optional(),

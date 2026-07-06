@@ -142,7 +142,11 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       </div>
 
       {/* Custom Pricing */}
-      <CustomerPricing customerId={resolvedParams.id} customerName={customer.name} />
+      <CustomerPricing
+        customerId={decodeURIComponent(resolvedParams.id)}
+        customerName={customer.name}
+        customerEmail={customer.email}
+      />
 
       {/* Orders Timeline */}
       <Card className="rounded-2xl">

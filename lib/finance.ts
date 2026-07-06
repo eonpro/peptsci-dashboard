@@ -88,8 +88,32 @@ const buildEmptyExpenses = () => ({
 
 const toMonthKey = (date: Date) => format(date, 'yyyy-MM')
 
-const getPaidSales = (sales: Sale[]) =>
-  sales.filter((sale) => sale.Date instanceof Date && sale.PaidAmount > 0)
+/** Round a float accumulation to cents to avoid drifting binary-float noise. */
+const roundCents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+/**
+ * Normalize a Sale date: `Date` at runtime, but ISO strings survive JSON
+ * round-trips (client components / API payloads), so accept both.
+ */
+const normalizeSaleDate = (d: Sale['Date'] | string | null | undefined): Date | null => {
+  if (d instanceof Date) return Number.isNaN(d.getTime()) ? null : d
+  if (typeof d === 'string' && d.trim()) {
+    const parsed = new Date(d)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
+
+const getPaidSales = (sales: Sale[]): Sale[] => {
+  const paid: Sale[] = []
+  for (const sale of sales) {
+    if (!(sale.PaidAmount > 0)) continue
+    const date = normalizeSaleDate(sale.Date as Date | string | null)
+    if (!date) continue
+    paid.push({ ...sale, Date: date })
+  }
+  return paid
+}
 
 const aggregateSales = (sales: Sale[]): ProfitLossTotals => {
   const uniqueOrders = new Set<string>()
@@ -123,15 +147,23 @@ const aggregateSales = (sales: Sale[]): ProfitLossTotals => {
   const netProfit = grossProfit - expenses.total
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
 
-  const productBreakdown = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue)
+  // Round monetary accumulations to cents (floats drift over many rows).
+  const productBreakdown = Array.from(productMap.values())
+    .map((p) => ({
+      ...p,
+      revenue: roundCents(p.revenue),
+      cogs: roundCents(p.cogs),
+      profit: roundCents(p.profit),
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
 
   return {
-    revenue,
-    cogs,
-    grossProfit,
+    revenue: roundCents(revenue),
+    cogs: roundCents(cogs),
+    grossProfit: roundCents(grossProfit),
     grossMargin,
     expenses,
-    netProfit,
+    netProfit: roundCents(netProfit),
     netMargin,
     orderCount: uniqueOrders.size,
     productBreakdown,

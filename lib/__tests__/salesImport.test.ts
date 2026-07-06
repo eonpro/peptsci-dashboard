@@ -30,6 +30,21 @@ describe('parseSalesCsv', () => {
     assert.equal(rows[1].invoicePaid, false)
   })
 
+  test('blank invoicePaid cell is undefined (absent), explicit value respected at 0 paid', () => {
+    const csv = ['paidAmount,invoicePaid,customerName', '100,,A', '0,yes,B'].join('\n')
+    const { rows } = parseSalesCsv(csv)
+    assert.equal(rows[0].invoicePaid, undefined)
+    assert.equal(rows[1].invoicePaid, true)
+  })
+
+  test('parses locale-formatted amounts (EU decimal comma)', () => {
+    const csv = ['paidAmount,customerName', '"1.234,56",Dr. EU', '"1,234.56",Dr. US'].join('\n')
+    const { rows, errors } = parseSalesCsv(csv)
+    assert.equal(errors.length, 0)
+    assert.equal(rows[0].paidAmount, 1234.56)
+    assert.equal(rows[1].paidAmount, 1234.56)
+  })
+
   test('skips blank/meaningless rows rather than erroring', () => {
     const csv = ['paidAmount,customerName,product', '0,,', '500,Dr. Smith,'].join('\n')
     const { rows, errors } = parseSalesCsv(csv)

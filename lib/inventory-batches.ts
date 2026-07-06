@@ -432,22 +432,45 @@ export async function recordLabelsPrinted(
   await client.$transaction((tx) => recordLabelsPrintedTx(tx, batchId, qty, actor))
 }
 
-/** Core of {@link recordLabelsPrinted}, parameterized by a transaction client. */
-async function recordLabelsPrintedTx(
+/**
+ * Core of {@link recordLabelsPrinted}, parameterized by a transaction client.
+ *
+ * The stock drawdown is an ATOMIC conditional decrement (`updateMany` with a
+ * `qtyOnHand >= take` guard). If a concurrent draw already took the stock the
+ * guarded update affects 0 rows and we throw, aborting the whole transaction —
+ * this prevents the lost-update / negative-stock race that a read-modify-write
+ * would allow. The caller (fulfillment) plans against a snapshot; a concurrent
+ * change simply forces a safe retry rather than corrupting counts.
+ */
+export async function recordLabelsPrintedTx(
   tx: Prisma.TransactionClient,
   batchId: string,
   qty: number,
   actor: BatchActor
 ): Promise<void> {
-  const batch = await tx.inventoryBatch.findUnique({ where: { id: batchId } })
+  const batch = await tx.inventoryBatch.findUnique({
+    where: { id: batchId },
+    select: { id: true, variantId: true, batchNumber: true, status: true, qtyOnHand: true },
+  })
   if (!batch) throw new BatchValidationError('Batch not found', 'batchId')
-  const take = Math.min(batch.qtyOnHand, Math.max(0, Math.trunc(qty)))
+  const take = Math.max(0, Math.trunc(qty))
   if (take <= 0) return
+
+  const decremented = await tx.inventoryBatch.updateMany({
+    where: { id: batchId, qtyOnHand: { gte: take } },
+    data: { qtyOnHand: { decrement: take } },
+  })
+  if (decremented.count === 0) {
+    throw new BatchValidationError(
+      `Batch ${batch.batchNumber} stock changed during fulfillment; please retry`,
+      'batchId'
+    )
+  }
+
   const nextOnHand = batch.qtyOnHand - take
   await tx.inventoryBatch.update({
     where: { id: batchId },
     data: {
-      qtyOnHand: nextOnHand,
       status: nextOnHand <= 0 ? 'DEPLETED' : batch.status,
       events: {
         create: {

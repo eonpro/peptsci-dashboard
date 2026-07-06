@@ -22,6 +22,7 @@ interface VariantWithProduct {
   srp: unknown
   unitCost: unknown
   inventoryOnHand: number
+  inventoryReserved: number
   status: string
   product: {
     name: string
@@ -44,6 +45,10 @@ function toImages(
 
 function toShopProduct(v: VariantWithProduct): ShopProduct {
   const srp = Number(v.srp)
+  // Availability, not gross on-hand: stock already reserved for other open
+  // orders isn't purchasable. Prevents showing/selling units that are spoken
+  // for and reduces oversell at checkout.
+  const available = Math.max(0, v.inventoryOnHand - (v.inventoryReserved || 0))
   return {
     id: v.sku || v.id,
     sku: v.sku || v.id,
@@ -54,8 +59,8 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     displayPrice: srp,
     costPrice: Number(v.unitCost),
     images: toImages(v.product.media),
-    inventoryOnHand: v.inventoryOnHand,
-    inStock: v.inventoryOnHand > 0,
+    inventoryOnHand: available,
+    inStock: available > 0,
     status: v.status as ShopProduct['status'],
   }
 }
@@ -82,6 +87,7 @@ const variantSelect = {
   srp: true,
   unitCost: true,
   inventoryOnHand: true,
+  inventoryReserved: true,
   status: true,
   ...variantInclude,
 }
