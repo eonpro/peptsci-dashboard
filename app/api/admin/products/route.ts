@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { resolveInventoryActor } from '@/lib/inventory-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,6 +157,21 @@ export async function POST(request: NextRequest) {
       },
       select: { id: true },
     })
+
+    // Every stock movement is audit-logged with the acting user.
+    if (row.inventoryOnHand > 0) {
+      const actor = await resolveInventoryActor(prisma, userId)
+      await prisma.inventoryAdjustment.create({
+        data: {
+          variantId: variant.id,
+          delta: row.inventoryOnHand,
+          reason: 'MANUAL_ADJUSTMENT',
+          note: 'Initial stock (Add Product)',
+          createdById: actor.userId,
+          createdByName: actor.name,
+        },
+      })
+    }
 
     logger.info('Product variant created via UI', {
       variantId: variant.id,

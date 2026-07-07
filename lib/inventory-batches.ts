@@ -33,6 +33,7 @@ import {
   type BatchActor,
   type CreateBatchInput,
 } from './inventory-batches-core'
+import { resolveInventoryActor } from './inventory-log'
 
 // Re-export the pure helpers so callers can import everything from one module.
 export {
@@ -70,14 +71,13 @@ function slugifySku(name: string, dose: string): string {
   return base || 'PRODUCT'
 }
 
-/** Resolve the DB User.id for an actor's Clerk id, or null if no row exists. */
-async function resolveUserId(actor: BatchActor): Promise<string | null> {
-  if (!actor.clerkUserId) return null
-  const user = await db().user.findUnique({
-    where: { clerkUserId: actor.clerkUserId },
-    select: { id: true },
-  })
-  return user?.id ?? null
+/**
+ * Resolve the DB User.id + display name for an actor's Clerk id. Prefers the
+ * User row's real name over the raw label (routes often pass the Clerk id as
+ * the label).
+ */
+async function resolveActor(actor: BatchActor) {
+  return resolveInventoryActor(db(), actor.clerkUserId, actor.label)
 }
 
 /**
@@ -150,8 +150,7 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
   const client = db()
 
   const resolved = await resolveVariant(input)
-  const receivedById = await resolveUserId(actor)
-  const receivedByName = actor.label?.trim() || null
+  const { userId: receivedById, name: receivedByName } = await resolveActor(actor)
 
   const qtyDamaged = input.qtyDamaged ?? 0
   const qtyOnHand = input.qtyReceived - qtyDamaged
@@ -211,6 +210,7 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
               reason: 'RECEIPT',
               note: `Batch ${batchNumber} received`,
               createdById: receivedById,
+              createdByName: receivedByName,
             },
           })
         }
@@ -315,8 +315,7 @@ export async function updateBatch(id: string, input: UpdateBatchInput, actor: Ba
  */
 export async function voidBatch(id: string, reason: string, actor: BatchActor) {
   const client = db()
-  const receivedByName = actor.label?.trim() || null
-  const receivedById = await resolveUserId(actor)
+  const { userId: receivedById, name: receivedByName } = await resolveActor(actor)
   return client.$transaction(async (tx) => {
     const batch = await tx.inventoryBatch.findUnique({ where: { id } })
     if (!batch) throw new BatchValidationError('Batch not found', 'id')
@@ -352,6 +351,7 @@ export async function voidBatch(id: string, reason: string, actor: BatchActor) {
           reason: 'MANUAL_ADJUSTMENT',
           note: `Batch ${batch.batchNumber} voided`,
           createdById: receivedById,
+          createdByName: receivedByName,
         },
       })
     }
@@ -468,6 +468,11 @@ export async function recordLabelsPrintedTx(
   }
 
   const nextOnHand = batch.qtyOnHand - take
+  const { userId: actorUserId, name: actorName } = await resolveInventoryActor(
+    tx,
+    actor.clerkUserId,
+    actor.label
+  )
   await tx.inventoryBatch.update({
     where: { id: batchId },
     data: {
@@ -476,7 +481,7 @@ export async function recordLabelsPrintedTx(
         create: {
           type: 'LABELS_PRINTED',
           delta: -take,
-          performedBy: actor.label ?? null,
+          performedBy: actorName ?? actor.label ?? null,
         },
       },
     },
@@ -491,6 +496,8 @@ export async function recordLabelsPrintedTx(
       delta: -take,
       reason: 'ORDER_FULFILLMENT',
       note: `Labels printed for batch ${batch.batchNumber}`,
+      createdById: actorUserId,
+      createdByName: actorName,
     },
   })
 }

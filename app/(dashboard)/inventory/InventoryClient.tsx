@@ -38,6 +38,37 @@ export interface BatchRow {
   variant?: { sku: string | null }
 }
 
+export interface CatalogStockRow {
+  variantId: string
+  sku: string | null
+  productName: string
+  dose: string | null
+  onHand: number
+  reserved: number
+  reorderLevel: number
+}
+
+interface AdjustmentRow {
+  id: string
+  createdAt: string
+  delta: number
+  reason: string
+  note: string | null
+  productName: string
+  dose: string | null
+  sku: string | null
+  by: string
+}
+
+const REASON_LABELS: Record<string, string> = {
+  RECEIPT: 'Received',
+  ORDER_FULFILLMENT: 'Order fulfillment',
+  RETURN: 'Return restock',
+  MANUAL_ADJUSTMENT: 'Manual adjustment',
+  DAMAGE: 'Damage',
+  AUDIT: 'Audit',
+}
+
 const SHEET_MAX = 36
 
 function daysUntil(iso: string): number {
@@ -53,32 +84,90 @@ function fmtDate(iso: string): string {
   })
 }
 
-export default function InventoryClient({ initialBatches }: { initialBatches: BatchRow[] }) {
+export default function InventoryClient({
+  initialBatches,
+  initialCatalog,
+}: {
+  initialBatches: BatchRow[]
+  initialCatalog: CatalogStockRow[]
+}) {
   // Seeded from the server render — no first-paint skeleton / client round trip.
   const [batches, setBatches] = useState<BatchRow[]>(initialBatches)
+  const [catalog, setCatalog] = useState<CatalogStockRow[]>(initialCatalog)
+  const [log, setLog] = useState<AdjustmentRow[] | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [view, setView] = useState<'batches' | 'products'>('batches')
+  const [view, setView] = useState<'batches' | 'products' | 'log'>('batches')
   const [modalOpen, setModalOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  // `force` bypasses the browser cache for an explicit manual refresh.
-  const loadData = useCallback(async (force = false) => {
+  const loadLog = useCallback(async () => {
     try {
-      const url = `/api/admin/inventory/batches?status=ALL${force ? `&t=${Date.now()}` : ''}`
-      const res = await fetch(url, force ? { cache: 'no-store' } : undefined)
-      if (!res.ok) throw new Error('Failed to load batches')
+      const res = await fetch(`/api/admin/inventory/adjustments?t=${Date.now()}`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error('Failed to load activity log')
       const data = await res.json()
-      setBatches(data.batches ?? [])
+      setLog(data.adjustments ?? [])
     } catch (err) {
-      console.error('Error loading batches', err)
-    } finally {
-      setRefreshing(false)
+      console.error('Error loading activity log', err)
+      setLog([])
     }
   }, [])
+
+  // `force` bypasses the browser cache for an explicit manual refresh.
+  const loadData = useCallback(
+    async (force = false) => {
+      try {
+        const bust = force ? `&t=${Date.now()}` : ''
+        const opts = force ? ({ cache: 'no-store' } as const) : undefined
+        const [batchRes, productRes] = await Promise.all([
+          fetch(`/api/admin/inventory/batches?status=ALL${bust}`, opts),
+          fetch(`/api/admin/products?${bust}`, opts),
+        ])
+        if (batchRes.ok) {
+          const data = await batchRes.json()
+          setBatches(data.batches ?? [])
+        }
+        if (productRes.ok) {
+          const data = await productRes.json()
+          const variants = (data.variants ?? []) as Array<{
+            id: string
+            sku: string | null
+            productName: string
+            dose: string | null
+            inventoryOnHand: number
+            reorderLevel: number
+          }>
+          setCatalog(
+            variants.map((v) => ({
+              variantId: v.id,
+              sku: v.sku,
+              productName: v.productName,
+              dose: v.dose,
+              onHand: v.inventoryOnHand,
+              reserved: 0,
+              reorderLevel: v.reorderLevel,
+            }))
+          )
+        }
+        if (log !== null) await loadLog()
+      } catch (err) {
+        console.error('Error loading inventory', err)
+      } finally {
+        setRefreshing(false)
+      }
+    },
+    [log, loadLog]
+  )
 
   async function handleRefresh() {
     setRefreshing(true)
     await loadData(true)
+  }
+
+  function openLog() {
+    setView('log')
+    if (log === null) loadLog()
   }
 
   async function downloadLabels(
@@ -133,7 +222,9 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
   const active = useMemo(() => batches.filter((b) => b.status !== 'VOIDED'), [batches])
 
   const metrics = useMemo(() => {
-    const totalOnHand = active.reduce((s, b) => s + b.qtyOnHand, 0)
+    // On-hand counts the whole catalog (imports/manual stock included), not
+    // just batch-tracked receipts.
+    const totalOnHand = catalog.reduce((s, v) => s + v.onHand, 0)
     const products = new Set(active.map((b) => `${b.productName}|${b.dose}`))
     const expiringSoon = active.filter((b) => {
       const d = daysUntil(b.bud)
@@ -141,31 +232,39 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
     })
     const expired = active.filter((b) => daysUntil(b.bud) < 0 && b.qtyOnHand > 0)
     return { totalOnHand, products: products.size, batches: active.length, expiringSoon, expired }
-  }, [active])
+  }, [active, catalog])
 
+  // Every catalog product appears here — 0 on hand until stock is received —
+  // with batch aggregates merged in where they exist.
   const productRollup = useMemo(() => {
-    const map = new Map<
-      string,
-      { productName: string; dose: string; onHand: number; batches: number; soonestBud: string | null }
-    >()
+    const batchAgg = new Map<string, { batches: number; soonestBud: string | null }>()
     for (const b of active) {
-      const key = `${b.productName}|${b.dose}`
-      const cur = map.get(key) ?? {
-        productName: b.productName,
-        dose: b.dose,
-        onHand: 0,
-        batches: 0,
-        soonestBud: null,
-      }
-      cur.onHand += b.qtyOnHand
+      const key = b.variant?.sku ? `sku:${b.variant.sku}` : `nd:${b.productName}|${b.dose}`
+      const cur = batchAgg.get(key) ?? { batches: 0, soonestBud: null }
       cur.batches += 1
       if (b.qtyOnHand > 0 && (!cur.soonestBud || new Date(b.bud) < new Date(cur.soonestBud))) {
         cur.soonestBud = b.bud
       }
-      map.set(key, cur)
+      batchAgg.set(key, cur)
     }
-    return Array.from(map.values()).sort((a, b) => a.productName.localeCompare(b.productName))
-  }, [active])
+    return catalog
+      .map((v) => {
+        const agg =
+          (v.sku ? batchAgg.get(`sku:${v.sku}`) : undefined) ??
+          batchAgg.get(`nd:${v.productName}|${v.dose ?? ''}`) ?? { batches: 0, soonestBud: null }
+        return {
+          variantId: v.variantId,
+          productName: v.productName,
+          dose: v.dose ?? '—',
+          sku: v.sku,
+          onHand: v.onHand,
+          reorderLevel: v.reorderLevel,
+          batches: agg.batches,
+          soonestBud: agg.soonestBud,
+        }
+      })
+      .sort((a, b) => a.productName.localeCompare(b.productName))
+  }, [active, catalog])
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -192,7 +291,7 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
         <KPI
           title="Vials On Hand"
           value={metrics.totalOnHand.toLocaleString()}
-          description="Across all active batches"
+          description="Across all products"
           icon={<Boxes />}
         />
         <KPI
@@ -229,6 +328,9 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
           onClick={() => setView('products')}
         >
           By Product
+        </Button>
+        <Button variant={view === 'log' ? 'default' : 'outline'} size="sm" onClick={openLog}>
+          Activity Log
         </Button>
       </div>
 
@@ -334,14 +436,16 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : view === 'products' ? (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="w-full text-sm">
             <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">SKU</th>
                 <th className="px-4 py-3">Dose</th>
                 <th className="px-4 py-3 text-right">On Hand</th>
+                <th className="px-4 py-3 text-right">Reorder At</th>
                 <th className="px-4 py-3 text-right">Batches</th>
                 <th className="px-4 py-3">Soonest BUD</th>
               </tr>
@@ -349,18 +453,94 @@ export default function InventoryClient({ initialBatches }: { initialBatches: Ba
             <tbody>
               {productRollup.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
-                    No active inventory.
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    No products in the catalog yet.
                   </td>
                 </tr>
               )}
               {productRollup.map((p) => (
-                <tr key={`${p.productName}-${p.dose}`} className="border-b last:border-0 hover:bg-gray-50">
+                <tr key={p.variantId} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{p.productName}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.sku || '—'}</td>
                   <td className="px-4 py-3">{p.dose}</td>
-                  <td className="px-4 py-3 text-right">{p.onHand}</td>
+                  <td
+                    className={`px-4 py-3 text-right font-semibold ${
+                      p.onHand === 0
+                        ? 'text-gray-400'
+                        : p.onHand <= p.reorderLevel
+                          ? 'text-amber-600'
+                          : ''
+                    }`}
+                  >
+                    {p.onHand}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500">{p.reorderLevel}</td>
                   <td className="px-4 py-3 text-right">{p.batches}</td>
                   <td className="px-4 py-3">{p.soonestBud ? fmtDate(p.soonestBud) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+              <tr>
+                <th className="px-4 py-3">When</th>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">SKU</th>
+                <th className="px-4 py-3 text-right">Change</th>
+                <th className="px-4 py-3">Reason</th>
+                <th className="px-4 py-3">Note</th>
+                <th className="px-4 py-3">By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {log === null && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    Loading activity…
+                  </td>
+                </tr>
+              )}
+              {log !== null && log.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    No inventory movements recorded yet.
+                  </td>
+                </tr>
+              )}
+              {(log ?? []).map((a) => (
+                <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-500">
+                    {new Date(a.createdAt).toLocaleString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: '2-digit',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    {a.productName}
+                    {a.dose ? <span className="text-gray-500"> · {a.dose}</span> : null}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{a.sku || '—'}</td>
+                  <td
+                    className={`px-4 py-3 text-right font-semibold ${
+                      a.delta > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {a.delta > 0 ? `+${a.delta}` : a.delta}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={a.delta > 0 ? 'default' : 'secondary'}>
+                      {REASON_LABELS[a.reason] ?? a.reason}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">{a.note || '—'}</td>
+                  <td className="px-4 py-3">{a.by}</td>
                 </tr>
               ))}
             </tbody>

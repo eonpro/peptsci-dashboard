@@ -1,4 +1,5 @@
 import { listBatches } from '@/lib/inventory-batches'
+import { listCatalogStock } from '@/lib/inventory'
 import InventoryClient, { type BatchRow } from './InventoryClient'
 
 // Inventory is per-request data; render dynamically and seed the client island
@@ -6,7 +7,7 @@ import InventoryClient, { type BatchRow } from './InventoryClient'
 export const dynamic = 'force-dynamic'
 
 export default async function InventoryPage() {
-  const batches = await listBatches({ status: 'ALL' })
+  const [batches, catalog] = await Promise.all([listBatches({ status: 'ALL' }), listCatalogStock()])
   const initialBatches: BatchRow[] = batches.map((b) => ({
     id: b.id,
     batchNumber: b.batchNumber,
@@ -24,5 +25,5 @@ export default async function InventoryPage() {
     variant: b.variant ? { sku: b.variant.sku } : undefined,
   }))
 
-  return <InventoryClient initialBatches={initialBatches} />
+  return <InventoryClient initialBatches={initialBatches} initialCatalog={catalog} />
 }

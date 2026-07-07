@@ -441,10 +441,13 @@ model InventoryAdjustment {
   orderId     String?
   createdBy   User?                     @relation(fields: [createdById], references: [id])
   createdById String?
+  // Display fallback when the actor has no User row (e.g. Clerk id only)
+  createdByName String?
   createdAt   DateTime                  @default(now())
 
   @@index([variantId])
   @@index([orderId])
+  @@index([createdAt])
 }
 
 // -------------------------------------------------

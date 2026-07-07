@@ -26,6 +26,47 @@ export interface Inventory {
   CalculatedInventoryAvailable?: number
 }
 
+export interface CatalogStockRow {
+  variantId: string
+  sku: string | null
+  productName: string
+  dose: string | null
+  onHand: number
+  reserved: number
+  reorderLevel: number
+}
+
+/**
+ * Every ACTIVE catalog variant with its stock counters — the Inventory page's
+ * "By Product" view. Products appear here at 0 on hand as soon as they exist
+ * in the catalog, before any batch is received.
+ */
+export async function listCatalogStock(): Promise<CatalogStockRow[]> {
+  if (!prisma) return []
+  const variants = await prisma.productVariant.findMany({
+    where: { status: 'ACTIVE' },
+    select: {
+      id: true,
+      sku: true,
+      dose: true,
+      inventoryOnHand: true,
+      inventoryReserved: true,
+      reorderLevel: true,
+      product: { select: { name: true } },
+    },
+    orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
+  })
+  return variants.map((v) => ({
+    variantId: v.id,
+    sku: v.sku,
+    productName: v.product.name,
+    dose: v.dose,
+    onHand: v.inventoryOnHand,
+    reserved: v.inventoryReserved,
+    reorderLevel: v.reorderLevel,
+  }))
+}
+
 /**
  * Return current inventory from active product variants. On-hand and reorder
  * levels come straight from ProductVariant; "ordered" has no separate column

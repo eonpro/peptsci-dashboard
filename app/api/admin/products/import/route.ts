@@ -10,6 +10,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { parseProductCsv, type ProductImportRow, type RowError } from '@/lib/product-import'
+import { resolveInventoryActor, type InventoryActor } from '@/lib/inventory-log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
     // Cache Product ids by lower-cased name to avoid duplicate product rows
     // when many variants share a product name within one file.
     const productIdByName = new Map<string, string>()
+    let importActor: InventoryActor | null = null
 
     // Product-level fields sourced from the CSV. Only keys present in the row
     // are written, so re-imports never blank out existing values.
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
 
         const existingVariant = await prisma.productVariant.findUnique({
           where: { sku: row.sku },
-          select: { id: true },
+          select: { id: true, inventoryOnHand: true },
         })
 
         const variantData = {
@@ -162,15 +164,42 @@ export async function POST(request: NextRequest) {
             : {}),
         }
 
+        // Stock changes are audit-logged with the acting user (delta vs the
+        // previous on-hand for updates, full amount for new variants).
+        let stockDelta = 0
+        let variantId: string
         if (existingVariant) {
           await prisma.productVariant.update({
             where: { id: existingVariant.id },
             data: variantData,
           })
+          variantId = existingVariant.id
+          if (row.inventoryOnHand !== undefined) {
+            stockDelta = Math.trunc(row.inventoryOnHand) - existingVariant.inventoryOnHand
+          }
           summary.updated++
         } else {
-          await prisma.productVariant.create({ data: variantData })
+          const created = await prisma.productVariant.create({
+            data: variantData,
+            select: { id: true },
+          })
+          variantId = created.id
+          if (row.inventoryOnHand !== undefined) stockDelta = Math.trunc(row.inventoryOnHand)
           summary.created++
+        }
+
+        if (stockDelta !== 0) {
+          if (!importActor) importActor = await resolveInventoryActor(prisma, userId)
+          await prisma.inventoryAdjustment.create({
+            data: {
+              variantId,
+              delta: stockDelta,
+              reason: 'MANUAL_ADJUSTMENT',
+              note: 'CSV import',
+              createdById: importActor.userId,
+              createdByName: importActor.name,
+            },
+          })
         }
       } catch (rowErr) {
         summary.failed++

@@ -12,6 +12,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { resolveInventoryActor } from '@/lib/inventory-log'
 import type { Prisma, ReturnRequest, ReturnStatus } from '@prisma/client'
 import { notifyAdmins } from '@/lib/notifications/service'
 import {
@@ -241,6 +242,9 @@ export async function restockReturnItems(
         where: { id: variantId },
         data: { inventoryOnHand: { increment: item.quantity } },
       })
+      // actorId is a CLERK id — resolve it to the internal User row (passing it
+      // straight into createdById would violate the FK and abort the restock).
+      const actor = await resolveInventoryActor(tx, actorId)
       await tx.inventoryAdjustment.create({
         data: {
           variantId,
@@ -248,7 +252,8 @@ export async function restockReturnItems(
           reason: 'RETURN',
           note: `Return ${request.rmaNumber} restock`,
           orderId: request.orderId,
-          createdById: actorId && actorId !== 'dev-user' ? actorId : null,
+          createdById: actor.userId,
+          createdByName: actor.name,
         },
       })
       return true
