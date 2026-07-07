@@ -14,7 +14,14 @@
   }
 }
 
-@theme {
+/*
+  Semantic color tokens MUST be declared with `@theme inline` so that
+  `hsl(var(--background))` is inlined into each utility and resolves against
+  the nearest scope. A plain `@theme` evaluates the var() once at :root (the
+  light theme), which made `bg-background` & friends render the LIGHT colors
+  inside `.dark` after the Tailwind v4 upgrade (white buttons w/ white text).
+*/
+@theme inline {
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -42,14 +49,16 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@theme {
   --color-brand-bg: #f2f0ea;
   --color-brand-white: #ffffff;
   --color-brand-primary: #213cef;
   --color-brand-onyx: #050722;
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
