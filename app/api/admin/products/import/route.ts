@@ -9,7 +9,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { parseProductCsv, type RowError } from '@/lib/product-import'
+import { parseProductCsv, type ProductImportRow, type RowError } from '@/lib/product-import'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -86,27 +86,54 @@ export async function POST(request: NextRequest) {
     // when many variants share a product name within one file.
     const productIdByName = new Map<string, string>()
 
+    // Product-level fields sourced from the CSV. Only keys present in the row
+    // are written, so re-imports never blank out existing values.
+    const productDataFromRow = (row: ProductImportRow) => {
+      const data: Record<string, string | number> = {}
+      if (row.category) data.category = row.category
+      if (row.description) data.description = row.description
+      if (row.casNumber) data.casNumber = row.casNumber
+      if (row.molecularFormula) data.molecularFormula = row.molecularFormula
+      if (row.molecularWeight !== undefined) data.molecularWeight = row.molecularWeight
+      if (row.pubchemCid) data.pubchemCid = row.pubchemCid
+      if (row.peptideLength !== undefined) data.peptideLength = row.peptideLength
+      if (row.aka) data.aka = row.aka
+      if (row.monoisotopicMass !== undefined) data.monoisotopicMass = row.monoisotopicMass
+      if (row.complexity !== undefined) data.complexity = row.complexity
+      if (row.xlogp !== undefined) data.xlogp = row.xlogp
+      if (row.hydrogenBondDonorCount !== undefined)
+        data.hydrogenBondDonorCount = row.hydrogenBondDonorCount
+      if (row.hydrogenBondAcceptorCount !== undefined)
+        data.hydrogenBondAcceptorCount = row.hydrogenBondAcceptorCount
+      if (row.rotatableBondCount !== undefined) data.rotatableBondCount = row.rotatableBondCount
+      if (row.heavyAtomCount !== undefined) data.heavyAtomCount = row.heavyAtomCount
+      if (row.intendedUse) data.intendedUse = row.intendedUse
+      if (row.safetySummary) data.safetySummary = row.safetySummary
+      return data
+    }
+
     for (const row of rows) {
       try {
         const nameKey = row.name.toLowerCase()
         let productId = productIdByName.get(nameKey)
 
         if (!productId) {
+          const productData = productDataFromRow(row)
           const existing = await prisma.product.findFirst({
             where: { name: { equals: row.name, mode: 'insensitive' } },
             select: { id: true },
           })
           if (existing) {
             productId = existing.id
-            if (row.category) {
+            if (Object.keys(productData).length > 0) {
               await prisma.product.update({
                 where: { id: existing.id },
-                data: { category: row.category },
+                data: productData,
               })
             }
           } else {
             const created = await prisma.product.create({
-              data: { name: row.name, category: row.category ?? null },
+              data: { name: row.name, ...productData },
               select: { id: true },
             })
             productId = created.id

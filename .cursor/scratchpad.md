@@ -1816,3 +1816,42 @@ Full-codebase readiness audit (4 parallel deep-dives: security/auth, payments/or
 - `Order` has no direct invoice FK — net-terms detection is `_count.invoiceLineItems > 0` (InvoiceLineItem.orderId is unique).
 - Stripe retries webhook 5xx for up to 3 days — 503 on transient DB failure is safe and strictly better than a silent 200 drop given `WebhookEvent` idempotency claim.
 - Passing `handleSubmit` directly as a React `onClick` handler silently passes the click event as the first arg — a `boolean` default param would have been truthy. Always wrap: `onClick={() => handleSubmit()}`.
+
+---
+
+## Manual "Add via UI" forms — customers, products, pricing (Jul 6 2026) [EXECUTOR]
+
+User request: every data-entry path that was CSV-only must also work as a dashboard form. Inventory already had Receive Inventory; client pricing already had Add Custom Price. Implemented the remaining three. TDD: `lib/manual-sale.ts` validator written test-first (9 tests).
+
+### Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| UI-1 | `POST /api/admin/sales` — manual single SalesRecord (source `manual`); validation in pure `lib/manual-sale.ts` (identifier required, derived paidAmount/amountPerVial, invoicePaid default, shared `coerceDate`); COGS estimated from catalog like CSV importer | ✅ |
+| UI-2 | Customers page "Add Customer" dialog (`AddCustomerButton.tsx`) — contact-only ($0 record) or full sale; `router.refresh()` on save; page now `force-dynamic` | ✅ |
+| UI-3 | `POST /api/admin/products` (single create, 409 on duplicate SKU, product matched by name like importer) + `PATCH /api/admin/products/[id]` (name/category/sku/dose/cost/srp/supplier/reorderLevel; inventoryOnHand intentionally NOT patchable — stock goes through Receive Inventory) | ✅ |
+| UI-4 | Products page "Add Product" button + per-row pencil edit (`ProductFormDialog.tsx`); GET now returns `reorderLevel` | ✅ |
+| UI-5 | Pricing page list view: per-row pencil → `EditPriceDialog` (Cost/SRP with live margin) via the products PATCH; `PriceSheet` gains optional `Id` (variant id) threaded from `getPricing()`/`/api/prices` | ✅ |
+| UI-verify | `tsc --noEmit` clean; 220/220 tests (9 new `manualSale`); `next build` green | ✅ |
+
+### Lessons
+- Customers page is a pure rollup of `SalesRecord` (no Customer table) — "adding a customer" = creating a manual sales record; a $0, date-less record surfaces the contact without distorting revenue or order counts (`groupByCustomer` counts orders by non-null dates).
+- `errorResponse()` masks messages in production (`'An error occurred'`) even for 400 validation errors — client-side pre-validation in dialogs is required for usable error UX.
+
+---
+
+## Product CSV import: scientific/reference columns (Jul 6 2026) [EXECUTOR]
+
+User's product Excel sheet has 22 columns (SKU, Peptide Name, Miligrams, Cost/Unit, Category, CAS Number, Molecular Formula, Molecular Weight, PubChem CID, Peptide Length, Description, AKA, Monoisotopic Mass, Complexity, XLogP, H-bond donor/acceptor counts, Rotatable Bond Count, Heavy Atom Count, Intended Use, PubChem LCSS, Current Inventory). Extended the importer so the sheet uploads as-is.
+
+### Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| SCI-1 | Migration `20260707034454_add_product_scientific_fields`: 15 nullable Product columns (casNumber, molecularFormula, molecularWeight Float, pubchemCid, peptideLength Int, aka, monoisotopicMass/complexity/xlogp Float, 4 bond/atom Int counts, intendedUse, safetySummary) | ✅ applied locally |
+| SCI-2 | `lib/product-import.ts`: new `ProductImportRow` fields + header aliases for the sheet's exact headers (incl. "Miligrams" misspelling, "Cost/Unit", "Current Inventory", "PubChem Laboratory Chemical Safety Summary (LCSS)"); bare numbers under an mg-header get "mg" suffix; non-numeric scientific values dropped leniently (never fail a row); template extended | ✅ |
+| SCI-3 | Import route writes product-level science fields on create + update (only keys present in the row, so re-imports never blank existing values); `description` now imported | ✅ |
+| SCI-4 | Products page dialog copy updated | ✅ |
+| SCI-verify | 223/223 tests (3 new incl. full 22-column sheet round-trip); `tsc --noEmit` clean | ✅ |
+
+### Lessons
+- Prod migrations go through `POST /api/admin/db/migrate` (SUPER_ADMIN, runtime runner) — Prisma CLI can't reach prod RDS (IAM auth). SCI-1 must be applied there on next deploy.
+- Scientific reference values should parse leniently ("N/A" → dropped, not a row error) so they never block the commercial import.

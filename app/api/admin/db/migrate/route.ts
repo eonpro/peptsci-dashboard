@@ -92,6 +92,7 @@ interface SchemaProbe {
   invoiceLineItemTable: boolean
   invoicePaymentTable: boolean
   invoiceAdjustmentTable: boolean
+  productCasNumberColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -113,7 +114,8 @@ async function probeSchema(): Promise<SchemaProbe> {
       AND ((table_name = 'Order' AND column_name = 'shippingTotal')
         OR (table_name = 'Order' AND column_name = 'trackingNumber')
         OR (table_name = 'Client' AND column_name = 'stripeCustomerId')
-        OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved'))
+        OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved')
+        OR (table_name = 'Product' AND column_name = 'casNumber'))
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -139,6 +141,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     invoiceLineItemTable: tableNames.has('InvoiceLineItem'),
     invoicePaymentTable: tableNames.has('InvoicePayment'),
     invoiceAdjustmentTable: tableNames.has('InvoiceAdjustment'),
+    productCasNumberColumn: colKeys.has('Product.casNumber'),
   }
 }
 

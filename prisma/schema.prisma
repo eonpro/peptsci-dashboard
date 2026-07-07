@@ -297,6 +297,22 @@ model Product {
   description String?
   category    String?
   status      ProductStatus    @default(ACTIVE)
+  // Scientific / reference data (per compound, populated by catalog CSV import)
+  casNumber                 String?
+  molecularFormula          String?
+  molecularWeight           Float?   // g/mol
+  pubchemCid                String?
+  peptideLength             Int?     // number of amino acid residues
+  aka                       String?  // synonyms / "also known as"
+  monoisotopicMass          Float?
+  complexity                Float?   // PubChem complexity score
+  xlogp                     Float?
+  hydrogenBondDonorCount    Int?
+  hydrogenBondAcceptorCount Int?
+  rotatableBondCount        Int?
+  heavyAtomCount            Int?
+  intendedUse               String?
+  safetySummary             String?  // PubChem Laboratory Chemical Safety Summary (LCSS)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   variants    ProductVariant[]

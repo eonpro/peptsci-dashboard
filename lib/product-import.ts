@@ -19,6 +19,23 @@ export interface ProductImportRow {
   supplierSku?: string
   inventoryOnHand?: number
   reorderLevel?: number
+  // Scientific / reference data (stored on the parent Product)
+  description?: string
+  casNumber?: string
+  molecularFormula?: string
+  molecularWeight?: number
+  pubchemCid?: string
+  peptideLength?: number
+  aka?: string
+  monoisotopicMass?: number
+  complexity?: number
+  xlogp?: number
+  hydrogenBondDonorCount?: number
+  hydrogenBondAcceptorCount?: number
+  rotatableBondCount?: number
+  heavyAtomCount?: number
+  intendedUse?: string
+  safetySummary?: string
 }
 
 export interface RowError {
@@ -43,6 +60,22 @@ export const PRODUCT_IMPORT_HEADERS = [
   'supplierSku',
   'inventoryOnHand',
   'reorderLevel',
+  'description',
+  'casNumber',
+  'molecularFormula',
+  'molecularWeight',
+  'pubchemCid',
+  'peptideLength',
+  'aka',
+  'monoisotopicMass',
+  'complexity',
+  'xlogp',
+  'hydrogenBondDonorCount',
+  'hydrogenBondAcceptorCount',
+  'rotatableBondCount',
+  'heavyAtomCount',
+  'intendedUse',
+  'safetySummary',
 ] as const
 
 /** Header aliases -> canonical field name (all compared lower-cased, trimmed). */
@@ -51,6 +84,8 @@ const HEADER_ALIASES: Record<string, keyof ProductImportRow | 'name'> = {
   product: 'name',
   'product name': 'name',
   productname: 'name',
+  peptide: 'name',
+  'peptide name': 'name',
   sku: 'sku',
   'variant sku': 'sku',
   code: 'sku',
@@ -58,11 +93,16 @@ const HEADER_ALIASES: Record<string, keyof ProductImportRow | 'name'> = {
   'product code': 'sku',
   dose: 'dose',
   strength: 'dose',
+  mg: 'dose',
+  milligrams: 'dose',
+  miligrams: 'dose',
   category: 'category',
   unitcost: 'unitCost',
   'unit cost': 'unitCost',
   cost: 'unitCost',
   'our cost': 'unitCost',
+  'cost/unit': 'unitCost',
+  'cost per unit': 'unitCost',
   srp: 'srp',
   price: 'srp',
   retail: 'srp',
@@ -81,9 +121,61 @@ const HEADER_ALIASES: Record<string, keyof ProductImportRow | 'name'> = {
   'on hand': 'inventoryOnHand',
   qty: 'inventoryOnHand',
   quantity: 'inventoryOnHand',
+  inventory: 'inventoryOnHand',
+  'current inventory': 'inventoryOnHand',
   reorderlevel: 'reorderLevel',
   'reorder level': 'reorderLevel',
+  // Scientific / reference data
+  description: 'description',
+  casnumber: 'casNumber',
+  'cas number': 'casNumber',
+  cas: 'casNumber',
+  'cas #': 'casNumber',
+  'cas no': 'casNumber',
+  molecularformula: 'molecularFormula',
+  'molecular formula': 'molecularFormula',
+  formula: 'molecularFormula',
+  molecularweight: 'molecularWeight',
+  'molecular weight': 'molecularWeight',
+  'molecular weight (g/mol)': 'molecularWeight',
+  mw: 'molecularWeight',
+  pubchemcid: 'pubchemCid',
+  'pubchem cid': 'pubchemCid',
+  cid: 'pubchemCid',
+  peptidelength: 'peptideLength',
+  'peptide length': 'peptideLength',
+  aka: 'aka',
+  'also known as': 'aka',
+  synonyms: 'aka',
+  monoisotopicmass: 'monoisotopicMass',
+  'monoisotopic mass': 'monoisotopicMass',
+  complexity: 'complexity',
+  xlogp: 'xlogp',
+  xlogp3: 'xlogp',
+  hydrogenbonddonorcount: 'hydrogenBondDonorCount',
+  'hydrogen bond donor count': 'hydrogenBondDonorCount',
+  'h-bond donor count': 'hydrogenBondDonorCount',
+  hydrogenbondacceptorcount: 'hydrogenBondAcceptorCount',
+  'hydrogen bond acceptor count': 'hydrogenBondAcceptorCount',
+  'h-bond acceptor count': 'hydrogenBondAcceptorCount',
+  rotatablebondcount: 'rotatableBondCount',
+  'rotatable bond count': 'rotatableBondCount',
+  heavyatomcount: 'heavyAtomCount',
+  'heavy atom count': 'heavyAtomCount',
+  intendeduse: 'intendedUse',
+  'intended use': 'intendedUse',
+  safetysummary: 'safetySummary',
+  'safety summary': 'safetySummary',
+  lcss: 'safetySummary',
+  'pubchem laboratory chemical safety summary (lcss)': 'safetySummary',
+  'pubchem lcss': 'safetySummary',
 }
+
+/**
+ * Dose-column headers that imply a bare-number cell is in milligrams,
+ * so "10" is normalized to "10mg".
+ */
+const MG_DOSE_HEADERS = new Set(['mg', 'milligrams', 'miligrams'])
 
 /**
  * Parse CSV text into a matrix of string cells. Handles quoted fields with
@@ -192,6 +284,23 @@ export function parseProductCsv(input: string): ParseResult {
     return v === undefined ? undefined : v.trim()
   }
 
+  // Scientific numbers are reference data: a non-numeric value (e.g. "N/A")
+  // is silently dropped instead of failing the row, so it never blocks the
+  // commercial import.
+  const lenientNumber = (raw: string | undefined): number | undefined => {
+    const n = toNumber(raw)
+    return n === undefined || Number.isNaN(n) ? undefined : n
+  }
+  const lenientInt = (raw: string | undefined): number | undefined => {
+    const n = lenientNumber(raw)
+    return n === undefined ? undefined : Math.trunc(n)
+  }
+
+  // When the dose column is literally "Milligrams"/"mg", a bare number like
+  // "10" means "10mg" - normalize it so it displays consistently.
+  const doseIdx = colIndex.dose
+  const doseIsMg = doseIdx !== undefined && MG_DOSE_HEADERS.has(header[doseIdx])
+
   const seenSkus = new Set<string>()
 
   for (let r = 1; r < matrix.length; r++) {
@@ -235,11 +344,15 @@ export function parseProductCsv(input: string): ParseResult {
     }
 
     seenSkus.add(sku.toLowerCase())
+
+    let dose = cell(cols, 'dose') || undefined
+    if (dose && doseIsMg && /^\d+(\.\d+)?$/.test(dose)) dose = `${dose}mg`
+
     rows.push({
       rowNumber,
       name,
       sku,
-      dose: cell(cols, 'dose') || undefined,
+      dose,
       category: cell(cols, 'category') || undefined,
       unitCost: unitCostVal,
       srp: srpVal,
@@ -247,6 +360,22 @@ export function parseProductCsv(input: string): ParseResult {
       supplierSku: cell(cols, 'supplierSku') || undefined,
       inventoryOnHand: inventoryOnHand,
       reorderLevel: reorderLevel,
+      description: cell(cols, 'description') || undefined,
+      casNumber: cell(cols, 'casNumber') || undefined,
+      molecularFormula: cell(cols, 'molecularFormula') || undefined,
+      molecularWeight: lenientNumber(cell(cols, 'molecularWeight')),
+      pubchemCid: cell(cols, 'pubchemCid') || undefined,
+      peptideLength: lenientInt(cell(cols, 'peptideLength')),
+      aka: cell(cols, 'aka') || undefined,
+      monoisotopicMass: lenientNumber(cell(cols, 'monoisotopicMass')),
+      complexity: lenientNumber(cell(cols, 'complexity')),
+      xlogp: lenientNumber(cell(cols, 'xlogp')),
+      hydrogenBondDonorCount: lenientInt(cell(cols, 'hydrogenBondDonorCount')),
+      hydrogenBondAcceptorCount: lenientInt(cell(cols, 'hydrogenBondAcceptorCount')),
+      rotatableBondCount: lenientInt(cell(cols, 'rotatableBondCount')),
+      heavyAtomCount: lenientInt(cell(cols, 'heavyAtomCount')),
+      intendedUse: cell(cols, 'intendedUse') || undefined,
+      safetySummary: cell(cols, 'safetySummary') || undefined,
     })
   }
 
@@ -267,6 +396,22 @@ export function productImportTemplate(): string {
     'ACME-TES-10',
     '0',
     '5',
+    'Growth-hormone-releasing hormone (GHRH) analog',
+    '218949-48-5',
+    'C221H366N72O67S',
+    '5135.9',
+    '44147413',
+    '44',
+    'TH9507; Egrifta',
+    '5132.7',
+    '11400',
+    '-14.4',
+    '73',
+    '75',
+    '182',
+    '361',
+    'Research use only',
+    'See PubChem LCSS',
   ].join(',')
   return `${header}\n${example}\n`
 }
