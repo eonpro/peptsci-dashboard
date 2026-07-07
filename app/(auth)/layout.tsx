@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { BadgeCheck, Lock, ShieldCheck } from 'lucide-react'
+import { Lock, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 
 export const metadata: Metadata = {
@@ -36,10 +36,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="flex items-center gap-1.5 text-xs">
             <ShieldCheck className="h-3.5 w-3.5" />
             HIPAA Compliant
-          </span>
-          <span className="flex items-center gap-1.5 text-xs">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            SOC 2
           </span>
         </div>
 

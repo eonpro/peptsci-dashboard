@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
-  requireAdmin,
+  requireSuperAdmin,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -24,7 +24,7 @@ export const runtime = 'nodejs'
  * prisma/migrations through the live (already-authenticated) runtime connection.
  *
  * Safety:
- *  - Admin only.
+ *  - SUPER_ADMIN only.
  *  - POST requires an explicit { confirm: true } body.
  *  - Statements that fail with "already exists" / "does not exist" / "duplicate"
  *    are treated as no-ops, so the run is idempotent and safe to repeat. Every
@@ -147,9 +147,9 @@ function isSchemaUpToDate(schema: SchemaProbe): boolean {
 }
 
 export async function GET() {
-  const { isAuthenticated, isAdmin } = await requireAdmin()
+  const { isAuthenticated, isAdmin } = await requireSuperAdmin()
   if (!isAuthenticated) return unauthorizedResponse()
-  if (!isAdmin) return forbiddenResponse()
+  if (!isAdmin) return forbiddenResponse('Super-admin access required')
 
   try {
     const [migrations, schema] = await Promise.all([listMigrationDirs(), probeSchema()])
@@ -162,9 +162,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, isAdmin } = await requireAdmin()
+  const { isAuthenticated, isAdmin } = await requireSuperAdmin()
   if (!isAuthenticated) return unauthorizedResponse()
-  if (!isAdmin) return forbiddenResponse()
+  if (!isAdmin) return forbiddenResponse('Super-admin access required')
 
   const body = (await request.json().catch(() => ({}))) as { confirm?: boolean }
   if (body?.confirm !== true) {

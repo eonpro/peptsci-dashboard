@@ -154,8 +154,10 @@ TWILIO_MESSAGING_SERVICE_SID=""
 # ===========================================
 # Shared secret for the /api/cron/* routes (vercel.json). Vercel sends it as
 # `Authorization: Bearer <CRON_SECRET>` on scheduled invocations. Generate with
-# `openssl rand -hex 32`. If unset in production, crons fall back to trusting
-# Vercel's `x-vercel-cron` header (logged as degraded) — set this to lock them.
+# `openssl rand -hex 32`. REQUIRED in production: if unset, ALL cron requests
+# are denied (fail-closed) and no scheduled jobs run (see lib/cron/auth.ts).
 CRON_SECRET=""
+# Days ahead to warn about batches approaching their Beyond-Use Date (default 60).
+EXPIRING_BATCH_WINDOW_DAYS="60"
 # Recipients for the weekly BI summary email (comma-separated). No-op when unset.
 REPORT_EMAIL_TO=""

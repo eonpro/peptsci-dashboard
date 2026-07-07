@@ -35,6 +35,8 @@ export const RATE_LIMITS = {
   export: { interval: 60000, maxRequests: 10 },
   // Webhook routes - 1000 requests per minute
   webhook: { interval: 60000, maxRequests: 1000 },
+  // Unauthenticated public checkout — strict: creates orders + reserves stock
+  publicCheckout: { interval: 60000, maxRequests: 5 },
 } as const
 
 /**

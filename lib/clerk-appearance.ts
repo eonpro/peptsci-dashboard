@@ -36,7 +36,7 @@ export const authAppearance = {
     rootBox: 'w-full overflow-visible!',
     cardBox: 'w-full overflow-visible! border-0! bg-transparent! shadow-none!',
     card: 'w-full overflow-visible! border-0! bg-transparent! p-0! shadow-none! gap-5',
-    header: 'hidden',
+    header: 'hidden!',
     main: 'gap-5',
     socialButtons: 'gap-2.5',
     socialButtonsBlockButton:
@@ -56,7 +56,7 @@ export const authAppearance = {
     formFieldAction: 'text-[#8b95ff]! hover:text-white! text-sm font-medium',
     formButtonPrimary:
       'h-12! rounded-xl! border-0! bg-linear-to-r! from-[#2342f0]! to-[#7a5bff]! text-white! text-[15px]! font-semibold! normal-case! tracking-normal! shadow-[0_12px_30px_-10px_rgba(67,76,255,0.7)]! transition-all duration-200 hover:brightness-110! hover:shadow-[0_16px_38px_-8px_rgba(67,76,255,0.9)]!',
-    footer: 'hidden',
+    footer: 'hidden!',
     identityPreviewText: 'text-white!',
     identityPreviewEditButton: 'text-[#8b95ff]! hover:text-white!',
     formResendCodeLink: 'text-[#8b95ff]! hover:text-white!',

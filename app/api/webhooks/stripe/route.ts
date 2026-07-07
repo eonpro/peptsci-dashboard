@@ -2,8 +2,10 @@
  * Stripe Webhook Handler (adapted from EonPro's bulletproof pattern).
  *
  * Rules:
- * 1. NEVER return 500 to Stripe (avoids retry storms) — always 200 once the
- *    signature is verified; failures are recorded for manual review.
+ * 1. Never return 500 for business-logic failures (avoids retry storms) —
+ *    those are recorded in WebhookEvent for manual review and acknowledged
+ *    with 200. TRANSIENT failures (DB unavailable, order not linked yet)
+ *    return 503 so Stripe retries within its window.
  * 2. Verify the signature before any processing.
  * 3. Idempotent on Stripe event id via the WebhookEvent table.
  * 4. Reconcile orders/payment methods from the event payload.
@@ -88,9 +90,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!prisma) {
-    // Can't dedupe/record without a DB; report received so Stripe doesn't retry forever.
-    logger.error('[STRIPE WEBHOOK] DB unavailable; cannot process', { eventId: event.id })
-    return NextResponse.json({ received: true, processed: false, reason: 'db_unavailable' })
+    // Can't dedupe/record without a DB. Return 503 so Stripe retries — a
+    // transient DB outage must not silently drop payment events (orders would
+    // stay PENDING forever). Stripe backs off and retries for up to 3 days.
+    logger.error('[STRIPE WEBHOOK] DB unavailable; asking Stripe to retry', { eventId: event.id })
+    return NextResponse.json(
+      { received: true, processed: false, retry: true, reason: 'db_unavailable' },
+      { status: 503 }
+    )
   }
 
   // Idempotency claim: atomically insert the event row up-front. The unique
@@ -112,12 +119,18 @@ export async function POST(request: NextRequest) {
     claimed = true
   } catch (createErr) {
     if (!isUniqueViolation(createErr)) {
-      // DB unavailable / table missing — acknowledge so Stripe doesn't storm.
-      logger.error('[STRIPE WEBHOOK] Claim insert failed (acknowledging)', {
+      // DB error (connection drop, table missing). Return 503 so Stripe
+      // retries rather than silently dropping the event. If the failure is
+      // persistent (e.g. missing table), retries exhaust in Stripe's window
+      // and the event surfaces in the Stripe dashboard as failed delivery.
+      logger.error('[STRIPE WEBHOOK] Claim insert failed; asking Stripe to retry', {
         eventId: event.id,
         error: createErr instanceof Error ? createErr.message : String(createErr),
       })
-      return NextResponse.json({ received: true, processed: false, reason: 'claim_failed' })
+      return NextResponse.json(
+        { received: true, processed: false, retry: true, reason: 'claim_failed' },
+        { status: 503 }
+      )
     }
     // Row exists: another delivery got here first. Only reclaim a prior ERROR.
     const existing = await prisma.webhookEvent

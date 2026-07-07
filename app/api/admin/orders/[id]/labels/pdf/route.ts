@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { allocatableBatchesForVariants, planAllocation } from '@/lib/inventory-batches'
 import { consumeOrderInventory } from '@/lib/fulfillment/service'
+import { assessShipmentPaymentGate, PAYMENT_GATE_MESSAGE } from '@/lib/fulfillment/payment-gate'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
 
 export const runtime = 'nodejs'
@@ -24,13 +25,52 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!prisma) return errorResponse('Database is not configured', 503, 'NO_DB')
 
     const { id } = await params
-    const consume = new URL(request.url).searchParams.get('consume') === 'true'
+    const searchParams = new URL(request.url).searchParams
+    const consume = searchParams.get('consume') === 'true'
+    const overrideUnpaidShip = searchParams.get('overrideUnpaidShip') === 'true'
 
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { items: { include: { variant: true } } },
+      include: {
+        items: { include: { variant: true } },
+        _count: { select: { invoiceLineItems: true } },
+      },
     })
     if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
+
+    // Pay-before-consume gate: previews are always allowed, but drawing down
+    // stock for an unpaid, un-invoiced order requires an explicit override.
+    if (consume) {
+      const gate = assessShipmentPaymentGate({
+        paymentStatus: order.paymentStatus,
+        invoiced: order._count.invoiceLineItems > 0,
+        override: overrideUnpaidShip,
+      })
+      if (!gate.allowed) {
+        return errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
+      }
+      if (gate.reason === 'override') {
+        logger.warn('[Order labels] unpaid-consume override used', {
+          orderId: order.id,
+          paymentStatus: order.paymentStatus,
+          userId: userId ?? null,
+        })
+        if (userId && userId !== 'dev-user') {
+          await prisma.auditLog
+            .create({
+              data: {
+                userId,
+                entity: 'Order',
+                entityId: order.id,
+                action: 'unpaid_ship_override',
+                orderId: order.id,
+                metadata: { paymentStatus: order.paymentStatus, via: 'labels_pdf_consume' },
+              },
+            })
+            .catch(() => {})
+        }
+      }
+    }
 
     const groups: PeptSciLabelGroup[] = []
     const shortfalls: Array<{ variantId: string; needed: number; short: number }> = []

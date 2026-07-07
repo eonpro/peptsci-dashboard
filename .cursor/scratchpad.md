@@ -1788,3 +1788,31 @@ Decisions: AWS SES (matches eonpro), full account lifecycle, from `no-reply@pept
 - [ ] P0-N6 FedEx tracking poller cron → DELIVERED + notify (+ trackShipment in lib/fedex.ts)
 - [ ] P0-N7 Low-stock alert cron
 - [ ] P0-N8 Expiring-BUD alert cron
+
+---
+
+## Go-Live Readiness — Phase 2 hardening (Jul 6, 2026)
+
+### Background and Motivation
+Full-codebase readiness audit (4 parallel deep-dives: security/auth, payments/orders, data layer, ops) ahead of taking real customers. Core architecture judged solid (server-side pricing, Connect direct charges, idempotent webhooks, Decimal money, tenant scoping). Six code-level blockers identified and fixed this session; Phase 1 (config: Clerk session claim, prod env vars, RDS backups) remains an ops task.
+
+### Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| GL-1 | Pay-before-ship gate | ✅ `lib/fulfillment/payment-gate.ts` (`assessShipmentPaymentGate`: CAPTURED, invoiced/net-terms, or explicit override). Enforced in FedEx label POST (402 `PAYMENT_REQUIRED`) + order labels-PDF `?consume=true`. Override = `overrideUnpaidShip` (body/query), audit-logged (`unpaid_ship_override`); FedExLabelModal surfaces a "Ship anyway" retry |
+| GL-2 | Fail closed on Stripe amount mismatch | ✅ `lib/stripe/payments.ts` — mismatch no longer sets CAPTURED/SUBMITTED/paidAt or reserves stock; records `paymentFailureReason` for manual reconciliation and returns unchanged status |
+| GL-3 | Migrate endpoint → SUPER_ADMIN | ✅ `app/api/admin/db/migrate` GET+POST now `requireSuperAdmin()` |
+| GL-4 | Rate-limit public storefront checkout | ✅ `RATE_LIMITS.publicCheckout` (5/min/IP) on `POST /api/storefront/checkout` (was fully open; creates orders + reserves stock) |
+| GL-5 | Stripe webhook retryable failures | ✅ DB-unavailable + claim-insert failures now return 503 (Stripe retries ≤3 days) instead of silent 200 drop |
+| GL-6 | Missing cron routes | ✅ Implemented `app/api/cron/low-stock` (available ≤ reorderLevel → admin INVENTORY notification, daily dedup) + `app/api/cron/expiring-batches` (BUD within `EXPIRING_BATCH_WINDOW_DAYS`, default 60; past-BUD = URGENT). vercel.json schedules now all resolve |
+| GL-docs | env-example CRON_SECRET drift | ✅ Corrected: crons are fail-closed in prod without CRON_SECRET (no x-vercel-cron fallback); documented EXPIRING_BATCH_WINDOW_DAYS |
+| GL-verify | Verification | ✅ `tsc --noEmit` clean; 211/211 tests pass (6 new payment-gate tests); `next build` green |
+
+### Executor's Feedback or Assistance Requests
+- Phase 1 (ops, before launch): Clerk session token claim `{"metadata": "{{user.public_metadata}}"}` + bootstrap SUPER_ADMIN; set prod env (live Stripe + STRIPE_CONNECTED_ACCOUNT_ID + Connect webhook secret, CRON_SECRET, EMAIL_ENABLED/SES prod access, FEDEX_*, END_CUSTOMER_JWT_SECRET, Sentry DSN); enable RDS backups/PITR + restore runbook.
+- Phase 3 (first month): transactional draft-order dedup (double-charge race), stock check at checkout (oversell), invoice payment → Order.paymentStatus sync, programmatic refunds, Redis rate limiting, webhook/reconcile integration tests, SMS opt-out (TCPA).
+
+### Lessons
+- `Order` has no direct invoice FK — net-terms detection is `_count.invoiceLineItems > 0` (InvoiceLineItem.orderId is unique).
+- Stripe retries webhook 5xx for up to 3 days — 503 on transient DB failure is safe and strictly better than a silent 200 drop given `WebhookEvent` idempotency claim.
+- Passing `handleSubmit` directly as a React `onClick` handler silently passes the click event as the first arg — a `boolean` default param would have been truthy. Always wrap: `onClick={() => handleSubmit()}`.

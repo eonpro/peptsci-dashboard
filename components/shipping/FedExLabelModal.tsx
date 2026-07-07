@@ -112,6 +112,7 @@ export default function FedExLabelModal({
   const [success, setSuccess] = useState<{ trackingNumber: string; labelId: string; popupBlocked: boolean } | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [redownloading, setRedownloading] = useState(false)
+  const [paymentGateBlocked, setPaymentGateBlocked] = useState(false)
 
   const availableServices = useMemo(
     () => (oneRate ? FEDEX_SERVICE_TYPES.filter((s) => s.oneRateEligible) : FEDEX_SERVICE_TYPES),
@@ -232,10 +233,11 @@ export default function FedExLabelModal({
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (overrideUnpaidShip = false) => {
     if (submitted) return
     setSubmitted(true)
     setError(null)
+    setPaymentGateBlocked(false)
     setLoading(true)
     try {
       const res = await fetch('/api/admin/shipping/fedex/label', {
@@ -250,10 +252,19 @@ export default function FedExLabelModal({
           weightLbs,
           oneRate,
           labelFormat,
+          overrideUnpaidShip,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to create label')
+      if (!res.ok) {
+        if (data.code === 'PAYMENT_REQUIRED') {
+          setPaymentGateBlocked(true)
+          throw new Error(
+            'This order has not been paid or invoiced. Collect payment first, or ship anyway with an audit-logged override.'
+          )
+        }
+        throw new Error(data.message || data.error || 'Failed to create label')
+      }
       const opened = openLabel(data.labelData, data.labelFormat || labelFormat, data.trackingNumber)
       setSuccess({ trackingNumber: data.trackingNumber, labelId: data.id, popupBlocked: !opened })
       onCreated?.({ trackingNumber: data.trackingNumber, labelId: data.id })
@@ -321,7 +332,20 @@ export default function FedExLabelModal({
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                <p className="text-sm text-red-700">{error}</p>
+                <div className="space-y-2">
+                  <p className="text-sm text-red-700">{error}</p>
+                  {paymentGateBlocked && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-100"
+                      disabled={loading}
+                      onClick={() => handleSubmit(true)}
+                    >
+                      Ship anyway (unpaid — will be audit-logged)
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -497,7 +521,7 @@ export default function FedExLabelModal({
                   {rateLoading ? 'Getting Rate…' : 'Get Rate Quote'}
                 </Button>
               ) : (
-                <Button onClick={handleSubmit} disabled={loading || !isOriginValid || !isDestValid} style={{ backgroundColor: ACCENT }}>
+                <Button onClick={() => handleSubmit()} disabled={loading || !isOriginValid || !isDestValid} style={{ backgroundColor: ACCENT }}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                   {loading ? 'Creating…' : `Confirm & Print — ${formatCurrency(rateQuote.totalCharge, rateQuote.currency)}`}
                 </Button>

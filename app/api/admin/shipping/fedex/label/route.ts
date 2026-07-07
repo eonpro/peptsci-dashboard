@@ -16,6 +16,7 @@ import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
 import { consumeOrderInventory } from '@/lib/fulfillment/service'
+import { assessShipmentPaymentGate, PAYMENT_GATE_MESSAGE } from '@/lib/fulfillment/payment-gate'
 import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
 
@@ -34,6 +35,8 @@ const createSchema = z.object({
   height: z.number().positive().optional(),
   oneRate: z.boolean().default(false),
   labelFormat: z.enum(['PDF', 'ZPLII', 'PNG']).default('PDF'),
+  /** Explicit admin acknowledgement to ship an unpaid, un-invoiced order. */
+  overrideUnpaidShip: z.boolean().default(false),
 })
 
 function classifyFedExError(error: unknown): { status: number; message: string } {
@@ -96,6 +99,7 @@ export async function POST(request: NextRequest) {
           id: string
           clientId: string
           status: string
+          paymentStatus: string
           orderNumber: number
           client: {
             contactEmail: string | null
@@ -106,13 +110,15 @@ export async function POST(request: NextRequest) {
         }
       | null = null
     if (data.orderId) {
-      order = await prisma.order.findUnique({
+      const found = await prisma.order.findUnique({
         where: { id: data.orderId },
         select: {
           id: true,
           clientId: true,
           status: true,
+          paymentStatus: true,
           orderNumber: true,
+          _count: { select: { invoiceLineItems: true } },
           client: {
             select: {
               contactEmail: true,
@@ -123,7 +129,40 @@ export async function POST(request: NextRequest) {
           },
         },
       })
-      if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
+      if (!found) return errorResponse('Order not found', 404, 'NOT_FOUND')
+      order = found
+
+      // Pay-before-ship gate: never label/ship an unpaid order unless it is
+      // invoiced (net terms) or the admin explicitly overrides (audit-logged).
+      const gate = assessShipmentPaymentGate({
+        paymentStatus: found.paymentStatus,
+        invoiced: found._count.invoiceLineItems > 0,
+        override: data.overrideUnpaidShip,
+      })
+      if (!gate.allowed) {
+        return errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
+      }
+      if (gate.reason === 'override') {
+        logger.warn('[FedEx label] unpaid-ship override used', {
+          orderId: found.id,
+          paymentStatus: found.paymentStatus,
+          userId: userId ?? null,
+        })
+        if (userId && userId !== 'dev-user') {
+          await prisma.auditLog
+            .create({
+              data: {
+                userId,
+                entity: 'Order',
+                entityId: found.id,
+                action: 'unpaid_ship_override',
+                orderId: found.id,
+                metadata: { paymentStatus: found.paymentStatus },
+              },
+            })
+            .catch(() => {})
+        }
+      }
     }
 
     // Create the shipment at FedEx.

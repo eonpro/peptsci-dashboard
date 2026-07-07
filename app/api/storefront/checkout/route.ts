@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { errorResponse, successResponse } from '@/lib/auth'
 import { getStorefrontBySlug, createRetailOrder } from '@/lib/storefront'
+import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -38,6 +39,19 @@ const checkoutSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Public, unauthenticated endpoint that creates real orders and reserves
+    // real inventory — throttle hard per IP to blunt bot/spam abuse.
+    const { limited, remaining, retryAfter } = checkRateLimit(
+      getRateLimitKey(request),
+      RATE_LIMITS.publicCheckout
+    )
+    if (limited) {
+      return NextResponse.json(
+        { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
+        { status: 429, headers: getRateLimitHeaders(remaining, RATE_LIMITS.publicCheckout, retryAfter) }
+      )
+    }
+
     const body = await request.json()
     const parsed = checkoutSchema.safeParse(body)
     if (!parsed.success) {

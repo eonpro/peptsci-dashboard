@@ -109,22 +109,35 @@ export async function reconcileOrderFromPaymentIntent(
     })
   }
 
-  const isCaptured = paymentStatus === PaymentStatus.CAPTURED
-  const isFailed = paymentStatus === PaymentStatus.FAILED
-
   // Amount verification: the amount Stripe actually processed must match the
   // server-computed order total. A mismatch means the PI was created/edited
-  // out-of-band — surface it loudly rather than silently trusting Stripe.
+  // out-of-band — FAIL CLOSED: do not mark the order captured, do not advance
+  // it, do not reserve stock. Ops must reconcile manually (refund or fix).
   const expectedCents = toCents(Number(order.total))
-  const amountMismatch = isCaptured && typeof pi.amount === 'number' && pi.amount !== expectedCents
+  const amountMismatch =
+    paymentStatus === PaymentStatus.CAPTURED &&
+    typeof pi.amount === 'number' &&
+    pi.amount !== expectedCents
   if (amountMismatch) {
-    logger.error('[STRIPE] PaymentIntent amount does not match order total', {
+    logger.error('[STRIPE] PaymentIntent amount does not match order total — refusing capture', {
       orderId: order.id,
       paymentIntentId: pi.id,
       piAmount: pi.amount,
       expectedCents,
     })
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        stripePaymentIntentId: pi.id,
+        stripeChargeId: chargeIdFromIntent(pi),
+        paymentFailureReason: `Amount mismatch: charged ${pi.amount}¢, expected ${expectedCents}¢ — needs manual reconciliation`,
+      },
+    })
+    return { orderId: order.id, paymentStatus: order.paymentStatus, matched: true }
   }
+
+  const isCaptured = paymentStatus === PaymentStatus.CAPTURED
+  const isFailed = paymentStatus === PaymentStatus.FAILED
 
   await prisma.order.update({
     where: { id: order.id },
@@ -132,11 +145,7 @@ export async function reconcileOrderFromPaymentIntent(
       paymentStatus,
       stripePaymentIntentId: pi.id,
       stripeChargeId: chargeIdFromIntent(pi),
-      paymentFailureReason: isFailed
-        ? (pi.last_payment_error?.message ?? 'Payment failed')
-        : amountMismatch
-          ? `Amount mismatch: charged ${pi.amount}¢, expected ${expectedCents}¢`
-          : null,
+      paymentFailureReason: isFailed ? (pi.last_payment_error?.message ?? 'Payment failed') : null,
       // Advance to SUBMITTED on capture (only from DRAFT so we never regress).
       ...(isCaptured && order.status === 'DRAFT'
         ? { status: 'SUBMITTED', submittedAt: new Date() }
