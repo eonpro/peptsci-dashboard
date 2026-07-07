@@ -32,7 +32,7 @@ const features = [
 
 export function CatalogHero({ productCount }: CatalogHeroProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-gradient-to-br from-[#213cef] via-[#1a30c0] to-[#0a0e3a] p-5 md:p-8 lg:p-12 border border-white/10">
+    <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-linear-to-br from-brand-primary via-[#1a30c0] to-[#0a0e3a] p-5 md:p-8 lg:p-12 border border-white/10">
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">
         <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -71,9 +71,9 @@ export function CatalogHero({ productCount }: CatalogHeroProps) {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="flex items-center gap-2 md:gap-3 rounded-xl bg-white/10 backdrop-blur-sm px-3 md:px-4 py-2.5 md:py-3 border border-white/10"
+              className="flex items-center gap-2 md:gap-3 rounded-xl bg-white/10 backdrop-blur-xs px-3 md:px-4 py-2.5 md:py-3 border border-white/10"
             >
-              <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-lg bg-white/20 flex-shrink-0">
+              <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-lg bg-white/20 shrink-0">
                 <feature.icon className="h-4 w-4 md:h-5 md:w-5 text-white" />
               </div>
               <div className="min-w-0 flex-1">
@@ -90,8 +90,8 @@ export function CatalogHero({ productCount }: CatalogHeroProps) {
       </div>
 
       {/* Decorative elements - smaller on mobile */}
-      <div className="absolute -top-10 -right-10 md:-top-20 md:-right-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-[#213cef]/30 blur-3xl" />
-      <div className="absolute -bottom-10 -left-10 md:-bottom-20 md:-left-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-[#213cef]/30 blur-3xl" />
+      <div className="absolute -top-10 -right-10 md:-top-20 md:-right-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-brand-primary/30 blur-3xl" />
+      <div className="absolute -bottom-10 -left-10 md:-bottom-20 md:-left-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-brand-primary/30 blur-3xl" />
     </div>
   )
 }

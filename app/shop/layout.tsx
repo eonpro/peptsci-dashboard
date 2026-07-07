@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
     <CartProvider>
-      <div className="flex min-h-screen flex-col dark bg-[#050722]">
+      <div className="flex min-h-screen flex-col dark bg-brand-onyx">
         <ClientHeader />
         {/* Main content with bottom padding for mobile nav */}
         <main className="flex-1 container mx-auto px-4 py-6 pb-24 md:pb-8 md:py-8">{children}</main>

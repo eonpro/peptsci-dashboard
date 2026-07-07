@@ -63,7 +63,7 @@ const DEFAULT_ORIGIN: LabelAddress = {
 }
 
 const inputCls =
-  'rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#2b2c84] focus:outline-none focus:ring-1 focus:ring-[#2b2c84]'
+  'rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#2b2c84] focus:outline-hidden focus:ring-1 focus:ring-[#2b2c84]'
 
 function decodeBase64ToBytes(base64: string): Uint8Array {
   const bin = atob(base64)
@@ -320,7 +320,7 @@ export default function FedExLabelModal({
           <div className="space-y-6">
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
             )}
@@ -411,7 +411,7 @@ export default function FedExLabelModal({
                   role="switch"
                   aria-checked={oneRate}
                   onClick={() => handleOneRateToggle(!oneRate)}
-                  className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
+                  className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
                   style={{ backgroundColor: oneRate ? ACCENT : '#e5e7eb' }}
                 >
                   <span

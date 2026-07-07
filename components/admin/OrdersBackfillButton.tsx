@@ -68,7 +68,7 @@ export function OrdersBackfillButton() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-[#050722] border-white/10 text-white sm:max-w-[480px]">
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="text-white">Backfill Sales from Orders</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -102,7 +102,7 @@ export function OrdersBackfillButton() {
             {result ? (
               <Button
                 onClick={() => setOpen(false)}
-                className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                className="bg-brand-primary hover:bg-[#1a30c0] text-white"
               >
                 Done
               </Button>
@@ -118,7 +118,7 @@ export function OrdersBackfillButton() {
                 <Button
                   onClick={run}
                   disabled={running}
-                  className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                  className="bg-brand-primary hover:bg-[#1a30c0] text-white"
                 >
                   {running && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {running ? 'Syncing...' : 'Run Backfill'}

@@ -222,7 +222,7 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                className="bg-brand-primary hover:bg-[#1a30c0] text-white"
                 disabled={loading || !client}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -324,7 +324,7 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
                 <Button
                   onClick={handleAddPricing}
                   disabled={!newPricing.variantId || !newPricing.customPrice || saving}
-                  className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                  className="bg-brand-primary hover:bg-[#1a30c0] text-white"
                 >
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Add Pricing
@@ -337,7 +337,7 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
       <CardContent>
         {error && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>
         )}

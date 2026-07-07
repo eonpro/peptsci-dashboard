@@ -18,8 +18,8 @@ export function PendingApprovalContent() {
   const { user } = useUser()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg shadow-2xl border-0 bg-white/95 backdrop-blur">
+    <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4">
             <Logo width={140} height={48} />
@@ -39,19 +39,19 @@ export function PendingApprovalContent() {
           {/* Status Steps */}
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
-              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
               </div>
               <span className="text-gray-700">Account created successfully</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
                 <Clock className="h-4 w-4 text-amber-600" />
               </div>
               <span className="text-gray-700 font-medium">Awaiting admin approval</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                 <AlertCircle className="h-4 w-4 text-gray-400" />
               </div>
               <span className="text-gray-400">Access to platform</span>

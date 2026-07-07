@@ -102,7 +102,7 @@ export default function InvoicesPage() {
             key={tab}
             onClick={() => setStatus(tab)}
             className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-              status === tab ? 'bg-[#213cef] text-white' : 'text-white/60 hover:text-white'
+              status === tab ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'
             }`}
           >
             {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
@@ -317,7 +317,7 @@ function NewInvoiceDialog({
                             prev.map((p, i) => (i === idx ? { ...p, selected: e.target.checked } : p))
                           )
                         }
-                        className="h-4 w-4 accent-[#213cef]"
+                        className="h-4 w-4 accent-brand-primary"
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-white">Order #{o.orderNumber}</p>
@@ -367,7 +367,7 @@ function NewInvoiceDialog({
               type="checkbox"
               checked={issue}
               onChange={(e) => setIssue(e.target.checked)}
-              className="h-4 w-4 accent-[#213cef]"
+              className="h-4 w-4 accent-brand-primary"
             />
             Issue immediately (otherwise saved as draft)
           </label>

@@ -65,7 +65,7 @@ export function CatalogFilters({
           className="space-y-2"
         >
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="all" id="all" className="border-white/30 text-[#213cef]" />
+            <RadioGroupItem value="all" id="all" className="border-white/30 text-brand-primary" />
             <Label
               htmlFor="all"
               className="font-normal cursor-pointer text-white/70 hover:text-white"
@@ -78,7 +78,7 @@ export function CatalogFilters({
               <RadioGroupItem
                 value={category}
                 id={category}
-                className="border-white/30 text-[#213cef]"
+                className="border-white/30 text-brand-primary"
               />
               <Label
                 htmlFor={category}
@@ -126,7 +126,7 @@ export function CatalogFilters({
               type="checkbox"
               checked={inStockOnly}
               onChange={(e) => setInStockOnly(e.target.checked)}
-              className="h-4 w-4 rounded border-white/30 bg-white/10 text-[#213cef] focus:ring-[#213cef]"
+              className="h-4 w-4 rounded border-white/30 bg-white/10 text-brand-primary focus:ring-brand-primary"
             />
             <span className="text-sm text-white/70">In stock only</span>
           </label>
@@ -143,7 +143,7 @@ export function CatalogFilters({
               {selectedCategory !== 'all' && (
                 <Badge
                   variant="secondary"
-                  className="gap-1 bg-[#213cef]/20 text-[#213cef] border-0"
+                  className="gap-1 bg-brand-primary/20 text-brand-primary border-0"
                 >
                   {selectedCategory}
                   <button
@@ -157,7 +157,7 @@ export function CatalogFilters({
               {(priceRange[0] > 0 || priceRange[1] < 1000) && (
                 <Badge
                   variant="secondary"
-                  className="gap-1 bg-[#213cef]/20 text-[#213cef] border-0"
+                  className="gap-1 bg-brand-primary/20 text-brand-primary border-0"
                 >
                   ${priceRange[0]} - ${priceRange[1]}
                   <button
@@ -171,7 +171,7 @@ export function CatalogFilters({
               {inStockOnly && (
                 <Badge
                   variant="secondary"
-                  className="gap-1 bg-[#213cef]/20 text-[#213cef] border-0"
+                  className="gap-1 bg-brand-primary/20 text-brand-primary border-0"
                 >
                   In Stock
                   <button onClick={() => setInStockOnly(false)} className="ml-1 hover:text-red-400">

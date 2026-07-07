@@ -28,14 +28,14 @@ export function CartDrawer() {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
       {/* Full screen on mobile, side drawer on desktop */}
-      <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg bg-[#050722] border-l border-white/10 text-white data-[state=open]:duration-300">
+      <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg bg-brand-onyx border-l border-white/10 text-white data-[state=open]:duration-300">
         {/* Custom header for better mobile UX */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-[#050722]">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-brand-onyx">
           <SheetTitle className="flex items-center gap-3 text-white">
             <div className="relative">
               <ShoppingCart className="h-6 w-6" />
               {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[#213cef] text-white text-[10px] font-bold">
+                <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-brand-primary text-white text-[10px] font-bold">
                   {totalItems}
                 </span>
               )}
@@ -67,7 +67,7 @@ export function CartDrawer() {
                 </div>
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#213cef] to-[#4f6cff] rounded-full transition-all duration-500"
+                    className="h-full bg-linear-to-r from-brand-primary to-[#4f6cff] rounded-full transition-all duration-500"
                     style={{ width: `${freeShippingProgress}%` }}
                   />
                 </div>
@@ -95,7 +95,7 @@ export function CartDrawer() {
             <Button
               onClick={closeCart}
               asChild
-              className="bg-[#213cef] hover:bg-[#1a30c0] text-white h-12 px-8 rounded-xl text-base"
+              className="bg-brand-primary hover:bg-[#1a30c0] text-white h-12 px-8 rounded-xl text-base"
             >
               <Link href="/shop">Browse Catalog</Link>
             </Button>
@@ -111,7 +111,7 @@ export function CartDrawer() {
                     className="flex gap-3 rounded-2xl border border-white/10 bg-[#0a0e3a] p-3"
                   >
                     {/* Product image - larger touch target */}
-                    <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#213cef]/20 to-[#213cef]/5">
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-linear-to-br from-brand-primary/20 to-brand-primary/5">
                       {item.image ? (
                         <Image
                           src={item.image}
@@ -121,7 +121,7 @@ export function CartDrawer() {
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center">
-                          <span className="text-2xl font-bold text-[#213cef]">
+                          <span className="text-2xl font-bold text-brand-primary">
                             {item.name.charAt(0)}
                           </span>
                         </div>
@@ -141,7 +141,7 @@ export function CartDrawer() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-10 w-10 -mt-1 -mr-1 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-xl flex-shrink-0"
+                          className="h-10 w-10 -mt-1 -mr-1 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-xl shrink-0"
                           onClick={() => removeItem(item.id)}
                         >
                           <Trash2 className="h-5 w-5" />
@@ -184,7 +184,7 @@ export function CartDrawer() {
             </ScrollArea>
 
             {/* Fixed bottom checkout section - safe area aware */}
-            <div className="border-t border-white/10 bg-[#050722] p-4 pb-6 md:pb-4 space-y-4">
+            <div className="border-t border-white/10 bg-brand-onyx p-4 pb-6 md:pb-4 space-y-4">
               {/* Totals */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -215,7 +215,7 @@ export function CartDrawer() {
 
               {/* Checkout button - large touch target */}
               <Button
-                className="w-full bg-[#213cef] hover:bg-[#1a30c0] text-white h-14 rounded-2xl text-lg font-semibold shadow-lg shadow-[#213cef]/25"
+                className="w-full bg-brand-primary hover:bg-[#1a30c0] text-white h-14 rounded-2xl text-lg font-semibold shadow-lg shadow-brand-primary/25"
                 asChild
               >
                 <Link href="/shop/checkout" onClick={closeCart}>

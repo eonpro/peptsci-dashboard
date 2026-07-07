@@ -245,7 +245,7 @@ export default function ClientPricingPage() {
           </div>
         </div>
 
-        <Button onClick={openAdd} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+        <Button onClick={openAdd} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
           <Plus className="h-4 w-4 mr-2" />
           Add Custom Price
         </Button>
@@ -268,7 +268,7 @@ export default function ClientPricingPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-[#213cef]" />
+              <Users className="h-5 w-5 text-brand-primary" />
               <span className="text-2xl font-bold text-white">
                 {new Set(pricing.map((p) => p.clientId)).size}
               </span>
@@ -317,7 +317,7 @@ export default function ClientPricingPage() {
           <SelectTrigger className="w-[200px] bg-[#0a0e3a] border-white/10 text-white">
             <SelectValue placeholder="Filter by client" />
           </SelectTrigger>
-          <SelectContent className="bg-[#050722] border-white/10">
+          <SelectContent className="bg-brand-onyx border-white/10">
             <SelectItem value="all" className="text-white focus:bg-white/10 focus:text-white">
               All Clients
             </SelectItem>
@@ -344,11 +344,11 @@ export default function ClientPricingPage() {
         <div className="space-y-6">
           {Object.entries(pricingByClient).map(([clientId, { clientName, items }]) => (
             <Card key={clientId} className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
-              <CardHeader className="bg-[#050722]/50 border-b border-white/10">
+              <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="bg-[#213cef]/20 p-2 rounded-lg">
-                      <Users className="h-5 w-5 text-[#213cef]" />
+                    <div className="bg-brand-primary/20 p-2 rounded-lg">
+                      <Users className="h-5 w-5 text-brand-primary" />
                     </div>
                     <div>
                       <CardTitle className="text-white">{clientName}</CardTitle>
@@ -446,7 +446,7 @@ export default function ClientPricingPage() {
                 : "You haven't set up any custom pricing yet. Click the button above to create special pricing for your clients."}
             </p>
             {!searchTerm && selectedClientFilter === 'all' && (
-              <Button onClick={openAdd} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+              <Button onClick={openAdd} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 Add First Custom Price
               </Button>
@@ -457,7 +457,7 @@ export default function ClientPricingPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="bg-[#050722] border-white/10 text-white sm:max-w-[500px]">
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-white">
               {editingId ? 'Edit Custom Pricing' : 'Add Custom Pricing'}
@@ -479,7 +479,7 @@ export default function ClientPricingPage() {
                 <SelectTrigger className={inputClass}>
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#050722] border-white/10">
+                <SelectContent className="bg-brand-onyx border-white/10">
                   {clients.map((client) => (
                     <SelectItem
                       key={client.id}
@@ -503,7 +503,7 @@ export default function ClientPricingPage() {
                 <SelectTrigger className={inputClass}>
                   <SelectValue placeholder="Select a product" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#050722] border-white/10 max-h-[300px]">
+                <SelectContent className="bg-brand-onyx border-white/10 max-h-[300px]">
                   {variants.map((v) => (
                     <SelectItem
                       key={v.id}
@@ -567,7 +567,7 @@ export default function ClientPricingPage() {
             <Button
               onClick={handleSave}
               disabled={!form.clientId || !form.variantId || !form.customPrice || saving}
-              className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+              className="bg-brand-primary hover:bg-[#1a30c0] text-white"
             >
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingId ? 'Save Changes' : 'Add Pricing'}

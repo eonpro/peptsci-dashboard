@@ -64,7 +64,7 @@ export default function AccountPage() {
         <div className="space-y-3">
           <Link
             href="/account/orders"
-            className="flex items-center gap-3 p-4 border rounded-xl hover:shadow-sm transition-shadow"
+            className="flex items-center gap-3 p-4 border rounded-xl hover:shadow-xs transition-shadow"
           >
             <ShoppingBag className="h-5 w-5" style={{ color: branding?.colors.primary }} />
             <div>
@@ -112,7 +112,7 @@ export default function AccountPage() {
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                 style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
               />
             </div>
@@ -122,7 +122,7 @@ export default function AccountPage() {
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                 style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
               />
             </div>
@@ -138,7 +138,7 @@ export default function AccountPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+              className="w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
               style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
             />
           </div>
@@ -154,7 +154,7 @@ export default function AccountPage() {
               minLength={mode === 'register' ? 8 : 1}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+              className="w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
               style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
             />
           </div>

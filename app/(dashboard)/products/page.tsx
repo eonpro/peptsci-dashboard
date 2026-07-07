@@ -217,7 +217,7 @@ export default function ProductsPage() {
             <Download className="h-4 w-4 mr-2" />
             CSV Template
           </Button>
-          <Button onClick={openImport} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+          <Button onClick={openImport} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
           </Button>
@@ -266,7 +266,7 @@ export default function ProductsPage() {
               <p className="text-white/50 text-center max-w-md mb-6">
                 Import your full catalog and manufacturer purchasing terms from a CSV file.
               </p>
-              <Button onClick={openImport} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+              <Button onClick={openImport} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
                 <Upload className="h-4 w-4 mr-2" />
                 Import CSV
               </Button>
@@ -327,7 +327,7 @@ export default function ProductsPage() {
 
       {/* Import Dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="bg-[#050722] border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Bulk Import Products (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -364,7 +364,7 @@ export default function ProductsPage() {
             <div className="space-y-4 py-2">
               {/* Upload zone */}
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-[#213cef]/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -469,7 +469,7 @@ export default function ProductsPage() {
             {result ? (
               <Button
                 onClick={() => setImportOpen(false)}
-                className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                className="bg-brand-primary hover:bg-[#1a30c0] text-white"
               >
                 Done
               </Button>
@@ -485,7 +485,7 @@ export default function ProductsPage() {
                 <Button
                   onClick={runImport}
                   disabled={previewRows.length === 0 || importing}
-                  className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                  className="bg-brand-primary hover:bg-[#1a30c0] text-white"
                 >
                   {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Import {previewRows.length > 0 ? `${previewRows.length} row(s)` : ''}

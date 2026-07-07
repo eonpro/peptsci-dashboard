@@ -19,7 +19,7 @@ export function MobileBottomNav() {
   const { totalItems, openCart } = useCart()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#050722]/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const isActive = item.exact
@@ -41,7 +41,7 @@ export function MobileBottomNav() {
                 className={cn(
                   'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
                   isActive
-                    ? 'bg-[#213cef] text-white scale-110'
+                    ? 'bg-brand-primary text-white scale-110'
                     : 'text-white/50 hover:text-white active:scale-95'
                 )}
               >

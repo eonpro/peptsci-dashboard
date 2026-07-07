@@ -39,7 +39,7 @@ export default async function TrackingPage({
     <main className="min-h-screen bg-[#F2F0EA] px-4 py-12 text-[#1a1a2e]">
       <div className="mx-auto w-full max-w-xl">
         <div className="mb-8 text-center">
-          <span className="text-2xl font-bold tracking-wide text-[#050722]">PEPTSCI</span>
+          <span className="text-2xl font-bold tracking-wide text-brand-onyx">PEPTSCI</span>
         </div>
 
         {!info ? (
@@ -55,7 +55,7 @@ export default async function TrackingPage({
               href={`https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(decoded)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-block text-sm font-medium text-[#213cef] hover:underline"
+              className="mt-4 inline-block text-sm font-medium text-brand-primary hover:underline"
             >
               Track on FedEx.com →
             </a>
@@ -75,7 +75,7 @@ export default async function TrackingPage({
                     ? 'bg-green-100 text-green-700'
                     : isExceptionStatus(info.shippingStatus)
                       ? 'bg-amber-100 text-amber-700'
-                      : 'bg-blue-100 text-[#213cef]'
+                      : 'bg-blue-100 text-brand-primary'
                 }`}
               >
                 {info.carrier}
@@ -107,7 +107,7 @@ export default async function TrackingPage({
                     <span
                       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
                         step.reached
-                          ? 'border-[#213cef] bg-[#213cef]'
+                          ? 'border-brand-primary bg-brand-primary'
                           : 'border-gray-300 bg-white'
                       }`}
                     >
@@ -135,7 +135,7 @@ export default async function TrackingPage({
               href={info.trackingUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block rounded-xl bg-[#213cef] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1a30c0]"
+              className="inline-block rounded-xl bg-brand-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1a30c0]"
             >
               View live detail on {info.carrier}.com
             </a>
@@ -144,7 +144,7 @@ export default async function TrackingPage({
 
         <p className="mt-6 text-center text-xs text-gray-400">
           Need help?{' '}
-          <Link href="mailto:support@peptsci.com" className="text-[#213cef] hover:underline">
+          <Link href="mailto:support@peptsci.com" className="text-brand-primary hover:underline">
             support@peptsci.com
           </Link>
         </p>

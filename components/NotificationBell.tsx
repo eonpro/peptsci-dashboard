@@ -147,7 +147,7 @@ export function NotificationBell() {
         >
           <Bell className="h-5 w-5" />
           {unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#213cef] px-1 text-[10px] font-semibold text-white">
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold text-white">
               {unread > 99 ? '99+' : unread}
             </span>
           )}
@@ -156,7 +156,7 @@ export function NotificationBell() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-96 max-w-[calc(100vw-1rem)] p-0 bg-[#050722] border-[#0a0e3a] text-white"
+        className="w-96 max-w-[calc(100vw-1rem)] p-0 bg-brand-onyx border-[#0a0e3a] text-white"
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <span className="text-sm font-semibold">Notifications</span>
@@ -191,7 +191,7 @@ export function NotificationBell() {
                       onClick={() => onItemClick(n)}
                       className={cn(
                         'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5',
-                        !n.isRead && 'bg-white/[0.03]'
+                        !n.isRead && 'bg-white/3'
                       )}
                     >
                       <span
@@ -199,7 +199,7 @@ export function NotificationBell() {
                           'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
                           n.priority === 'URGENT' || n.priority === 'HIGH'
                             ? 'bg-red-500/15 text-red-300'
-                            : 'bg-[#213cef]/15 text-[#7c8cff]'
+                            : 'bg-brand-primary/15 text-[#7c8cff]'
                         )}
                       >
                         <Icon className="h-4 w-4" />
@@ -207,7 +207,7 @@ export function NotificationBell() {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{n.title}</span>
-                          {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#213cef]" />}
+                          {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-primary" />}
                         </span>
                         <span className="mt-0.5 block text-xs text-white/60 line-clamp-2">{n.message}</span>
                         <span className="mt-1 block text-[11px] text-white/40">{timeAgo(n.createdAt)}</span>

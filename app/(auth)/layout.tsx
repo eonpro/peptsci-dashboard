@@ -14,7 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Ambient gradient glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />
-        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-[#213cef]/25 blur-[160px]" />
+        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-brand-primary/25 blur-[160px]" />
         <div className="absolute bottom-[-10%] right-[2%] h-[420px] w-[420px] rounded-full bg-[#7a5bff]/20 blur-[150px]" />
       </div>
 

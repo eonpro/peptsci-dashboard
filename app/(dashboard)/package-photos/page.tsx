@@ -188,13 +188,13 @@ export default function PackagePhotosPage() {
           <CardContent className="space-y-4">
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 {error}
               </div>
             )}
             {success && (
               <div className="flex items-start gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-300">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 {success}
               </div>
             )}
@@ -278,13 +278,13 @@ export default function PackagePhotosPage() {
               </div>
             ) : listError ? (
               <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 {listError}
               </div>
             ) : photos.length === 0 ? (
               <p className="py-10 text-center text-white/50">No photos captured yet.</p>
             ) : (
-              <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-112 space-y-2 overflow-y-auto pr-1">
                 {photos.map((p) => (
                   <a
                     key={p.id}
@@ -293,7 +293,7 @@ export default function PackagePhotosPage() {
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 rounded-lg border border-white/10 p-2 transition-colors hover:bg-white/5"
                   >
-                    <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-black/40">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-black/40">
                       <Image
                         src={`/api/package-photos/${p.id}/image`}
                         alt={`Order ${p.orderRef}`}

@@ -90,7 +90,7 @@ export function AddressFields({ value, onChange, idPrefix, dark, disabled }: Pro
             >
               <SelectValue placeholder="State" />
             </SelectTrigger>
-            <SelectContent className={dark ? 'bg-[#050722] border-white/10 max-h-[300px]' : 'max-h-[300px]'}>
+            <SelectContent className={dark ? 'bg-brand-onyx border-white/10 max-h-[300px]' : 'max-h-[300px]'}>
               {US_STATES.map((s) => (
                 <SelectItem
                   key={s.code}

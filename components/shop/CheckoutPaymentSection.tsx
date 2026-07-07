@@ -242,7 +242,7 @@ export function CheckoutPaymentSection({
               onClick={() => setSelected(m.id)}
               className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
                 selected === m.id
-                  ? 'border-[#213cef] bg-[#213cef]/10'
+                  ? 'border-brand-primary bg-brand-primary/10'
                   : 'border-white/10 bg-white/5 hover:bg-white/10'
               }`}
             >
@@ -253,7 +253,7 @@ export function CheckoutPaymentSection({
                   {m.expiryMonth?.toString().padStart(2, '0')}/{m.expiryYear}
                 </span>
               </span>
-              {selected === m.id && <CheckCircle2 className="h-5 w-5 text-[#213cef]" />}
+              {selected === m.id && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
             </button>
           ))}
           <button
@@ -261,13 +261,13 @@ export function CheckoutPaymentSection({
             onClick={() => setSelected('new')}
             className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
               selected === 'new'
-                ? 'border-[#213cef] bg-[#213cef]/10'
+                ? 'border-brand-primary bg-brand-primary/10'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'
             }`}
           >
             <Plus className="h-5 w-5 text-white/70" />
             <span className="flex-1 text-white text-sm">Use a new card</span>
-            {selected === 'new' && <CheckCircle2 className="h-5 w-5 text-[#213cef]" />}
+            {selected === 'new' && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
           </button>
         </div>
       )}

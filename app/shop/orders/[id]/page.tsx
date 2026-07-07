@@ -258,7 +258,7 @@ export default function OrderDetailPage() {
               <div className="space-y-4">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-gray-50">
-                    <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                    <div className="h-16 w-16 rounded-xl bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center shrink-0">
                       <span className="text-xl font-bold text-indigo-300">{item.name.charAt(0)}</span>
                     </div>
                     <div className="flex-1 min-w-0">

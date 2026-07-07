@@ -38,19 +38,19 @@ export function KPI({ title, value, description, change, changeLabel, icon, load
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border-gray-100 bg-gradient-to-br from-white to-gray-50/30 dark:border-white/10 dark:bg-gradient-to-br dark:from-[#0a0e3a] dark:to-[#050722] dark:shadow-none dark:hover:shadow-lg dark:hover:shadow-[#213cef]/10 overflow-hidden group backdrop-blur-sm">
+    <Card className="rounded-2xl shadow-xs hover:shadow-lg transition-all duration-300 border-gray-100 bg-linear-to-br from-white to-gray-50/30 dark:border-white/10 dark:bg-linear-to-br dark:from-[#0a0e3a] dark:to-brand-onyx dark:shadow-none dark:hover:shadow-lg dark:hover:shadow-brand-primary/10 overflow-hidden group backdrop-blur-xs">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-sm font-semibold text-gray-600 dark:text-white/60 uppercase tracking-wider">
           {title}
         </CardTitle>
         {icon && (
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 dark:from-[#213cef]/30 dark:to-[#213cef]/10 flex items-center justify-center text-indigo-600 dark:text-[#213cef] group-hover:scale-110 transition-transform duration-300">
+          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-indigo-500/10 to-violet-500/10 dark:from-brand-primary/30 dark:to-brand-primary/10 flex items-center justify-center text-indigo-600 dark:text-brand-primary group-hover:scale-110 transition-transform duration-300">
             {icon}
           </div>
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-white/80 bg-clip-text text-transparent">
+        <div className="text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 dark:from-white dark:to-white/80 bg-clip-text text-transparent">
           {value}
         </div>
         {(description || change !== undefined) && (

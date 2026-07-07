@@ -237,7 +237,7 @@ export default function StripeSettingsPage() {
           <Button
             onClick={runSmokeTest}
             disabled={testLoading}
-            className="bg-[#213cef] text-white hover:bg-[#1a30c0]"
+            className="bg-brand-primary text-white hover:bg-[#1a30c0]"
           >
             {testLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -293,7 +293,7 @@ export default function StripeSettingsPage() {
               className={
                 migrateArmed
                   ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'bg-[#213cef] text-white hover:bg-[#1a30c0]'
+                  : 'bg-brand-primary text-white hover:bg-[#1a30c0]'
               }
             >
               {migrateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

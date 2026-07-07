@@ -108,7 +108,7 @@ export default function ReturnsPage() {
             key={tab}
             onClick={() => setStatus(tab)}
             className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-              status === tab ? 'bg-[#213cef] text-white' : 'text-white/60 hover:text-white'
+              status === tab ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'
             }`}
           >
             {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
@@ -328,7 +328,7 @@ function NewReturnDialog({
                           prev.map((p, i) => (i === idx ? { ...p, selected: e.target.checked } : p))
                         )
                       }
-                      className="h-4 w-4 accent-[#213cef]"
+                      className="h-4 w-4 accent-brand-primary"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-white">{item.productName}</p>

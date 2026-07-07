@@ -5,7 +5,7 @@ import { Phone, Mail, Clock } from 'lucide-react'
 
 export function ClientFooter() {
   return (
-    <footer className="bg-[#050722] border-t border-white/10">
+    <footer className="bg-brand-onyx border-t border-white/10">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {/* Contact */}
@@ -14,14 +14,14 @@ export function ClientFooter() {
             <div className="space-y-2 text-sm text-white/60">
               <a
                 href="tel:+18005551234"
-                className="flex items-center gap-2 hover:text-[#213cef] transition-colors"
+                className="flex items-center gap-2 hover:text-brand-primary transition-colors"
               >
                 <Phone className="h-4 w-4" />
                 1-800-555-1234
               </a>
               <a
                 href="mailto:orders@peptsci.com"
-                className="flex items-center gap-2 hover:text-[#213cef] transition-colors"
+                className="flex items-center gap-2 hover:text-brand-primary transition-colors"
               >
                 <Mail className="h-4 w-4" />
                 orders@peptsci.com
@@ -39,19 +39,19 @@ export function ClientFooter() {
             <div className="space-y-2 text-sm">
               <Link
                 href="/shop"
-                className="block text-white/60 hover:text-[#213cef] transition-colors"
+                className="block text-white/60 hover:text-brand-primary transition-colors"
               >
                 Browse Products
               </Link>
               <Link
                 href="/shop/orders"
-                className="block text-white/60 hover:text-[#213cef] transition-colors"
+                className="block text-white/60 hover:text-brand-primary transition-colors"
               >
                 Track Orders
               </Link>
               <Link
                 href="/shop/account"
-                className="block text-white/60 hover:text-[#213cef] transition-colors"
+                className="block text-white/60 hover:text-brand-primary transition-colors"
               >
                 Account Settings
               </Link>
@@ -62,13 +62,13 @@ export function ClientFooter() {
           <div>
             <h3 className="font-semibold text-white mb-3">Support</h3>
             <div className="space-y-2 text-sm">
-              <Link href="#" className="block text-white/60 hover:text-[#213cef] transition-colors">
+              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
                 FAQ
               </Link>
-              <Link href="#" className="block text-white/60 hover:text-[#213cef] transition-colors">
+              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
                 Shipping Information
               </Link>
-              <Link href="#" className="block text-white/60 hover:text-[#213cef] transition-colors">
+              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
                 Return Policy
               </Link>
             </div>

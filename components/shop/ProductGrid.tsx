@@ -59,7 +59,7 @@ export function ProductGrid({ products }: ProductGridProps) {
   return (
     <div className="space-y-4">
       {/* Mobile-first search bar - sticky on mobile */}
-      <div className="sticky top-14 md:top-0 z-40 -mx-4 px-4 py-3 bg-[#050722]/95 backdrop-blur-xl md:relative md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none">
+      <div className="sticky top-14 md:top-0 z-40 -mx-4 px-4 py-3 bg-brand-onyx/95 backdrop-blur-xl md:relative md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none">
         <div className="flex items-center gap-2">
           {/* Search - larger touch target */}
           <div className="relative flex-1">
@@ -93,7 +93,7 @@ export function ProductGrid({ products }: ProductGridProps) {
               >
                 <SlidersHorizontal className="h-5 w-5" />
                 {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[#213cef] text-white text-[10px] font-bold">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-brand-primary text-white text-[10px] font-bold">
                     {activeFilterCount}
                   </span>
                 )}
@@ -101,7 +101,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             </SheetTrigger>
             <SheetContent
               side="bottom"
-              className="h-[85vh] rounded-t-3xl bg-[#050722] border-t border-white/10 p-0"
+              className="h-[85vh] rounded-t-3xl bg-brand-onyx border-t border-white/10 p-0"
             >
               <div className="flex flex-col h-full">
                 <SheetHeader className="p-4 border-b border-white/10">
@@ -111,7 +111,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-[#213cef] hover:text-[#213cef]/80"
+                        className="text-brand-primary hover:text-brand-primary/80"
                         onClick={() => {
                           setSearchQuery('')
                           setSelectedCategory('all')
@@ -139,7 +139,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                           variant={sortBy === option.value ? 'default' : 'outline'}
                           className={`h-12 rounded-xl justify-start ${
                             sortBy === option.value
-                              ? 'bg-[#213cef] text-white'
+                              ? 'bg-brand-primary text-white'
                               : 'border-white/20 text-white/70 hover:bg-white/10'
                           }`}
                           onClick={() => setSortBy(option.value as SortOption)}
@@ -158,7 +158,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                         variant={selectedCategory === 'all' ? 'default' : 'outline'}
                         className={`h-10 rounded-full px-4 ${
                           selectedCategory === 'all'
-                            ? 'bg-[#213cef] text-white'
+                            ? 'bg-brand-primary text-white'
                             : 'border-white/20 text-white/70 hover:bg-white/10'
                         }`}
                         onClick={() => setSelectedCategory('all')}
@@ -171,7 +171,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                           variant={selectedCategory === cat ? 'default' : 'outline'}
                           className={`h-10 rounded-full px-4 ${
                             selectedCategory === cat
-                              ? 'bg-[#213cef] text-white'
+                              ? 'bg-brand-primary text-white'
                               : 'border-white/20 text-white/70 hover:bg-white/10'
                           }`}
                           onClick={() => setSelectedCategory(cat)}
@@ -190,7 +190,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                         variant={viewMode === 'grid' ? 'default' : 'outline'}
                         className={`flex-1 h-12 rounded-xl ${
                           viewMode === 'grid'
-                            ? 'bg-[#213cef] text-white'
+                            ? 'bg-brand-primary text-white'
                             : 'border-white/20 text-white/70 hover:bg-white/10'
                         }`}
                         onClick={() => setViewMode('grid')}
@@ -202,7 +202,7 @@ export function ProductGrid({ products }: ProductGridProps) {
                         variant={viewMode === 'list' ? 'default' : 'outline'}
                         className={`flex-1 h-12 rounded-xl ${
                           viewMode === 'list'
-                            ? 'bg-[#213cef] text-white'
+                            ? 'bg-brand-primary text-white'
                             : 'border-white/20 text-white/70 hover:bg-white/10'
                         }`}
                         onClick={() => setViewMode('list')}
@@ -216,7 +216,7 @@ export function ProductGrid({ products }: ProductGridProps) {
 
                 <SheetFooter className="p-4 border-t border-white/10">
                   <Button
-                    className="w-full h-14 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold"
+                    className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold"
                     onClick={() => setFiltersOpen(false)}
                   >
                     Show {filteredProducts.length} Results
@@ -231,7 +231,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size="icon"
-              className={`h-10 w-10 rounded-lg ${viewMode === 'grid' ? 'bg-[#213cef] text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+              className={`h-10 w-10 rounded-lg ${viewMode === 'grid' ? 'bg-brand-primary text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               onClick={() => setViewMode('grid')}
             >
               <Grid className="h-5 w-5" />
@@ -239,7 +239,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             <Button
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="icon"
-              className={`h-10 w-10 rounded-lg ${viewMode === 'list' ? 'bg-[#213cef] text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+              className={`h-10 w-10 rounded-lg ${viewMode === 'list' ? 'bg-brand-primary text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               onClick={() => setViewMode('list')}
             >
               <List className="h-5 w-5" />
@@ -251,7 +251,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             <SelectTrigger className="hidden md:flex w-[180px] h-12 bg-[#0a0e3a] border-white/10 text-white rounded-xl">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
-            <SelectContent className="bg-[#050722] border-white/10">
+            <SelectContent className="bg-brand-onyx border-white/10">
               <SelectItem
                 value="name-asc"
                 className="text-white focus:bg-white/10 focus:text-white"
@@ -286,7 +286,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             {selectedCategory !== 'all' && (
               <Badge
                 variant="secondary"
-                className="bg-[#213cef]/20 text-[#213cef] border-[#213cef]/30 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
+                className="bg-brand-primary/20 text-brand-primary border-brand-primary/30 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
               >
                 {selectedCategory}
                 <button onClick={() => setSelectedCategory('all')}>
@@ -327,7 +327,7 @@ export function ProductGrid({ products }: ProductGridProps) {
             Try adjusting your search or filters to find what you&apos;re looking for.
           </p>
           <Button
-            className="mt-6 h-12 px-6 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+            className="mt-6 h-12 px-6 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
             onClick={() => {
               setSearchQuery('')
               setSelectedCategory('all')

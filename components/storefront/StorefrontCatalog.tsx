@@ -186,7 +186,7 @@ export function StorefrontCatalog({
               placeholder="Search products..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+              className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
               style={{ borderColor: `${branding.colors.text}20`, '--tw-ring-color': branding.colors.primary } as React.CSSProperties}
             />
           </div>
