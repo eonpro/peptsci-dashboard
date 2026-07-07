@@ -33,6 +33,8 @@ import {
   CheckCircle2,
   FileUp,
   Trash2,
+  Plus,
+  Pencil,
 } from 'lucide-react'
 import {
   parseProductCsv,
@@ -41,6 +43,7 @@ import {
   type ProductImportRow,
   type RowError,
 } from '@/lib/product-import'
+import ProductFormDialog, { type ProductFormValues } from './ProductFormDialog'
 
 interface VariantRow {
   id: string
@@ -53,6 +56,7 @@ interface VariantRow {
   supplierName: string | null
   supplierSku: string | null
   inventoryOnHand: number
+  reorderLevel: number
 }
 
 interface ImportSummary {
@@ -79,6 +83,8 @@ export default function ProductsPage() {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportSummary | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<ProductFormValues | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -175,6 +181,28 @@ export default function ProductsPage() {
     }
   }
 
+  function openAdd() {
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  function openEdit(v: VariantRow) {
+    setEditing({
+      id: v.id,
+      name: v.productName,
+      sku: v.sku || '',
+      dose: v.dose || '',
+      category: v.category || '',
+      unitCost: v.unitCost.toFixed(2),
+      srp: v.srp.toFixed(2),
+      supplierName: v.supplierName || '',
+      supplierSku: v.supplierSku || '',
+      inventoryOnHand: String(v.inventoryOnHand),
+      reorderLevel: String(v.reorderLevel),
+    })
+    setFormOpen(true)
+  }
+
   async function deleteVariant(v: VariantRow) {
     const ok = window.confirm(
       `Delete "${v.productName}"${v.sku ? ` (${v.sku})` : ''}? This cannot be undone.`
@@ -217,9 +245,17 @@ export default function ProductsPage() {
             <Download className="h-4 w-4 mr-2" />
             CSV Template
           </Button>
-          <Button onClick={openImport} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
+          <Button
+            variant="outline"
+            onClick={openImport}
+            className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white"
+          >
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
+          </Button>
+          <Button onClick={openAdd} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
           </Button>
         </div>
       </div>
@@ -264,12 +300,23 @@ export default function ProductsPage() {
               </div>
               <h3 className="text-lg font-medium text-white mb-2">No products yet</h3>
               <p className="text-white/50 text-center max-w-md mb-6">
-                Import your full catalog and manufacturer purchasing terms from a CSV file.
+                Add products one at a time, or import your full catalog and manufacturer
+                purchasing terms from a CSV file.
               </p>
-              <Button onClick={openImport} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
-                <Upload className="h-4 w-4 mr-2" />
-                Import CSV
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={openImport}
+                  className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+                <Button onClick={openAdd} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </Button>
+              </div>
             </div>
           ) : (
             <Table>
@@ -305,6 +352,15 @@ export default function ProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        title="Edit product"
+                        onClick={() => openEdit(v)}
+                        className="h-8 w-8 text-white/50 hover:bg-white/10 hover:text-white"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         title="Delete product"
                         disabled={deletingId === v.id}
                         onClick={() => deleteVariant(v)}
@@ -325,6 +381,14 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
+      {/* Add / Edit Product Dialog */}
+      <ProductFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        initial={editing}
+        onSaved={load}
+      />
+
       {/* Import Dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
@@ -333,8 +397,13 @@ export default function ProductsPage() {
             <DialogDescription className="text-white/60">
               Required columns: <span className="text-white/80">name, sku</span>. Optional:
               unitCost, srp, dose, category, supplierName, supplierSku, inventoryOnHand,
-              reorderLevel. Rows are matched to existing variants by{' '}
-              <span className="text-white/80">SKU</span> (updated if found, created if new).
+              reorderLevel, plus scientific data (description, CAS number, molecular
+              formula/weight, PubChem CID, peptide length, AKA, monoisotopic mass, complexity,
+              XLogP, bond/atom counts, intended use, safety summary). Common header spellings
+              like &quot;Peptide Name&quot;, &quot;Milligrams&quot;, &quot;Cost/Unit&quot;, and
+              &quot;Current Inventory&quot; are recognized automatically. Rows are matched to
+              existing variants by <span className="text-white/80">SKU</span> (updated if found,
+              created if new).
             </DialogDescription>
           </DialogHeader>
 
@@ -382,7 +451,8 @@ export default function ProductsPage() {
                   )}
                 </p>
                 <p className="text-white/40 text-xs mt-1">
-                  Columns: {PRODUCT_IMPORT_HEADERS.join(', ')}
+                  Columns: {PRODUCT_IMPORT_HEADERS.slice(0, 10).join(', ')}, and scientific
+                  reference columns (see template)
                 </p>
                 <input
                   ref={fileInputRef}

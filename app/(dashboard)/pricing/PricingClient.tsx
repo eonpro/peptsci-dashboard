@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { PriceSheet } from '@/lib/pricing'
 import ExportButton from './ExportButton'
 import PricingTable from './PricingTable'
+import EditPriceDialog from './EditPriceDialog'
 import { LayoutGrid, List, RefreshCw, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -22,6 +23,7 @@ function normalizePrices(data: unknown): PriceSheet[] {
     SRP: Number(p.srp ?? p.SRP ?? 0),
     Notes:
       p.Notes ?? (typeof p.inventoryOnHand === 'number' && p.inventoryOnHand > 0 ? 'In Stock' : ''),
+    Id: p.id ?? p.Id ?? undefined,
   }))
 }
 
@@ -31,6 +33,7 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
   const [prices, setPrices] = useState<PriceSheet[]>(initialPrices)
   const [view, setView] = useState<'card' | 'list'>('card')
   const [refreshing, setRefreshing] = useState(false)
+  const [editingRow, setEditingRow] = useState<PriceSheet | null>(null)
 
   // `force` bypasses the browser cache for an explicit manual refresh; the
   // background poll reuses the cache.
@@ -245,13 +248,26 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
         <Card>
           <CardHeader>
             <CardTitle>All Products</CardTitle>
-            <CardDescription>Complete pricing list with margins and availability</CardDescription>
+            <CardDescription>
+              Complete pricing list with margins and availability. Use the pencil to edit a
+              product&apos;s cost and SRP.
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <PricingTable data={prices} />
+            <PricingTable data={prices} onEdit={setEditingRow} />
           </CardContent>
         </Card>
       )}
+
+      <EditPriceDialog
+        row={editingRow}
+        onOpenChange={(open) => {
+          if (!open) setEditingRow(null)
+        }}
+        onSaved={async () => {
+          await fetchPrices(true)
+        }}
+      />
     </div>
   )
 }

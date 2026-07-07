@@ -15,6 +15,7 @@ export default async function PricingPage() {
     Cost: p.unitCost,
     SRP: p.srp,
     Notes: p.inventoryOnHand > 0 ? 'In Stock' : '',
+    Id: p.id,
   }))
 
   return <PricingClient initialPrices={initialPrices} />

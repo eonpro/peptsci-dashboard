@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import {
   requireAdmin,
   unauthorizedResponse,
@@ -11,6 +12,105 @@ import { logger } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const patchSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    category: z.string().trim().optional(),
+    sku: z.string().trim().min(1).optional(),
+    dose: z.string().trim().optional(),
+    unitCost: z.number().min(0).optional(),
+    srp: z.number().min(0).optional(),
+    supplierName: z.string().trim().optional(),
+    supplierSku: z.string().trim().optional(),
+    reorderLevel: z.number().int().min(0).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'No fields to update' })
+
+/**
+ * PATCH /api/admin/products/[id]
+ *
+ * Update a single ProductVariant (and, when name/category are provided, its
+ * parent Product) from the edit dialog. Inventory on hand is intentionally
+ * NOT editable here — stock changes go through inventory receiving/batches so
+ * the audit trail stays intact. Admin only.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
+    if (!isAuthenticated) return unauthorizedResponse()
+    if (!isAdmin) return forbiddenResponse('Admin access required')
+
+    if (!prisma) {
+      return errorResponse('Database is not configured', 503, 'DB_UNAVAILABLE')
+    }
+
+    const { id } = await params
+    const parsed = patchSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return errorResponse(
+        parsed.error.errors.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR'
+      )
+    }
+    const body = parsed.data
+
+    const variant = await prisma.productVariant.findUnique({
+      where: { id },
+      select: { id: true, productId: true, sku: true },
+    })
+    if (!variant) return errorResponse('Product not found', 404, 'NOT_FOUND')
+
+    if (body.sku && body.sku !== variant.sku) {
+      const skuTaken = await prisma.productVariant.findUnique({
+        where: { sku: body.sku },
+        select: { id: true },
+      })
+      if (skuTaken) {
+        return errorResponse(`A product with SKU "${body.sku}" already exists`, 409, 'DUPLICATE_SKU')
+      }
+    }
+
+    await prisma.productVariant.update({
+      where: { id },
+      data: {
+        ...(body.sku !== undefined ? { sku: body.sku } : {}),
+        ...(body.dose !== undefined ? { dose: body.dose || null } : {}),
+        ...(body.unitCost !== undefined ? { unitCost: body.unitCost } : {}),
+        ...(body.srp !== undefined ? { srp: body.srp } : {}),
+        ...(body.supplierName !== undefined ? { supplierName: body.supplierName || null } : {}),
+        ...(body.supplierSku !== undefined ? { supplierSku: body.supplierSku || null } : {}),
+        ...(body.reorderLevel !== undefined ? { reorderLevel: body.reorderLevel } : {}),
+      },
+    })
+
+    if (body.name !== undefined || body.category !== undefined) {
+      await prisma.product.update({
+        where: { id: variant.productId },
+        data: {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.category !== undefined ? { category: body.category || null } : {}),
+        },
+      })
+    }
+
+    logger.info('Product variant updated via UI', {
+      variantId: id,
+      fields: Object.keys(body),
+      by: userId,
+    })
+
+    return successResponse({ updated: true })
+  } catch (error) {
+    logger.error(
+      'Error updating product variant',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
+    return errorResponse('Failed to update product')
+  }
+}
 
 /**
  * DELETE /api/admin/products/[id]

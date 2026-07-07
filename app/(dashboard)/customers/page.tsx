@@ -1,6 +1,9 @@
 import { getSales } from '@/lib/sales'
 import { groupByCustomer } from '@/lib/kpis'
 import CustomersTable from './CustomersTable'
+import AddCustomerButton from './AddCustomerButton'
+
+export const dynamic = 'force-dynamic'
 
 export default async function CustomersPage() {
   const sales = await getSales()
@@ -19,6 +22,7 @@ export default async function CustomersPage() {
               {customers.length} Total Customers
             </span>
           </div>
+          <AddCustomerButton />
         </div>
       </div>
 

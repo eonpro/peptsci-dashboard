@@ -17,6 +17,8 @@ export interface PriceSheet {
   Cost: number
   SRP: number
   Notes?: string
+  /** ProductVariant id, when known — enables in-place price editing. */
+  Id?: string
 }
 
 // Unified pricing type
