@@ -12,8 +12,11 @@ const buttonVariants = cva(
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         // bg-transparent (not bg-background): dialogs/popovers portal outside the
         // `.dark` scope, where bg-background resolves to the light theme and
-        // produced white buttons with white text.
-        outline: 'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground',
+        // produced white buttons with white text. text-foreground is explicit
+        // because inherited color comes from <body> (light scope) and is
+        // invisible on dark dashboard pages.
+        outline:
+          'border border-input bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
