@@ -126,7 +126,7 @@ export function NpiLookup({ onSelect, dark, placeholder }: Props) {
                     }`}
                   >
                     <BadgeCheck
-                      className={`h-4 w-4 mt-0.5 flex-shrink-0 ${dark ? 'text-[#8b95ff]' : 'text-brand-primary'}`}
+                      className={`h-4 w-4 mt-0.5 shrink-0 ${dark ? 'text-[#8b95ff]' : 'text-brand-primary'}`}
                     />
                     <span className="min-w-0">
                       <span className={`block text-sm font-medium ${dark ? 'text-white' : 'text-gray-900'}`}>

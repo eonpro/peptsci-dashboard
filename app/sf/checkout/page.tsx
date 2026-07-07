@@ -194,7 +194,7 @@ export default function CheckoutPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                   style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                 />
               </div>
@@ -207,7 +207,7 @@ export default function CheckoutPage() {
                     required
                     value={shipping.firstName}
                     onChange={(e) => setShipping((s) => ({ ...s, firstName: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                     style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                   />
                 </div>
@@ -218,7 +218,7 @@ export default function CheckoutPage() {
                     required
                     value={shipping.lastName}
                     onChange={(e) => setShipping((s) => ({ ...s, lastName: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                     style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                   />
                 </div>
@@ -231,7 +231,7 @@ export default function CheckoutPage() {
                   required
                   value={shipping.address1}
                   onChange={(e) => setShipping((s) => ({ ...s, address1: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                   style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                 />
               </div>
@@ -242,7 +242,7 @@ export default function CheckoutPage() {
                   type="text"
                   value={shipping.address2}
                   onChange={(e) => setShipping((s) => ({ ...s, address2: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                  className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                   style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                 />
               </div>
@@ -255,7 +255,7 @@ export default function CheckoutPage() {
                     required
                     value={shipping.city}
                     onChange={(e) => setShipping((s) => ({ ...s, city: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                     style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                   />
                 </div>
@@ -266,7 +266,7 @@ export default function CheckoutPage() {
                     required
                     value={shipping.state}
                     onChange={(e) => setShipping((s) => ({ ...s, state: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                     style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                   />
                 </div>
@@ -277,7 +277,7 @@ export default function CheckoutPage() {
                     required
                     value={shipping.zip}
                     onChange={(e) => setShipping((s) => ({ ...s, zip: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                    className="w-full mt-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-hidden focus:ring-2"
                     style={{ '--tw-ring-color': branding?.colors.primary } as React.CSSProperties}
                   />
                 </div>

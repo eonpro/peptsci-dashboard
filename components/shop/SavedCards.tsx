@@ -126,7 +126,7 @@ export function SavedCards() {
               key={card.id}
               className={`flex items-center justify-between p-4 border rounded-xl transition-colors ${
                 card.isDefault
-                  ? 'border-[#213cef]/50 bg-[#213cef]/10'
+                  ? 'border-brand-primary/50 bg-brand-primary/10'
                   : 'border-white/10 hover:border-white/20 bg-white/5'
               }`}
             >
@@ -140,7 +140,7 @@ export function SavedCards() {
                       {(card.cardBrand ?? 'Card').toUpperCase()} •••• {card.cardLast4}
                     </p>
                     {card.isDefault && (
-                      <span className="inline-flex items-center text-xs bg-[#213cef]/20 text-[#213cef] rounded px-1.5 py-0.5">
+                      <span className="inline-flex items-center text-xs bg-brand-primary/20 text-brand-primary rounded px-1.5 py-0.5">
                         <Star className="h-3 w-3 mr-1 fill-current" />
                         Default
                       </span>
@@ -249,7 +249,7 @@ function AddCardForm({
       <PaymentElement options={{ layout: 'tabs' }} />
       <div className="flex gap-2">
         <Button
-          className="flex-1 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+          className="flex-1 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
           onClick={handleSave}
           disabled={!stripe || saving}
         >

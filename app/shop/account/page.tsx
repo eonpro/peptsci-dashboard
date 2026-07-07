@@ -169,8 +169,8 @@ export default function AccountPage() {
           <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-white">
-                <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                  <Stethoscope className="h-5 w-5 text-[#213cef]" />
+                <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                  <Stethoscope className="h-5 w-5 text-brand-primary" />
                 </div>
                 Provider & Practice
               </CardTitle>
@@ -212,7 +212,7 @@ export default function AccountPage() {
                 />
               </div>
               {locked && (
-                <div className="flex items-center gap-2 p-3 bg-[#213cef]/20 rounded-lg text-sm text-[#213cef]">
+                <div className="flex items-center gap-2 p-3 bg-brand-primary/20 rounded-lg text-sm text-brand-primary">
                   <FileText className="h-4 w-4" />
                   <span>NPI and practice name are locked after approval. Contact support to change them.</span>
                 </div>
@@ -224,8 +224,8 @@ export default function AccountPage() {
           <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-white">
-                <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                  <User className="h-5 w-5 text-[#213cef]" />
+                <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                  <User className="h-5 w-5 text-brand-primary" />
                 </div>
                 Contact Information
               </CardTitle>
@@ -301,7 +301,7 @@ export default function AccountPage() {
           </Card>
 
           <Button
-            className="w-full sm:w-auto h-12 px-6 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+            className="w-full sm:w-auto h-12 px-6 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
             onClick={handleSave}
             disabled={saving}
           >

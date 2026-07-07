@@ -183,7 +183,7 @@ export default function FulfillmentPage() {
               key={tab.id}
               onClick={() => setShipped(tab.id)}
               className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                shipped === tab.id ? 'bg-[#213cef] text-white' : 'text-white/60 hover:text-white'
+                shipped === tab.id ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'
               }`}
             >
               {tab.label}

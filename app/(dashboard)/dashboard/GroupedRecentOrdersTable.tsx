@@ -155,7 +155,7 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
       <div className="flex items-center">
         <input
           placeholder="Search orders..."
-          className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0a0e3a] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[#213cef]/40 focus:border-brand-primary dark:focus:border-[#213cef] transition-all duration-200 hover:shadow-md"
+          className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0a0e3a] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-xs placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-hidden focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-brand-primary/40 focus:border-brand-primary dark:focus:border-brand-primary transition-all duration-200 hover:shadow-md"
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value)
@@ -165,10 +165,10 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-[#213cef]/5 transition-shadow duration-300">
+      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 dark:border-white/10 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-[#0a0e3a] dark:to-[#050722]">
+            <tr className="border-b border-gray-100 dark:border-white/10 bg-linear-to-r from-gray-50 to-gray-100/50 dark:from-[#0a0e3a] dark:to-brand-onyx">
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-white/70 uppercase tracking-wider w-8"></th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-white/70 uppercase tracking-wider">
                 Date
@@ -318,7 +318,7 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
                   {/* Expanded items */}
                   {isExpanded && hasMultipleItems && (
                     <tr>
-                      <td colSpan={9} className="px-6 py-0 bg-gray-50/50 dark:bg-[#050722]/50">
+                      <td colSpan={9} className="px-6 py-0 bg-gray-50/50 dark:bg-brand-onyx/50">
                         <div className="py-3">
                           <table className="w-full">
                             <thead>
@@ -392,14 +392,14 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
           </div>
           <div className="space-x-2">
             <button
-              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input dark:border-white/10 bg-background dark:bg-[#0a0e3a] hover:bg-accent dark:hover:bg-white/10 hover:text-accent-foreground dark:text-white/70 dark:hover:text-white h-9 rounded-md px-3"
+              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input dark:border-white/10 bg-background dark:bg-[#0a0e3a] hover:bg-accent dark:hover:bg-white/10 hover:text-accent-foreground dark:text-white/70 dark:hover:text-white h-9 rounded-md px-3"
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
             >
               Previous
             </button>
             <button
-              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input dark:border-white/10 bg-background dark:bg-[#0a0e3a] hover:bg-accent dark:hover:bg-white/10 hover:text-accent-foreground dark:text-white/70 dark:hover:text-white h-9 rounded-md px-3"
+              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input dark:border-white/10 bg-background dark:bg-[#0a0e3a] hover:bg-accent dark:hover:bg-white/10 hover:text-accent-foreground dark:text-white/70 dark:hover:text-white h-9 rounded-md px-3"
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
             >

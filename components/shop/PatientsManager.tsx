@@ -230,7 +230,7 @@ export function PatientsManager() {
           />
           <div className="flex gap-2">
             <Button
-              className="bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+              className="bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
               onClick={save}
               disabled={saving || !canSave}
             >

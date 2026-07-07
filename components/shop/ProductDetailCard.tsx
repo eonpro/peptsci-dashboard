@@ -62,7 +62,7 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#050722] via-[#0a0e3a] to-[#050722] border border-white/10',
+        'relative overflow-hidden rounded-3xl bg-linear-to-br from-brand-onyx via-[#0a0e3a] to-brand-onyx border border-white/10',
         className
       )}
       style={{ minHeight: CARD_MIN_HEIGHT }}
@@ -85,15 +85,15 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
           {product.productType && (
             <Badge
               variant="outline"
-              className="text-[#213cef] border-[#213cef]/50 bg-[#213cef]/10 font-semibold text-sm px-3 py-1"
+              className="text-brand-primary border-brand-primary/50 bg-brand-primary/10 font-semibold text-sm px-3 py-1"
             >
               {product.productType}
             </Badge>
           )}
         </div>
 
-        {/* Compounds list - flex-grow to fill space */}
-        <div className="space-y-6 flex-grow">
+        {/* Compounds list - grow to fill space */}
+        <div className="space-y-6 grow">
           {product.compounds.map((compound, index) => (
             <div key={index} className="space-y-2">
               {/* Compound name and amount - WHITE font */}
@@ -140,14 +140,14 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
         <div className="mt-auto pt-6">
           {/* Total amount */}
           {product.totalAmount && (
-            <p className="text-2xl md:text-3xl font-bold text-[#213cef] mb-4">{product.totalAmount}</p>
+            <p className="text-2xl md:text-3xl font-bold text-brand-primary mb-4">{product.totalAmount}</p>
           )}
 
           {/* PRUO badge and disclaimer */}
           <div className="space-y-2">
             {product.isPRUO && (
               <div className="flex items-center gap-2">
-                <Badge className="bg-transparent border-2 border-[#213cef] text-[#213cef] font-bold text-xs px-2 py-0.5 rounded">
+                <Badge className="bg-transparent border-2 border-brand-primary text-brand-primary font-bold text-xs px-2 py-0.5 rounded">
                   PRUO
                 </Badge>
                 <span className="text-white/80 text-sm">Physician Research Use Only</span>

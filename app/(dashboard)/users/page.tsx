@@ -166,10 +166,10 @@ export default function UsersPage() {
       </div>
 
       <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
-        <CardHeader className="bg-[#050722]/50 border-b border-white/10">
+        <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="bg-[#213cef]/20 p-2 rounded-lg">
-              <UsersIcon className="h-5 w-5 text-[#213cef]" />
+            <div className="bg-brand-primary/20 p-2 rounded-lg">
+              <UsersIcon className="h-5 w-5 text-brand-primary" />
             </div>
             <div>
               <CardTitle className="text-white">Members</CardTitle>
@@ -220,7 +220,7 @@ export default function UsersPage() {
                             <SelectTrigger className="w-[150px] bg-[#0a0e3a] border-white/10 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#050722] border-white/10">
+                            <SelectContent className="bg-brand-onyx border-white/10">
                               <SelectItem value="CLIENT" className="text-white focus:bg-white/10">
                                 Client
                               </SelectItem>
@@ -238,7 +238,7 @@ export default function UsersPage() {
                         ) : (
                           <span className="inline-flex items-center gap-1 text-white/80">
                             {(u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') && (
-                              <ShieldCheck className="h-3.5 w-3.5 text-[#213cef]" />
+                              <ShieldCheck className="h-3.5 w-3.5 text-brand-primary" />
                             )}
                             {u.role}
                           </span>

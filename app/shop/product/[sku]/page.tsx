@@ -132,7 +132,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductDetailCard product={detailedData} className="h-fit" />
         ) : (
           /* Fallback to basic card display */
-          <div className="rounded-3xl bg-gradient-to-br from-[#050722] via-[#0a0e3a] to-[#050722] border border-white/10 p-8">
+          <div className="rounded-3xl bg-linear-to-br from-brand-onyx via-[#0a0e3a] to-brand-onyx border border-white/10 p-8">
             <h1 className="text-3xl font-bold text-white mb-2">{product.name}</h1>
             <p className="text-xl text-white/60 mb-4">{product.dose}</p>
             {product.description && <p className="text-white/70 mb-6">{product.description}</p>}
@@ -179,7 +179,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {/* Add to cart button */}
             <Button
               size="lg"
-              className="w-full h-14 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl text-lg font-semibold"
+              className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl text-lg font-semibold"
             >
               <ShoppingCart className="mr-2 h-5 w-5" />
               Add to Cart

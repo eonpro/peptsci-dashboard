@@ -87,18 +87,18 @@ export function DataTable<TData, TValue>({
             placeholder={searchPlaceholder}
             value={globalFilter ?? ''}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0a0e3a] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[#213cef]/40 focus:border-brand-primary dark:focus:border-[#213cef] transition-all duration-200 hover:shadow-md"
+            className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0a0e3a] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-xs placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-hidden focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-brand-primary/40 focus:border-brand-primary dark:focus:border-brand-primary transition-all duration-200 hover:shadow-md"
           />
         </div>
       )}
 
-      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-[#213cef]/5 transition-shadow duration-300">
+      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
         <table className="w-full">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
                 key={headerGroup.id}
-                className="border-b border-gray-100 dark:border-white/10 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-[#0a0e3a] dark:to-[#050722]"
+                className="border-b border-gray-100 dark:border-white/10 bg-linear-to-r from-gray-50 to-gray-100/50 dark:from-[#0a0e3a] dark:to-brand-onyx"
               >
                 {headerGroup.headers.map((header) => {
                   return (
@@ -111,7 +111,7 @@ export function DataTable<TData, TValue>({
                           className={cn(
                             'flex items-center space-x-2',
                             header.column.getCanSort() &&
-                              'cursor-pointer select-none hover:text-brand-primary dark:hover:text-[#213cef]'
+                              'cursor-pointer select-none hover:text-brand-primary dark:hover:text-brand-primary'
                           )}
                           onClick={header.column.getToggleSortingHandler()}
                         >
@@ -197,7 +197,7 @@ export function DataTable<TData, TValue>({
               <SelectTrigger className="h-8 w-[70px] dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="dark:bg-[#050722] dark:border-white/10">
+              <SelectContent className="dark:bg-brand-onyx dark:border-white/10">
                 {[10, 25, 50, 100].map((size) => (
                   <SelectItem
                     key={size}

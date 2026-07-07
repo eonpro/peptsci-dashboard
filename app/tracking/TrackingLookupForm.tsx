@@ -23,11 +23,11 @@ export function TrackingLookupForm({ initialValue = '' }: { initialValue?: strin
         onChange={(e) => setValue(e.target.value)}
         placeholder="Enter tracking number"
         aria-label="Tracking number"
-        className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#213cef] focus:ring-2 focus:ring-[#213cef]/20"
+        className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-hidden focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       />
       <button
         type="submit"
-        className="shrink-0 rounded-xl bg-[#213cef] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a30c0]"
+        className="shrink-0 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a30c0]"
       >
         Track
       </button>

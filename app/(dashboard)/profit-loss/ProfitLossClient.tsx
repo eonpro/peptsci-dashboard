@@ -145,7 +145,7 @@ export default function ProfitLossClient({
   if (monthlySummaries.length === 0 || !selectedMonth) {
     return (
       <div className="container mx-auto space-y-6 p-6">
-        <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
+        <div className="rounded-lg border bg-white p-12 text-center shadow-xs">
           <h1 className="text-3xl font-bold mb-3">Profit & Loss Statement</h1>
           <p className="text-muted-foreground">
             We haven&apos;t received any paid orders yet. Once invoices are marked paid, monthly and

@@ -84,7 +84,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   // Mobile-optimized list view
   if (viewMode === 'list') {
     return (
-      <div className="bg-gradient-to-br from-[#0a0e3a] to-[#050722] border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98]">
+      <div className="bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98]">
         <div className="flex items-center gap-4">
           {/* Compact info */}
           <div className="flex-1 min-w-0">
@@ -128,7 +128,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 onClick={handleAddToCart}
                 disabled={isAdding}
                 size="sm"
-                className="h-9 px-3 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+                className="h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
               >
                 {isAdding ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
               </Button>
@@ -141,7 +141,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   // Scientific-style grid card (matches reference image)
   return (
-    <div className="group relative bg-gradient-to-br from-[#0a0e3a] via-[#0d1242] to-[#050722] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[420px] flex flex-col">
+    <div className="group relative bg-linear-to-br from-[#0a0e3a] via-[#0d1242] to-brand-onyx border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[420px] flex flex-col">
       {/* Header with logo and type badge */}
       <div className="flex items-start justify-between p-4 pb-2">
         <Image
@@ -252,7 +252,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               onClick={handleAddToCart}
               disabled={isAdding}
               size="sm"
-              className="h-8 px-3 text-xs bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-lg font-medium"
+              className="h-8 px-3 text-xs bg-brand-primary hover:bg-[#1a30c0] text-white rounded-lg font-medium"
             >
               {isAdding ? (
                 <>

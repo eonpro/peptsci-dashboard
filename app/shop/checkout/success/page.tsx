@@ -68,7 +68,7 @@ function SuccessContent() {
   if (status === 'loading') {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-        <Loader2 className="h-12 w-12 text-[#213cef] animate-spin mb-4" />
+        <Loader2 className="h-12 w-12 text-brand-primary animate-spin mb-4" />
         <p className="text-white/60">Confirming your payment…</p>
       </div>
     )
@@ -82,7 +82,7 @@ function SuccessContent() {
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">Payment Not Completed</h1>
         <p className="text-white/60 mb-8 max-w-[320px]">{message}</p>
-        <Button asChild className="h-12 px-8 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl">
+        <Button asChild className="h-12 px-8 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl">
           <Link href="/shop/checkout">Try Again</Link>
         </Button>
       </div>
@@ -109,7 +109,7 @@ function SuccessContent() {
           : 'Thank you for your order. You will receive a confirmation email shortly.'}
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
-        <Button asChild className="h-12 px-6 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl">
+        <Button asChild className="h-12 px-6 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl">
           <Link href={orderId ? `/shop/orders/${orderId}` : '/shop/orders'}>
             <Package className="mr-2 h-4 w-4" /> View Order
           </Link>
@@ -131,7 +131,7 @@ export default function CheckoutSuccessPage() {
     <Suspense
       fallback={
         <div className="min-h-[60vh] flex items-center justify-center">
-          <Loader2 className="h-12 w-12 text-[#213cef] animate-spin" />
+          <Loader2 className="h-12 w-12 text-brand-primary animate-spin" />
         </div>
       }
     >

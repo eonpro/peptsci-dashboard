@@ -125,7 +125,7 @@ export function AdminHeader() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#050722] border-b border-[#0a0e3a]">
+    <header className="sticky top-0 z-50 w-full bg-brand-onyx border-b border-[#0a0e3a]">
       <div className="flex h-14 items-center px-4 md:px-6">
         {/* Mobile menu button */}
         <Button
@@ -161,7 +161,7 @@ export function AdminHeader() {
                 className={cn(
                   'flex items-center space-x-2 px-3 py-2 rounded-md transition-all duration-200',
                   isActive
-                    ? 'text-white bg-[#213cef]'
+                    ? 'text-white bg-brand-primary'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
                 )}
               >
@@ -214,7 +214,7 @@ export function AdminHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-56 bg-[#050722] border-[#0a0e3a] text-white"
+              className="w-56 bg-brand-onyx border-[#0a0e3a] text-white"
             >
               <DropdownMenuLabel className="text-white/60">Admin Settings</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-white/10" />
@@ -259,7 +259,7 @@ export function AdminHeader() {
           </AuthWrapper>
           <AuthWrapper signedIn={false}>
             <Link href="/sign-in">
-              <Button size="sm" className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+              <Button size="sm" className="bg-brand-primary hover:bg-[#1a30c0] text-white">
                 Sign in
               </Button>
             </Link>
@@ -269,7 +269,7 @@ export function AdminHeader() {
 
       {/* Mobile Navigation Menu */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-[280px] p-0 border-r border-[#0a0e3a] bg-[#050722]">
+        <SheetContent side="left" className="w-[280px] p-0 border-r border-[#0a0e3a] bg-brand-onyx">
           <SheetHeader className="p-4 border-b border-white/10">
             <SheetTitle className="flex items-center justify-between">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -311,7 +311,7 @@ export function AdminHeader() {
                       className={cn(
                         'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200',
                         isActive
-                          ? 'text-white bg-[#213cef]'
+                          ? 'text-white bg-brand-primary'
                           : 'text-white/70 hover:text-white hover:bg-white/10'
                       )}
                     >
@@ -329,7 +329,7 @@ export function AdminHeader() {
             <Link href="/shop" onClick={() => setMobileMenuOpen(false)}>
               <Button
                 variant="outline"
-                className="w-full bg-white/10 border-white/30 text-white hover:bg-[#213cef] hover:border-[#213cef] hover:text-white"
+                className="w-full bg-white/10 border-white/30 text-white hover:bg-brand-primary hover:border-brand-primary hover:text-white"
               >
                 <Package className="mr-2 h-4 w-4" />
                 Switch to Client Portal

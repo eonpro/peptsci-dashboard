@@ -30,8 +30,8 @@ import { isClerkConfigured } from '@/lib/clerk-config'
 function AuthUserButton() {
   if (!isClerkConfigured) {
     return (
-      <div className="h-9 w-9 rounded-full bg-[#213cef]/20 flex items-center justify-center">
-        <User className="h-5 w-5 text-[#213cef]" />
+      <div className="h-9 w-9 rounded-full bg-brand-primary/20 flex items-center justify-center">
+        <User className="h-5 w-5 text-brand-primary" />
       </div>
     )
   }
@@ -60,7 +60,7 @@ export function ClientHeader() {
   const { isAdmin, isLoading } = useRole()
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#050722]/95 backdrop-blur-xl border-b border-white/10">
+    <header className="sticky top-0 z-50 w-full bg-brand-onyx/95 backdrop-blur-xl border-b border-white/10">
       <div className="container mx-auto flex h-14 md:h-16 items-center px-4">
         {/* Logo - centered on mobile, left on desktop */}
         <Link href="/shop" className="flex items-center gap-2 md:gap-3 md:mr-6">
@@ -72,7 +72,7 @@ export function ClientHeader() {
           />
           <Badge
             variant="outline"
-            className="hidden md:inline-flex text-[10px] border-[#213cef]/50 text-[#213cef] bg-[#213cef]/10"
+            className="hidden md:inline-flex text-[10px] border-brand-primary/50 text-brand-primary bg-brand-primary/10"
           >
             Client Portal
           </Badge>
@@ -91,7 +91,7 @@ export function ClientHeader() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                   isActive
-                    ? 'bg-[#213cef] text-white'
+                    ? 'bg-brand-primary text-white'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
                 )}
               >
@@ -117,7 +117,7 @@ export function ClientHeader() {
           <Button
             variant="outline"
             size="default"
-            className="relative bg-white/10 border-white/20 text-white hover:bg-[#213cef] hover:border-[#213cef] h-10 px-3 md:px-4"
+            className="relative bg-white/10 border-white/20 text-white hover:bg-brand-primary hover:border-brand-primary h-10 px-3 md:px-4"
             onClick={openCart}
             aria-label={`Shopping cart with ${totalItems} items`}
           >
@@ -140,7 +140,7 @@ export function ClientHeader() {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-56 bg-[#050722] border-white/10 text-white"
+                className="w-56 bg-brand-onyx border-white/10 text-white"
               >
                 <DropdownMenuLabel className="text-white/60">My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-white/10" />

@@ -102,7 +102,7 @@ export default function OrdersPage() {
       ) : (
         <div className="space-y-4">
           {orders.map((order) => (
-            <div key={order.id} className="border rounded-xl p-4 hover:shadow-sm transition-shadow">
+            <div key={order.id} className="border rounded-xl p-4 hover:shadow-xs transition-shadow">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="font-medium text-sm">{order.orderNumber}</p>

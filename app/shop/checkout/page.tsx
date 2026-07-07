@@ -200,7 +200,7 @@ export default function CheckoutPage() {
         <p className="text-white/60 mb-8 max-w-[280px]">
           Add some products to your cart before checking out.
         </p>
-        <Button asChild className="h-12 px-8 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl">
+        <Button asChild className="h-12 px-8 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl">
           <Link href="/shop">Browse Products</Link>
         </Button>
       </div>
@@ -255,7 +255,7 @@ export default function CheckoutPage() {
               disabled={index > currentStepIndex}
               className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-2.5 rounded-xl transition-all ${
                 currentStep === step.id
-                  ? 'bg-[#213cef] text-white'
+                  ? 'bg-brand-primary text-white'
                   : index < currentStepIndex
                     ? 'bg-green-500/20 text-green-400 cursor-pointer hover:bg-green-500/30'
                     : 'bg-white/5 text-white/40'
@@ -288,8 +288,8 @@ export default function CheckoutPage() {
               <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
                 <CardHeader className="border-b border-white/10 bg-white/5">
                   <CardTitle className="flex items-center gap-3 text-white">
-                    <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                      <Truck className="h-5 w-5 text-[#213cef]" />
+                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                      <Truck className="h-5 w-5 text-brand-primary" />
                     </div>
                     Ship To
                   </CardTitle>
@@ -308,14 +308,14 @@ export default function CheckoutPage() {
                         onClick={() => setShipTo(opt.id)}
                         className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
                           shipTo === opt.id
-                            ? 'border-[#213cef] bg-[#213cef]/10'
+                            ? 'border-brand-primary bg-brand-primary/10'
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
                         }`}
                       >
                         <opt.icon className="h-5 w-5 text-white/70" />
                         <span className="text-white font-medium text-sm">{opt.label}</span>
                         {shipTo === opt.id && (
-                          <CheckCircle2 className="h-5 w-5 text-[#213cef] ml-auto" />
+                          <CheckCircle2 className="h-5 w-5 text-brand-primary ml-auto" />
                         )}
                       </button>
                     ))}
@@ -367,7 +367,7 @@ export default function CheckoutPage() {
                               onClick={() => setSelectedPatientId(p.id)}
                               className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
                                 selectedPatientId === p.id
-                                  ? 'border-[#213cef] bg-[#213cef]/10'
+                                  ? 'border-brand-primary bg-brand-primary/10'
                                   : 'border-white/10 bg-white/5 hover:bg-white/10'
                               }`}
                             >
@@ -382,7 +382,7 @@ export default function CheckoutPage() {
                                 </span>
                               </span>
                               {selectedPatientId === p.id && (
-                                <CheckCircle2 className="h-5 w-5 text-[#213cef] ml-auto" />
+                                <CheckCircle2 className="h-5 w-5 text-brand-primary ml-auto" />
                               )}
                             </button>
                           ))}
@@ -445,7 +445,7 @@ export default function CheckoutPage() {
                           )}
                           <div className="flex gap-2">
                             <Button
-                              className="flex-1 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl"
+                              className="flex-1 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
                               onClick={handleAddPatient}
                               disabled={savingPatient || !canSaveNewPatient}
                             >
@@ -477,8 +477,8 @@ export default function CheckoutPage() {
               <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
                 <CardHeader className="border-b border-white/10 bg-white/5">
                   <CardTitle className="flex items-center gap-3 text-white">
-                    <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                      <Zap className="h-5 w-5 text-[#213cef]" />
+                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                      <Zap className="h-5 w-5 text-brand-primary" />
                     </div>
                     Shipping Speed
                   </CardTitle>
@@ -491,7 +491,7 @@ export default function CheckoutPage() {
                       onClick={() => setShipSpeed(opt.id)}
                       className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
                         shipSpeed === opt.id
-                          ? 'border-[#213cef] bg-[#213cef]/10'
+                          ? 'border-brand-primary bg-brand-primary/10'
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
@@ -504,7 +504,7 @@ export default function CheckoutPage() {
                       >
                         {opt.price === 0 ? 'FREE' : formatPrice(opt.price)}
                       </span>
-                      {shipSpeed === opt.id && <CheckCircle2 className="h-5 w-5 text-[#213cef]" />}
+                      {shipSpeed === opt.id && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
                     </button>
                   ))}
                   {subtotal < FREE_SHIPPING_THRESHOLD && (
@@ -535,8 +535,8 @@ export default function CheckoutPage() {
             <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
               <CardHeader className="border-b border-white/10 bg-white/5">
                 <CardTitle className="flex items-center gap-3 text-white">
-                  <div className="h-10 w-10 rounded-xl bg-[#213cef]/20 flex items-center justify-center">
-                    <CreditCard className="h-5 w-5 text-[#213cef]" />
+                  <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                    <CreditCard className="h-5 w-5 text-brand-primary" />
                   </div>
                   Payment
                 </CardTitle>
@@ -568,7 +568,7 @@ export default function CheckoutPage() {
                 <div className="space-y-3 max-h-48 overflow-y-auto">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-3">
-                      <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-[#213cef]/20 to-[#213cef]/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <div className="h-12 w-12 rounded-lg bg-linear-to-br from-brand-primary/20 to-brand-primary/5 flex items-center justify-center shrink-0 overflow-hidden">
                         {item.image ? (
                           <Image
                             src={item.image}
@@ -578,7 +578,7 @@ export default function CheckoutPage() {
                             className="object-contain"
                           />
                         ) : (
-                          <span className="text-sm font-bold text-[#213cef]">
+                          <span className="text-sm font-bold text-brand-primary">
                             {item.name.charAt(0)}
                           </span>
                         )}
@@ -622,7 +622,7 @@ export default function CheckoutPage() {
 
                 {currentStep === 'shipping' && (
                   <Button
-                    className="w-full h-12 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-xl font-semibold disabled:opacity-50"
+                    className="w-full h-12 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold disabled:opacity-50"
                     onClick={() => setCurrentStep('payment')}
                     disabled={!shippingValid}
                   >
@@ -646,14 +646,14 @@ export default function CheckoutPage() {
       </div>
 
       {/* Mobile fixed bottom bar */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 lg:hidden bg-[#050722]/95 backdrop-blur-xl border-t border-white/10 p-4 safe-area-bottom">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 lg:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 p-4 safe-area-bottom">
         <div className="flex items-center justify-between mb-3">
           <span className="text-white/60">Total</span>
           <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
         </div>
         {currentStep === 'shipping' && (
           <Button
-            className="w-full h-14 bg-[#213cef] hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold disabled:opacity-50"
+            className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold disabled:opacity-50"
             onClick={() => setCurrentStep('payment')}
             disabled={!shippingValid}
           >

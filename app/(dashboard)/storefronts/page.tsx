@@ -114,7 +114,7 @@ export default function StorefrontsPage() {
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+            <Button className="bg-brand-primary hover:bg-[#1a30c0] text-white">
               <Plus className="h-4 w-4 mr-2" />
               New Storefront
             </Button>
@@ -165,7 +165,7 @@ export default function StorefrontsPage() {
               <Button
                 onClick={handleCreate}
                 disabled={creating || !form.clientId || !form.slug || !form.name}
-                className="w-full bg-[#213cef] hover:bg-[#1a30c0]"
+                className="w-full bg-brand-primary hover:bg-[#1a30c0]"
               >
                 {creating ? 'Creating...' : 'Create Storefront'}
               </Button>

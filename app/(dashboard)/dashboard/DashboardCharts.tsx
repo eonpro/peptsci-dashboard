@@ -87,7 +87,7 @@ const ModernTooltip = ({ active, payload, label }: TooltipProps<number, string>)
   const value = typeof valueRaw === 'number' ? valueRaw : Number(valueRaw)
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#050722]/95 px-4 py-3 text-white shadow-xl backdrop-blur-md">
+    <div className="rounded-2xl border border-white/10 bg-brand-onyx/95 px-4 py-3 text-white shadow-xl backdrop-blur-md">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
         {typeof label === 'string' ? formatAxisLabel(label) : label}
       </p>
@@ -289,7 +289,7 @@ export default function DashboardCharts({
             return (
               <div
                 key={`${String(item[xKey ?? 'name'] ?? 'segment')}-${index}`}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#050722]/70 px-3 py-2.5 shadow-sm transition-colors duration-200 hover:border-[#213cef]/40 hover:bg-[#0a0e3a]/70"
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-brand-onyx/70 px-3 py-2.5 shadow-xs transition-colors duration-200 hover:border-brand-primary/40 hover:bg-[#0a0e3a]/70"
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"

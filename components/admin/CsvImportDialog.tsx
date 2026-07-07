@@ -141,13 +141,13 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
 
   return (
     <>
-      <Button onClick={openDialog} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+      <Button onClick={openDialog} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
         <Upload className="h-4 w-4 mr-2" />
         {label}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-[#050722] border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">{title}</DialogTitle>
             <DialogDescription className="text-white/60">{description}</DialogDescription>
@@ -185,7 +185,7 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
           ) : (
             <div className="space-y-4 py-2">
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-[#213cef]/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -290,7 +290,7 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
             {result ? (
               <Button
                 onClick={() => setOpen(false)}
-                className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                className="bg-brand-primary hover:bg-[#1a30c0] text-white"
               >
                 Done
               </Button>
@@ -306,7 +306,7 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
                 <Button
                   onClick={runImport}
                   disabled={previewRows.length === 0 || importing}
-                  className="bg-[#213cef] hover:bg-[#1a30c0] text-white"
+                  className="bg-brand-primary hover:bg-[#1a30c0] text-white"
                 >
                   {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Import {previewRows.length > 0 ? `${previewRows.length} row(s)` : ''}

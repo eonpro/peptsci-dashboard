@@ -129,14 +129,14 @@ export default function OnboardingPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-brand-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-bg via-white to-brand-bg/50 py-10 px-4">
+    <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 py-10 px-4">
       <div className="mx-auto max-w-2xl">
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 inline-block">

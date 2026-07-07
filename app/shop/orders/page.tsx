@@ -209,7 +209,7 @@ export default function OrdersPage() {
                     <div className="space-y-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-4">
-                          <div className="h-14 w-14 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                          <div className="h-14 w-14 rounded-lg bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center shrink-0">
                             <span className="text-lg font-bold text-indigo-300">{item.name.charAt(0)}</span>
                           </div>
                           <div className="flex-1 min-w-0">

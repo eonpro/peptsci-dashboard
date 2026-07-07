@@ -238,7 +238,7 @@ export default function StorefrontDetailPage() {
                 <span className="text-white/30 text-sm whitespace-nowrap">.peptsci.com</span>
               </div>
             </div>
-            <Button onClick={handleSave} disabled={saving} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+            <Button onClick={handleSave} disabled={saving} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </CardContent>
@@ -304,7 +304,7 @@ export default function StorefrontDetailPage() {
                 className="bg-white/5 border-white/20 text-white min-h-[80px]"
               />
             </div>
-            <Button onClick={handleSave} disabled={saving} className="bg-[#213cef] hover:bg-[#1a30c0] text-white">
+            <Button onClick={handleSave} disabled={saving} className="bg-brand-primary hover:bg-[#1a30c0] text-white">
               {saving ? 'Saving...' : 'Save Branding'}
             </Button>
           </CardContent>
