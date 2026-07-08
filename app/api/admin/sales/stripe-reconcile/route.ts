@@ -136,6 +136,9 @@ export async function GET() {
       },
       gap: {
         stripeGrossVsDb: grossVolume / 100 - dbTotal,
+        // DB records are net of refunds, so this is the figure that should be
+        // ~0 when everything is ingested.
+        stripeNetVsDb: (grossVolume - refundedTotal) / 100 - dbTotal,
         missingFromDb: { count: missing.length, amount: missingAmount },
       },
       missingSample: missing

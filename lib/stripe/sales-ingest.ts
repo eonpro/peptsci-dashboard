@@ -9,10 +9,12 @@
  * Upserts by `stripePaymentIntentId`, so re-ingestion is idempotent.
  */
 
+// Relative imports (not "@/lib/..."): this module is unit-tested under the
+// node --import tsx test runner, which does not resolve tsconfig path aliases.
 import type Stripe from 'stripe'
-import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
-import { buildCostLookup, estimateUnitCost } from '@/lib/sales'
+import { prisma } from '../prisma'
+import { logger } from '../logger'
+import { buildCostLookup, estimateUnitCost } from '../sales'
 
 export function chargeFrom(pi: Stripe.PaymentIntent): Stripe.Charge | null {
   const latest = pi.latest_charge
@@ -96,7 +98,16 @@ export function summarizeInvoiceLines(
   return { product, quantity, cogs: matchedAny ? cogs : null }
 }
 
-/** Build the SalesRecord data payload for a succeeded PaymentIntent. */
+/**
+ * Build the SalesRecord data payload for a succeeded PaymentIntent.
+ *
+ * Refund-aware: `paidAmount` is NET of refunds on the latest charge, and COGS
+ * is scaled by the same fraction (a fully refunded sale contributes $0 revenue
+ * and $0 cost, a half-refunded sale contributes half of each). Because
+ * everything is recomputed from Stripe's current state, ingestion stays
+ * idempotent across webhook retries, partial-refund sequences, and re-runs of
+ * the backfill.
+ */
 export async function salesRecordDataFromPaymentIntent(
   stripe: Stripe,
   pi: Stripe.PaymentIntent,
@@ -106,7 +117,10 @@ export async function salesRecordDataFromPaymentIntent(
   const charge = chargeFrom(pi)
   const billing = charge?.billing_details
   const customer = customerFrom(pi)
-  const paidAmount = (pi.amount_received || pi.amount || 0) / 100
+  const grossAmount = (pi.amount_received || pi.amount || 0) / 100
+  const refundedAmount = Math.min(grossAmount, (charge?.amount_refunded ?? 0) / 100)
+  const paidAmount = grossAmount - refundedAmount
+  const netFraction = grossAmount > 0 ? paidAmount / grossAmount : 1
 
   // Pull the paying invoice (customer identity + line items) so the dashboard
   // shows WHO paid and WHAT they bought, not just a PI id.
@@ -115,7 +129,18 @@ export async function salesRecordDataFromPaymentIntent(
 
   const address = billing?.address || customer?.address || invoice?.customer_address
   const vials = lines.quantity
-  const cogs = lines.cogs ?? paidAmount * 0.35
+  const grossCogs = lines.cogs ?? grossAmount * 0.35
+  const cogs = grossCogs * netFraction
+
+  const baseNote = invoice?.number
+    ? `Imported from Stripe (invoice ${invoice.number})`
+    : 'Imported from Stripe'
+  const refundNote =
+    refundedAmount > 0
+      ? paidAmount === 0
+        ? ' — FULLY REFUNDED'
+        : ` — refunded $${refundedAmount.toFixed(2)}`
+      : ''
 
   return {
     date: new Date(pi.created * 1000),
@@ -140,9 +165,7 @@ export async function salesRecordDataFromPaymentIntent(
     vials,
     amountPerVial: vials > 0 ? paidAmount / vials : 0,
     product: lines.product || pi.description || '',
-    notes: invoice?.number
-      ? `Imported from Stripe (invoice ${invoice.number})`
-      : 'Imported from Stripe',
+    notes: `${baseNote}${refundNote}`,
     unitCost: vials > 0 ? cogs / vials : 0,
     cogs,
     source: 'stripe',

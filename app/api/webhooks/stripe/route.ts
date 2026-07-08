@@ -296,12 +296,41 @@ async function processEvent(event: Stripe.Event): Promise<ProcessResult> {
           amountRefunded: charge.amount_refunded,
         })
       }
+
+      // External payment (no platform order): re-ingest the PaymentIntent so
+      // its SalesRecord nets out the refund (paidAmount/COGS recomputed from
+      // Stripe's current state — idempotent across retries/partial refunds).
+      let salesAdjusted = false
+      const piId =
+        typeof charge.payment_intent === 'string'
+          ? charge.payment_intent
+          : charge.payment_intent?.id
+      if (!order && piId) {
+        const stripeClient = getStripeClient()
+        if (stripeClient) {
+          salesAdjusted = await ingestStripePaymentIntent(
+            stripeClient,
+            piId,
+            event.account ? { stripeAccount: event.account } : undefined
+          )
+        }
+        if (!salesAdjusted) {
+          return {
+            success: false,
+            retryable: true,
+            error: `Failed to apply refund to sales record for PaymentIntent ${piId}`,
+            details: { chargeId: charge.id, amountRefunded: charge.amount_refunded },
+          }
+        }
+      }
+
       return {
         success: true,
         details: {
           chargeId: charge.id,
           orderMatched: !!order,
           fullyRefunded,
+          salesAdjusted,
           amountRefunded: charge.amount_refunded,
         },
       }
