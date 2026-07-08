@@ -1,3 +1,28 @@
+# ACTIVE PLAN — Enterprise Admin Management (Jul 2026)  [EXECUTOR — DONE]
+
+> Enterprise admin UI/UX for managing users, clients/practices, products, and pricing. Kept `Client` as the practice/organization entity (no new tables). Built in three phases. Build green (exit 0), tests green (230/230).
+
+## Project Status Board (this effort)
+- [x] Phase 1: `AdminHeader` "Manage" dropdown (desktop + mobile) exposing Clients, Users, Products, Pricing, Client Pricing.
+- [x] Phase 1: `POST/GET/DELETE /api/admin/users/invite` — Clerk email invitations (create with role/status/clientId metadata, list pending, revoke). Elevated roles gated by `requireSuperAdmin()`.
+- [x] Phase 1: `PATCH /api/admin/users/[id]` — assign clientId / set status, syncing Clerk metadata + Postgres mirror.
+- [x] Phase 1: Users page — "Invite User" dialog, pending-invitations table w/ revoke, per-row "Edit" dialog (practice + status), Practice column.
+- [x] Phase 2: `POST /api/admin/clients` — create practice (Zod, optional NPI, default APPROVED, P2002 duplicate-NPI handling).
+- [x] Phase 2: "Add Client" dialog (NPI lookup prefill, AddressFields, same-as-billing shipping) on the clients list.
+- [x] Phase 2: Restyled Clients list + detail to the dark admin theme (was light/out of sync).
+- [x] Phase 2: "Invite user to this practice" on client detail (reuses invite dialog w/ locked clientId).
+- [x] Phase 3: Products page already had full CRUD/import/empty-states — no change needed. Aligned `EditPriceDialog` to the dark dialog theme; client-pricing already consistent.
+
+## Executor's Feedback or Assistance Requests
+- Invitations use Clerk's email-invite flow with `redirectUrl = ${NEXT_PUBLIC_APP_URL}/sign-up`; requires invitations enabled on the Clerk instance. Admin-initiated invites seed `status: ACTIVE` (pre-vetted) so invitees skip the pending-approval gate.
+- No schema/migration changes were required.
+
+## Lessons
+- New admin dialogs should use the explicit dark tokens (`bg-brand-onyx`, `bg-[#0a0e3a]`, `border-white/10`, `text-white`) rather than default shadcn `bg-background`, to match the rest of the admin surface.
+- `Client` is the single practice/organization entity; users link via `User.clientId` + Clerk `publicMetadata.clientId`.
+
+---
+
 # ACTIVE PLAN — Whole-Platform Performance Overhaul (June 2026)  [PLANNER]
 
 > **Current source of truth.** Full-platform performance audit (admin + shop + storefront), grounded in a code audit across client rendering, the DB/API layer, and the JS bundle. Supersedes the earlier "Admin Backend Performance Analysis" (below), whose P0/P1 Sheets fixes are ✅ done. No code changed in this pass — analysis + prioritized remediation plan. **Awaiting user go-ahead** on which phase to execute.
