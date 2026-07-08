@@ -84,12 +84,14 @@ export default function EditPriceDialog({
     return (((s - c) / s) * 100).toFixed(1)
   })()
 
+  const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+
   return (
     <Dialog open={Boolean(row)} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>Edit Pricing</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-white">Edit Pricing</DialogTitle>
+          <DialogDescription className="text-white/60">
             {row ? `${row.Product}${row.Dose ? ` — ${row.Dose}` : ''} (${row.SKU})` : ''}
           </DialogDescription>
         </DialogHeader>
@@ -97,29 +99,45 @@ export default function EditPriceDialog({
         <div className="grid gap-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Cost (what you pay) $</Label>
-              <Input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} />
+              <Label className="text-xs text-white/70">Cost (what you pay) $</Label>
+              <Input
+                inputMode="decimal"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">SRP (selling price) $</Label>
-              <Input inputMode="decimal" value={srp} onChange={(e) => setSrp(e.target.value)} />
+              <Label className="text-xs text-white/70">SRP (selling price) $</Label>
+              <Input
+                inputMode="decimal"
+                value={srp}
+                onChange={(e) => setSrp(e.target.value)}
+                className={inputClass}
+              />
             </div>
           </div>
-          {margin !== null && (
-            <p className="text-sm text-muted-foreground">Margin: {margin}%</p>
-          )}
+          {margin !== null && <p className="text-sm text-white/60">Margin: {margin}%</p>}
           {error && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
               {error}
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+          >
             Cancel
           </Button>
-          <Button onClick={save} disabled={saving}>
+          <Button
+            onClick={save}
+            disabled={saving}
+            className="bg-brand-primary hover:bg-[#1a30c0] text-white"
+          >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Save
           </Button>
