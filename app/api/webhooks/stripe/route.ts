@@ -23,6 +23,7 @@ import {
   reconcileOrderFromPaymentIntent,
   persistPaymentMethodFromStripe,
 } from '@/lib/stripe/payments'
+import { ingestStripePaymentIntent } from '@/lib/stripe/sales-ingest'
 import { releaseForOrder } from '@/lib/inventory/reservations'
 
 export const dynamic = 'force-dynamic'
@@ -219,11 +220,46 @@ async function processEvent(event: Stripe.Event): Promise<ProcessResult> {
     case 'payment_intent.processing': {
       const pi = event.data.object as Stripe.PaymentIntent
       const res = await reconcileOrderFromPaymentIntent(pi)
-      // A successful payment with no matching order is a real problem (bad
-      // metadata, order not linked yet, or deleted order). Fail as retryable so
-      // Stripe retries — a later delivery can match once the link is written,
-      // and a persistent failure is captured in the WebhookEvent DLQ.
+
       if (!res.matched && (pi.status === 'succeeded' || pi.status === 'processing')) {
+        // Platform-created PIs always carry metadata.orderId. Without it, this
+        // is a payment made OUTSIDE the platform (Stripe-hosted invoice,
+        // subscription, or dashboard charge) — ingest it into sales analytics
+        // immediately so the dashboard updates in real time.
+        const isPlatformPi = !!pi.metadata?.orderId
+        if (!isPlatformPi) {
+          if (pi.status !== 'succeeded') {
+            // ACH/processing invoice payments: wait for the succeeded event.
+            return {
+              success: true,
+              details: { paymentIntentId: pi.id, skipped: 'external_pi_processing' },
+            }
+          }
+          const stripeClient = getStripeClient()
+          const ingested = stripeClient
+            ? await ingestStripePaymentIntent(
+                stripeClient,
+                pi.id,
+                event.account ? { stripeAccount: event.account } : undefined
+              )
+            : false
+          if (ingested) {
+            return {
+              success: true,
+              details: { paymentIntentId: pi.id, ingestedAsSale: true },
+            }
+          }
+          return {
+            success: false,
+            retryable: true,
+            error: `Failed to ingest external PaymentIntent ${pi.id} into sales`,
+            details: { paymentIntentId: pi.id, matched: false },
+          }
+        }
+        // A platform payment with no matching order is a real problem (bad
+        // metadata, order not linked yet, or deleted order). Fail as retryable
+        // so Stripe retries — a later delivery can match once the link is
+        // written; persistent failures land in the WebhookEvent DLQ.
         return {
           success: false,
           retryable: true,

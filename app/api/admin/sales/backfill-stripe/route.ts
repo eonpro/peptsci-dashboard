@@ -12,7 +12,8 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
-import { buildCostLookup, estimateUnitCost } from '@/lib/sales'
+import { buildCostLookup } from '@/lib/sales'
+import { salesRecordDataFromPaymentIntent } from '@/lib/stripe/sales-ingest'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,91 +37,6 @@ function toUnixSeconds(v: string | number | undefined): number | undefined {
   return Number.isNaN(ms) ? undefined : Math.floor(ms / 1000)
 }
 
-function chargeFrom(pi: Stripe.PaymentIntent): Stripe.Charge | null {
-  const latest = pi.latest_charge
-  if (latest && typeof latest === 'object') return latest as Stripe.Charge
-  return null
-}
-
-function customerFrom(pi: Stripe.PaymentIntent): Stripe.Customer | null {
-  const c = pi.customer
-  if (c && typeof c === 'object' && !('deleted' in c && c.deleted)) return c as Stripe.Customer
-  return null
-}
-
-/**
- * Resolve the Invoice paid by a PaymentIntent (Stripe invoices/subscriptions).
- * Uses the InvoicePayments API (PaymentIntent.invoice no longer exists on
- * current API versions). Best-effort: returns null on any failure.
- */
-async function invoiceForPaymentIntent(
-  stripe: Stripe,
-  piId: string,
-  requestOptions: Stripe.RequestOptions | undefined
-): Promise<Stripe.Invoice | null> {
-  try {
-    const payments = await stripe.invoicePayments.list(
-      {
-        payment: { type: 'payment_intent', payment_intent: piId },
-        limit: 1,
-        expand: ['data.invoice'],
-      },
-      requestOptions
-    )
-    const inv = payments.data[0]?.invoice
-    if (inv && typeof inv === 'object' && !('deleted' in inv && inv.deleted)) {
-      return inv as Stripe.Invoice
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-interface LineSummary {
-  product: string
-  quantity: number
-  cogs: number | null
-}
-
-/**
- * Summarize invoice lines into a product label, total unit quantity, and a
- * catalog-estimated COGS (null when no line matches the catalog).
- */
-function summarizeInvoiceLines(
-  invoice: Stripe.Invoice | null,
-  costLookup: Map<string, number>
-): LineSummary {
-  const lines = invoice?.lines?.data ?? []
-  if (lines.length === 0) return { product: '', quantity: 0, cogs: null }
-
-  let quantity = 0
-  let cogs = 0
-  let matchedAny = false
-  const names: string[] = []
-
-  for (const line of lines) {
-    const qty = line.quantity ?? 1
-    const desc = (line.description || '').trim()
-    if (desc) names.push(desc)
-    quantity += qty
-    if (desc) {
-      const perUnit = (line.amount ?? 0) / 100 / (qty || 1)
-      const unitCost = estimateUnitCost(desc, perUnit, costLookup)
-      // estimateUnitCost falls back to 35% of price; only trust real matches.
-      if (unitCost !== perUnit * 0.35) {
-        cogs += unitCost * qty
-        matchedAny = true
-      } else {
-        cogs += unitCost * qty
-      }
-    }
-  }
-
-  const product =
-    names.length === 0 ? '' : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1} more`
-  return { product, quantity, cogs: matchedAny ? cogs : null }
-}
 
 /**
  * POST /api/admin/sales/backfill-stripe
@@ -217,56 +133,7 @@ export async function POST(request: NextRequest) {
             continue
           }
 
-          const charge = chargeFrom(pi)
-          const billing = charge?.billing_details
-          const customer = customerFrom(pi)
-          const paidAmount = (pi.amount_received || pi.amount || 0) / 100
-
-          // Pull the paying invoice (customer identity + line items) so the
-          // dashboard shows WHO paid and WHAT they bought, not just a PI id.
-          const invoice = await invoiceForPaymentIntent(stripe, pi.id, requestOptions)
-          const lines = summarizeInvoiceLines(invoice, costLookup)
-
-          const address = billing?.address || customer?.address || invoice?.customer_address
-          const vials = lines.quantity
-          // Catalog-matched COGS when the invoice lines identify products;
-          // otherwise the 35%-of-revenue fallback.
-          const cogs = lines.cogs ?? paidAmount * 0.35
-
-          const data = {
-            date: new Date(pi.created * 1000),
-            orderRef: invoice?.number || pi.id,
-            customerName:
-              billing?.name ||
-              customer?.name ||
-              invoice?.customer_name ||
-              pi.metadata?.customerName ||
-              '',
-            customerEmail:
-              billing?.email ||
-              customer?.email ||
-              invoice?.customer_email ||
-              charge?.receipt_email ||
-              pi.metadata?.customerEmail ||
-              '',
-            customerPhone: billing?.phone || customer?.phone || invoice?.customer_phone || '',
-            address: address?.line1 || '',
-            city: address?.city || '',
-            state: address?.state || '',
-            zip: address?.postal_code || '',
-            trackingNumber: '',
-            invoicePaid: true,
-            paidAmount,
-            vials,
-            amountPerVial: vials > 0 ? paidAmount / vials : 0,
-            product: lines.product || pi.description || '',
-            notes: invoice?.number
-              ? `Imported from Stripe (invoice ${invoice.number})`
-              : 'Imported from Stripe',
-            unitCost: vials > 0 ? cogs / vials : 0,
-            cogs,
-            source: 'stripe',
-          }
+          const data = await salesRecordDataFromPaymentIntent(stripe, pi, costLookup, requestOptions)
 
           const res = await prisma.salesRecord.upsert({
             where: { stripePaymentIntentId: pi.id },

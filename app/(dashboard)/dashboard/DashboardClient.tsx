@@ -62,18 +62,28 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
     }
   }
 
-  // Auto-refresh periodically, and only while the tab is visible. Re-pulling
-  // the full sales history every minute for every open tab was a major source
-  // of load; 5 min + visibility-gating cuts that dramatically.
+  // Live-ish updates: poll every 60s while the tab is visible, and refresh
+  // immediately when the user returns to the tab. New Stripe payments are
+  // ingested by the webhook the moment they succeed, so this keeps the KPIs
+  // within a minute of real time. The /api/sales response is cached ~30s
+  // server-side, which keeps this polling cheap.
   useEffect(() => {
-    const REFRESH_MS = 5 * 60 * 1000
+    const REFRESH_MS = 60 * 1000
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadData()
       }
     }, REFRESH_MS)
 
-    return () => clearInterval(interval)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadData()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   const handleRefresh = async () => {
