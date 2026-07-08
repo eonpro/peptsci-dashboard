@@ -139,7 +139,7 @@ export function AdminHeader() {
         </Button>
 
         {/* Logo */}
-        <Link href="/dashboard" className="mr-8 flex items-center">
+        <Link href="/dashboard" className="mr-8 flex shrink-0 items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://static.wixstatic.com/shapes/c49a9b_e45a79daf6b8455aaa0677fce893c05d.svg"
@@ -149,7 +149,7 @@ export function AdminHeader() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center space-x-1 text-sm">
+        <nav className="hidden min-w-0 flex-1 lg:flex items-center gap-1 text-sm overflow-x-auto scrollbar-hide">
           {navigation.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -159,7 +159,7 @@ export function AdminHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center space-x-2 px-3 py-2 rounded-md transition-all duration-200',
+                  'flex shrink-0 items-center space-x-2 whitespace-nowrap px-3 py-2 rounded-md transition-all duration-200',
                   isActive
                     ? 'text-white bg-brand-primary'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -173,7 +173,7 @@ export function AdminHeader() {
         </nav>
 
         {/* Right side actions */}
-        <div className="ml-auto flex items-center space-x-2">
+        <div className="ml-auto flex shrink-0 items-center space-x-2 lg:ml-4">
           {/* Search button */}
           <Button
             variant="ghost"
