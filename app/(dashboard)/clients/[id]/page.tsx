@@ -14,6 +14,7 @@ import { AddressFields } from '@/components/AddressFields'
 import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
+import DeleteClientButton from '../DeleteClientButton'
 import {
   ArrowLeft,
   Building2,
@@ -197,6 +198,12 @@ export default function ClientDetailPage() {
         <Badge variant="outline" className={statusStyles[profile.onboardingStatus] ?? 'text-white/70'}>
           {profile.onboardingStatus}
         </Badge>
+        <DeleteClientButton
+          clientId={id}
+          organizationName={profile.organizationName}
+          orderCount={counts?.orders ?? 0}
+          redirectOnSuccess
+        />
       </div>
 
       {error && (

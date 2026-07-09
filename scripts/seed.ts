@@ -11,13 +11,16 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
-import { getPoolConfig } from '../lib/db-url'
+import { getPoolConfig, assertLocalOrExplicitOverride } from '../lib/db-url'
 
 const poolConfig = getPoolConfig()
 if (!poolConfig) {
   console.error('No database connection configured (set DATABASE_URL or PGHOST/PGPASSWORD).')
   process.exit(1)
 }
+
+// Seeds demo clients/products — never allow that against a remote DB by default.
+assertLocalOrExplicitOverride('seed')
 
 const pool = new pg.Pool(poolConfig)
 const adapter = new PrismaPg(pool)

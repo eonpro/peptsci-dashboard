@@ -27,6 +27,38 @@ export function getDatabaseUrl(): string | undefined {
 }
 
 /**
+ * True when the resolved database connection points at a local host
+ * (localhost / 127.0.0.1 / ::1). Used to guard destructive/seed scripts so they
+ * cannot accidentally run against a remote/production database.
+ */
+export function isLocalDatabase(connectionString?: string): boolean {
+  const url = connectionString ?? getDatabaseUrl()
+  if (!url) return false
+  // PG* -> URL always embeds the host; a bare PGHOST (IAM auth, no URL) is remote.
+  if (!getDatabaseUrl() && process.env.PGHOST) return false
+  return /@(localhost|127\.0\.0\.1|\[::1\]|::1)(:|\/)/.test(url)
+}
+
+/**
+ * Abort a seed/maintenance script if it is about to run against a non-local
+ * database, unless the operator explicitly opts in with ALLOW_REMOTE_SEED=1.
+ * Prevents demo/seed data from leaking into production.
+ */
+export function assertLocalOrExplicitOverride(scriptName: string): void {
+  if (isLocalDatabase()) return
+  if (process.env.ALLOW_REMOTE_SEED === '1') {
+    console.warn(`[${scriptName}] ALLOW_REMOTE_SEED=1 set — running against a REMOTE database.`)
+    return
+  }
+  console.error(
+    `[${scriptName}] Refusing to run: the configured database is not local.\n` +
+      `This guard prevents seeding demo data into production. If you really intend\n` +
+      `to run against a remote database, re-run with ALLOW_REMOTE_SEED=1.`
+  )
+  process.exit(1)
+}
+
+/**
  * True when we should authenticate to RDS using an IAM auth token instead of a
  * static password: PG host is set, no PGPASSWORD/DATABASE_URL is provided, and
  * an AWS role is available to assume (Vercel OIDC -> AWS).
