@@ -16,6 +16,7 @@
     "labels:template": "tsx scripts/build-label-template.ts",
     "labels:assets": "python3 scripts/build-label-assets.py",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "remove-demo-clients": "tsx --env-file=.env.local scripts/remove-demo-clients.ts",
     "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "backfill:sales": "tsx --env-file=.env.local scripts/backfill-sales-from-orders.ts",
     "stripe:check": "tsx --env-file=.env.local scripts/test-stripe-config.ts",

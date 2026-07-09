@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Building2, Search, Loader2, ChevronRight, Plus } from 'lucide-react'
 import AddClientDialog from './AddClientDialog'
+import DeleteClientButton from './DeleteClientButton'
 
 interface ClientRow {
   id: string
@@ -158,12 +159,20 @@ export default function ClientsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        href={`/clients/${c.id}`}
-                        className="inline-flex items-center text-sm text-white/60 hover:text-white"
-                      >
-                        Manage <ChevronRight className="h-4 w-4" />
-                      </Link>
+                      <div className="inline-flex items-center gap-2">
+                        <DeleteClientButton
+                          clientId={c.id}
+                          organizationName={c.organizationName}
+                          orderCount={c.orderCount}
+                          onDeleted={(id) => setClients((prev) => prev.filter((x) => x.id !== id))}
+                        />
+                        <Link
+                          href={`/clients/${c.id}`}
+                          className="inline-flex items-center text-sm text-white/60 hover:text-white"
+                        >
+                          Manage <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

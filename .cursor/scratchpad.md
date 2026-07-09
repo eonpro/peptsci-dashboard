@@ -1,3 +1,25 @@
+# ACTIVE PLAN — Delete Client (remove demo clinics from prod) (Jul 2026)  [EXECUTOR]
+
+> Demo/seed clients still appear in Client Custom Pricing dropdowns because they live in prod RDS. Local scripts cannot mutate prod (IAM auth only works inside Vercel). Option A: ship a real admin Delete Client feature, then delete via the live UI.
+
+## Project Status Board (this effort)
+- [x] `lib/clients/delete-client.ts` — shared force-delete helper (orders + dependents, invoices, docs, pricing; unlink users).
+- [x] `DELETE /api/admin/clients/[id]` — admin-only; 409 `HAS_HISTORY` without `?force=1`; force cleans up then deletes.
+- [x] `DeleteClientButton` on Clients list + detail (confirm → optional force confirm).
+- [x] Seed scripts guarded against remote DB (`assertLocalOrExplicitOverride`); `scripts/remove-demo-clients.ts` for local/ops.
+- [ ] Deploy to `main` / production.
+- [ ] On live site: Clients → delete Wellness Clinic A, Medical Center B, Health Partners C, Dr. Clinic Wellness Center.
+
+## Executor's Feedback or Assistance Requests
+- After deploy, delete the four demo clients from `/clients` on peptsci.com. They will then disappear from Client Custom Pricing dropdowns.
+- Do **not** delete "Legacy Orders" if present (real migrated history).
+
+## Lessons
+- Prod RDS has no `PGPASSWORD`; auth is Vercel OIDC → cross-account IAM. Local `vercel env pull` OIDC tokens are `environment:development` and cannot assume the prod role.
+- Prefer admin UI mutations for prod data when CLI/IAM cannot reach RDS from a laptop.
+
+---
+
 # ACTIVE PLAN — Enterprise Admin Management (Jul 2026)  [EXECUTOR — DONE]
 
 > Enterprise admin UI/UX for managing users, clients/practices, products, and pricing. Kept `Client` as the practice/organization entity (no new tables). Built in three phases. Build green (exit 0), tests green (230/230).

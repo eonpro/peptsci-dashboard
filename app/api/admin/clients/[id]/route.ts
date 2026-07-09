@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { clerkClient } from '@clerk/nextjs/server'
@@ -18,6 +18,7 @@ import {
   sendPartnerRejectedEmail,
   sendPartnerNeedsInfoEmail,
 } from '@/lib/email'
+import { deleteClientForce } from '@/lib/clients/delete-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -190,6 +191,76 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update client'
     logger.error('[ADMIN CLIENTS] patch error', { message }, error as Error)
+    return errorResponse(message)
+  }
+}
+
+/**
+ * DELETE /api/admin/clients/[id]
+ *
+ * Removes a practice account. Without `?force=1`, refuses when the client has
+ * orders or invoices (returns 409 with counts) so financial history is not
+ * silently destroyed. With `?force=1`, cleans up non-cascading dependents and
+ * deletes the client. Linked auth users are unlinked, never deleted. Admin only.
+ */
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
+    if (!isAuthenticated) return unauthorizedResponse()
+    if (!isAdmin) return forbiddenResponse('Admin access required')
+    if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
+
+    const { id } = await params
+    const force = request.nextUrl.searchParams.get('force') === '1'
+
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        organizationName: true,
+        _count: { select: { orders: true, invoices: true, users: true, customPricing: true } },
+      },
+    })
+    if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
+
+    const hasHistory = client._count.orders > 0 || client._count.invoices > 0
+    if (hasHistory && !force) {
+      return NextResponse.json(
+        {
+          error: 'Conflict',
+          code: 'HAS_HISTORY',
+          message: `This client has ${client._count.orders} order(s) and ${client._count.invoices} invoice(s). Confirm force delete to remove them.`,
+          orders: client._count.orders,
+          invoices: client._count.invoices,
+          users: client._count.users,
+          customPricing: client._count.customPricing,
+        },
+        { status: 409 }
+      )
+    }
+
+    const counts = await deleteClientForce(prisma, id)
+
+    logger.info('[ADMIN CLIENTS] deleted', {
+      clientId: id,
+      organizationName: client.organizationName,
+      force,
+      by: userId,
+      counts,
+    })
+
+    return successResponse({
+      deleted: true,
+      force,
+      organizationName: client.organizationName,
+      counts,
+    })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return errorResponse('Client not found', 404, 'NOT_FOUND')
+    }
+    const message = error instanceof Error ? error.message : 'Failed to delete client'
+    logger.error('[ADMIN CLIENTS] delete error', { message }, error as Error)
     return errorResponse(message)
   }
 }
