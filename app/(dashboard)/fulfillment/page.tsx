@@ -18,6 +18,8 @@ import {
   ClipboardList,
   FileText,
   CheckCircle2,
+  Plus,
+  CreditCard,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 
@@ -26,6 +28,16 @@ import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 const FedExLabelModal = dynamic(() => import('@/components/shipping/FedExLabelModal'), {
   ssr: false,
 })
+const NewOrderModal = dynamic(() => import('@/components/orders/NewOrderModal'), {
+  ssr: false,
+})
+const ChargeOrderModal = dynamic(() => import('@/components/orders/ChargeOrderModal'), {
+  ssr: false,
+})
+const ConvertStripeModal = dynamic(() => import('@/components/orders/ConvertStripeModal'), {
+  ssr: false,
+})
+import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
 
 type StoredAddress = Record<string, unknown> | null
 
@@ -33,6 +45,7 @@ type OrderRow = {
   id: string
   orderNumber: number
   status: string
+  paymentStatus: string
   shippingStatus: string | null
   carrier: string | null
   trackingNumber: string | null
@@ -77,15 +90,22 @@ const filterTabs = [
   { id: 'false', label: 'Needs Label' },
   { id: 'true', label: 'Shipped' },
   { id: 'all', label: 'All' },
+  { id: 'stripe', label: 'From Stripe' },
 ] as const
+
+type TabId = (typeof filterTabs)[number]['id']
 
 export default function FulfillmentPage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [shipped, setShipped] = useState<'true' | 'false' | 'all'>('false')
+  const [shipped, setShipped] = useState<TabId>('false')
+  const [queue, setQueue] = useState<StripeQueueRecord[]>([])
   const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
+  const [convertRecord, setConvertRecord] = useState<StripeQueueRecord | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
   // Sequence searches so a slow, older response can't overwrite a newer one.
   const loadSeqRef = useRef(0)
@@ -93,21 +113,29 @@ export default function FulfillmentPage() {
   const load = useCallback(() => {
     const seq = ++loadSeqRef.current
     setLoading(true)
-    const qs = new URLSearchParams({ shipped })
-    if (search.trim()) qs.set('search', search.trim())
-    fetch(`/api/admin/orders?${qs.toString()}`)
+    setError(null)
+    const url =
+      shipped === 'stripe'
+        ? '/api/admin/fulfillment/stripe-queue'
+        : (() => {
+            const qs = new URLSearchParams({ shipped })
+            if (search.trim()) qs.set('search', search.trim())
+            return `/api/admin/orders?${qs.toString()}`
+          })()
+    fetch(url)
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(data.message || data.error || 'Failed to load orders')
+        if (!r.ok) throw new Error(data.message || data.error || 'Failed to load')
         return data
       })
       .then((data) => {
         if (seq !== loadSeqRef.current) return
-        setOrders(data.orders ?? [])
+        if (shipped === 'stripe') setQueue(data.records ?? [])
+        else setOrders(data.orders ?? [])
       })
       .catch((e) => {
         if (seq !== loadSeqRef.current) return
-        setError(e instanceof Error ? e.message : 'Failed to load orders')
+        setError(e instanceof Error ? e.message : 'Failed to load')
       })
       .finally(() => {
         if (seq === loadSeqRef.current) setLoading(false)
@@ -160,11 +188,16 @@ export default function FulfillmentPage() {
             Create FedEx labels, attach tracking, and review package photos.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/package-photos">
-            <Camera className="mr-2 h-4 w-4" /> Capture Package Photo
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/package-photos">
+              <Camera className="mr-2 h-4 w-4" /> Capture Package Photo
+            </Link>
+          </Button>
+          <Button onClick={() => setNewOrderOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> New Order
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -194,7 +227,9 @@ export default function FulfillmentPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Orders</CardTitle>
+          <CardTitle className="text-base">
+            {shipped === 'stripe' ? 'Stripe payments to fulfill' : 'Orders'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -203,6 +238,38 @@ export default function FulfillmentPage() {
             </div>
           ) : error ? (
             <p className="py-8 text-center text-red-400">{error}</p>
+          ) : shipped === 'stripe' ? (
+            queue.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-white/50">
+                <Package className="mb-3 h-10 w-10" />
+                No unconverted Stripe payments in this window.
+              </div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {queue.map((rec) => (
+                  <div key={rec.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">{rec.customerName || rec.customerEmail || 'Unknown customer'}</span>
+                        <Badge variant="outline" className="text-xs">{rec.orderRef}</Badge>
+                        <Badge variant="outline" className="border-emerald-400/40 text-xs text-emerald-300">Paid</Badge>
+                        {rec.matchedClient && (
+                          <Badge variant="outline" className="border-sky-400/40 text-xs text-sky-300">Client matched</Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-white/60">
+                        {rec.product || 'No line detail'}{rec.vials ? ` · ${rec.vials} vials` : ''} · {formatDate(rec.date ?? new Date().toISOString())} · {formatPrice(rec.paidAmount)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-end gap-2">
+                      <Button size="sm" onClick={() => setConvertRecord(rec)}>
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> Convert to Order
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-white/50">
               <Package className="mb-3 h-10 w-10" />
@@ -216,6 +283,16 @@ export default function FulfillmentPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-white">Order #{order.orderNumber}</span>
                       <Badge variant="outline" className="text-xs">{order.status}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          order.paymentStatus === 'CAPTURED'
+                            ? 'border-emerald-400/40 text-emerald-300'
+                            : 'border-amber-400/40 text-amber-300'
+                        }`}
+                      >
+                        {order.paymentStatus === 'CAPTURED' ? 'Paid' : 'Unpaid'}
+                      </Badge>
                       <Badge
                         variant="outline"
                         className={`text-xs ${STAGE_META[order.fulfillmentStage].className}`}
@@ -271,6 +348,11 @@ export default function FulfillmentPage() {
                         <FileText className="mr-2 h-4 w-4" /> Packing Slip
                       </a>
                     </Button>
+                    {order.paymentStatus !== 'CAPTURED' && (
+                      <Button size="sm" variant="outline" onClick={() => setChargeOrder({ id: order.id, orderNumber: order.orderNumber })}>
+                        <CreditCard className="mr-2 h-4 w-4" /> Take Payment
+                      </Button>
+                    )}
                     {order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING' ? (
                       <Button
                         size="sm"
@@ -320,6 +402,36 @@ export default function FulfillmentPage() {
           )}
         </CardContent>
       </Card>
+
+      <NewOrderModal
+        open={newOrderOpen}
+        onOpenChange={setNewOrderOpen}
+        onCreated={(orderId) => {
+          setShipped('false')
+          load()
+          // Immediately offer to collect payment for the new order.
+          setChargeOrder({ id: orderId })
+        }}
+      />
+
+      {chargeOrder && (
+        <ChargeOrderModal
+          open={!!chargeOrder}
+          onOpenChange={(open) => !open && setChargeOrder(null)}
+          orderId={chargeOrder.id}
+          orderNumber={chargeOrder.orderNumber}
+          onPaid={load}
+        />
+      )}
+
+      {convertRecord && (
+        <ConvertStripeModal
+          open={!!convertRecord}
+          onOpenChange={(open) => !open && setConvertRecord(null)}
+          record={convertRecord}
+          onConverted={load}
+        />
+      )}
 
       {modalOrder && (
         <FedExLabelModal

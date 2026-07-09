@@ -42,6 +42,7 @@ export async function GET(_request: NextRequest) {
         supplierName: true,
         supplierSku: true,
         inventoryOnHand: true,
+        inventoryReserved: true,
         reorderLevel: true,
         product: { select: { name: true, category: true } },
       },
@@ -60,6 +61,8 @@ export async function GET(_request: NextRequest) {
         supplierName: v.supplierName,
         supplierSku: v.supplierSku,
         inventoryOnHand: v.inventoryOnHand,
+        inventoryReserved: v.inventoryReserved,
+        available: v.inventoryOnHand - v.inventoryReserved,
         reorderLevel: v.reorderLevel,
       })),
     })

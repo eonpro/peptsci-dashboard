@@ -29,7 +29,13 @@ import {
   CheckCircle2,
   Ban,
   ShieldCheck,
+  UserPlus,
+  Pencil,
+  Mail,
+  X,
 } from 'lucide-react'
+import InviteUserDialog, { type ClientOption } from './InviteUserDialog'
+import EditUserDialog, { type EditableUser } from './EditUserDialog'
 
 type Role = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
 type Status = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
@@ -47,6 +53,15 @@ interface PlatformUser {
   lastSignInAt: number | null
 }
 
+interface PendingInvite {
+  id: string
+  email: string
+  role: string
+  clientId: string | null
+  status: string
+  createdAt: number
+}
+
 const statusStyles: Record<Status, string> = {
   ACTIVE: 'border-green-500/30 text-green-400 bg-green-500/10',
   PENDING: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
@@ -56,10 +71,15 @@ const statusStyles: Record<Status, string> = {
 export default function UsersPage() {
   const { isSuperAdmin } = useRole()
   const [users, setUsers] = useState<PlatformUser[]>([])
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [invites, setInvites] = useState<PendingInvite[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [editUser, setEditUser] = useState<EditableUser | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,9 +96,44 @@ export default function UsersPage() {
     }
   }, [])
 
+  const loadInvites = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/users/invite')
+      if (!res.ok) return
+      const data = await res.json()
+      setInvites(data.invitations ?? [])
+    } catch {
+      /* non-fatal */
+    }
+  }, [])
+
+  const loadClients = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/clients')
+      if (!res.ok) return
+      const data = await res.json()
+      setClients(
+        (data.clients ?? []).map((c: { id: string; organizationName: string }) => ({
+          id: c.id,
+          organizationName: c.organizationName,
+        }))
+      )
+    } catch {
+      /* non-fatal */
+    }
+  }, [])
+
   useEffect(() => {
     load()
-  }, [load])
+    loadInvites()
+    loadClients()
+  }, [load, loadInvites, loadClients])
+
+  const clientNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    clients.forEach((c) => map.set(c.id, c.organizationName))
+    return map
+  }, [clients])
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase()
@@ -132,12 +187,28 @@ export default function UsersPage() {
     }
   }
 
+  async function revokeInvite(id: string) {
+    setBusyId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/users/invite?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to revoke invitation')
+      setInvites((prev) => prev.filter((i) => i.id !== id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to revoke invitation')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">User Management</h1>
-          <p className="text-white/60 text-sm">Approve members, manage access and roles</p>
+          <p className="text-white/60 text-sm">Invite members, manage access and roles</p>
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && (
@@ -145,6 +216,12 @@ export default function UsersPage() {
               {pendingCount} pending approval
             </Badge>
           )}
+          <Button
+            onClick={() => setInviteOpen(true)}
+            className="bg-brand-primary hover:bg-[#1a30c0] text-white"
+          >
+            <UserPlus className="h-4 w-4 mr-2" /> Invite User
+          </Button>
         </div>
       </div>
 
@@ -153,6 +230,67 @@ export default function UsersPage() {
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
+      )}
+
+      {/* Pending invitations */}
+      {invites.length > 0 && (
+        <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+          <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500/20 p-2 rounded-lg">
+                <Mail className="h-5 w-5 text-amber-400" />
+              </div>
+              <div>
+                <CardTitle className="text-white">Pending Invitations</CardTitle>
+                <CardDescription className="text-white/50">
+                  {invites.length} awaiting sign-up
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="text-white/60">Email</TableHead>
+                  <TableHead className="text-white/60">Role</TableHead>
+                  <TableHead className="text-white/60">Practice</TableHead>
+                  <TableHead className="text-white/60 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invites.map((inv) => {
+                  const busy = busyId === inv.id
+                  return (
+                    <TableRow key={inv.id} className="border-white/5 hover:bg-white/5">
+                      <TableCell className="text-white">{inv.email}</TableCell>
+                      <TableCell className="text-white/80">{inv.role}</TableCell>
+                      <TableCell className="text-white/60">
+                        {inv.clientId ? clientNameById.get(inv.clientId) ?? '—' : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          onClick={() => revokeInvite(inv.id)}
+                        >
+                          {busy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <X className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Revoke
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <div className="relative max-w-sm">
@@ -195,6 +333,7 @@ export default function UsersPage() {
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/60">User</TableHead>
+                  <TableHead className="text-white/60">Practice</TableHead>
                   <TableHead className="text-white/60">Role</TableHead>
                   <TableHead className="text-white/60">Status</TableHead>
                   <TableHead className="text-white/60 text-right">Actions</TableHead>
@@ -209,6 +348,9 @@ export default function UsersPage() {
                       <TableCell>
                         <div className="text-white font-medium">{name}</div>
                         <div className="text-white/50 text-sm">{u.email || '—'}</div>
+                      </TableCell>
+                      <TableCell className="text-white/70 text-sm">
+                        {u.clientId ? clientNameById.get(u.clientId) ?? '—' : '—'}
                       </TableCell>
                       <TableCell>
                         {isSuperAdmin ? (
@@ -251,6 +393,25 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            className="border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+                            onClick={() =>
+                              setEditUser({
+                                id: u.id,
+                                email: u.email,
+                                firstName: u.firstName,
+                                lastName: u.lastName,
+                                status: u.status,
+                                clientId: u.clientId,
+                              })
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            Edit
+                          </Button>
                           {u.status !== 'ACTIVE' && (
                             <Button
                               size="sm"
@@ -289,6 +450,23 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <InviteUserDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        clients={clients}
+        isSuperAdmin={isSuperAdmin}
+        onInvited={loadInvites}
+      />
+      <EditUserDialog
+        open={editUser !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditUser(null)
+        }}
+        user={editUser}
+        clients={clients}
+        onSaved={load}
+      />
     </div>
   )
 }

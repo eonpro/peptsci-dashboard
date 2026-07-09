@@ -93,6 +93,7 @@ interface SchemaProbe {
   invoicePaymentTable: boolean
   invoiceAdjustmentTable: boolean
   productCasNumberColumn: boolean
+  orderSourceStripeInvoiceValue: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -116,6 +117,11 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'stripeCustomerId')
         OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved')
         OR (table_name = 'Product' AND column_name = 'casNumber'))
+  `
+  const enumValues = await db.$queryRaw<{ enumlabel: string }[]>`
+    SELECT e.enumlabel FROM pg_type t
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    WHERE t.typname = 'OrderSource' AND e.enumlabel = 'STRIPE_INVOICE'
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -142,6 +148,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     invoicePaymentTable: tableNames.has('InvoicePayment'),
     invoiceAdjustmentTable: tableNames.has('InvoiceAdjustment'),
     productCasNumberColumn: colKeys.has('Product.casNumber'),
+    orderSourceStripeInvoiceValue: enumValues.length > 0,
   }
 }
 

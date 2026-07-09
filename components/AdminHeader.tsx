@@ -24,6 +24,10 @@ import {
   RotateCcw,
   ReceiptText,
   BarChart3,
+  Building2,
+  UserCog,
+  Tag,
+  ChevronDown,
 } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -98,6 +102,16 @@ const navigation = [
   { name: 'Storefronts', href: '/storefronts', icon: Store },
 ]
 
+// Management surfaces (create/edit records). Grouped in a "Manage" dropdown so
+// Clients and Users are reachable without hunting through Settings.
+const manageLinks = [
+  { name: 'Clients', href: '/clients', icon: Building2 },
+  { name: 'Users', href: '/users', icon: UserCog },
+  { name: 'Products', href: '/products', icon: Boxes },
+  { name: 'Pricing', href: '/pricing', icon: DollarSign },
+  { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag },
+]
+
 export function AdminHeader() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -170,6 +184,49 @@ export function AdminHeader() {
               </Link>
             )
           })}
+
+          {/* Manage dropdown: create/edit surfaces (Clients, Users, catalog, pricing) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-md transition-all duration-200 outline-none',
+                  manageLinks.some(
+                    (l) => pathname === l.href || pathname.startsWith(`${l.href}/`)
+                  )
+                    ? 'text-white bg-brand-primary'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                )}
+              >
+                <Settings className="h-4 w-4" />
+                <span>Manage</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-56 bg-brand-onyx border-[#0a0e3a] text-white"
+            >
+              <DropdownMenuLabel className="text-white/60">Management</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-white/10" />
+              {manageLinks.map((item) => {
+                const Icon = item.icon
+                return (
+                  <DropdownMenuItem
+                    key={item.href}
+                    asChild
+                    className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+                  >
+                    <Link href={item.href}>
+                      <Icon className="mr-2 h-4 w-4" />
+                      {item.name}
+                    </Link>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         {/* Right side actions */}
@@ -322,6 +379,37 @@ export function AdminHeader() {
                 )
               })}
             </ul>
+
+            {/* Management links (create/edit surfaces) */}
+            <div className="mt-6">
+              <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+                Manage
+              </p>
+              <ul className="space-y-1">
+                {manageLinks.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200',
+                          isActive
+                            ? 'text-white bg-brand-primary'
+                            : 'text-white/70 hover:text-white hover:bg-white/10'
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span>{item.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           </nav>
 
           {/* Mobile menu footer */}

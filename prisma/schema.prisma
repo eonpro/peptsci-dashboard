@@ -1086,6 +1086,7 @@ enum RetailOrderStatus {
 enum OrderSource {
   DIRECT
   STOREFRONT
+  STRIPE_INVOICE
 }
 
 enum ShipTo {
