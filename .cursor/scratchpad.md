@@ -1886,3 +1886,93 @@ User's product Excel sheet has 22 columns (SKU, Peptide Name, Miligrams, Cost/Un
 - Stripe reconciliation (Jul 7, 1bcd05d): dashboard $416,713.40 vs Stripe lifetime $492,252.40. Root cause: prior backfill runs never covered the full account history — 40 succeeded PIs ($75,539, Sep 8–Nov 11 2025 cluster + 13 older) were missing. New read-only GET /api/admin/sales/stripe-reconcile scans ALL PIs and reports gross/refunded/net vs DB + missing list. Backfill enriched: expands data.customer, resolves paying Invoice via `invoicePayments.list({payment: {type:'payment_intent', payment_intent}})` (PI.invoice no longer exists post-Basil), fills real customer name/email/phone/address, orderRef = invoice number, product/vials from invoice lines, catalog-matched COGS (fallback 35%). Ran windowed backfills on prod (full-history run in one request dies — Vercel/proxy timeout with ~360 PIs × invoice lookups; windows of ≤ ~200 PIs are safe). Result: DB = $492,252.40 exactly, gap 0, all 359 succeeded PIs ingested; dashboard rows show real names + invoice numbers + line items. Stripe "lifetime total volume" = gross succeeded charges (refunds NOT subtracted; refundedTotal $2,930 tracked separately in reconcile output).
 - Live sales ingestion (Jul 7, 15f7022): external Stripe payments (hosted invoices/subscriptions/dashboard charges — no `metadata.orderId`) were only reaching analytics via the manual backfill button; their payment_intent.succeeded webhooks failed "no order matched" → 503 retries → DLQ. Webhook now detects external PIs and ingests them into SalesRecord via shared `lib/stripe/sales-ingest.ts` (same enrichment as backfill). Platform PIs (metadata.orderId present) keep the strict retryable path. Dashboard polls 60s + refresh-on-focus (was 5 min). STRIPE_WEBHOOK_SECRET confirmed set in prod env. NOT yet verified end-to-end with a real payment — if the next Stripe invoice payment doesn't appear within ~1 min, check the Stripe webhook endpoint is a CONNECT endpoint (listens to connected-account events) subscribed to payment_intent.succeeded. Follow-up DONE (2dcf055): sales ingestion is refund-aware — paidAmount net of `latest_charge.amount_refunded`, COGS scaled by the same fraction, recomputed from Stripe state (idempotent); charge.refunded for orderless payments re-ingests the PI; reconcile gained `stripeNetVsDb` (the ~0 target now that DB is net). 230 tests. NOTE: dashboard total will read NET of refunds after the next full backfill run (owner should run Backfill from Stripe with blank dates once to net out the historical $2,930) — Stripe's "lifetime total volume" overview figure is GROSS, so expect DB = gross − refunds, matching reconcile netVolume.
 - White-buttons bug (Tailwind v4 fallout, two layers): (1) semantic tokens were in plain `@theme`, so `hsl(var(--background))` was frozen at :root (light) — must be `@theme inline` to resolve per-scope (c96e707); (2) Radix dialogs portal to <body>, OUTSIDE the `.dark` wrapper in `app/(dashboard)/layout.tsx`, so `bg-background` in dialogs is light-theme even after (1) — Button outline variant now uses `bg-transparent` (58ce5db). Verified on prod via CDP computed styles. Other `bg-background` components (input/select/textarea/dialog shell) are always overridden with explicit dark classes at call sites, so left alone.
+
+---
+
+## Manual orders + Stripe→Fulfillment + platform payments (Jul 8 2026) [PLANNER]
+
+### Background and Motivation
+Today the Fulfillment page (`/fulfillment`, reads `Order` where `status != DRAFT` via `GET /api/admin/orders`) is fed ONLY by platform checkouts (B2B shop `createDraftOrder` → capture, and storefront `createRetailOrder`). Revenue that arrives via Stripe-hosted invoices / subscriptions / dashboard charges is ingested into `SalesRecord` for analytics only (`lib/stripe/sales-ingest.ts` from the webhook + backfill) and NEVER becomes an `Order`, so it can't be picked/packed/shipped from inventory. There is also no admin "create order" UI and no way to take a payment for an ad-hoc order from inside the platform.
+
+The owner wants three capabilities:
+1. **Stripe-synced payments should trigger the fulfillment rule** — a paid Stripe payment should become a fulfillable `Order` whose lines are real catalog variants, so inventory can be drawn and a FedEx label created.
+2. **Manual order creation** — an admin UI to build an order (client, products from inventory, quantities, ship-to/speed).
+3. **Process payments from the platform** — charge a card (saved or newly entered) for a manual order, capturing through Stripe.
+
+### Key Challenges and Analysis
+- **Stripe line → catalog variant mapping is unreliable.** Stripe invoice lines are free-text descriptions (`summarizeInvoiceLines`), matched only fuzzily for COGS (`estimateUnitCost`, 35% fallback). That is NOT safe enough to auto-decrement inventory. → External Stripe payments should NOT silently auto-create fulfillment orders; they need a human "map lines → variants" step (a Convert-to-Fulfillment review queue).
+- **`Order` requires a `clientId` (non-null) and `createdById` (User).** Stripe payments carry email/name but may not match a `Client`. Need: match by email → Client; else let the operator pick/create a Client during conversion. `createdById` = acting admin (or a system user for automated paths).
+- **Analytics double-count risk.** `SalesRecord` is upserted by `stripePaymentIntentId` (source `stripe`) OR by `orderId` (source `order`). If a Stripe PI becomes an Order, we must collapse to ONE row (carry the PI id onto the order-sourced record; delete/repoint the stripe-sourced one) so dashboard totals don't double.
+- **Payment already captured (Stripe path) vs. to-be-charged (manual path).** For converted Stripe orders the money is already captured externally — set `paymentStatus=CAPTURED`, `status=SUBMITTED`, link `stripePaymentIntentId`, reserve stock, but do NOT re-run the amount-match capture gate (that gate is for platform-created PIs). For manual platform charges, reuse the existing, battle-tested path: create+confirm a PaymentIntent with `metadata.orderId` so `reconcileOrderFromPaymentIntent` handles capture → SalesRecord sync → reservation automatically.
+- **Amount-match fail-closed guard** (`reconcileOrderFromPaymentIntent`) requires `pi.amount === toCents(order.total)`. Manual orders must price server-side (like `lib/checkout-core.ts`) and set the PI amount from the computed total, so the guard passes.
+- **Inventory oversell.** Reservation is non-blocking (can go negative). Manual order builder should surface availability and warn on oversell but not hard-block (matches current behavior).
+- **Reuse, don't fork.** A single server-side "build order from line items" core should back BOTH the manual builder and the Stripe conversion, so pricing/reservation/sales-sync stay in one place.
+
+### High-level Task Breakdown (proposed — pending owner answers below)
+1. **Shared order core** `lib/orders/create.ts`: `createManualOrder({ clientId, patientId?, lines:[{variantId, quantity, unitPrice?}], shipTo, shipSpeed, shippingAddress?, notes, createdById, initialStatus })` — prices server-side, creates `Order` + `OrderItem`s, returns order. No payment side effects.
+2. **Manual order API + UI**: `POST /api/admin/orders` (admin) → `createManualOrder`; an "New Order" builder on `/fulfillment` (or `/orders`) with client picker, product/variant search with live availability, qty, ship options.
+3. **Platform payment for an order**: `POST /api/admin/orders/[id]/charge` → create+confirm PaymentIntent with `metadata.orderId` (saved card off-session, or new card via Elements/SetupIntent). Capture flows through existing `reconcileOrderFromPaymentIntent`. Optionally support "mark paid externally / cash" for $0-Stripe manual orders.
+4. **Stripe → Fulfillment conversion**: a "Convert to fulfillment order" action on external Stripe sales (SalesRecord source `stripe`). Opens the same builder pre-filled (customer, amount, guessed line mappings) for the operator to confirm variant mappings; on save creates an Order (`source=STRIPE_INVOICE` or `DIRECT`), `paymentStatus=CAPTURED`, links `stripePaymentIntentId`, reserves stock, and de-dupes the SalesRecord to a single order-sourced row. Add `OrderSource.STRIPE_INVOICE` if desired.
+5. **(Optional) surfacing**: a "Needs Fulfillment (unconverted Stripe)" list so paid-but-not-yet-orderized Stripe sales are visible to warehouse.
+6. **Tests**: unit tests for the order core (pricing, reservation idempotency, sales dedup) and conversion; keep `tsc --noEmit` clean and full suite green.
+
+### Owner Decisions (Jul 8 — CONFIRMED)
+1. Stripe→fulfillment: **review queue** — external Stripe payments land in a "Convert to Fulfillment" queue; operator maps catalog variants, then it creates the order & reserves stock. No silent auto-create.
+2. Scope: **only new payments going forward** (no bulk historical conversion).
+3. Manual payments: **saved card (off-session) AND new card via Stripe Elements**.
+4. Client matching: **match by email; else operator picks an existing client or creates one inline**.
+5. Placement: **on the Fulfillment page**.
+
+### Project Status Board (this effort)
+| # | Task | Status |
+| - | ---- | ------ |
+| MO-1 | `lib/orders/create.ts` — shared `createManualOrder` core (server-side pricing via checkout-core + client custom pricing; creates Order+items; no payment side effects) + unit tests | ⬜ |
+| MO-2 | Actor helper: resolve DB `User.id` from Clerk id for `Order.createdById` (reuse resolveInventoryActor pattern; system-user fallback) | ⬜ |
+| MO-3 | `POST /api/admin/orders` (admin) → createManualOrder; returns order id | ⬜ |
+| MO-4 | Supporting APIs for builder: variant search w/ availability (`GET /api/admin/products` or new), client search/create (exists: `/api/admin/clients`) | ⬜ |
+| MO-5 | Fulfillment page "New Order" builder modal: client picker (search + inline create), variant search w/ live availability, qty, ship-to/speed, shipping address | ⬜ |
+| PAY-1 | `POST /api/admin/orders/[id]/charge` — saved card off-session (create+confirm PI w/ metadata.orderId) | ⬜ |
+| PAY-2 | New-card charge via Stripe Elements (PaymentIntent client_secret + confirm) on the same endpoint/flow | ⬜ |
+| PAY-3 | Charge UI in builder / order row (choose saved card or enter new card) | ⬜ |
+| SF-1 | `OrderSource.STRIPE_INVOICE` enum + migration | ⬜ |
+| SF-2 | Convert queue API: list external `stripe`-sourced SalesRecords with no linked order (`GET /api/admin/fulfillment/stripe-queue`) | ⬜ |
+| SF-3 | `POST /api/admin/fulfillment/stripe-convert` — build Order from mapped lines, paymentStatus=CAPTURED, link stripePaymentIntentId, reserve stock, de-dupe SalesRecord to single order-sourced row | ⬜ |
+| SF-4 | Fulfillment page "From Stripe" tab/queue UI with per-payment convert dialog (pre-filled, variant mapping) | ⬜ |
+| V-1 | `tsc --noEmit` clean, full test suite green, `next build` green | ⬜ |
+
+### Sequencing
+MO-1→MO-3→MO-5 (manual orders end-to-end) → PAY-1..3 (take payment) → SF-1..4 (Stripe conversion). Each phase independently shippable.
+
+### Executor Feedback (Jul 8 — ALL TASKS DONE, local)
+All 13 tasks implemented. `tsc --noEmit` clean, 240/240 tests pass (10 new in `orderCore.test.ts`), `next build` green (after clearing a stale `.next` cache — the first build failed with spurious PageNotFoundError for untouched pages).
+
+Files added:
+- `lib/orders/order-core.ts` (pure validate/price logic) + `lib/__tests__/orderCore.test.ts`
+- `lib/orders/create.ts` (`createManualOrder` — shared by manual builder + Stripe convert)
+- `lib/orders/actor.ts` (`resolveOrderCreatorId` — Clerk id → DB User.id w/ admin fallback)
+- `components/orders/NewOrderModal.tsx`, `ChargeOrderModal.tsx`, `ConvertStripeModal.tsx`
+- `app/api/admin/orders/[id]/charge/route.ts` (GET saved cards + POST charge: saved off-session / new-card Elements / confirm-after-Elements)
+- `app/api/admin/fulfillment/stripe-queue/route.ts` (GET unconverted external Stripe sales, email→client match)
+- `app/api/admin/fulfillment/stripe-convert/route.ts` (POST build order CAPTURED, link PI, reserve stock, link SalesRecord to de-dupe)
+- `prisma/migrations/20260708210000_add_stripe_invoice_order_source/migration.sql`
+
+Files changed:
+- `app/api/admin/orders/route.ts` (+POST manual order; GET now returns paymentStatus)
+- `app/api/admin/products/route.ts` (GET now returns inventoryReserved + available)
+- `app/(dashboard)/fulfillment/page.tsx` (New Order + Take Payment buttons, Paid/Unpaid badge, "From Stripe" tab + Convert)
+- `prisma/schema.prisma` (OrderSource + STRIPE_INVOICE)
+- `app/api/admin/db/migrate/route.ts` (probe extended: `orderSourceStripeInvoiceValue`)
+
+### ⚠️ Follow-ups before this is fully live in prod
+1. **Prod migration**: `STRIPE_INVOICE` enum value must be applied on prod via `POST /api/admin/db/migrate` (SUPER_ADMIN) — Prisma CLI can't reach prod RDS (IAM auth). GET that route first; `upToDate` now also checks the enum value. Until applied, the Stripe-convert path will fail on prod when writing `source: STRIPE_INVOICE`.
+2. **Commit + deploy**: work is local only; prod runs `main`. Needs commit + Vercel deploy.
+3. **Design note (revenue accuracy)**: on Stripe→order conversion the existing `stripe` SalesRecord is linked to the new order via `orderId` (kept source `stripe`) so the true captured amount/COGS are preserved and NOT double-counted. The order's own `total` (sum of mapped line prices) is for fulfillment/picking and may differ from the Stripe-captured amount; the convert dialog shows both so the operator can price lines to match if desired.
+4. **Not charged twice**: converted Stripe orders are created `CAPTURED` with the PI linked; the charge endpoint refuses `ALREADY_PAID`, and `Order.stripePaymentIntentId` uniqueness + an explicit pre-check block double-conversion.
+
+### Lessons (this effort)
+- Manual/admin orders reuse the shop's Model-A payment flow by putting `metadata.orderId` on the PaymentIntent — `reconcileOrderFromPaymentIntent` then handles capture → SalesRecord sync → inventory reservation, so the admin charge endpoint stays thin.
+- `Order.createdById` is a required FK to `User.id`, but `requireAdmin()` returns a Clerk id → always resolve via `resolveOrderCreatorId` (matches the returns-restock FK bug pattern from Jul 7).
+- External Stripe payments only ever hit `SalesRecord` (source `stripe`); they never auto-create `Order`s. Converting must LINK the existing SalesRecord (set `orderId`) rather than calling `syncSalesRecordFromOrder` (which upserts by `orderId` and would create a 2nd row colliding on the unique `stripePaymentIntentId`, and would overwrite the true Stripe revenue with the order total).
+- Adding an enum value ships via the runtime migrate runner; extend `probeSchema()` (pg_enum lookup) so GET `upToDate` reflects it — same pattern as the `productCasNumberColumn` probe.
+- A stale `.next` cache can fail `next build` with `PageNotFoundError` for unrelated pages; `rm -rf .next` fixes it.
+
