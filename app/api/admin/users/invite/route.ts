@@ -15,7 +15,9 @@ import { logger } from '@/lib/logger'
 export const dynamic = 'force-dynamic'
 
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')
+// Match the codebase fallback (lib/email, lib/sms) so production invite links
+// stay on the real domain even if NEXT_PUBLIC_APP_URL is unset at build time.
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').replace(/\/$/, '')
 
 const inviteSchema = z.object({
   email: z.string().trim().email('Enter a valid email').max(200),
