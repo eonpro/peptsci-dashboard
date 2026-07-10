@@ -28,6 +28,10 @@ interface VariantWithProduct {
     name: string
     description: string | null
     category: string | null
+    casNumber: string | null
+    molecularFormula: string | null
+    molecularWeight: number | null
+    pubchemCid: string | null
     media: { id: string; url: string; altText: string | null; isPrimary: boolean }[]
   }
 }
@@ -58,6 +62,11 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     category: v.product.category,
     displayPrice: srp,
     costPrice: Number(v.unitCost),
+    casNumber: v.product.casNumber,
+    molecularFormula: v.product.molecularFormula,
+    molecularWeight:
+      v.product.molecularWeight != null ? `${v.product.molecularWeight} g/mol` : null,
+    pubchemCid: v.product.pubchemCid,
     images: toImages(v.product.media),
     inventoryOnHand: available,
     inStock: available > 0,
@@ -71,6 +80,10 @@ const variantInclude = {
       name: true,
       description: true,
       category: true,
+      casNumber: true,
+      molecularFormula: true,
+      molecularWeight: true,
+      pubchemCid: true,
       media: {
         select: { id: true, url: true, altText: true, isPrimary: true },
         orderBy: { isPrimary: 'desc' as const },

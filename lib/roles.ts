@@ -29,14 +29,22 @@ export async function getUserStatus(): Promise<UserStatus> {
 
 /**
  * Get the full user metadata from Clerk session claims.
+ * In dev without Clerk configured, auth() throws (no clerkMiddleware); fall
+ * back to anonymous defaults so pages still render, matching the dev-mode
+ * bypass used by the admin API routes.
  */
 export async function getUserMetadata(): Promise<UserMetadata> {
-  const { sessionClaims } = await auth()
-  const metadata = sessionClaims?.metadata as UserMetadata | undefined
-  return {
-    role: metadata?.role || 'CLIENT',
-    status: metadata?.status || 'PENDING',
-    clientId: metadata?.clientId,
+  try {
+    const { sessionClaims } = await auth()
+    const metadata = sessionClaims?.metadata as UserMetadata | undefined
+    return {
+      role: metadata?.role || 'CLIENT',
+      status: metadata?.status || 'PENDING',
+      clientId: metadata?.clientId,
+    }
+  } catch {
+    if (process.env.NODE_ENV !== 'development') throw new Error('Authentication unavailable')
+    return { role: 'CLIENT', status: 'PENDING', clientId: undefined }
   }
 }
 

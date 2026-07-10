@@ -35,6 +35,7 @@ import {
   Trash2,
   Plus,
   Pencil,
+  ImagePlus,
 } from 'lucide-react'
 import {
   parseProductCsv,
@@ -57,6 +58,7 @@ interface VariantRow {
   supplierSku: string | null
   inventoryOnHand: number
   reorderLevel: number
+  imageUrl: string | null
 }
 
 interface ImportSummary {
@@ -85,7 +87,10 @@ export default function ProductsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ProductFormValues | null>(null)
+  const [uploadingImageId, setUploadingImageId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const imageTargetRef = useRef<VariantRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -201,6 +206,35 @@ export default function ProductsPage() {
       reorderLevel: String(v.reorderLevel),
     })
     setFormOpen(true)
+  }
+
+  function pickImage(v: VariantRow) {
+    imageTargetRef.current = v
+    imageInputRef.current?.click()
+  }
+
+  async function uploadImage(file: File) {
+    const target = imageTargetRef.current
+    if (!target) return
+    setUploadingImageId(target.id)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+      const res = await fetch(`/api/admin/products/${target.id}/image`, {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.message || 'Failed to upload image')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to upload image')
+    } finally {
+      setUploadingImageId(null)
+      imageTargetRef.current = null
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
   }
 
   async function deleteVariant(v: VariantRow) {
@@ -322,6 +356,7 @@ export default function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="text-white/60 w-14">Photo</TableHead>
                   <TableHead className="text-white/60">Product</TableHead>
                   <TableHead className="text-white/60">SKU</TableHead>
                   <TableHead className="text-white/60">Dose</TableHead>
@@ -336,6 +371,28 @@ export default function ProductsPage() {
               <TableBody>
                 {filtered.map((v) => (
                   <TableRow key={v.id} className="border-white/5 hover:bg-white/5">
+                    <TableCell>
+                      <button
+                        type="button"
+                        title={v.imageUrl ? 'Replace photo' : 'Add photo'}
+                        onClick={() => pickImage(v)}
+                        disabled={uploadingImageId === v.id}
+                        className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 overflow-hidden flex items-center justify-center hover:border-brand-primary/60"
+                      >
+                        {uploadingImageId === v.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-white/50" />
+                        ) : v.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={v.imageUrl}
+                            alt={v.productName}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <ImagePlus className="h-4 w-4 text-white/40" />
+                        )}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-white font-medium">{v.productName}</TableCell>
                     <TableCell className="text-white/60">{v.sku || '-'}</TableCell>
                     <TableCell className="text-white/60">{v.dose || '-'}</TableCell>
@@ -381,6 +438,18 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
+      {/* Hidden input for per-product photo upload */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) uploadImage(f)
+        }}
+      />
+
       {/* Add / Edit Product Dialog */}
       <ProductFormDialog
         open={formOpen}
@@ -397,7 +466,7 @@ export default function ProductsPage() {
             <DialogDescription className="text-white/60">
               Required columns: <span className="text-white/80">name, sku</span>. Optional:
               unitCost, srp, dose, category, supplierName, supplierSku, inventoryOnHand,
-              reorderLevel, plus scientific data (description, CAS number, molecular
+              reorderLevel, imageUrl (product photo), plus scientific data (description, CAS number, molecular
               formula/weight, PubChem CID, peptide length, AKA, monoisotopic mass, complexity,
               XLogP, bond/atom counts, intended use, safety summary). Common header spellings
               like &quot;Peptide Name&quot;, &quot;Milligrams&quot;, &quot;Cost/Unit&quot;, and

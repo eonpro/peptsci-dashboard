@@ -202,6 +202,20 @@ describe('parseProductCsv', () => {
     assert.equal(rows[0].xlogp, -2.1)
   })
 
+  test('parses imageUrl aliases and drops junk values', () => {
+    const csv = [
+      'name,sku,cost,Image URL',
+      'Foo,FOO-1,10,https://cdn.example.com/foo.jpg',
+      'Bar,BAR-1,10,N/A',
+      'Baz,BAZ-1,10,/images/baz.png',
+    ].join('\n')
+    const { rows, errors } = parseProductCsv(csv)
+    assert.equal(errors.length, 0)
+    assert.equal(rows[0].imageUrl, 'https://cdn.example.com/foo.jpg')
+    assert.equal(rows[1].imageUrl, undefined)
+    assert.equal(rows[2].imageUrl, '/images/baz.png')
+  })
+
   test('keeps explicit dose strings untouched under an mg header', () => {
     const csv = ['name,sku,Milligrams,cost', 'Bar,BAR-1,5mg,3'].join('\n')
     const { rows } = parseProductCsv(csv)

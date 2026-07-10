@@ -81,11 +81,26 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     || (product.milligrams ? `${product.milligrams}mg` : '')
     || `${product.name.match(/\d+mg/)?.[0] || ''}`
 
+  // Primary product photo (vial shot) from ProductMedia
+  const photo = product.images.find((img) => img.isPrimary) ?? product.images[0]
+
   // Mobile-optimized list view
   if (viewMode === 'list') {
     return (
       <div className="bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98]">
         <div className="flex items-center gap-4">
+          {/* Vial thumbnail */}
+          {photo && (
+            <div className="h-16 w-14 shrink-0 flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt={photo.altText || product.name}
+                className="h-full w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+              />
+            </div>
+          )}
+
           {/* Compact info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -162,7 +177,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       </div>
 
       {/* Main content - scrollable area for compounds */}
-      <div className="flex-1 px-4 py-2 overflow-hidden">
+      <div className="relative flex-1 px-4 py-2 overflow-hidden">
         {/* Product name */}
         <h3 className="font-bold text-white text-xl leading-tight mb-1">{product.name}</h3>
 
@@ -202,6 +217,18 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             <span className="inline-block text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-white/50 border border-white/10">
               {product.category}
             </span>
+          </div>
+        )}
+
+        {/* Vial photo - transparent product shot overlapping bottom-right (reference style) */}
+        {photo && (
+          <div className="absolute bottom-0 right-3 h-40 flex items-end pointer-events-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.url}
+              alt={photo.altText || product.name}
+              className="max-h-full w-auto object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] transition-transform duration-300 group-hover:scale-105"
+            />
           </div>
         )}
       </div>

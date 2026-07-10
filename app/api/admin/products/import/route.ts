@@ -114,6 +114,29 @@ export async function POST(request: NextRequest) {
       return data
     }
 
+    // Set the product's primary photo from the CSV imageUrl column. The URL is
+    // stored on ProductMedia; re-importing the same URL is a no-op, a new URL
+    // replaces the previous primary image.
+    const upsertPrimaryImage = async (productId: string, imageUrl: string, altText: string) => {
+      if (!prisma) return
+      const primary = await prisma.productMedia.findFirst({
+        where: { productId, isPrimary: true },
+        select: { id: true, url: true },
+      })
+      if (primary) {
+        if (primary.url !== imageUrl) {
+          await prisma.productMedia.update({
+            where: { id: primary.id },
+            data: { url: imageUrl, altText },
+          })
+        }
+      } else {
+        await prisma.productMedia.create({
+          data: { productId, url: imageUrl, altText, isPrimary: true },
+        })
+      }
+    }
+
     for (const row of rows) {
       try {
         const nameKey = row.name.toLowerCase()
@@ -141,6 +164,10 @@ export async function POST(request: NextRequest) {
             productId = created.id
           }
           productIdByName.set(nameKey, productId)
+        }
+
+        if (row.imageUrl) {
+          await upsertPrimaryImage(productId, row.imageUrl, row.name)
         }
 
         const existingVariant = await prisma.productVariant.findUnique({

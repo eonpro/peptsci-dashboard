@@ -7,7 +7,7 @@
 - [x] NewOrderModal + ConvertStripeModal load `/api/admin/client-pricing?clientId=` and seed auto prices (manual edits preserved).
 - [x] `Client.ein` schema + migration `20260709203000_add_client_ein`; profile/API/UI wired; migrate probe includes `clientEinColumn`.
 - [x] Client Custom Pricing page already lists live `/api/admin/clients` — no code change needed.
-- [ ] Deploy to `main` + `POST /api/admin/db/migrate` for EIN in prod.
+- [x] Deploy to `main` + `POST /api/admin/db/migrate` for EIN in prod.
 
 ## Lessons
 - Admin modals that always send `unitPrice: srp` bypass server `resolveEffectiveUnitPrice`; seed custom prices client-side (or omit unitPrice) so overrides still work.

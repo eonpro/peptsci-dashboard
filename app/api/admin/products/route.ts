@@ -44,7 +44,17 @@ export async function GET(_request: NextRequest) {
         inventoryOnHand: true,
         inventoryReserved: true,
         reorderLevel: true,
-        product: { select: { name: true, category: true } },
+        product: {
+          select: {
+            name: true,
+            category: true,
+            media: {
+              where: { isPrimary: true },
+              select: { url: true },
+              take: 1,
+            },
+          },
+        },
       },
       orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
     })
@@ -64,6 +74,7 @@ export async function GET(_request: NextRequest) {
         inventoryReserved: v.inventoryReserved,
         available: v.inventoryOnHand - v.inventoryReserved,
         reorderLevel: v.reorderLevel,
+        imageUrl: v.product.media[0]?.url ?? null,
       })),
     })
   } catch (error) {

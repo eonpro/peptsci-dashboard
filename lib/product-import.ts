@@ -36,6 +36,8 @@ export interface ProductImportRow {
   heavyAtomCount?: number
   intendedUse?: string
   safetySummary?: string
+  /** Product photo URL (https://... or a site-relative /path). */
+  imageUrl?: string
 }
 
 export interface RowError {
@@ -76,6 +78,7 @@ export const PRODUCT_IMPORT_HEADERS = [
   'heavyAtomCount',
   'intendedUse',
   'safetySummary',
+  'imageUrl',
 ] as const
 
 /** Header aliases -> canonical field name (all compared lower-cased, trimmed). */
@@ -169,6 +172,15 @@ const HEADER_ALIASES: Record<string, keyof ProductImportRow | 'name'> = {
   lcss: 'safetySummary',
   'pubchem laboratory chemical safety summary (lcss)': 'safetySummary',
   'pubchem lcss': 'safetySummary',
+  imageurl: 'imageUrl',
+  'image url': 'imageUrl',
+  image: 'imageUrl',
+  'image link': 'imageUrl',
+  photo: 'imageUrl',
+  'photo url': 'imageUrl',
+  picture: 'imageUrl',
+  'product image': 'imageUrl',
+  'product photo': 'imageUrl',
 }
 
 /**
@@ -295,6 +307,12 @@ export function parseProductCsv(input: string): ParseResult {
     const n = lenientNumber(raw)
     return n === undefined ? undefined : Math.trunc(n)
   }
+  // Image URLs are reference data too: junk values like "N/A" are dropped
+  // rather than failing the row. Accepts absolute http(s) URLs or /paths.
+  const lenientUrl = (raw: string | undefined): string | undefined => {
+    const v = (raw || '').trim()
+    return /^(https?:\/\/|\/)/i.test(v) ? v : undefined
+  }
 
   // When the dose column is literally "Milligrams"/"mg", a bare number like
   // "10" means "10mg" - normalize it so it displays consistently.
@@ -376,6 +394,7 @@ export function parseProductCsv(input: string): ParseResult {
       heavyAtomCount: lenientInt(cell(cols, 'heavyAtomCount')),
       intendedUse: cell(cols, 'intendedUse') || undefined,
       safetySummary: cell(cols, 'safetySummary') || undefined,
+      imageUrl: lenientUrl(cell(cols, 'imageUrl')),
     })
   }
 
@@ -412,6 +431,7 @@ export function productImportTemplate(): string {
     '361',
     'Research use only',
     'See PubChem LCSS',
+    'https://example.com/images/tesamorelin-vial.jpg',
   ].join(',')
   return `${header}\n${example}\n`
 }
