@@ -35,7 +35,14 @@ export type StripeQueueRecord = {
 
 type ClientRow = { id: string; organizationName: string; contactName: string | null; contactEmail: string | null }
 type VariantRow = { id: string; sku: string | null; productName: string; dose: string | null; srp: number; available: number }
-type Line = { variantId: string; label: string; quantity: number; unitPrice: number; available: number }
+type Line = {
+  variantId: string
+  label: string
+  quantity: number
+  unitPrice: number
+  available: number
+  priceSource: 'auto' | 'manual'
+}
 
 export type ConvertStripeModalProps = {
   open: boolean
@@ -61,6 +68,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
 
   const [productQuery, setProductQuery] = useState('')
   const [lines, setLines] = useState<Line[]>([])
+  const [customPriceMap, setCustomPriceMap] = useState<Record<string, number>>({})
   const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
 
   const [submitting, setSubmitting] = useState(false)
@@ -79,6 +87,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
     })
     setProductQuery('')
     setLines([])
+    setCustomPriceMap({})
     setShipSpeed('TWO_DAY')
     setError(null)
 
@@ -93,6 +102,52 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       })
       .finally(() => setLoadingRefs(false))
   }, [open, record])
+
+  // Load clinic custom prices whenever the selected client changes; re-price auto lines.
+  useEffect(() => {
+    if (!open) return
+    if (!clientId) {
+      setCustomPriceMap({})
+      setLines((prev) =>
+        prev.map((l) => {
+          if (l.priceSource !== 'auto') return l
+          const v = variants.find((x) => x.id === l.variantId)
+          return v ? { ...l, unitPrice: v.srp } : l
+        })
+      )
+      return
+    }
+    let cancelled = false
+    fetch(`/api/admin/client-pricing?clientId=${encodeURIComponent(clientId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (cancelled) return
+        const rows: Array<{ variantId: string; customPrice: number }> = Array.isArray(data)
+          ? data
+          : (data.prices ?? [])
+        const map: Record<string, number> = {}
+        for (const row of rows) {
+          if (row.variantId && typeof row.customPrice === 'number') {
+            map[row.variantId] = row.customPrice
+          }
+        }
+        setCustomPriceMap(map)
+        setLines((prev) =>
+          prev.map((l) => {
+            if (l.priceSource !== 'auto') return l
+            const v = variants.find((x) => x.id === l.variantId)
+            if (!v) return l
+            return { ...l, unitPrice: map[l.variantId] ?? v.srp }
+          })
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setCustomPriceMap({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, clientId, variants])
 
   const selectedClient = clients.find((c) => c.id === clientId) || (record?.matchedClient ? { id: record.matchedClient.id, organizationName: record.matchedClient.organizationName, contactName: null, contactEmail: null } : null)
 
@@ -112,11 +167,35 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       .slice(0, 8)
   }, [variants, productQuery])
 
+  const resolveUnitPrice = (v: VariantRow) => customPriceMap[v.id] ?? v.srp
+
   const addLine = (v: VariantRow) => {
-    setLines((prev) => (prev.some((l) => l.variantId === v.id) ? prev : [...prev, { variantId: v.id, label: `${v.productName}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` · ${v.sku}` : ''}`, quantity: 1, unitPrice: v.srp, available: v.available }]))
+    setLines((prev) =>
+      prev.some((l) => l.variantId === v.id)
+        ? prev
+        : [
+            ...prev,
+            {
+              variantId: v.id,
+              label: `${v.productName}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` · ${v.sku}` : ''}`,
+              quantity: 1,
+              unitPrice: resolveUnitPrice(v),
+              available: v.available,
+              priceSource: 'auto',
+            },
+          ]
+    )
     setProductQuery('')
   }
-  const updateLine = (id: string, patch: Partial<Line>) => setLines((prev) => prev.map((l) => (l.variantId === id ? { ...l, ...patch } : l)))
+  const updateLine = (id: string, patch: Partial<Line>) =>
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.variantId !== id) return l
+        const next = { ...l, ...patch }
+        if (patch.unitPrice !== undefined) next.priceSource = 'manual'
+        return next
+      })
+    )
   const removeLine = (id: string) => setLines((prev) => prev.filter((l) => l.variantId !== id))
 
   const totals = useMemo(
@@ -281,7 +360,10 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                         <span className="text-sm text-gray-800">{v.productName}{v.dose ? ` ${v.dose}` : ''}<span className="ml-1 text-xs text-gray-400">{v.sku}</span></span>
                         <span className="flex items-center gap-2 text-xs">
                           <span className={v.available > 0 ? 'text-emerald-600' : 'text-red-500'}>{v.available} avail</span>
-                          <span className="font-medium text-gray-700">{formatPrice(v.srp)}</span>
+                          <span className="font-medium text-gray-700">{formatPrice(resolveUnitPrice(v))}</span>
+                          {customPriceMap[v.id] != null && (
+                            <span className="rounded bg-emerald-50 px-1 text-[10px] font-medium text-emerald-700">Custom</span>
+                          )}
                           <Plus className="h-3.5 w-3.5 text-gray-400" />
                         </span>
                       </button>
@@ -295,7 +377,10 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                     <div key={l.variantId} className="flex items-center gap-2 p-2">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-gray-800">{l.label}</p>
-                        <p className={`text-xs ${l.quantity > l.available ? 'text-amber-600' : 'text-gray-400'}`}>{l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}</p>
+                        <p className={`text-xs ${l.quantity > l.available ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}
+                          {customPriceMap[l.variantId] != null && l.priceSource === 'auto' ? ' · Custom price' : ''}
+                        </p>
                       </div>
                       <input type="number" min={1} value={l.quantity} onChange={(e) => updateLine(l.variantId, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} className={`w-16 ${inputCls}`} aria-label="Quantity" />
                       <div className="relative">

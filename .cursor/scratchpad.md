@@ -1,4 +1,20 @@
-# ACTIVE PLAN — Delete Client (remove demo clinics from prod) (Jul 2026)  [EXECUTOR]
+# ACTIVE PLAN — Clinic pricing, shipping rates, EIN (Jul 2026)  [EXECUTOR]
+
+> Shipping under $500 → $25 / $35; $500+ → $0 / $20. Admin New Order + Stripe convert use clinic custom prices. Editable EIN on Client.
+
+## Project Status Board (this effort)
+- [x] `SHIPPING_RATES` STANDARD $25/$35; tests updated.
+- [x] NewOrderModal + ConvertStripeModal load `/api/admin/client-pricing?clientId=` and seed auto prices (manual edits preserved).
+- [x] `Client.ein` schema + migration `20260709203000_add_client_ein`; profile/API/UI wired; migrate probe includes `clientEinColumn`.
+- [x] Client Custom Pricing page already lists live `/api/admin/clients` — no code change needed.
+- [ ] Deploy to `main` + `POST /api/admin/db/migrate` for EIN in prod.
+
+## Lessons
+- Admin modals that always send `unitPrice: srp` bypass server `resolveEffectiveUnitPrice`; seed custom prices client-side (or omit unitPrice) so overrides still work.
+
+---
+
+# ACTIVE PLAN — Delete Client (remove demo clinics from prod) (Jul 2026)  [EXECUTOR — DONE]
 
 > Demo/seed clients still appear in Client Custom Pricing dropdowns because they live in prod RDS. Local scripts cannot mutate prod (IAM auth only works inside Vercel). Option A: ship a real admin Delete Client feature, then delete via the live UI.
 
@@ -7,8 +23,7 @@
 - [x] `DELETE /api/admin/clients/[id]` — admin-only; 409 `HAS_HISTORY` without `?force=1`; force cleans up then deletes.
 - [x] `DeleteClientButton` on Clients list + detail (confirm → optional force confirm).
 - [x] Seed scripts guarded against remote DB (`assertLocalOrExplicitOverride`); `scripts/remove-demo-clients.ts` for local/ops.
-- [ ] Deploy to `main` / production.
-- [ ] On live site: Clients → delete Wellness Clinic A, Medical Center B, Health Partners C, Dr. Clinic Wellness Center.
+- [x] Deployed via PR #3; delete demo clinics from live Clients UI when ready.
 
 ## Executor's Feedback or Assistance Requests
 - After deploy, delete the four demo clients from `/clients` on peptsci.com. They will then disappear from Client Custom Pricing dropdowns.

@@ -11,7 +11,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { addressSchema } from '@/lib/address'
-import { npiSchema } from '@/lib/profile'
+import { einSchema, npiSchema } from '@/lib/profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +19,7 @@ const createClientSchema = z.object({
   organizationName: z.string().trim().min(2, 'Practice name is required').max(200),
   providerName: z.string().trim().min(2).max(200).optional(),
   npiNumber: npiSchema.optional(),
+  ein: einSchema.optional(),
   contactName: z.string().trim().min(2).max(120).optional(),
   contactEmail: z.string().trim().email('Enter a valid email').max(200).optional(),
   contactPhone: z.string().trim().min(7).max(30).optional(),
@@ -48,6 +49,7 @@ export async function GET(_request: NextRequest) {
         organizationName: true,
         npiNumber: true,
         providerName: true,
+        ein: true,
         contactName: true,
         contactEmail: true,
         contactPhone: true,
@@ -63,6 +65,7 @@ export async function GET(_request: NextRequest) {
         organizationName: c.organizationName,
         npiNumber: c.npiNumber,
         providerName: c.providerName,
+        ein: c.ein,
         contactName: c.contactName,
         contactEmail: c.contactEmail,
         contactPhone: c.contactPhone,
@@ -111,6 +114,7 @@ export async function POST(request: NextRequest) {
           organizationName: input.organizationName,
           providerName: input.providerName ?? null,
           npiNumber: input.npiNumber ?? null,
+          ein: input.ein || null,
           contactName: input.contactName ?? null,
           contactEmail: input.contactEmail ?? null,
           contactPhone: input.contactPhone ?? null,
