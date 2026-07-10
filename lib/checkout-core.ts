@@ -22,11 +22,11 @@ export type ShipTo = 'PRACTICE' | 'PATIENT'
 
 /**
  * Shipping price matrix (server-authoritative):
- *   subtotal < $500  → 2-Day $15, Overnight $25
+ *   subtotal < $500  → 2-Day $25, Overnight $35
  *   subtotal >= $500 → 2-Day FREE, Overnight $20
  */
 export const SHIPPING_RATES: Record<'STANDARD' | 'QUALIFIED', Record<ShipSpeed, number>> = {
-  STANDARD: { TWO_DAY: 15, OVERNIGHT: 25 },
+  STANDARD: { TWO_DAY: 25, OVERNIGHT: 35 },
   QUALIFIED: { TWO_DAY: 0, OVERNIGHT: 20 },
 }
 

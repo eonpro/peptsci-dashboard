@@ -70,6 +70,7 @@ export default function ClientDetailPage() {
   const [organizationName, setOrganizationName] = useState('')
   const [providerName, setProviderName] = useState('')
   const [npiNumber, setNpiNumber] = useState('')
+  const [ein, setEin] = useState('')
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -81,6 +82,7 @@ export default function ClientDetailPage() {
     setOrganizationName(p.organizationName ?? '')
     setProviderName(p.providerName ?? '')
     setNpiNumber(p.npiNumber ?? '')
+    setEin(p.ein ?? '')
     setContactName(p.contactName ?? '')
     setContactEmail(p.contactEmail ?? '')
     setContactPhone(p.contactPhone ?? '')
@@ -141,6 +143,7 @@ export default function ClientDetailPage() {
         organizationName,
         providerName,
         npiNumber,
+        ein,
         contactName,
         contactEmail,
         contactPhone,
@@ -273,13 +276,25 @@ export default function ClientDetailPage() {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label className={labelClass}>Practice / Organization</Label>
-            <Input
-              className={inputClass}
-              value={organizationName}
-              onChange={(e) => setOrganizationName(e.target.value)}
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className={labelClass}>Practice / Organization</Label>
+              <Input
+                className={inputClass}
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className={labelClass}>EIN (Tax ID)</Label>
+              <Input
+                className={inputClass}
+                value={ein}
+                onChange={(e) => setEin(e.target.value)}
+                placeholder="XX-XXXXXXX"
+                inputMode="numeric"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

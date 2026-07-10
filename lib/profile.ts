@@ -19,6 +19,20 @@ export const npiSchema = z
   .transform(cleanNpi)
   .refine((v) => isValidNpi(v), { message: 'Enter a valid 10-digit NPI number' })
 
+/** Optional EIN / tax ID. Digits with optional hyphen; blank clears. */
+export const einSchema = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[^\d-]/g, ''))
+  .refine((v) => v === '' || /^\d{2}-?\d{7}$/.test(v), {
+    message: 'Enter a valid EIN (XX-XXXXXXX)',
+  })
+  .transform((v) => {
+    if (!v) return ''
+    const digits = v.replace(/\D/g, '')
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`
+  })
+
 /** Contact + practice fields common to onboarding and profile editing. */
 const contactFields = {
   organizationName: z.string().trim().min(2, 'Practice name is required').max(200),
@@ -45,6 +59,7 @@ export const profileUpdateSchema = z.object({
   organizationName: contactFields.organizationName.optional(),
   providerName: z.string().trim().min(2).max(200).optional(),
   npiNumber: npiSchema.optional(),
+  ein: einSchema.optional(),
   contactName: contactFields.contactName.optional(),
   contactEmail: contactFields.contactEmail.optional(),
   contactPhone: phoneSchema.optional(),
@@ -67,6 +82,7 @@ export interface ClientProfile {
   organizationName: string
   npiNumber: string | null
   providerName: string | null
+  ein: string | null
   contactName: string | null
   contactEmail: string | null
   contactPhone: string | null
@@ -86,6 +102,7 @@ export function serializeClientProfile(client: {
   organizationName: string
   npiNumber: string | null
   providerName: string | null
+  ein?: string | null
   contactName: string | null
   contactEmail: string | null
   contactPhone: string | null
@@ -98,6 +115,7 @@ export function serializeClientProfile(client: {
     organizationName: client.organizationName,
     npiNumber: client.npiNumber,
     providerName: client.providerName,
+    ein: client.ein ?? null,
     contactName: client.contactName,
     contactEmail: client.contactEmail,
     contactPhone: client.contactPhone,

@@ -12,7 +12,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { addressSchema } from '@/lib/address'
-import { npiSchema, serializeClientProfile } from '@/lib/profile'
+import { einSchema, npiSchema, serializeClientProfile } from '@/lib/profile'
 import {
   sendPartnerApprovedEmail,
   sendPartnerRejectedEmail,
@@ -29,6 +29,7 @@ const clientSelect = {
   organizationName: true,
   npiNumber: true,
   providerName: true,
+  ein: true,
   contactName: true,
   contactEmail: true,
   contactPhone: true,
@@ -41,6 +42,7 @@ const adminUpdateSchema = z.object({
   organizationName: z.string().trim().min(2).max(200).optional(),
   providerName: z.string().trim().min(2).max(200).optional(),
   npiNumber: npiSchema.optional(),
+  ein: einSchema.optional(),
   contactName: z.string().trim().min(2).max(120).optional(),
   contactEmail: z.string().trim().email().max(200).optional(),
   contactPhone: z.string().trim().min(7).max(30).optional(),
@@ -111,6 +113,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (input.organizationName !== undefined) data.organizationName = input.organizationName
     if (input.providerName !== undefined) data.providerName = input.providerName
     if (input.npiNumber !== undefined) data.npiNumber = input.npiNumber
+    if (input.ein !== undefined) data.ein = input.ein || null
     if (input.contactName !== undefined) data.contactName = input.contactName
     if (input.contactEmail !== undefined) data.contactEmail = input.contactEmail
     if (input.contactPhone !== undefined) data.contactPhone = input.contactPhone

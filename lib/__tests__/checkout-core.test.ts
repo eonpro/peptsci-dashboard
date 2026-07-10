@@ -72,11 +72,11 @@ describe('qualifiesForFreeShipping', () => {
 })
 
 describe('computeShipping (tiered matrix)', () => {
-  test('below $500: 2-day $15, overnight $25', () => {
-    assert.equal(computeShipping(100, 'TWO_DAY'), 15)
-    assert.equal(computeShipping(100, 'OVERNIGHT'), 25)
-    assert.equal(computeShipping(FREE_SHIPPING_THRESHOLD - 0.01, 'TWO_DAY'), 15)
-    assert.equal(computeShipping(FREE_SHIPPING_THRESHOLD - 0.01, 'OVERNIGHT'), 25)
+  test('below $500: 2-day $25, overnight $35', () => {
+    assert.equal(computeShipping(100, 'TWO_DAY'), 25)
+    assert.equal(computeShipping(100, 'OVERNIGHT'), 35)
+    assert.equal(computeShipping(FREE_SHIPPING_THRESHOLD - 0.01, 'TWO_DAY'), 25)
+    assert.equal(computeShipping(FREE_SHIPPING_THRESHOLD - 0.01, 'OVERNIGHT'), 35)
   })
 
   test('at/above $500: 2-day FREE, overnight $20', () => {
@@ -103,14 +103,14 @@ describe('computeCartTotals', () => {
     assert.deepEqual(totals, {
       subtotal: 150,
       taxTotal: 0,
-      shippingTotal: 15,
-      total: 165,
+      shippingTotal: 25,
+      total: 175,
     })
   })
 
-  test('overnight below threshold adds $25', () => {
+  test('overnight below threshold adds $35', () => {
     const totals = computeCartTotals([{ lineTotal: 150 }], 'OVERNIGHT')
-    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 25, total: 175 })
+    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 35, total: 185 })
   })
 
   test('free 2-day over threshold, still no tax', () => {
@@ -126,6 +126,6 @@ describe('computeCartTotals', () => {
   test('handles floating point line totals without drift', () => {
     const totals = computeCartTotals([{ lineTotal: 19.99 }, { lineTotal: 0.02 }], 'TWO_DAY')
     assert.equal(totals.subtotal, 20.01)
-    assert.equal(totals.total, round2(20.01 + 15))
+    assert.equal(totals.total, round2(20.01 + 25))
   })
 })

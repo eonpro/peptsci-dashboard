@@ -43,6 +43,8 @@ model Client {
   npiNumber        String?                @unique // 10-digit National Provider Identifier
   providerName     String?                // Provider/organization name as returned by NPPES
   npiData          Json?                  // Frozen NPPES registry snapshot at verification time
+  // Employer Identification Number (tax ID), optional — formatted as XX-XXXXXXX when known.
+  ein              String?
   contactName      String?
   contactEmail     String?
   contactPhone     String?

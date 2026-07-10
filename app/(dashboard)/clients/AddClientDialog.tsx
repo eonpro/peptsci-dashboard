@@ -52,6 +52,7 @@ export default function AddClientDialog({
   const [organizationName, setOrganizationName] = useState('')
   const [providerName, setProviderName] = useState('')
   const [npiNumber, setNpiNumber] = useState('')
+  const [ein, setEin] = useState('')
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -67,6 +68,7 @@ export default function AddClientDialog({
       setOrganizationName('')
       setProviderName('')
       setNpiNumber('')
+      setEin('')
       setContactName('')
       setContactEmail('')
       setContactPhone('')
@@ -105,6 +107,7 @@ export default function AddClientDialog({
           organizationName: organizationName.trim(),
           ...(providerName.trim() ? { providerName: providerName.trim() } : {}),
           ...(npiNumber.trim() ? { npiNumber: npiNumber.trim() } : {}),
+          ...(ein.trim() ? { ein: ein.trim() } : {}),
           ...(contactName.trim() ? { contactName: contactName.trim() } : {}),
           ...(contactEmail.trim() ? { contactEmail: contactEmail.trim() } : {}),
           ...(contactPhone.trim() ? { contactPhone: contactPhone.trim() } : {}),
@@ -175,27 +178,38 @@ export default function AddClientDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className={labelClass}>Onboarding Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as OnboardingStatus)}>
-                <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-brand-onyx border-white/10">
-                  <SelectItem value="APPROVED" className="text-white focus:bg-white/10 focus:text-white">
-                    Approved
-                  </SelectItem>
-                  <SelectItem value="PENDING" className="text-white focus:bg-white/10 focus:text-white">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="NEEDS_INFO" className="text-white focus:bg-white/10 focus:text-white">
-                    Needs Info
-                  </SelectItem>
-                  <SelectItem value="REJECTED" className="text-white focus:bg-white/10 focus:text-white">
-                    Rejected
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className={labelClass}>EIN (Tax ID)</Label>
+              <Input
+                className={inputClass}
+                placeholder="XX-XXXXXXX"
+                value={ein}
+                onChange={(e) => setEin(e.target.value)}
+                inputMode="numeric"
+              />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Onboarding Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as OnboardingStatus)}>
+              <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-brand-onyx border-white/10">
+                <SelectItem value="APPROVED" className="text-white focus:bg-white/10 focus:text-white">
+                  Approved
+                </SelectItem>
+                <SelectItem value="PENDING" className="text-white focus:bg-white/10 focus:text-white">
+                  Pending
+                </SelectItem>
+                <SelectItem value="NEEDS_INFO" className="text-white focus:bg-white/10 focus:text-white">
+                  Needs Info
+                </SelectItem>
+                <SelectItem value="REJECTED" className="text-white focus:bg-white/10 focus:text-white">
+                  Rejected
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

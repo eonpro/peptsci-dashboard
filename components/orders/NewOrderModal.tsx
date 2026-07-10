@@ -41,6 +41,8 @@ type Line = {
   quantity: number
   unitPrice: number
   available: number
+  /** 'auto' = seeded from SRP/custom; 'manual' = admin edited — don't clobber on clinic change. */
+  priceSource: 'auto' | 'manual'
 }
 
 export type NewOrderModalProps = {
@@ -63,6 +65,8 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
 
   const [productQuery, setProductQuery] = useState('')
   const [lines, setLines] = useState<Line[]>([])
+  /** variantId → customPrice for the selected clinic (empty when none). */
+  const [customPriceMap, setCustomPriceMap] = useState<Record<string, number>>({})
 
   const [shipTo, setShipTo] = useState<'PRACTICE' | 'PATIENT'>('PRACTICE')
   const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
@@ -78,6 +82,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
     setNewClient({ organizationName: '', contactName: '', contactEmail: '', contactPhone: '' })
     setProductQuery('')
     setLines([])
+    setCustomPriceMap({})
     setShipTo('PRACTICE')
     setShipSpeed('TWO_DAY')
     setNotes('')
@@ -98,6 +103,52 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
       })
       .finally(() => setLoadingRefs(false))
   }, [open, resetAll])
+
+  // Load clinic custom prices whenever the selected client changes; re-price auto lines.
+  useEffect(() => {
+    if (!clientId) {
+      setCustomPriceMap({})
+      setLines((prev) =>
+        prev.map((l) => {
+          if (l.priceSource !== 'auto') return l
+          const v = variants.find((x) => x.id === l.variantId)
+          return v ? { ...l, unitPrice: v.srp } : l
+        })
+      )
+      return
+    }
+    let cancelled = false
+    fetch(`/api/admin/client-pricing?clientId=${encodeURIComponent(clientId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (cancelled) return
+        const rows: Array<{ variantId: string; customPrice: number }> = Array.isArray(data)
+          ? data
+          : (data.prices ?? [])
+        const map: Record<string, number> = {}
+        for (const row of rows) {
+          if (row.variantId && typeof row.customPrice === 'number') {
+            map[row.variantId] = row.customPrice
+          }
+        }
+        setCustomPriceMap(map)
+        setLines((prev) =>
+          prev.map((l) => {
+            if (l.priceSource !== 'auto') return l
+            const v = variants.find((x) => x.id === l.variantId)
+            if (!v) return l
+            const next = map[l.variantId] ?? v.srp
+            return { ...l, unitPrice: next }
+          })
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setCustomPriceMap({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, variants])
 
   const selectedClient = clients.find((c) => c.id === clientId) || null
 
@@ -127,6 +178,8 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
       .slice(0, 8)
   }, [variants, productQuery])
 
+  const resolveUnitPrice = (v: VariantRow) => customPriceMap[v.id] ?? v.srp
+
   const addLine = (v: VariantRow) => {
     setLines((prev) => {
       if (prev.some((l) => l.variantId === v.id)) return prev
@@ -136,8 +189,9 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
           variantId: v.id,
           label: `${v.productName}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` · ${v.sku}` : ''}`,
           quantity: 1,
-          unitPrice: v.srp,
+          unitPrice: resolveUnitPrice(v),
           available: v.available,
+          priceSource: 'auto',
         },
       ]
     })
@@ -145,7 +199,14 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
   }
 
   const updateLine = (variantId: string, patch: Partial<Line>) =>
-    setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, ...patch } : l)))
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.variantId !== variantId) return l
+        const next = { ...l, ...patch }
+        if (patch.unitPrice !== undefined) next.priceSource = 'manual'
+        return next
+      })
+    )
   const removeLine = (variantId: string) =>
     setLines((prev) => prev.filter((l) => l.variantId !== variantId))
 
@@ -233,8 +294,8 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
             New Order
           </DialogTitle>
           <DialogDescription>
-            Build an order from inventory. Prices are set from the catalog (editable). Take payment after
-            creating, then create a shipping label.
+            Build an order from inventory. Line prices use this clinic&apos;s custom pricing when set
+            (editable). Take payment after creating, then create a shipping label.
           </DialogDescription>
         </DialogHeader>
 
@@ -343,7 +404,10 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                         </span>
                         <span className="flex items-center gap-2 text-xs">
                           <span className={v.available > 0 ? 'text-emerald-600' : 'text-red-500'}>{v.available} avail</span>
-                          <span className="font-medium text-gray-700">{formatPrice(v.srp)}</span>
+                          <span className="font-medium text-gray-700">{formatPrice(resolveUnitPrice(v))}</span>
+                          {customPriceMap[v.id] != null && (
+                            <span className="rounded bg-emerald-50 px-1 text-[10px] font-medium text-emerald-700">Custom</span>
+                          )}
                           <Plus className="h-3.5 w-3.5 text-gray-400" />
                         </span>
                       </button>
@@ -360,6 +424,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                         <p className="truncate text-sm text-gray-800">{l.label}</p>
                         <p className={`text-xs ${l.quantity > l.available ? 'text-amber-600' : 'text-gray-400'}`}>
                           {l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}
+                          {customPriceMap[l.variantId] != null && l.priceSource === 'auto' ? ' · Custom price' : ''}
                         </p>
                       </div>
                       <input
