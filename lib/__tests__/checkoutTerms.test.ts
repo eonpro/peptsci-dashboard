@@ -72,4 +72,46 @@ describe('assessTermsCheckout', () => {
       assert.equal(res.availableCredit, 0)
     }
   })
+
+  test('credit hold: denies when any invoice is overdue, even within limit', () => {
+    const res = assessTermsCheckout({
+      paymentTermsDays: 30,
+      creditLimit: 10000,
+      openBalance: 100,
+      orderTotal: 50,
+      hasOverdue: true,
+    })
+    assert.equal(res.allowed, false)
+    if (!res.allowed) assert.equal(res.reason, 'CREDIT_HOLD')
+  })
+
+  test('credit hold applies even without a credit limit', () => {
+    const res = assessTermsCheckout({
+      paymentTermsDays: 30,
+      creditLimit: null,
+      openBalance: 100,
+      orderTotal: 50,
+      hasOverdue: true,
+    })
+    assert.equal(res.allowed, false)
+    if (!res.allowed) assert.equal(res.reason, 'CREDIT_HOLD')
+  })
+
+  test('hasOverdue false or omitted allows normally', () => {
+    const omitted = assessTermsCheckout({
+      paymentTermsDays: 30,
+      creditLimit: null,
+      openBalance: 0,
+      orderTotal: 100,
+    })
+    const explicit = assessTermsCheckout({
+      paymentTermsDays: 30,
+      creditLimit: null,
+      openBalance: 0,
+      orderTotal: 100,
+      hasOverdue: false,
+    })
+    assert.equal(omitted.allowed, true)
+    assert.equal(explicit.allowed, true)
+  })
 })

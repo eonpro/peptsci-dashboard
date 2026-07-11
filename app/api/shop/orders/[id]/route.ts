@@ -3,6 +3,7 @@ import { requireAuth, unauthorizedResponse, errorResponse, successResponse } fro
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
+import { formatInvoiceNumber } from '@/lib/invoicing/core'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         approvedAt: true,
         fulfilledAt: true,
         shippingAddress: true,
+        paymentStatus: true,
+        paidAt: true,
+        paymentMethod: { select: { cardBrand: true, cardLast4: true } },
+        invoiceLineItems: {
+          where: { invoice: { status: { not: 'VOID' } } },
+          take: 1,
+          select: {
+            invoice: { select: { id: true, invoiceNumber: true, status: true, dueDate: true } },
+          },
+        },
         items: {
           select: {
             quantity: true,
@@ -57,6 +68,25 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
 
     if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
+
+    // How the order was (or will be) paid, for the detail page.
+    const invoice = order.invoiceLineItems[0]?.invoice ?? null
+    const payment = {
+      status: order.paymentStatus,
+      paidAt: order.paidAt?.toISOString() ?? null,
+      // "VISA ···· 4242" when a saved card is linked; null otherwise.
+      card: order.paymentMethod?.cardLast4
+        ? `${(order.paymentMethod.cardBrand ?? 'Card').toUpperCase()} ···· ${order.paymentMethod.cardLast4}`
+        : null,
+      invoice: invoice
+        ? {
+            id: invoice.id,
+            number: formatInvoiceNumber(invoice.invoiceNumber),
+            status: invoice.status,
+            dueDate: invoice.dueDate?.toISOString() ?? null,
+          }
+        : null,
+    }
 
     return successResponse({
       order: {
@@ -77,6 +107,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         approvedAt: order.approvedAt?.toISOString() ?? null,
         fulfilledAt: order.fulfilledAt?.toISOString() ?? null,
         shippingAddress: order.shippingAddress,
+        payment,
         items: order.items.map((it) => ({
           name: it.variant.product.name,
           dose: it.variant.dose,

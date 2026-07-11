@@ -45,6 +45,31 @@ Assumption (from user's phrasing "push for fulfillment to OUR back end"): interp
 2. **PENDING (user):** apply `Client.paymentTermsDays`/`creditLimit` on prod via `POST /api/admin/db/migrate` `{ "confirm": true }` as SUPER_ADMIN (probe includes both columns; GET first to check `upToDate`). Until applied: /shop/invoices works, but saving Billing Terms and terms checkout will fail on the missing columns.
 3. Grant terms to a clinic on `/clients/[id]` → Billing Terms to enable bill-to-account.
 
+## Phase 2 Plan — UX polish + covering the bases (Jul 11)  [PLANNER]
+Verified gaps (code-grounded): overdue/issued invoice emails pass no `invoiceUrl` (portal now exists at /shop/invoices); no `notifyAdmins` call on new order capture/terms submission.
+
+### Tier 1 — quick wins (DONE Jul 11, deployed)
+- [x] QW-1 Invoice emails (issued: admin send + terms checkout; overdue cron) now link to `/shop/invoices` via `invoiceUrl` (`lib/app-url.ts` helper).
+- [x] QW-2 `notifyAdmins` ("New order #N — $X") on first capture (`lib/stripe/payments.ts`) + terms checkout; deduped per admin on `(order:placed, orderId)`.
+- [x] QW-3 "Buy again": `GET /api/shop/orders/[id]/reorder` (CURRENT effective prices, skips+reports inactive SKUs) + `BuyAgainButton` on orders list + detail.
+- [x] QW-4 Order detail Payment card: card brand/last4 + Paid date, or "Billed to account" w/ invoice number/status/due + portal link (`payment` block in `/api/shop/orders/[id]`).
+- [x] QW-5 Credit hold: `assessTermsCheckout({ hasOverdue })` → `CREDIT_HOLD` (tests added); `getClientBillingSnapshot` derives overdue from live due dates (not just persisted OVERDUE status); terms route 409s; checkout UI hides terms option + shows pay-your-invoice notice.
+- Verify: tsc clean, 254/254 tests, build green. No schema changes — no prod migration needed.
+### Tier 2 — compliance & account completeness
+- [ ] T2-1 Document upload UI (`ClientDocument` model exists; no UI): onboarding step + account page + admin review/expiry tracking (license/DEA/resale cert).
+- [ ] T2-2 Monthly statement: per-client PDF (aging + activity) + cron email.
+- [ ] T2-3 ACH (`us_bank_account`) on invoice pay + checkout for large totals.
+- [ ] T2-4 Client-initiated returns from order detail (RMA models exist admin-side).
+### Tier 3 — pricing depth & growth
+- [ ] T3-1 Volume/qty tier pricing + shared price lists.
+- [ ] T3-2 Promo codes.
+- [ ] T3-3 Stripe Tax + resale-cert-driven exemption (depends on T2-1).
+- [ ] T3-4 Back-in-stock alerts / low-stock badges in catalog.
+### Tier 4 — hardening
+- [ ] T4-1 Playwright E2E for checkout (card + terms) & invoice pay against preview deploys.
+- [ ] T4-2 Admin WebhookEvent DLQ review UI.
+- [ ] T4-3 Enforce 2FA for admins (Clerk).
+
 ### Lessons (this effort)
 - PIs without `metadata.orderId` are treated by the webhook as EXTERNAL sales and ingested into SalesRecord — any new platform-created PI type (e.g. invoice payments) must be intercepted by its own metadata key before that fallback, or revenue double-counts.
 - "Send exactly once on capture" needs an atomic claim: `updateMany({ where: { id, paidAt: null } })` count===1 is the first-capture signal; checking the pre-loaded row races between confirm + webhook.

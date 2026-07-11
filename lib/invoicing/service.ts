@@ -360,19 +360,35 @@ async function settleOrdersForPaidInvoice(invoiceId: string): Promise<void> {
 }
 
 /**
- * Total amount due across a client's open (OPEN/PARTIAL/OVERDUE) invoices.
- * Used by the net-terms checkout credit-limit gate and the client portal.
+ * A client's AR position: total due across open (OPEN/PARTIAL/OVERDUE)
+ * invoices + whether anything is past due (credit hold). `hasOverdue` is
+ * derived from live due dates, not just the persisted OVERDUE status, so a
+ * checkout between overdue-cron runs is still held.
  */
-export async function getClientOpenBalance(clientId: string): Promise<number> {
+export async function getClientBillingSnapshot(
+  clientId: string
+): Promise<{ openBalance: number; hasOverdue: boolean }> {
   const client = db()
   const rows = await client.invoice.findMany({
     where: { clientId, status: { in: ['OPEN', 'PARTIAL', 'OVERDUE'] } },
     include: INVOICE_INCLUDE,
   })
   const now = new Date()
-  return Math.round(
-    rows.reduce((sum, inv) => sum + decorateInvoice(inv, now).totals.amountDue, 0) * 100
-  ) / 100
+  let openBalance = 0
+  let hasOverdue = false
+  for (const inv of rows) {
+    const view = decorateInvoice(inv, now)
+    openBalance += view.totals.amountDue
+    if (view.totals.amountDue > 0 && (inv.status === 'OVERDUE' || view.daysPastDue > 0)) {
+      hasOverdue = true
+    }
+  }
+  return { openBalance: Math.round(openBalance * 100) / 100, hasOverdue }
+}
+
+/** Total amount due across a client's open invoices. */
+export async function getClientOpenBalance(clientId: string): Promise<number> {
+  return (await getClientBillingSnapshot(clientId)).openBalance
 }
 
 export interface AddAdjustmentInput {

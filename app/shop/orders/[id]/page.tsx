@@ -19,7 +19,10 @@ import {
   Camera,
   Loader2,
   XCircle,
+  CreditCard,
+  FileText,
 } from 'lucide-react'
+import { BuyAgainButton } from '@/components/shop/BuyAgainButton'
 
 type OrderItem = {
   name: string
@@ -46,6 +49,13 @@ type StoredAddress = {
   email?: string | null
 }
 
+type OrderPayment = {
+  status: string
+  paidAt: string | null
+  card: string | null
+  invoice: { id: string; number: string; status: string; dueDate: string | null } | null
+}
+
 type OrderDetail = {
   id: string
   orderNumber: number
@@ -64,6 +74,7 @@ type OrderDetail = {
   approvedAt: string | null
   fulfilledAt: string | null
   shippingAddress: StoredAddress | null
+  payment?: OrderPayment
   items: OrderItem[]
   packagePhotos: PackagePhoto[]
 }
@@ -159,6 +170,7 @@ export default function OrderDetailPage() {
           </div>
           <p className="text-gray-500 mt-1">Placed on {formatDate(order.createdAt)}</p>
         </div>
+        <BuyAgainButton orderId={order.id} size="default" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -308,6 +320,65 @@ export default function OrderDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Payment */}
+          {order.payment && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" /> Payment
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {order.payment.invoice ? (
+                  <>
+                    <p className="text-gray-900 font-medium flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-gray-400" /> Billed to account
+                    </p>
+                    <p className="text-gray-600">
+                      Invoice {order.payment.invoice.number}
+                      {order.payment.invoice.dueDate
+                        ? ` · due ${formatDate(order.payment.invoice.dueDate)}`
+                        : ''}
+                    </p>
+                    <Badge
+                      className={
+                        order.payment.invoice.status === 'PAID'
+                          ? 'bg-green-100 text-green-700'
+                          : order.payment.invoice.status === 'OVERDUE'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-blue-100 text-blue-700'
+                      }
+                    >
+                      {order.payment.invoice.status}
+                    </Badge>
+                    <Button variant="link" className="p-0 h-auto text-indigo-600 block" asChild>
+                      <Link href="/shop/invoices">View &amp; pay invoices →</Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-900 font-medium">
+                      {order.payment.card ?? 'Card payment'}
+                    </p>
+                    <Badge
+                      className={
+                        order.payment.status === 'CAPTURED'
+                          ? 'bg-green-100 text-green-700'
+                          : order.payment.status === 'FAILED'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                      }
+                    >
+                      {order.payment.status === 'CAPTURED'
+                        ? `Paid${order.payment.paidAt ? ` ${formatDate(order.payment.paidAt)}` : ''}`
+                        : order.payment.status}
+                    </Badge>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {order.shippingAddress && (
             <Card>

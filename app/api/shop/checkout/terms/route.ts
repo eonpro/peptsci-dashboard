@@ -8,12 +8,14 @@ import { logger } from '@/lib/logger'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError } from '@/lib/checkout-core'
 import { assessTermsCheckout } from '@/lib/checkout-terms'
-import { createInvoice, getClientOpenBalance } from '@/lib/invoicing/service'
+import { createInvoice, getClientBillingSnapshot } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { reserveForOrder } from '@/lib/inventory/reservations'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 import { sendInvoiceIssuedEmail } from '@/lib/email'
+import { notifyAdmins } from '@/lib/notifications/service'
+import { appUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,16 +95,28 @@ export async function POST(request: NextRequest) {
     })
     if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
 
-    const openBalance = await getClientOpenBalance(actor.clientId)
+    const { openBalance, hasOverdue } = await getClientBillingSnapshot(actor.clientId)
     const gate = assessTermsCheckout({
       paymentTermsDays: client.paymentTermsDays,
       creditLimit: client.creditLimit != null ? Number(client.creditLimit) : null,
       openBalance,
       orderTotal: cart.totals.total,
+      hasOverdue,
     })
     if (!gate.allowed) {
       if (gate.reason === 'NO_TERMS') {
         return errorResponse('Your account is not set up for billing on terms', 403, 'NO_TERMS')
+      }
+      if (gate.reason === 'CREDIT_HOLD') {
+        return NextResponse.json(
+          {
+            error: 'Account on credit hold',
+            message:
+              'Your account has a past-due invoice. Please pay it at /shop/invoices (or use a card) to continue ordering on terms.',
+            code: 'CREDIT_HOLD',
+          },
+          { status: 409 }
+        )
       }
       return NextResponse.json(
         {
@@ -208,8 +222,24 @@ export async function POST(request: NextRequest) {
               day: 'numeric',
             })
           : '—',
+        invoiceUrl: appUrl('/shop/invoices'),
       }).catch(() => {})
     }
+    notifyAdmins({
+      category: 'ORDER',
+      priority: 'HIGH',
+      title: `New order #${order.orderNumber} — ${usd(cart.totals.total)} (Net ${gate.termsDays})`,
+      message: `${client.organizationName} placed order #${order.orderNumber} billed to account (invoice ${formatInvoiceNumber(invoiceView.invoice.invoiceNumber)}).`,
+      actionUrl: '/fulfillment',
+      sourceType: 'order:placed',
+      sourceId: order.id,
+      clientId: actor.clientId,
+    }).catch((e) =>
+      logger.warn('[CHECKOUT TERMS] admin notify failed (non-blocking)', {
+        orderId: order.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
 
     logger.info('[CHECKOUT TERMS] Order billed to account', {
       orderId: order.id,

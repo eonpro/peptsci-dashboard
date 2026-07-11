@@ -24,6 +24,7 @@ import {
   ShoppingBag,
   Loader2,
 } from 'lucide-react'
+import { BuyAgainButton } from '@/components/shop/BuyAgainButton'
 
 type OrderItem = {
   name: string
@@ -232,7 +233,8 @@ export default function OrdersPage() {
                       </div>
                     )}
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex justify-end gap-2">
+                      <BuyAgainButton orderId={order.id} />
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/shop/orders/${order.id}`}>
                           View Details

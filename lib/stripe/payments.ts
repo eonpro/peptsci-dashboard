@@ -16,6 +16,7 @@ import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { reserveForOrder } from '@/lib/inventory/reservations'
 import { toCents } from '@/lib/stripe'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
+import { notifyAdmins } from '@/lib/notifications/service'
 
 /**
  * Monotonic "progress" rank for a payment status. Used to prevent an
@@ -185,10 +186,35 @@ export async function reconcileOrderFromPaymentIntent(
         error: e instanceof Error ? e.message : String(e),
       })
     )
-    // Confirmation email on the first capture only. Fire-and-forget; a mail
-    // failure must never fail the payment flow.
+    // Confirmation email + ops alert on the first capture only. Fire-and-forget;
+    // neither is allowed to fail the payment flow. notifyAdmins additionally
+    // dedupes on (sourceType, sourceId) per admin, so a webhook redelivery that
+    // somehow re-claims first-capture still can't double-notify.
     if (firstCapture) {
       void sendOrderConfirmationForOrder(order.id, { paymentLabel: 'Paid by card' })
+      const total = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(Number(order.total))
+      const client = await prisma.client.findUnique({
+        where: { id: order.clientId },
+        select: { organizationName: true },
+      })
+      notifyAdmins({
+        category: 'ORDER',
+        priority: 'HIGH',
+        title: `New order #${order.orderNumber} — ${total} (paid)`,
+        message: `${client?.organizationName ?? 'A client'} placed order #${order.orderNumber}; payment captured. Ready for fulfillment.`,
+        actionUrl: '/fulfillment',
+        sourceType: 'order:placed',
+        sourceId: order.id,
+        clientId: order.clientId,
+      }).catch((e) =>
+        logger.warn('[STRIPE] admin notify failed (non-blocking)', {
+          orderId: order.id,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      )
     }
   }
 

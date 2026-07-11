@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger'
 import { getInvoice } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { sendInvoiceIssuedEmail } from '@/lib/email'
+import { appUrl } from '@/lib/app-url'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,6 +46,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
             day: 'numeric',
           })
         : '—',
+      // "View invoice" → the client portal, where they can pay online.
+      invoiceUrl: appUrl('/shop/invoices'),
     })
 
     return successResponse({ sent: result.ok, skipped: result.skipped ?? false })

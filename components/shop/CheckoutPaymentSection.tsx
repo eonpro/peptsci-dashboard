@@ -66,6 +66,7 @@ function formatPrice(n: number) {
 
 interface BillingSummary {
   openBalance: number
+  hasOverdue?: boolean
   paymentTermsDays: number | null
   creditLimit: number | null
 }
@@ -153,7 +154,9 @@ export function CheckoutPaymentSection({
   const availableCredit =
     billing?.creditLimit != null ? Math.max(0, billing.creditLimit - billing.openBalance) : null
   const termsEligible =
-    termsDays > 0 && (availableCredit == null || total <= availableCredit)
+    termsDays > 0 &&
+    !billing?.hasOverdue &&
+    (availableCredit == null || total <= availableCredit)
 
   const placeTermsOrder = useCallback(async () => {
     setPlacing(true)
@@ -277,6 +280,17 @@ export function CheckoutPaymentSection({
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
           {error}
+        </div>
+      )}
+
+      {/* Credit-hold notice: terms account with a past-due invoice */}
+      {termsDays > 0 && billing?.hasOverdue && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm p-3">
+          Billing to account is paused while an invoice is past due.{' '}
+          <a href="/shop/invoices" className="underline hover:text-amber-200">
+            Pay your open invoice
+          </a>{' '}
+          to restore terms, or pay this order by card.
         </div>
       )}
 

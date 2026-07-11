@@ -3,7 +3,7 @@ import { requireAuth, unauthorizedResponse, errorResponse, successResponse } fro
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
-import { listInvoices, getClientOpenBalance } from '@/lib/invoicing/service'
+import { listInvoices, getClientBillingSnapshot } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 
 export const dynamic = 'force-dynamic'
@@ -22,13 +22,13 @@ export async function GET(_request: NextRequest) {
     const clientId = await resolveShopClientId(userId)
     if (!clientId) return errorResponse('No client account linked', 403, 'NO_CLIENT')
 
-    const [{ invoices }, client, openBalance] = await Promise.all([
+    const [{ invoices }, client, snapshot] = await Promise.all([
       listInvoices({ clientId, limit: 100 }),
       prisma.client.findUnique({
         where: { id: clientId },
         select: { paymentTermsDays: true, creditLimit: true },
       }),
-      getClientOpenBalance(clientId),
+      getClientBillingSnapshot(clientId),
     ])
 
     // DRAFT invoices are internal working documents — never shown to clients.
@@ -48,7 +48,8 @@ export async function GET(_request: NextRequest) {
         daysPastDue: v.daysPastDue,
       })),
       summary: {
-        openBalance,
+        openBalance: snapshot.openBalance,
+        hasOverdue: snapshot.hasOverdue,
         paymentTermsDays: client?.paymentTermsDays ?? null,
         creditLimit: client?.creditLimit != null ? Number(client.creditLimit) : null,
       },

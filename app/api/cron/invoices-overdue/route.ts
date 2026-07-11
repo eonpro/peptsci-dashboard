@@ -16,6 +16,7 @@ import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { nyDayString } from '@/lib/reports/core'
 import { sendInvoiceOverdueEmail } from '@/lib/email'
 import { sendInvoiceOverdueSms } from '@/lib/sms'
+import { appUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -93,6 +94,8 @@ async function run(req: NextRequest) {
           amountDue,
           dueDate,
           daysPastDue: view.daysPastDue,
+          // "View invoice" → the client portal, where they can pay online.
+          invoiceUrl: appUrl('/shop/invoices'),
         }).catch((e) => {
           logger.warn('[CRON invoices-overdue] email failed (non-blocking)', {
             invoiceId: view.invoice.id,
