@@ -42,7 +42,7 @@ Assumption (from user's phrasing "push for fulfillment to OUR back end"): interp
 
 ### ⚠️ Before live in prod
 1. ~~Commit + deploy~~ ✅ Jul 11 — commit `0cc164b` pushed to `main`; Vercel prod deployment Ready; peptsci.com healthy (`/api/health` 200).
-2. **PENDING (user):** apply `Client.paymentTermsDays`/`creditLimit` on prod via `POST /api/admin/db/migrate` `{ "confirm": true }` as SUPER_ADMIN (probe includes both columns; GET first to check `upToDate`). Until applied: /shop/invoices works, but saving Billing Terms and terms checkout will fail on the missing columns.
+2. ~~Apply prod migrations~~ ✅ Jul 11 — ran `POST /api/admin/db/migrate` via the user's signed-in super-admin browser session; `success: true, upToDate: true` (10.7s, no errors). Covers BOTH `20260710140000_add_client_payment_terms` AND `20260711230000_client_document_review`. Net-terms checkout, Billing Terms admin card, and document uploads are fully live in prod.
 3. Grant terms to a clinic on `/clients/[id]` → Billing Terms to enable bill-to-account.
 
 ## Phase 2 Plan — UX polish + covering the bases (Jul 11)  [PLANNER]
