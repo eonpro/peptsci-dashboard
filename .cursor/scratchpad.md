@@ -1,3 +1,57 @@
+# ACTIVE PLAN — "True Marketplace" Gap Analysis & Roadmap (Jul 2026)  [PLANNER]
+
+## Background and Motivation
+User asked: what else is needed to be a true marketplace-like site with fulfillment — clinics order from their logins, orders push to our fulfillment back end, custom pricing, client management, billing, checkout with direct payments.
+
+**Finding: the core loop the user described is already built (~85-90%).** Clinics log in (Clerk, NPI-gated onboarding), shop `/shop` with per-client custom pricing (`ClientPricing` + `resolveEffectiveUnitPrice`), check out with direct Stripe payments (Connect direct charges, saved cards), orders land in the admin Fulfillment hub (pick/pack, FedEx labels, tracking, payment gate), admin AR invoicing with net terms exists, plus returns/RMA, inventory batches/reservations, white-label B2C storefronts. Full inventory by explore-agent fd4c5655 (Jul 10).
+
+## Key Challenges and Analysis
+The word "marketplace" has two readings; they imply very different scopes:
+- **(A) Single-vendor B2B commerce done completely** (PeptSci → clinics). Mostly built; remaining gaps are buyer-experience + billing polish.
+- **(B) Multi-vendor marketplace** (many suppliers, listings, commission splits, supplier portals, Stripe Connect split payouts). Entirely MISSING — new Vendor/Listing/Payout models, supplier onboarding, per-vendor fulfillment. Big lift; only do if it's the actual business direction.
+
+Assumption (from user's phrasing "push for fulfillment to OUR back end"): interpretation (A). Confirm before any (B) work.
+
+## High-level Task Breakdown (interpretation A — gap closure, priority order)
+### Phase 1 — Complete the buy→bill loop (highest impact)
+1. **Order confirmation emails** on checkout success + order status-change emails to clinic (approved/rejected/fulfilled). SES infra exists (`lib/email/`); templates missing. Success: placing an order sends confirmation w/ line items.
+2. **Client invoice portal** `/shop/invoices` — list invoices, balance, aging, PDF download, pay-now (Stripe) against an invoice. Server: reuse `lib/invoicing/service.ts`. Success: clinic can see + pay an open invoice; `InvoicePayment` recorded.
+3. **Pay-on-terms at checkout** — "Bill to account (Net X)" option next to card, gated by a new `Client.paymentTermsDays` + `Client.creditLimit` (nullable = card-only). Creates order with `paymentStatus=PENDING` + auto-links/creates invoice; payment-gate already allows invoiced orders to ship. Success: terms-approved clinic checks out with no card; order flows to fulfillment; invoice issued.
+### Phase 2 — Account completeness
+4. **Client document upload UI** (license/DEA) — `ClientDocument` model exists, no upload pages. Onboarding + account page + admin review.
+5. **Statements** — monthly account statement PDF/email per client (aging + activity).
+6. **ACH/bank debit** as a payment method (Stripe `us_bank_account`) for large B2B totals.
+### Phase 3 — Pricing depth
+7. **Volume/tier pricing** (qty breaks per variant) and/or **price lists** (named price groups assignable to many clients) layered under existing per-client overrides.
+8. **Promo/coupon codes** at checkout (optional).
+9. **Sales tax** calculation (Stripe Tax) if/where nexus requires (most clinic sales may be exempt/resale — needs business input + resale-cert capture, ties into doc uploads).
+### Phase 4 — Self-service polish
+10. Client-initiated returns from `/shop/orders/[id]` (RMA models exist, admin-only today).
+11. Reorder / order templates ("buy again").
+12. Multi-user clinics w/ per-user roles (purchaser vs owner) — today 1 role per user, all equal within a client.
+
+## Decision (Jul 10)
+- User confirmed **(A)** — PeptSci is the sole supplier. Phase 1 executed same day.
+
+## Project Status Board — Phase 1 (EXECUTOR — DONE, local)
+- [x] **Order confirmation emails** — `orderConfirmationEmail` template + `sendOrderConfirmationEmail`; `lib/orders/confirmation-email.ts` loads lines/contact + sends. Hooked into `reconcileOrderFromPaymentIntent` on FIRST capture only (atomic paidAt claim via `updateMany where paidAt: null` closes the confirm-vs-webhook duplicate-email race) and into terms checkout ("Billed to account — Net X").
+- [x] **Client invoice portal** — `GET /api/shop/invoices` (list + summary: openBalance/terms/creditLimit), `GET /api/shop/invoices/[id]/pdf` (ownership-checked, 404 on cross-account probe, DRAFT hidden), `POST /api/shop/invoices/[id]/pay` (saved card off-session or Elements PI w/ `metadata.invoiceId`; amount-aware idempotency key `pi_inv_{id}_{amount}`), `POST .../pay/confirm`. UI: `/shop/invoices` page + `InvoicePayDialog`; nav links in `ClientHeader`.
+- [x] **Pay-on-terms checkout** — `Client.paymentTermsDays`/`creditLimit` (migration `20260710140000_add_client_payment_terms`, migrate-route probe extended). Pure gate `lib/checkout-terms.ts` (`assessTermsCheckout`) + tests. `POST /api/shop/checkout/terms`: resolveCart → terms/credit gate → draft→SUBMITTED → auto-invoice (issue) on client terms → reserveForOrder → confirmation + invoice emails. Checkout UI: "Bill to account — Net X" option (eligibility fetched from /api/shop/invoices summary; server re-validates). Admin: Billing Terms card on client detail + PATCH schema.
+- [x] **Invoice-paid settlement** — `recordPayment` now settles linked orders (PENDING→CAPTURED + `syncSalesRecordFromOrder`) when the invoice reaches PAID; `getClientOpenBalance` added. Stripe webhook records `metadata.invoiceId` PIs as InvoicePayments BEFORE the external-sale ingest fallback (prevents double-counted revenue).
+- [x] Verify: `tsc --noEmit` clean, 251/251 tests (10 new: `checkoutTerms.test.ts`, `orderConfirmationEmail.test.ts`), `next build` green.
+
+### ⚠️ Before live in prod
+1. Commit + deploy (work is local only).
+2. Apply `Client.paymentTermsDays`/`creditLimit` on prod via `POST /api/admin/db/migrate` (probe now includes both columns).
+3. Grant terms to a clinic on `/clients/[id]` → Billing Terms to enable bill-to-account.
+
+### Lessons (this effort)
+- PIs without `metadata.orderId` are treated by the webhook as EXTERNAL sales and ingested into SalesRecord — any new platform-created PI type (e.g. invoice payments) must be intercepted by its own metadata key before that fallback, or revenue double-counts.
+- "Send exactly once on capture" needs an atomic claim: `updateMany({ where: { id, paidAt: null } })` count===1 is the first-capture signal; checking the pre-loaded row races between confirm + webhook.
+- Terms orders reserve inventory at submission (card orders reserve at capture); the payment gate already ships invoiced orders, and `recordPayment`→PAID flips linked orders to CAPTURED so analytics stay cash-accurate.
+
+---
+
 # ACTIVE PLAN — Clinic pricing, shipping rates, EIN (Jul 2026)  [EXECUTOR]
 
 > Shipping under $500 → $25 / $35; $500+ → $0 / $20. Admin New Order + Stripe convert use clinic custom prices. Editable EIN on Client.

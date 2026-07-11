@@ -36,6 +36,8 @@ const clientSelect = {
   billingAddress: true,
   shippingAddress: true,
   onboardingStatus: true,
+  paymentTermsDays: true,
+  creditLimit: true,
 } as const
 
 const adminUpdateSchema = z.object({
@@ -49,6 +51,9 @@ const adminUpdateSchema = z.object({
   billingAddress: addressSchema.optional(),
   shippingAddress: addressSchema.optional(),
   onboardingStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_INFO']).optional(),
+  // Net-terms billing: null disables "bill to account"; creditLimit null = no cap.
+  paymentTermsDays: z.number().int().min(1).max(365).nullable().optional(),
+  creditLimit: z.number().min(0).max(10_000_000).nullable().optional(),
 })
 
 /** GET /api/admin/clients/[id] — full client profile + linked users. */
@@ -122,6 +127,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (input.shippingAddress !== undefined)
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
     if (input.onboardingStatus !== undefined) data.onboardingStatus = input.onboardingStatus
+    if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
+    if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
 
     let client
     try {

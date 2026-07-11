@@ -76,6 +76,8 @@ export default function ClientDetailPage() {
   const [contactPhone, setContactPhone] = useState('')
   const [billing, setBilling] = useState<Partial<Address>>(emptyAddress)
   const [shipping, setShipping] = useState<Partial<Address>>(emptyAddress)
+  const [paymentTermsDays, setPaymentTermsDays] = useState('')
+  const [creditLimit, setCreditLimit] = useState('')
 
   const hydrate = (p: ClientProfile) => {
     setProfile(p)
@@ -88,6 +90,8 @@ export default function ClientDetailPage() {
     setContactPhone(p.contactPhone ?? '')
     setBilling(p.billingAddress ?? emptyAddress)
     setShipping(p.shippingAddress ?? emptyAddress)
+    setPaymentTermsDays(p.paymentTermsDays != null ? String(p.paymentTermsDays) : '')
+    setCreditLimit(p.creditLimit != null ? String(p.creditLimit) : '')
   }
 
   const refetchUsers = useCallback(async () => {
@@ -149,6 +153,8 @@ export default function ClientDetailPage() {
         contactPhone,
         billingAddress: billing,
         shippingAddress: shipping,
+        paymentTermsDays: paymentTermsDays.trim() === '' ? null : Number(paymentTermsDays),
+        creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
       },
       { flash: true }
     )
@@ -293,6 +299,42 @@ export default function ClientDetailPage() {
                 onChange={(e) => setEin(e.target.value)}
                 placeholder="XX-XXXXXXX"
                 inputMode="numeric"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Billing terms */}
+      <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <CardHeader>
+          <CardTitle className="text-base text-white">Billing Terms</CardTitle>
+          <CardDescription className="text-white/50">
+            Grant net terms to enable &ldquo;Bill to account&rdquo; at checkout. Leave payment
+            terms blank for card-only. Credit limit caps open balance + new orders (blank = no
+            cap).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className={labelClass}>Payment Terms (days)</Label>
+              <Input
+                className={inputClass}
+                value={paymentTermsDays}
+                onChange={(e) => setPaymentTermsDays(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder="e.g. 30 — blank = card only"
+                inputMode="numeric"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className={labelClass}>Credit Limit (USD)</Label>
+              <Input
+                className={inputClass}
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value.replace(/[^\d.]/g, ''))}
+                placeholder="e.g. 10000 — blank = no cap"
+                inputMode="decimal"
               />
             </div>
           </div>

@@ -8,12 +8,14 @@ import {
   partnerApprovedEmail,
   partnerRejectedEmail,
   partnerNeedsInfoEmail,
+  orderConfirmationEmail,
   orderShippedEmail,
   orderDeliveredEmail,
   orderExceptionEmail,
   invoiceIssuedEmail,
   invoiceOverdueEmail,
   weeklyReportEmail,
+  type OrderConfirmationEmailOpts,
   type ShipmentEmailOpts,
   type InvoiceEmailOpts,
   type WeeklyReportEmailOpts,
@@ -52,6 +54,15 @@ export async function sendPartnerNeedsInfoEmail(opts: {
   message?: string
 }): Promise<SendEmailResult> {
   const { subject, html, text } = partnerNeedsInfoEmail({ name: opts.name, message: opts.message })
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Order lifecycle (customer-facing) ──
+
+export async function sendOrderConfirmationEmail(
+  opts: { to: string | string[] } & OrderConfirmationEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = orderConfirmationEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
 

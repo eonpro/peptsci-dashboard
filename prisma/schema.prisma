@@ -53,6 +53,11 @@ model Client {
   licenseNumber    String?
   licenseExpiresAt DateTime?
   onboardingStatus ClientOnboardingStatus @default(PENDING)
+  // Net-terms billing. When set, the client may check out "bill to account"
+  // (order is invoiced on these terms instead of paying by card). NULL = card
+  // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
+  paymentTermsDays Int?
+  creditLimit      Decimal?               @db.Decimal(12, 2)
   // Stripe Customer for this B2B account. Saved cards are shared across the
   // client's users. Stripe never holds our product catalog (Model A).
   stripeCustomerId String?                @unique

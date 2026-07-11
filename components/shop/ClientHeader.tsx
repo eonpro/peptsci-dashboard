@@ -13,6 +13,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   Store,
+  Receipt,
 } from 'lucide-react'
 import { useCart } from './CartContext'
 import { useRole } from '@/hooks/useRole'
@@ -50,6 +51,7 @@ function AuthUserButton() {
 const navigation = [
   { name: 'Products', href: '/shop', icon: Package, exact: true },
   { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
+  { name: 'Invoices', href: '/shop/invoices', icon: Receipt },
   { name: 'My Storefront', href: '/shop/storefront-manage', icon: Store },
   { name: 'Account', href: '/shop/account', icon: User },
 ]
@@ -160,6 +162,15 @@ export function ClientHeader() {
                   <Link href="/shop/orders">
                     <ClipboardList className="mr-2 h-4 w-4" />
                     Order History
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  asChild
+                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
+                >
+                  <Link href="/shop/invoices">
+                    <Receipt className="mr-2 h-4 w-4" />
+                    Invoices &amp; Billing
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />

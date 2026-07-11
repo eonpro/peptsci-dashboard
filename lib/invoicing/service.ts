@@ -13,6 +13,8 @@
 
 import { Prisma, type InvoiceStatus as PrismaInvoiceStatus } from '@prisma/client'
 import { prisma } from '../prisma'
+import { logger } from '../logger'
+import { syncSalesRecordFromOrder } from '../sales'
 import {
   computeInvoiceTotals,
   deriveDueDate,
@@ -315,7 +317,62 @@ export async function recordPayment(
       paidAt: input.paidAt ?? new Date(),
     },
   })
-  return recomputeStatus(invoiceId)
+  const view = await recomputeStatus(invoiceId)
+
+  // When the invoice is now fully settled, mark its linked orders as collected
+  // (CAPTURED) so fulfillment/analytics reflect the payment. Never blocks the
+  // payment recording itself.
+  if (view.invoice.status === 'PAID') {
+    await settleOrdersForPaidInvoice(invoiceId).catch((e) =>
+      logger.warn('[INVOICING] settleOrdersForPaidInvoice failed (non-blocking)', {
+        invoiceId,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+  }
+  return view
+}
+
+/**
+ * Flip the still-owed orders linked to a PAID invoice to CAPTURED and re-sync
+ * their SalesRecords. Idempotent — already-captured/refunded orders are left
+ * untouched.
+ */
+async function settleOrdersForPaidInvoice(invoiceId: string): Promise<void> {
+  const client = db()
+  const lines = await client.invoiceLineItem.findMany({
+    where: { invoiceId, orderId: { not: null } },
+    select: { orderId: true },
+  })
+  const orderIds = Array.from(new Set(lines.map((l) => l.orderId).filter((id): id is string => !!id)))
+  if (orderIds.length === 0) return
+
+  const now = new Date()
+  for (const orderId of orderIds) {
+    const updated = await client.order.updateMany({
+      where: { id: orderId, paymentStatus: { in: ['PENDING', 'AUTHORIZED', 'FAILED'] } },
+      data: { paymentStatus: 'CAPTURED', paidAt: now },
+    })
+    if (updated.count > 0) {
+      await syncSalesRecordFromOrder(orderId)
+    }
+  }
+}
+
+/**
+ * Total amount due across a client's open (OPEN/PARTIAL/OVERDUE) invoices.
+ * Used by the net-terms checkout credit-limit gate and the client portal.
+ */
+export async function getClientOpenBalance(clientId: string): Promise<number> {
+  const client = db()
+  const rows = await client.invoice.findMany({
+    where: { clientId, status: { in: ['OPEN', 'PARTIAL', 'OVERDUE'] } },
+    include: INVOICE_INCLUDE,
+  })
+  const now = new Date()
+  return Math.round(
+    rows.reduce((sum, inv) => sum + decorateInvoice(inv, now).totals.amountDue, 0) * 100
+  ) / 100
 }
 
 export interface AddAdjustmentInput {

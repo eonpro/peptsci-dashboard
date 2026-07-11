@@ -25,6 +25,7 @@ import {
 } from '@/lib/stripe/payments'
 import { ingestStripePaymentIntent } from '@/lib/stripe/sales-ingest'
 import { releaseForOrder } from '@/lib/inventory/reservations'
+import { recordPayment } from '@/lib/invoicing/service'
 
 export const dynamic = 'force-dynamic'
 
@@ -219,6 +220,36 @@ async function processEvent(event: Stripe.Event): Promise<ProcessResult> {
     case 'payment_intent.canceled':
     case 'payment_intent.processing': {
       const pi = event.data.object as Stripe.PaymentIntent
+
+      // Client invoice payments (portal "pay invoice") carry metadata.invoiceId
+      // and no orderId. Record them against the invoice (idempotent on PI id)
+      // instead of falling through to order reconcile / external-sale ingest,
+      // which would double-count the revenue.
+      if (!pi.metadata?.orderId && pi.metadata?.invoiceId) {
+        if (pi.status !== 'succeeded') {
+          return {
+            success: true,
+            details: { paymentIntentId: pi.id, skipped: 'invoice_pi_not_succeeded' },
+          }
+        }
+        try {
+          await recordPayment(pi.metadata.invoiceId, {
+            amount: (pi.amount_received || pi.amount) / 100,
+            method: 'stripe',
+            stripePaymentIntentId: pi.id,
+            notes: 'Paid online via client portal',
+          })
+          return { success: true, details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId } }
+        } catch (err) {
+          return {
+            success: false,
+            retryable: true,
+            error: `Failed to record invoice payment: ${err instanceof Error ? err.message : String(err)}`,
+            details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId },
+          }
+        }
+      }
+
       const res = await reconcileOrderFromPaymentIntent(pi)
 
       if (!res.matched && (pi.status === 'succeeded' || pi.status === 'processing')) {

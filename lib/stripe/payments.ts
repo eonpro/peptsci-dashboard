@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { reserveForOrder } from '@/lib/inventory/reservations'
 import { toCents } from '@/lib/stripe'
+import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 
 /**
  * Monotonic "progress" rank for a payment status. Used to prevent an
@@ -139,6 +140,18 @@ export async function reconcileOrderFromPaymentIntent(
   const isCaptured = paymentStatus === PaymentStatus.CAPTURED
   const isFailed = paymentStatus === PaymentStatus.FAILED
 
+  // First-capture detection (atomic): claim paidAt only while it is still null
+  // so concurrent deliveries (confirm endpoint + webhook) can't both treat the
+  // capture as "first" — the confirmation email must send exactly once.
+  let firstCapture = false
+  if (isCaptured && !order.paidAt) {
+    const claim = await prisma.order.updateMany({
+      where: { id: order.id, paidAt: null },
+      data: { paidAt: new Date() },
+    })
+    firstCapture = claim.count === 1
+  }
+
   await prisma.order.update({
     where: { id: order.id },
     data: {
@@ -150,7 +163,6 @@ export async function reconcileOrderFromPaymentIntent(
       ...(isCaptured && order.status === 'DRAFT'
         ? { status: 'SUBMITTED', submittedAt: new Date() }
         : {}),
-      ...(isCaptured && !order.paidAt ? { paidAt: new Date() } : {}),
     },
   })
 
@@ -173,6 +185,11 @@ export async function reconcileOrderFromPaymentIntent(
         error: e instanceof Error ? e.message : String(e),
       })
     )
+    // Confirmation email on the first capture only. Fire-and-forget; a mail
+    // failure must never fail the payment flow.
+    if (firstCapture) {
+      void sendOrderConfirmationForOrder(order.id, { paymentLabel: 'Paid by card' })
+    }
   }
 
   return { orderId: order.id, paymentStatus, matched: true }

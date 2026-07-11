@@ -10,7 +10,7 @@ import {
 import type { Appearance } from '@stripe/stripe-js'
 import { getStripePromise } from '@/lib/stripe-client'
 import { Button } from '@/components/ui/button'
-import { Loader2, Lock, CreditCard, Plus, CheckCircle2 } from 'lucide-react'
+import { Loader2, Lock, CreditCard, Plus, CheckCircle2, FileText } from 'lucide-react'
 
 interface CheckoutItem {
   sku: string
@@ -64,6 +64,12 @@ function formatPrice(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
+interface BillingSummary {
+  openBalance: number
+  paymentTermsDays: number | null
+  creditLimit: number | null
+}
+
 export function CheckoutPaymentSection({
   items,
   shippingAddress,
@@ -76,10 +82,11 @@ export function CheckoutPaymentSection({
 }: Props) {
   const [savedMethods, setSavedMethods] = useState<SavedMethod[]>([])
   const [loadingMethods, setLoadingMethods] = useState(true)
-  const [selected, setSelected] = useState<string>('new') // 'new' or a saved method id
+  const [selected, setSelected] = useState<string>('new') // 'new', 'terms', or a saved method id
   const [saveCard, setSaveCard] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [placing, setPlacing] = useState(false)
+  const [billing, setBilling] = useState<BillingSummary | null>(null)
 
   // New-card PaymentIntent (created lazily when the new-card option is active).
   const [pi, setPi] = useState<{
@@ -127,6 +134,47 @@ export function CheckoutPaymentSection({
       active = false
     }
   }, [])
+
+  // Net-terms eligibility (display only — the server re-validates on submit).
+  useEffect(() => {
+    let active = true
+    fetch('/api/shop/invoices')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (active && data?.summary) setBilling(data.summary)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const termsDays = billing?.paymentTermsDays ?? 0
+  const availableCredit =
+    billing?.creditLimit != null ? Math.max(0, billing.creditLimit - billing.openBalance) : null
+  const termsEligible =
+    termsDays > 0 && (availableCredit == null || total <= availableCredit)
+
+  const placeTermsOrder = useCallback(async () => {
+    setPlacing(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/shop/checkout/terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, shippingAddress, notes, shipTo, shipSpeed, patientId }),
+      })
+      const data: { success?: boolean; orderId?: string; message?: string } = await res.json()
+      if (!res.ok || !data.success || !data.orderId) {
+        throw new Error(data.message || 'Could not place the order on your account')
+      }
+      onSuccess(data.orderId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not place the order')
+    } finally {
+      setPlacing(false)
+    }
+  }, [items, shippingAddress, notes, shipTo, shipSpeed, patientId, onSuccess])
 
   const createNewCardIntent = useCallback(async () => {
     requestedSignatureRef.current = checkoutSignature
@@ -232,6 +280,49 @@ export function CheckoutPaymentSection({
         </div>
       )}
 
+      {/* Bill to account (net terms) — admin-granted accounts only */}
+      {termsEligible && (
+        <button
+          type="button"
+          onClick={() => setSelected('terms')}
+          className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
+            selected === 'terms'
+              ? 'border-brand-primary bg-brand-primary/10'
+              : 'border-white/10 bg-white/5 hover:bg-white/10'
+          }`}
+        >
+          <FileText className="h-5 w-5 text-white/70" />
+          <span className="flex-1">
+            <span className="block text-white text-sm font-medium">
+              Bill to account — Net {termsDays}
+            </span>
+            <span className="block text-white/50 text-xs">
+              No card needed. We&rsquo;ll invoice your practice
+              {availableCredit != null ? ` (${formatPrice(availableCredit)} credit available)` : ''}.
+            </span>
+          </span>
+          {selected === 'terms' && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
+        </button>
+      )}
+
+      {/* Card option toggle (only needed when terms is offered and there are no
+          saved cards — otherwise the saved-cards block already provides it) */}
+      {termsEligible && !loadingMethods && savedMethods.length === 0 && (
+        <button
+          type="button"
+          onClick={() => setSelected('new')}
+          className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
+            selected === 'new'
+              ? 'border-brand-primary bg-brand-primary/10'
+              : 'border-white/10 bg-white/5 hover:bg-white/10'
+          }`}
+        >
+          <CreditCard className="h-5 w-5 text-white/70" />
+          <span className="flex-1 text-white text-sm">Pay by card</span>
+          {selected === 'new' && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
+        </button>
+      )}
+
       {/* Saved cards */}
       {!loadingMethods && savedMethods.length > 0 && (
         <div className="space-y-2">
@@ -272,8 +363,25 @@ export function CheckoutPaymentSection({
         </div>
       )}
 
+      {/* Bill-to-account place-order button */}
+      {selected === 'terms' && (
+        <Button
+          className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold"
+          onClick={placeTermsOrder}
+          disabled={placing}
+        >
+          {placing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Placing order…
+            </>
+          ) : (
+            <>Place Order — {formatPrice(total)} on Net {termsDays}</>
+          )}
+        </Button>
+      )}
+
       {/* Saved-card pay button */}
-      {selected !== 'new' && (
+      {selected !== 'new' && selected !== 'terms' && (
         <Button
           className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold"
           onClick={paySavedCard}

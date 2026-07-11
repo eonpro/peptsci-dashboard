@@ -90,6 +90,9 @@ export interface ClientProfile {
   shippingAddress: Address | null
   onboardingStatus: string
   npiLocked: boolean
+  /** Net-terms billing (admin-managed). Null = card-only checkout. */
+  paymentTermsDays: number | null
+  creditLimit: number | null
 }
 
 /**
@@ -109,6 +112,8 @@ export function serializeClientProfile(client: {
   billingAddress: unknown
   shippingAddress: unknown
   onboardingStatus: string
+  paymentTermsDays?: number | null
+  creditLimit?: unknown
 }): ClientProfile {
   return {
     id: client.id,
@@ -123,5 +128,7 @@ export function serializeClientProfile(client: {
     shippingAddress: (client.shippingAddress as Address | null) ?? null,
     onboardingStatus: client.onboardingStatus,
     npiLocked: client.onboardingStatus === 'APPROVED',
+    paymentTermsDays: client.paymentTermsDays ?? null,
+    creditLimit: client.creditLimit != null ? Number(client.creditLimit) : null,
   }
 }

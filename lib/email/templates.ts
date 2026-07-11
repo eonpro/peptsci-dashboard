@@ -198,6 +198,93 @@ Questions? ${SUPPORT_EMAIL}
 }
 
 // -------------------------------------------------
+// Order confirmation (customer-facing): sent when an order is placed (card
+// captured or billed to account). Carries line items + totals, no PHI.
+// -------------------------------------------------
+
+export interface OrderConfirmationEmailOpts {
+  customerName?: string | null
+  orderNumber: number | string
+  /** Pre-formatted line totals (e.g. "$180.00"). */
+  items: Array<{ name: string; dose?: string | null; quantity: number; lineTotal: string }>
+  subtotal: string
+  shipping: string
+  total: string
+  /** e.g. "Paid by card" or "Billed to account — Net 30". */
+  paymentLabel: string
+}
+
+export function orderConfirmationEmail(opts: OrderConfirmationEmailOpts): EmailContent {
+  const ord = orderLabel(opts.orderNumber)
+  const subject = `Your PeptSci order ${ord} is confirmed`
+
+  const itemRowsHtml = opts.items
+    .map(
+      (it) =>
+        `<tr>
+           <td style="padding:6px 0;color:${BRAND.text};font-size:14px;">
+             ${escapeHtml(it.name)}${it.dose ? ` <span style="color:${BRAND.muted};">${escapeHtml(it.dose)}</span>` : ''}
+             <span style="color:${BRAND.muted};"> × ${escapeHtml(it.quantity)}</span>
+           </td>
+           <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:14px;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml(it.lineTotal)}</td>
+         </tr>`
+    )
+    .join('')
+
+  const itemsPanel = `<tr><td style="padding:4px 0 18px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};border-radius:12px;padding:8px 18px;">
+      ${itemRowsHtml}
+      <tr><td colspan="2" style="border-top:1px solid #e2e0d8;padding:0;"></td></tr>
+      <tr>
+        <td style="padding:8px 0 2px;color:${BRAND.muted};font-size:13px;">Subtotal</td>
+        <td style="padding:8px 0 2px 16px;color:${BRAND.text};font-size:14px;text-align:right;">${escapeHtml(opts.subtotal)}</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 0;color:${BRAND.muted};font-size:13px;">Shipping</td>
+        <td style="padding:2px 0 2px 16px;color:${BRAND.text};font-size:14px;text-align:right;">${escapeHtml(opts.shipping)}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:${BRAND.text};font-size:14px;font-weight:700;">Total</td>
+        <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:15px;font-weight:700;text-align:right;">${escapeHtml(opts.total)}</td>
+      </tr>
+    </table>
+  </td></tr>`
+
+  const html = layout({
+    heading: 'Order confirmed ✅',
+    body:
+      para(greetingHtml(opts.customerName)) +
+      para(
+        `Thanks for your order! We&rsquo;ve received PeptSci order ${escapeHtml(ord)} (${escapeHtml(opts.paymentLabel)}) and our team is preparing it for fulfillment.`
+      ) +
+      itemsPanel +
+      para('You&rsquo;ll get another email with tracking as soon as it ships.'),
+    cta: { label: 'View your order', href: `${APP_URL}/shop/orders` },
+  })
+
+  const itemLines = opts.items
+    .map((it) => `- ${it.name}${it.dose ? ` ${it.dose}` : ''} × ${it.quantity} — ${it.lineTotal}`)
+    .join('\n')
+  const text = `${greeting(opts.customerName)}
+
+Thanks for your order! We've received PeptSci order ${ord} (${opts.paymentLabel}) and our team is preparing it for fulfillment.
+
+${itemLines}
+
+Subtotal: ${opts.subtotal}
+Shipping: ${opts.shipping}
+Total: ${opts.total}
+
+You'll get another email with tracking as soon as it ships.
+
+View your orders: ${APP_URL}/shop/orders
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+// -------------------------------------------------
 // Shipment lifecycle (customer-facing): shipped / delivered / exception.
 // Sent to the practice's contact email. Carry no PHI — order number + tracking
 // only. CTA points at the public tracking page (app/tracking/[trackingNumber]).
