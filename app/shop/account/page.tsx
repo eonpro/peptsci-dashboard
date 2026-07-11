@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { AddressFields } from '@/components/AddressFields'
 import { SavedCards } from '@/components/shop/SavedCards'
 import { PatientsManager } from '@/components/shop/PatientsManager'
+import { DocumentsManager } from '@/components/shop/DocumentsManager'
 import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
 import {
@@ -347,6 +348,22 @@ export default function AccountPage() {
             </CardHeader>
             <CardContent>
               <PatientsManager />
+            </CardContent>
+          </Card>
+
+          {/* Compliance documents */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <FileText className="h-5 w-5" />
+                Compliance Documents
+              </CardTitle>
+              <CardDescription className="text-white/60">
+                Licenses, DEA registration, insurance, and resale certificates on file
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DocumentsManager />
             </CardContent>
           </Card>
         </div>

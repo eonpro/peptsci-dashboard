@@ -167,14 +167,38 @@ model ClientPricing {
   @@index([variantId])
 }
 
+// Compliance document for a practice (license / DEA / insurance / resale
+// cert). File bytes live in blob storage (fileUrl) or inline base64 — same
+// dual-backend pattern as PackagePhoto/ShipmentLabel (lib/storage.ts). Files
+// are only ever served through auth-gated proxy routes.
 model ClientDocument {
-  id         String             @id @default(cuid())
-  client     Client             @relation(fields: [clientId], references: [id])
-  clientId   String
-  type       ClientDocumentType
-  fileUrl    String
-  uploadedBy String?
-  createdAt  DateTime           @default(now())
+  id          String               @id @default(cuid())
+  client      Client               @relation(fields: [clientId], references: [id])
+  clientId    String
+  type        ClientDocumentType
+  label       String?              // free-text label, mainly for OTHER
+  fileUrl     String?              // blob URL when the blob backend is used
+  fileBase64  String?              // inline fallback when no blob backend
+  contentType String?
+  fileName    String?
+  fileSize    Int?
+  status      ClientDocumentStatus @default(PENDING_REVIEW)
+  reviewNotes String?              // admin note shown to the client (esp. on rejection)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  expiresAt   DateTime?            // document expiration (license/DEA renewals)
+  uploadedBy  String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt @default(now())
+
+  @@index([clientId])
+  @@index([status])
+}
+
+enum ClientDocumentStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
 }
 
 // -------------------------------------------------
@@ -1131,6 +1155,7 @@ enum ClientDocumentType {
   LICENSE
   INSURANCE
   DEA
+  RESALE_CERT
   OTHER
 }
 

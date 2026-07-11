@@ -97,6 +97,8 @@ interface SchemaProbe {
   clientEinColumn: boolean
   clientPaymentTermsColumn: boolean
   clientCreditLimitColumn: boolean
+  clientDocumentStatusColumn: boolean
+  clientDocumentResaleCertValue: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -122,12 +124,14 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'paymentTermsDays')
         OR (table_name = 'Client' AND column_name = 'creditLimit')
         OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved')
-        OR (table_name = 'Product' AND column_name = 'casNumber'))
+        OR (table_name = 'Product' AND column_name = 'casNumber')
+        OR (table_name = 'ClientDocument' AND column_name = 'status'))
   `
-  const enumValues = await db.$queryRaw<{ enumlabel: string }[]>`
-    SELECT e.enumlabel FROM pg_type t
+  const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
+    SELECT t.typname, e.enumlabel FROM pg_type t
     JOIN pg_enum e ON e.enumtypid = t.oid
-    WHERE t.typname = 'OrderSource' AND e.enumlabel = 'STRIPE_INVOICE'
+    WHERE (t.typname = 'OrderSource' AND e.enumlabel = 'STRIPE_INVOICE')
+       OR (t.typname = 'ClientDocumentType' AND e.enumlabel = 'RESALE_CERT')
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -154,10 +158,16 @@ async function probeSchema(): Promise<SchemaProbe> {
     invoicePaymentTable: tableNames.has('InvoicePayment'),
     invoiceAdjustmentTable: tableNames.has('InvoiceAdjustment'),
     productCasNumberColumn: colKeys.has('Product.casNumber'),
-    orderSourceStripeInvoiceValue: enumValues.length > 0,
+    orderSourceStripeInvoiceValue: enumValues.some(
+      (v) => v.typname === 'OrderSource' && v.enumlabel === 'STRIPE_INVOICE'
+    ),
     clientEinColumn: colKeys.has('Client.ein'),
     clientPaymentTermsColumn: colKeys.has('Client.paymentTermsDays'),
     clientCreditLimitColumn: colKeys.has('Client.creditLimit'),
+    clientDocumentStatusColumn: colKeys.has('ClientDocument.status'),
+    clientDocumentResaleCertValue: enumValues.some(
+      (v) => v.typname === 'ClientDocumentType' && v.enumlabel === 'RESALE_CERT'
+    ),
   }
 }
 

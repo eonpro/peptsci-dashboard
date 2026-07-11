@@ -15,6 +15,7 @@ import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
 import DeleteClientButton from '../DeleteClientButton'
+import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import {
   ArrowLeft,
   Building2,
@@ -421,6 +422,9 @@ export default function ClientDetailPage() {
       </Button>
 
       <Separator className="bg-white/10" />
+
+      {/* Compliance documents */}
+      <ClientDocumentsCard clientId={id} />
 
       {/* Linked users */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
