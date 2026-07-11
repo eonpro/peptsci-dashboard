@@ -255,12 +255,8 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </span>
               )}
             </div>
-            {product.isCustomPrice ? (
+            {product.isCustomPrice && (
               <p className="text-xs font-medium text-green-400">Your account price</p>
-            ) : (
-              product.costPrice && (
-                <p className="text-xs text-white/40">Wholesale: {formatPrice(product.costPrice)}</p>
-              )
             )}
           </div>
 

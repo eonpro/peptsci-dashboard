@@ -20,7 +20,6 @@ interface VariantWithProduct {
   dose: string | null
   unitSize: string | null
   srp: unknown
-  unitCost: unknown
   inventoryOnHand: number
   inventoryReserved: number
   status: string
@@ -61,7 +60,8 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     description: v.product.description,
     category: v.product.category,
     displayPrice: srp,
-    costPrice: Number(v.unitCost),
+    // SECURITY: never include unitCost here — ShopProduct is serialized into
+    // client-facing pages (/shop, /sf) and would expose our margins.
     casNumber: v.product.casNumber,
     molecularFormula: v.product.molecularFormula,
     molecularWeight:
@@ -98,7 +98,6 @@ const variantSelect = {
   dose: true,
   unitSize: true,
   srp: true,
-  unitCost: true,
   inventoryOnHand: true,
   inventoryReserved: true,
   status: true,

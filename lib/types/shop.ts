@@ -28,7 +28,6 @@ export interface ShopProduct {
 
   // Pricing (from Postgres for accuracy, display from source)
   displayPrice: number // Display price (effective price for the viewing client)
-  costPrice?: number // Wholesale cost (for margin calculations)
   standardPrice?: number // List/SRP before any client-specific override
   isCustomPrice?: boolean // True when displayPrice reflects a client-specific price
 
