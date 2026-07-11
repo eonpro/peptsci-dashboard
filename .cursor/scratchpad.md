@@ -41,8 +41,8 @@ Assumption (from user's phrasing "push for fulfillment to OUR back end"): interp
 - [x] Verify: `tsc --noEmit` clean, 251/251 tests (10 new: `checkoutTerms.test.ts`, `orderConfirmationEmail.test.ts`), `next build` green.
 
 ### ⚠️ Before live in prod
-1. Commit + deploy (work is local only).
-2. Apply `Client.paymentTermsDays`/`creditLimit` on prod via `POST /api/admin/db/migrate` (probe now includes both columns).
+1. ~~Commit + deploy~~ ✅ Jul 11 — commit `0cc164b` pushed to `main`; Vercel prod deployment Ready; peptsci.com healthy (`/api/health` 200).
+2. **PENDING (user):** apply `Client.paymentTermsDays`/`creditLimit` on prod via `POST /api/admin/db/migrate` `{ "confirm": true }` as SUPER_ADMIN (probe includes both columns; GET first to check `upToDate`). Until applied: /shop/invoices works, but saving Billing Terms and terms checkout will fail on the missing columns.
 3. Grant terms to a clinic on `/clients/[id]` → Billing Terms to enable bill-to-account.
 
 ### Lessons (this effort)
