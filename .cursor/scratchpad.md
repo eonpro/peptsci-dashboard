@@ -7,7 +7,8 @@ A clinic completed onboarding (prod `POST /api/onboarding` 201 at 11:20 ET Jul 1
 - [x] `notifyAdmins` on onboarding submission (`app/api/onboarding/route.ts`) — category CLIENT, priority HIGH, actionUrl `/clients/{id}`, deduped on `(client:onboarding-submitted, clientId)`; fire-and-forget (never fails the submission).
 - [x] `PendingApprovals` card on admin dashboard (`app/(dashboard)/dashboard/PendingApprovals.tsx`, mounted in `DashboardClient`) — fetches `/api/admin/clients`, lists PENDING/NEEDS_INFO practices with age + deep link to `/clients/{id}`; renders nothing when queue is empty.
 - [x] Verify: `tsc --noEmit` + eslint clean on changed files.
-- [ ] Deploy to main (no migration needed — no schema change).
+- [x] Deployed to main (37d43d8, Vercel Ready, /api/health 200; no migration needed).
+- [x] **Follow-up bug (Jul 12 1:41 PM): approved customer stuck on /pending-approval.** Middleware only redirected PENDING → pending page but never redirected ACTIVE users OFF it, so "Check Status" (window.location.reload) showed the pending card forever. Fix: middleware now bounces ACTIVE users from `/pending-approval` to `/shop` (or `/dashboard` for admins). Also in `POST /api/admin/users/[id]/approve`: (a) cascade `Client.onboardingStatus PENDING→APPROVED` for the user's linked practice (closes the /users-vs-/clients split-approval gap in this direction), (b) approval email falls back to Clerk's primary email when the local `User` row has none (onboarding upsert doesn't set email; prod log showed approve 200 with no email send).
 
 ## Executor's Feedback or Assistance Requests
 - `notifyAdmins` fans out to Postgres `User` rows with role ADMIN/SUPER_ADMIN + status ACTIVE. If admin accounts exist only in Clerk (no local `User` row), the bell stays silent — the dashboard card still works since it reads `Client` rows directly.
@@ -112,7 +113,8 @@ Verified gaps (code-grounded): overdue/issued invoice emails pass no `invoiceUrl
 - [x] `components/AddressFields.tsx` — Street Address is now a debounced (250ms) combobox with keyboard nav + "powered by Google" attribution; selecting fills address1/city/state/zip (+ZIP4). Applies to onboarding, checkout, account, clients, patients (all `AddressFields` consumers).
 - [x] Graceful fallback: without `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` the form behaves exactly as before (manual entry).
 - [x] `@types/google.maps` devDep; `tsc --noEmit` + eslint green. `env-example.txt` documents the new key.
-- [ ] Ops: create browser key in Google Cloud (enable "Maps JavaScript API" + "Places API (New)", restrict to peptsci.com referrers) and set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel (all envs) + `.env.local`.
+- [x] Ops: key created + set in Vercel (Preview/Production, sensitive) and `.env.local`; prod redeployed 12:00 PM Jul 12. Verified via REST: Places API (New) + Maps JS loader both respond.
+- [ ] SECURITY: key is currently UNRESTRICTED (accepts any referer). Add HTTP-referrer restriction (`peptsci.com/*`, `*.peptsci.com/*`, `localhost:3000/*`) + API restriction (Maps JavaScript API, Places API (New)) in Google Cloud Console — it ships in the public JS bundle.
 
 ## Lessons
 - New Google keys cannot use `google.maps.places.Autocomplete`; use `AutocompleteSuggestion`/`PlaceAutocompleteElement`. `fetchFields({fields:['addressComponents']})` ends the billing session, so clear the stored token afterward.

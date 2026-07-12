@@ -190,6 +190,14 @@ const middleware = isClerkConfigured
         return NextResponse.redirect(new URL('/pending-approval', request.url))
       }
 
+      // Approved accounts have no business on the pending screen — move them
+      // on (this is what makes the page's "Check Status" reload work once an
+      // admin approves; session claims refresh within ~60s of the approval).
+      if (status === 'ACTIVE' && pathname.startsWith('/pending-approval')) {
+        const redirectUrl = role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/dashboard' : '/shop'
+        return NextResponse.redirect(new URL(redirectUrl, request.url))
+      }
+
       // Role-based access control
       if (isAdminRoute(request)) {
         if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {

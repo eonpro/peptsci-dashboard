@@ -44,14 +44,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Update Clerk user metadata
     const client = await clerkClient()
-    await client.users.updateUserMetadata(targetUserId, {
+    const clerkUser = await client.users.updateUserMetadata(targetUserId, {
       publicMetadata: {
         status: 'ACTIVE',
       },
     })
 
     // Update database if configured
-    let approvedUser: { email: string | null; firstName: string | null } | null = null
+    let approvedUser: { email: string | null; firstName: string | null; clientId: string | null } | null = null
     if (prisma) {
       await prisma.user.updateMany({
         where: { clerkUserId: targetUserId },
@@ -59,15 +59,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
       approvedUser = await prisma.user.findFirst({
         where: { clerkUserId: targetUserId },
-        select: { email: true, firstName: true },
+        select: { email: true, firstName: true, clientId: true },
       })
+
+      // Keep the practice record in sync: approving the login of a pending
+      // self-onboarded practice approves the practice too, so /clients doesn't
+      // keep showing it as awaiting approval after the user can already shop.
+      if (approvedUser?.clientId) {
+        await prisma.client.updateMany({
+          where: { id: approvedUser.clientId, onboardingStatus: 'PENDING' },
+          data: { onboardingStatus: 'APPROVED' },
+        })
+      }
     }
 
     logger.info('User approved', { targetUserId, approvedBy: userId })
 
-    // Notify the partner that they're approved. Never throws.
-    if (approvedUser?.email) {
-      await sendPartnerApprovedEmail({ to: approvedUser.email, name: approvedUser.firstName })
+    // Notify the partner that they're approved. The local User row can lack an
+    // email (onboarding upsert doesn't set one), so fall back to Clerk's
+    // primary email. Never throws.
+    const clerkEmail = clerkUser.emailAddresses.find(
+      (e) => e.id === clerkUser.primaryEmailAddressId
+    )?.emailAddress
+    const notifyEmail = approvedUser?.email || clerkEmail
+    if (notifyEmail) {
+      await sendPartnerApprovedEmail({
+        to: notifyEmail,
+        name: approvedUser?.firstName || clerkUser.firstName,
+      })
+    } else {
+      logger.warn('Approved user has no email on file; approval email skipped', { targetUserId })
     }
 
     return successResponse({
