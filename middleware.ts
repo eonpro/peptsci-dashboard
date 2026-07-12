@@ -14,6 +14,8 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'mail', 'stag
 // Define routes that don't require authentication - MEMBERS ONLY PLATFORM
 // Only auth pages and webhooks are public
 const isPublicRoute = createRouteMatcher([
+  // Landing page (app/page.tsx redirects signed-in users by role)
+  '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',
