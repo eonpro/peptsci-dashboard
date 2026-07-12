@@ -12,6 +12,7 @@ import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
 import { OrdersBackfillButton } from '@/components/admin/OrdersBackfillButton'
 import { toast } from 'sonner'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
+import { PendingApprovals } from './PendingApprovals'
 
 // recharts is heavy (~100kB+). Load it only on the client, after the KPIs and
 // shell have painted, so it never blocks first render of the dashboard.
@@ -136,6 +137,9 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
           </Button>
         </div>
       </div>
+
+      {/* New accounts awaiting approval (hidden when none) */}
+      <PendingApprovals />
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

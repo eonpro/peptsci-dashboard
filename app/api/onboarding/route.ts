@@ -5,6 +5,7 @@ import { requireAuth, unauthorizedResponse, errorResponse, successResponse } fro
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { notifyAdmins } from '@/lib/notifications/service'
 import { onboardingSchema, resolveShippingAddress, serializeClientProfile } from '@/lib/profile'
 
 export const dynamic = 'force-dynamic'
@@ -121,6 +122,24 @@ export async function POST(request: NextRequest) {
         // Non-fatal: the local link is authoritative for the shop actor resolver.
       }
     }
+
+    // Alert ops that a new practice is waiting for approval. Fire-and-forget:
+    // a notification failure must never fail the onboarding submission.
+    notifyAdmins({
+      category: 'CLIENT',
+      priority: 'HIGH',
+      title: 'New account pending approval',
+      message: `${client.organizationName} completed onboarding and is awaiting approval.`,
+      actionUrl: `/clients/${client.id}`,
+      sourceType: 'client:onboarding-submitted',
+      sourceId: client.id,
+      clientId: client.id,
+    }).catch((e) =>
+      logger.warn('[ONBOARDING] admin notify failed (non-blocking)', {
+        clientId: client.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
 
     logger.info('[ONBOARDING] Client created', { userId, clientId: client.id })
     return successResponse({ success: true, profile: serializeClientProfile(client) }, 201)
