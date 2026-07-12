@@ -11,8 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Logo } from '@/components/Logo'
-import { DocumentsManager } from '@/components/shop/DocumentsManager'
-import { Clock, Mail, Phone, CheckCircle2, AlertCircle, LogOut, FileText } from 'lucide-react'
+import { Clock, Mail, Phone, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
 
 export function PendingApprovalContent() {
   const { signOut } = useClerk()
@@ -67,18 +66,6 @@ export function PendingApprovalContent() {
               <li>• You&apos;ll receive an email once approved</li>
               <li>• After approval, you can browse products and place orders</li>
             </ul>
-          </div>
-
-          {/* Speed up approval: upload credentials while waiting */}
-          <div className="rounded-xl border border-gray-200 p-4">
-            <h4 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Speed up your review
-            </h4>
-            <p className="text-sm text-gray-600 mb-3">
-              Upload your medical/business license and DEA registration so our team can verify
-              your practice faster.
-            </p>
-            <DocumentsManager light />
           </div>
 
           {/* Contact Info */}

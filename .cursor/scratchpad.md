@@ -1,3 +1,20 @@
+# ACTIVE PLAN — Onboarding-approval visibility (Jul 12)  [EXECUTOR — DONE, local]
+
+## Background and Motivation
+A clinic completed onboarding (prod `POST /api/onboarding` 201 at 11:20 ET Jul 12) but the super admin "didn't see anything to approve": submissions only surface on `/clients` (Manage dropdown, which overflows off-screen on narrow windows) and no notification/dashboard queue existed.
+
+## Project Status Board (this effort)
+- [x] `notifyAdmins` on onboarding submission (`app/api/onboarding/route.ts`) — category CLIENT, priority HIGH, actionUrl `/clients/{id}`, deduped on `(client:onboarding-submitted, clientId)`; fire-and-forget (never fails the submission).
+- [x] `PendingApprovals` card on admin dashboard (`app/(dashboard)/dashboard/PendingApprovals.tsx`, mounted in `DashboardClient`) — fetches `/api/admin/clients`, lists PENDING/NEEDS_INFO practices with age + deep link to `/clients/{id}`; renders nothing when queue is empty.
+- [x] Verify: `tsc --noEmit` + eslint clean on changed files.
+- [ ] Deploy to main (no migration needed — no schema change).
+
+## Executor's Feedback or Assistance Requests
+- `notifyAdmins` fans out to Postgres `User` rows with role ADMIN/SUPER_ADMIN + status ACTIVE. If admin accounts exist only in Clerk (no local `User` row), the bell stays silent — the dashboard card still works since it reads `Client` rows directly.
+- Known unsynced approval paths remain: approving on `/users` activates the login but leaves `Client.onboardingStatus=PENDING`; approve from `/clients/{id}` (cascades to users + Clerk).
+
+---
+
 # ACTIVE PLAN — "True Marketplace" Gap Analysis & Roadmap (Jul 2026)  [PLANNER]
 
 ## Background and Motivation
@@ -81,6 +98,24 @@ Verified gaps (code-grounded): overdue/issued invoice emails pass no `invoiceUrl
 - PIs without `metadata.orderId` are treated by the webhook as EXTERNAL sales and ingested into SalesRecord — any new platform-created PI type (e.g. invoice payments) must be intercepted by its own metadata key before that fallback, or revenue double-counts.
 - "Send exactly once on capture" needs an atomic claim: `updateMany({ where: { id, paidAt: null } })` count===1 is the first-capture signal; checking the pre-loaded row races between confirm + webhook.
 - Terms orders reserve inventory at submission (card orders reserve at capture); the payment gate already ships invoiced orders, and `recordPayment`→PAID flips linked orders to CAPTURED so analytics stay cash-accurate.
+
+---
+
+# ACTIVE PLAN — Google Places address autocomplete (Jul 2026)  [EXECUTOR — DONE, local]
+
+> Latest Google Maps integration on all address forms. Uses Places API (New):
+> `AutocompleteSuggestion.fetchAutocompleteSuggestions()` + `PlacePrediction.toPlace().fetchFields()`
+> with session tokens (the legacy `places.Autocomplete` widget is deprecated for new keys).
+
+## Project Status Board (this effort)
+- [x] `lib/google-places.ts` — script loader (`loading=async`, weekly channel), suggestion fetch (US-only), address-component → `Address` mapper, session-token billing.
+- [x] `components/AddressFields.tsx` — Street Address is now a debounced (250ms) combobox with keyboard nav + "powered by Google" attribution; selecting fills address1/city/state/zip (+ZIP4). Applies to onboarding, checkout, account, clients, patients (all `AddressFields` consumers).
+- [x] Graceful fallback: without `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` the form behaves exactly as before (manual entry).
+- [x] `@types/google.maps` devDep; `tsc --noEmit` + eslint green. `env-example.txt` documents the new key.
+- [ ] Ops: create browser key in Google Cloud (enable "Maps JavaScript API" + "Places API (New)", restrict to peptsci.com referrers) and set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel (all envs) + `.env.local`.
+
+## Lessons
+- New Google keys cannot use `google.maps.places.Autocomplete`; use `AutocompleteSuggestion`/`PlaceAutocompleteElement`. `fetchFields({fields:['addressComponents']})` ends the billing session, so clear the stored token afterward.
 
 ---
 

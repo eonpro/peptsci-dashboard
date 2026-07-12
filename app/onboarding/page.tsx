@@ -39,9 +39,8 @@ export default function OnboardingPage() {
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  // TCPA/A2P: SMS consent must start unchecked and is never required. If the
-  // user checked the opt-in box on the sign-up page, prefill from localStorage
-  // (they can still uncheck here before submitting).
+  // TCPA/A2P: SMS consent is collected once on the sign-up page. The choice is
+  // read from localStorage here and persisted server-side on submit.
   const [smsOptIn, setSmsOptIn] = useState(false)
   useEffect(() => {
     try {
@@ -267,59 +266,6 @@ export default function OnboardingPage() {
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
                   />
-                </div>
-              </div>
-
-              {/* SMS opt-in (TCPA / Twilio A2P compliance). Checkbox must never
-                  be pre-checked and consent is optional. */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={smsOptIn}
-                    onChange={(e) => setSmsOptIn(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Yes, I would like to receive automated text messages from PeptSci about order
-                    updates, shipping and delivery notifications, and important account alerts at
-                    the phone number provided above.
-                  </span>
-                </label>
-                <div className="text-xs text-gray-500 space-y-1.5">
-                  <p>
-                    <span className="font-medium text-gray-600">Message Frequency:</span> Message
-                    frequency varies based on your order activity.
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-600">Standard Rates:</span> Message and
-                    data rates may apply depending on your mobile phone service plan.
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-600">Help & Stop:</span> Reply HELP for
-                    help or STOP to cancel at any time. By providing your phone number and checking
-                    the box above, you agree to receive text messages from PeptSci. Consent is not
-                    required to make a purchase.
-                  </p>
-                  <p>
-                    <a
-                      href="/termsandconditions"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand-primary underline hover:no-underline"
-                    >
-                      Terms of Service
-                    </a>{' '}
-                    |{' '}
-                    <a
-                      href="/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand-primary underline hover:no-underline"
-                    >
-                      Privacy Policy
-                    </a>
-                  </p>
                 </div>
               </div>
             </CardContent>

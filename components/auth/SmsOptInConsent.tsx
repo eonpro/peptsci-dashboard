@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 /**
  * TCPA / Twilio A2P web opt-in shown on the public sign-up page.
@@ -14,6 +15,7 @@ import Link from 'next/link'
 export const SMS_OPT_IN_STORAGE_KEY = 'peptsci_sms_opt_in'
 
 export function SmsOptInConsent() {
+  const pathname = usePathname()
   const [checked, setChecked] = useState(false)
 
   // Restore a previous choice (e.g. user bounced back from verification).
@@ -24,6 +26,10 @@ export function SmsOptInConsent() {
       /* storage unavailable — leave unchecked */
     }
   }, [])
+
+  // Only show on the initial sign-up step, not on Clerk's follow-up steps
+  // (e.g. /sign-up/verify-email-address, /sign-up/continue).
+  if (pathname !== '/sign-up' && pathname !== '/sign-up/') return null
 
   const onToggle = (value: boolean) => {
     setChecked(value)
