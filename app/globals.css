@@ -505,5 +505,9 @@ textarea {
     border: 0 !important;
     border-radius: 0 !important;
     padding-left: 0.5rem !important;
+    /* Clerk's injected stylesheet draws a 2px focus outline on the inner
+       input (visible in production CSS ordering); the focus ring already
+       lives on the .cl-phoneInputBox wrapper. */
+    outline: none !important;
   }
 }
