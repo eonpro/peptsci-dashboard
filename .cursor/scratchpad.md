@@ -45,6 +45,13 @@ Assumption (from user's phrasing "push for fulfillment to OUR back end"): interp
 2. ~~Apply prod migrations~~ ✅ Jul 11 — ran `POST /api/admin/db/migrate` via the user's signed-in super-admin browser session; `success: true, upToDate: true` (10.7s, no errors). Covers BOTH `20260710140000_add_client_payment_terms` AND `20260711230000_client_document_review`. Net-terms checkout, Billing Terms admin card, and document uploads are fully live in prod.
 3. Grant terms to a clinic on `/clients/[id]` → Billing Terms to enable bill-to-account.
 
+### ✅ DEPLOYED Jul 11 — TCPA/A2P SMS opt-in at onboarding (Twilio toll-free verification)
+- Un-prechecked consent checkbox on `/onboarding` below the phone field with all Twilio web-form requirements: message-type description, frequency, msg&data rates, HELP/STOP, "consent not required to purchase", links to `/termsandconditions` + `/privacy`.
+- Schema: `Client.smsOptIn Boolean @default(false)` + `smsOptInAt DateTime?` (migration `20260712030000_add_client_sms_opt_in`). `onboardingSchema` accepts `smsOptIn` (defaults false); POST `/api/onboarding` persists it with timestamp.
+- All 3 SMS send paths now consent-gated: FedEx label (shipped), tracking poller (delivered/exception), overdue-invoice cron. Existing clients default to opted-out — texts stop for them until they opt in (intended TCPA-safe behavior; add an account-page toggle if practices want to opt in later).
+- Deploy: commit `b1906f9` → main. NOTE: schema fields were accidentally swept into legal-pages commit `a7f4c09` earlier; an external revert `1285b4c` + revert-of-revert `6ebe05b` raced my push, causing one Errored Vercel build (`hej2ce769`, tsc: smsOptIn missing from schema) — final deployment `b1c2rtac5` Ready on peptsci.com. Prod migration applied via `POST /api/admin/db/migrate` (success, upToDate, 11s); verified `/api/admin/clients` 200 (full-row Client select incl. smsOptIn) + `/api/health` 200.
+- Follow-ups: (1) SMS clause for privacy policy §7.2 (STOP opt-out, no mobile-number sharing); (2) optional SMS-preference toggle on the client account page for existing clients; (3) migrate-route probe not extended for smsOptIn (runner ran the migration fine; add `Client.smsOptIn` to probeSchema next schema change).
+
 ## Phase 2 Plan — UX polish + covering the bases (Jul 11)  [PLANNER]
 Verified gaps (code-grounded): overdue/issued invoice emails pass no `invoiceUrl` (portal now exists at /shop/invoices); no `notifyAdmins` call on new order capture/terms submission.
 
