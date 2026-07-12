@@ -53,6 +53,12 @@ export const authAppearance = {
     formFieldInputGroup: 'border-0! bg-transparent! shadow-none!',
     formFieldInput:
       'h-12! rounded-xl! border-0! bg-white/5! text-white! shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]! placeholder:text-white/30! transition-all duration-200 focus:bg-white/[0.07]! focus:shadow-[inset_0_0_0_1px_rgba(122,91,255,0.80)]!',
+    // Phone field: the ring lives on the wrapper (country selector + input);
+    // the inner input goes transparent and gets breathing room after the +1.
+    phoneInputBox:
+      'h-12! rounded-xl! border-0! bg-white/5! shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]! gap-0! transition-all duration-200 focus-within:bg-white/[0.07]! focus-within:shadow-[inset_0_0_0_1px_rgba(122,91,255,0.80)]!',
+    formFieldInput__phoneNumber:
+      'h-12! rounded-xl! border-0! bg-transparent! text-white! shadow-none! placeholder:text-white/30! pl-3! focus:bg-transparent! focus:shadow-none!',
     formFieldAction: 'text-[#8b95ff]! hover:text-white! text-sm font-medium',
     formButtonPrimary:
       'h-12! rounded-xl! border-0! bg-linear-to-r! from-[#2342f0]! to-[#7a5bff]! text-white! text-[15px]! font-semibold! normal-case! tracking-normal! shadow-[0_12px_30px_-10px_rgba(67,76,255,0.7)]! transition-all duration-200 hover:brightness-110! hover:shadow-[0_16px_38px_-8px_rgba(67,76,255,0.9)]!',

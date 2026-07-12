@@ -18,6 +18,7 @@ import { AddressFields } from '@/components/AddressFields'
 import { NpiLookup } from '@/components/NpiLookup'
 import type { Address } from '@/lib/address'
 import { isValidNpi, cleanNpi, type NormalizedProvider } from '@/lib/npi'
+import { SMS_OPT_IN_STORAGE_KEY } from '@/components/auth/SmsOptInConsent'
 import { Building2, Stethoscope, MapPin, User, Loader2, CheckCircle2, LogOut } from 'lucide-react'
 
 const emptyAddress: Partial<Address> = { country: 'US' }
@@ -38,8 +39,17 @@ export default function OnboardingPage() {
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  // TCPA/A2P: SMS consent must start unchecked and is never required.
+  // TCPA/A2P: SMS consent must start unchecked and is never required. If the
+  // user checked the opt-in box on the sign-up page, prefill from localStorage
+  // (they can still uncheck here before submitting).
   const [smsOptIn, setSmsOptIn] = useState(false)
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SMS_OPT_IN_STORAGE_KEY) === 'true') setSmsOptIn(true)
+    } catch {
+      /* storage unavailable */
+    }
+  }, [])
   const [billing, setBilling] = useState<Partial<Address>>(emptyAddress)
   const [sameAsBilling, setSameAsBilling] = useState(true)
   const [shipping, setShipping] = useState<Partial<Address>>(emptyAddress)
@@ -120,6 +130,12 @@ export default function OnboardingPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Could not save your practice details')
+      // Consent is persisted server-side now; clear the sign-up page stash.
+      try {
+        window.localStorage.removeItem(SMS_OPT_IN_STORAGE_KEY)
+      } catch {
+        /* ignore */
+      }
       // Refresh the Clerk session so middleware sees the new clientId.
       await user?.reload().catch(() => {})
       router.push('/pending-approval')
