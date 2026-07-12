@@ -63,30 +63,30 @@ export default async function RootPage() {
         <div className="mt-16 w-full rounded-2xl bg-white/5 p-8 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]">
           <div className="flex items-start gap-4">
             <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-amber-400" />
-            <div className="space-y-3">
+            <div className="space-y-1.5">
               <p className="text-sm font-semibold uppercase tracking-wide text-white">
                 All products offered on this website are intended exclusively for legitimate
                 laboratory research and in-vitro testing conducted outside a human or animal
                 body.
               </p>
-              <p className="text-sm leading-relaxed text-white/75">
+              <p className="text-sm leading-snug text-white/75">
                 These products are not intended or offered for human or veterinary use. They are
                 not medicines, dietary supplements, cosmetics, food products, or therapeutic
                 agents. They have not been evaluated or approved by the U.S. Food and Drug
                 Administration for the diagnosis, treatment, cure, mitigation, or prevention of
                 any disease or medical condition.
               </p>
-              <p className="text-sm leading-relaxed text-white/75">
+              <p className="text-sm leading-snug text-white/75">
                 Do not consume, inject, inhale, apply to the body, administer to humans or
                 animals, or otherwise introduce these products into any living organism.
               </p>
-              <p className="text-sm leading-relaxed text-white/75">
+              <p className="text-sm leading-snug text-white/75">
                 Purchasers are responsible for ensuring that products are handled only by
                 qualified individuals in an appropriate laboratory setting and in compliance with
                 all applicable federal, state, and local laws, regulations, and institutional
                 requirements.
               </p>
-              <p className="text-sm leading-relaxed text-white/75">
+              <p className="text-sm leading-snug text-white/75">
                 By purchasing from this website, you confirm that the products will be used
                 solely for lawful research purposes and not for personal, clinical, diagnostic,
                 therapeutic, or veterinary use.
