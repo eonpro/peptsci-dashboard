@@ -94,6 +94,16 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 LOG_LEVEL="debug"
 
 # ===========================================
+# GOOGLE MAPS - Address autocomplete (optional)
+# ===========================================
+# Browser API key for Google Places (New) address autocomplete on all address
+# forms (onboarding, checkout, account, clients). In Google Cloud Console:
+#   1. Enable "Maps JavaScript API" and "Places API (New)" on the project
+#   2. Create a browser key, restrict it to your domains (HTTP referrers)
+# Leave unset to disable autocomplete (forms fall back to manual entry).
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=""
+
+# ===========================================
 # WHITE-LABEL STOREFRONTS
 # ===========================================
 # Root domain used for subdomain detection (e.g. drclinic.peptsci.com)
