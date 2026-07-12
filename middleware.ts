@@ -16,6 +16,9 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'mail', 'stag
 const isPublicRoute = createRouteMatcher([
   // Landing page (app/page.tsx redirects signed-in users by role)
   '/',
+  // Public legal pages
+  '/termsandconditions(.*)',
+  '/privacy(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',

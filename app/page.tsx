@@ -3,13 +3,14 @@ import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import { AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
 const FOOTER_LINKS = [
-  { label: 'Terms of Use', href: 'https://peptsci.com/terms-of-use' },
-  { label: 'Privacy Policy', href: 'https://peptsci.com/privacy-policy' },
+  { label: 'Terms of Use', href: '/termsandconditions' },
+  { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Payments and Shipping', href: 'https://peptsci.com/payments-and-shipping' },
 ]
 
@@ -94,15 +95,7 @@ export default async function RootPage() {
 
         {/* Copyright / legal */}
         <p className="mt-8 max-w-2xl text-center text-xs leading-relaxed text-white/40">
-          © {new Date().getFullYear()} PeptSci. All Rights Reserved. All products offered on this
-          website are intended strictly for research and development purposes only. These
-          materials are not for human consumption or use under any circumstances. The statements
-          provided on this website have not been evaluated by the U.S. Food and Drug
-          Administration (FDA). The information and products available through this site are not
-          intended to diagnose, treat, cure, or prevent any disease. PeptSci is a chemical
-          research supplier, not a compounding pharmacy or compounding facility as defined under
-          Section 503A of the Federal Food, Drug, and Cosmetic Act, nor an outsourcing facility
-          as defined under Section 503B of the same Act.
+          © {new Date().getFullYear()} PeptSci. All Rights Reserved. {FOOTER_DISCLAIMER}
         </p>
       </div>
     </div>
