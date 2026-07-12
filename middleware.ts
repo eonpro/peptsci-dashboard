@@ -19,6 +19,7 @@ const isPublicRoute = createRouteMatcher([
   // Public legal pages
   '/termsandconditions(.*)',
   '/privacy(.*)',
+  '/refunds(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',

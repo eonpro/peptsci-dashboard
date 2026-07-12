@@ -11,7 +11,7 @@ const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsW
 const FOOTER_LINKS = [
   { label: 'Terms of Use', href: '/termsandconditions' },
   { label: 'Privacy Policy', href: '/privacy' },
-  { label: 'Payments and Shipping', href: 'https://peptsci.com/payments-and-shipping' },
+  { label: 'Payments and Shipping', href: '/refunds' },
 ]
 
 export default async function RootPage() {
