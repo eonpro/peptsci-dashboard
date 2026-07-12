@@ -484,3 +484,22 @@ textarea {
     border-radius: 15px !important;
   }
 }
+
+/*
+  Clerk phone field (auth screens): the glassmorphic ring is drawn on the
+  wrapper (.cl-phoneInputBox — see lib/clerk-appearance.ts), so the inner
+  number input must be a flat, transparent fill that stretches the wrapper's
+  full height. Done here in plain CSS because Clerk merges the generic
+  formFieldInput appearance classes into the phone input, and which Tailwind
+  `!` utility wins depends on stylesheet order — unlayered CSS beats layered
+  utilities deterministically.
+*/
+.cl-phoneInputBox input.cl-formFieldInput,
+input.cl-formFieldInput__phoneNumber {
+  height: 100% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding-left: 0.5rem !important;
+}
