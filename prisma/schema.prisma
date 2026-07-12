@@ -48,6 +48,10 @@ model Client {
   contactName      String?
   contactEmail     String?
   contactPhone     String?
+  // SMS consent (TCPA / Twilio A2P): captured via the un-prechecked checkbox on
+  // the onboarding web form. Texts are only sent when smsOptIn is true.
+  smsOptIn         Boolean                @default(false)
+  smsOptInAt       DateTime?              // When consent was given (audit trail)
   billingAddress   Json?
   shippingAddress  Json?
   licenseNumber    String?
