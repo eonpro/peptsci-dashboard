@@ -2,8 +2,6 @@
  * Terms of Service (markdown) rendered at /terms-of-use, plus the short
  * disclaimer shown in site footers (landing page).
  *
- * NOTE: the [LEGAL ENTITY NAME] placeholder in the intro must be filled in
- * with the registered legal entity before this copy is final.
  */
 
 export const FOOTER_DISCLAIMER = `Peptsci supplies research-grade compounds exclusively to licensed healthcare professionals and qualified research institutions for investigational and laboratory purposes. All products are intended for licensed professional and research use only. Peptsci is not a 503A compounding pharmacy or 503B outsourcing facility as defined under the Federal Food, Drug, and Cosmetic Act. The ordering provider or institution bears full responsibility for regulatory compliance, clinical decision-making, and appropriate use within the scope of their license.`
@@ -11,7 +9,7 @@ export const FOOTER_DISCLAIMER = `Peptsci supplies research-grade compounds excl
 export const TERMS_OF_SERVICE_LAST_UPDATED = 'July 11, 2026'
 
 export const TERMS_OF_SERVICE_MARKDOWN = `
-Welcome to the Peptsci website (the "Site"). These Terms of Service ("Terms") set out the rules that apply to your access to and use of the Site located at www.peptsci.com, together with any related services, features, content, or applications made available by [LEGAL ENTITY NAME] d/b/a Peptsci ("Peptsci," "we," "us," or "our").
+Welcome to the Peptsci website (the "Site"). These Terms of Service ("Terms") set out the rules that apply to your access to and use of the Site located at www.peptsci.com, together with any related services, features, content, or applications made available by Peptsci Research d/b/a Peptsci ("Peptsci," "we," "us," or "our").
 
 **PLEASE REVIEW THESE TERMS BEFORE USING THE SITE. BY ACCESSING OR USING THE SITE, YOU ACCEPT AND AGREE TO THESE TERMS AND TO OUR PRIVACY POLICY. IF YOU DO NOT ACCEPT THESE TERMS, DO NOT ACCESS OR USE THE SITE.**
 

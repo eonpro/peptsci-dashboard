@@ -1,8 +1,5 @@
 /**
- * Privacy Policy (markdown) rendered at /privacy-policy.
- *
- * NOTE: [PHONE NUMBER] in Section 8.7 is still a placeholder that must be
- * filled in with the real support phone number.
+ * Privacy Policy (markdown) rendered at /privacy.
  */
 
 export const PRIVACY_POLICY_LAST_UPDATED = 'July 11, 2026'
@@ -161,7 +158,7 @@ We will never penalize you for exercising your privacy rights. We will not refus
 
 **8.7 Submitting a Request**
 
-To exercise any right above, send a verifiable request to support@peptsci.com or call [PHONE NUMBER]. We will confirm your identity by matching the details you provide against our records before acting on your request. You may also authorize an agent in writing to submit a request for you.
+To exercise any right above, send a verifiable request to support@peptsci.com or call (816) 737-8724. We will confirm your identity by matching the details you provide against our records before acting on your request. You may also authorize an agent in writing to submit a request for you.
 
 We respond to verifiable requests within forty-five (45) days. If we need more time (up to an additional forty-five days), we will let you know the reason and the extended timeline in writing.
 
