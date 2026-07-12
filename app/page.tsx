@@ -66,8 +66,7 @@ export default async function RootPage() {
             <div className="space-y-1.5">
               <p className="text-sm font-semibold uppercase tracking-wide text-white">
                 All products offered on this website are intended exclusively for legitimate
-                laboratory research and in-vitro testing conducted outside a human or animal
-                body.
+                laboratory research and in-vitro testing.
               </p>
               <p className="text-sm leading-snug text-white/75">
                 These products are not intended or offered for human or veterinary use. They are
