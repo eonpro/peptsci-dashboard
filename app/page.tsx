@@ -65,18 +65,31 @@ export default async function RootPage() {
             <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-amber-400" />
             <div className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-wide text-white">
-                All product and informational content on this website is intended solely for
-                educational and research purposes.
+                All products offered on this website are intended exclusively for legitimate
+                laboratory research and in-vitro testing conducted outside a human or animal
+                body.
               </p>
               <p className="text-sm leading-relaxed text-white/75">
-                The materials offered are designed for in-vitro laboratory use only (meaning
-                experiments conducted outside of living organisms). These substances are not
-                drugs, medicines, or therapeutic agents, and have not been evaluated or approved
-                by the FDA to diagnose, treat, prevent, or cure any disease or medical condition.
+                These products are not intended or offered for human or veterinary use. They are
+                not medicines, dietary supplements, cosmetics, food products, or therapeutic
+                agents. They have not been evaluated or approved by the U.S. Food and Drug
+                Administration for the diagnosis, treatment, cure, mitigation, or prevention of
+                any disease or medical condition.
               </p>
               <p className="text-sm leading-relaxed text-white/75">
-                Any human or animal use, consumption, or bodily introduction of these materials
-                is strictly prohibited by law.
+                Do not consume, inject, inhale, apply to the body, administer to humans or
+                animals, or otherwise introduce these products into any living organism.
+              </p>
+              <p className="text-sm leading-relaxed text-white/75">
+                Purchasers are responsible for ensuring that products are handled only by
+                qualified individuals in an appropriate laboratory setting and in compliance with
+                all applicable federal, state, and local laws, regulations, and institutional
+                requirements.
+              </p>
+              <p className="text-sm leading-relaxed text-white/75">
+                By purchasing from this website, you confirm that the products will be used
+                solely for lawful research purposes and not for personal, clinical, diagnostic,
+                therapeutic, or veterinary use.
               </p>
             </div>
           </div>
