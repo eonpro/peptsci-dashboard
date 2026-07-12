@@ -59,7 +59,7 @@ We do not sell your personal information. We may share it only in these situatio
 
 **3.1 Service Providers**
 
-We share information with vendors who perform services for us — such as payment processing (e.g., Shopify Payments, Stripe), shipping and logistics, email and messaging platforms, cloud hosting and storage, analytics, and credential verification. These vendors are contractually bound to use your information only to deliver services to us and to maintain appropriate safeguards.
+We share information with vendors who perform services for us — such as payment processing (Stripe, including Stripe Connect), shipping and logistics, email and messaging platforms, cloud hosting and storage, analytics, and credential verification. These vendors are contractually bound to use your information only to deliver services to us and to maintain appropriate safeguards.
 
 **3.2 Legal Obligations**
 
@@ -174,7 +174,7 @@ The Site and our services are not intended for anyone under eighteen (18). We do
 
 The Site may link to third-party websites, social media platforms, and other online services that Peptsci does not operate or control. This Privacy Policy does not cover those services. We are not responsible for third parties' privacy practices and encourage you to review their policies before sharing information with them.
 
-The Site is hosted on the Shopify platform, which provides our e-commerce infrastructure. Your data may be stored in Shopify's databases and applications on secure servers behind firewalls. You can review Shopify's privacy policy at [https://www.shopify.com/legal/privacy](https://www.shopify.com/legal/privacy).
+The Site is hosted on the Vercel platform, which provides our web infrastructure, and payments are processed by Stripe (including Stripe Connect). Your data may be stored and processed on secure servers operated by these providers behind firewalls. You can review Vercel's privacy policy at [https://vercel.com/legal/privacy-policy](https://vercel.com/legal/privacy-policy) and Stripe's privacy policy at [https://stripe.com/privacy](https://stripe.com/privacy).
 
 ## 11. SOCIAL MEDIA
 
