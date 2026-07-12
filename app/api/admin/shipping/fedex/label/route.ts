@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
             contactEmail: string | null
             contactName: string | null
             contactPhone: string | null
+            smsOptIn: boolean
             organizationName: string
           } | null
         }
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest) {
               contactEmail: true,
               contactName: true,
               contactPhone: true,
+              smsOptIn: true,
               organizationName: true,
             },
           },
@@ -317,8 +319,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Parallel SMS to the practice. Fire-and-forget; no-ops when SMS_ENABLED is
-    // off or no phone is on file.
-    if (order?.client?.contactPhone) {
+    // off, no phone is on file, or the client has not opted in (TCPA).
+    if (order?.client?.contactPhone && order.client.smsOptIn) {
       void sendOrderShippedSms({
         to: order.client.contactPhone,
         orderNumber: order.orderNumber,

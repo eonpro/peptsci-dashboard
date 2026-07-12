@@ -41,6 +41,7 @@ const INVOICE_INCLUDE = {
       organizationName: true,
       contactEmail: true,
       contactPhone: true,
+      smsOptIn: true,
       billingAddress: true,
     },
   },

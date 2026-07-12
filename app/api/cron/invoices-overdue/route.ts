@@ -109,7 +109,8 @@ async function run(req: NextRequest) {
         }
       }
 
-      const phone = view.invoice.client?.contactPhone
+      // TCPA: only text clients who checked the SMS opt-in box at onboarding.
+      const phone = view.invoice.client?.smsOptIn ? view.invoice.client?.contactPhone : null
       if (phone) {
         const sms = await sendInvoiceOverdueSms({
           to: phone,

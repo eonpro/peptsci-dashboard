@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
           contactName: data.contactName,
           contactEmail: data.contactEmail,
           contactPhone: data.contactPhone,
+          smsOptIn: data.smsOptIn,
+          smsOptInAt: data.smsOptIn ? new Date() : null,
           billingAddress: data.billingAddress as unknown as Prisma.InputJsonValue,
           shippingAddress: shippingAddress as unknown as Prisma.InputJsonValue,
           onboardingStatus: 'PENDING',

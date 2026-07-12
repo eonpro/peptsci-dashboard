@@ -57,6 +57,7 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
           contactName: true,
           contactEmail: true,
           contactPhone: true,
+          smsOptIn: true,
         },
       },
     },
@@ -85,7 +86,8 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
       const carrier = order.carrier ?? 'FedEx'
       const org = order.client?.organizationName ?? 'a client'
       const customerEmail = order.client?.contactEmail ?? null
-      const customerPhone = order.client?.contactPhone ?? null
+      // TCPA: only text clients who checked the SMS opt-in box at onboarding.
+      const customerPhone = order.client?.smsOptIn ? (order.client?.contactPhone ?? null) : null
       const customerName = order.client?.contactName || order.client?.organizationName || null
 
       if (mapped === 'DELIVERED') {

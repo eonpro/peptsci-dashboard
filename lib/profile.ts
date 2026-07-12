@@ -50,6 +50,8 @@ export const onboardingSchema = z.object({
   shippingSameAsBilling: z.boolean().optional().default(false),
   shippingAddress: addressSchema.optional(),
   npiData: z.unknown().optional(),
+  // TCPA/A2P SMS consent — must default to false (checkbox is never pre-checked).
+  smsOptIn: z.boolean().optional().default(false),
 })
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>
