@@ -1,6 +1,8 @@
-# Readiness Gap Closure Sprint (Jul 12, 2026)  [EXECUTOR — DONE, local, NOT deployed]
+# Readiness Gap Closure Sprint (Jul 12, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
 
 All items from the Jul-12 readiness assessment implemented in one session. `tsc --noEmit` clean, 271/271 unit tests (17 new), `next lint` clean (pre-existing warnings only), `next build` green (clean cache).
+
+**Deployed Jul 12 ~10:10 PM ET**: commit `eab79c5` → main → Vercel `dpl_yXLszhgmVr3cJeuDMZ2zZwKHzHiq` Ready on peptsci.com (`/api/health` 200, version eab79c5). **Prod migration applied** via `POST /api/admin/db/migrate {confirm:true}` from the owner's super-admin browser session: `success:true, upToDate:true` (12.6s) — `20260713010000_add_order_refund_fields` applied (2 statements); probe green incl. `clientSmsOptInColumn` + `orderRefundedTotalColumn`. Verified live: privacy page shows Jul 12 SMS clause; DLQ endpoint works (25 SUCCESS / 26 ERROR events — all 26 are historical Jun 3–17 failures from the missing `Order.shipTo`/`Client.npiNumber` columns era, later superseded by the Jul 7 schema fix + full Stripe backfill; replayable from /settings/webhooks if we want the queue cleared).
 
 ## Project Status Board
 - [x] **Approval path standardized** — new `lib/clients/approval.ts` `cascadeOnboardingDecision()` (client status + ALL linked users' DB/Clerk status + decision email, email only on actual status change, per-user role preserved). Both `/api/admin/clients/[id]` PATCH and `/api/admin/users/[id]/approve` now use it; /users approve of a second login on an already-approved practice falls back to a direct per-user email.
