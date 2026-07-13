@@ -439,6 +439,52 @@ If you have already sent payment, thank you — please disregard. Questions? ${S
 }
 
 // -------------------------------------------------
+// Monthly account statement (client-facing).
+// -------------------------------------------------
+
+export interface StatementEmailOpts {
+  customerName?: string | null
+  /** e.g. "June 2026" */
+  periodLabel: string
+  openingBalance: string
+  closingBalance: string
+  invoicedThisPeriod: string
+  paidThisPeriod: string
+  /** Link to the client billing portal. */
+  portalUrl?: string | null
+}
+
+export function statementEmail(opts: StatementEmailOpts): EmailContent {
+  const subject = `Your PeptSci account statement — ${opts.periodLabel}`
+  const html = layout({
+    heading: `Account statement · ${opts.periodLabel}`,
+    body:
+      para(greetingHtml(opts.customerName)) +
+      para('Here is a summary of your PeptSci account activity for the period. Your full statement PDF is available from your billing portal.') +
+      detailPanel([
+        ['Opening balance', opts.openingBalance],
+        ['Invoiced', opts.invoicedThisPeriod],
+        ['Payments received', opts.paidThisPeriod],
+        ['Closing balance', opts.closingBalance],
+      ]) +
+      para('Thank you for your business. If anything on this statement looks off, just reply to this email.'),
+    cta: opts.portalUrl ? { label: 'View invoices & statement', href: opts.portalUrl } : undefined,
+  })
+  const text = `${greeting(opts.customerName)}
+
+Your PeptSci account statement for ${opts.periodLabel}:
+
+Opening balance: ${opts.openingBalance}
+Invoiced: ${opts.invoicedThisPeriod}
+Payments received: ${opts.paidThisPeriod}
+Closing balance: ${opts.closingBalance}
+${opts.portalUrl ? `\nView invoices & statement: ${opts.portalUrl}\n` : ''}
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+// -------------------------------------------------
 // Weekly business report (internal/admin-facing): revenue, AR, SLA, stock.
 // -------------------------------------------------
 

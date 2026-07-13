@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit check (use export limits since revalidation is expensive)
     const rateLimitKey = getRateLimitKey(request, userId)
-    const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.export)
+    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.export)
 
     if (limited) {
       return NextResponse.json(

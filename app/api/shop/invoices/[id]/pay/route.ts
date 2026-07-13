@@ -5,7 +5,7 @@ import { requireAuth, unauthorizedResponse, errorResponse, successResponse } fro
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { toCents, getStripePublishableKey } from '@/lib/stripe'
+import { toCents, getStripePublishableKey, elementsPaymentMethodTypes } from '@/lib/stripe'
 import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId, applicationFeeAmount } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { userId, isAuthenticated } = await requireAuth()
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
-    const rl = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.auth)
+    const rl = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.auth)
     if (rl.limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
@@ -134,7 +134,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // ── New-card path: unconfirmed PI; client confirms via Elements ──
-    const intent = await stripe.paymentIntents.create(baseParams, connectRequestOptions())
+    // Card + ACH bank debit (when ACH_ENABLED) — Payment Element shows both.
+    const intent = await stripe.paymentIntents.create(
+      { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
+      connectRequestOptions()
+    )
     return successResponse({
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,

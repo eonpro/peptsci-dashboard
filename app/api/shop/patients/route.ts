@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const { userId, isAuthenticated } = await requireAuth()
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
-    const rl = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+    const rl = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
     if (rl.limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },

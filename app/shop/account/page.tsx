@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { AddressFields } from '@/components/AddressFields'
 import { SavedCards } from '@/components/shop/SavedCards'
 import { PatientsManager } from '@/components/shop/PatientsManager'
@@ -28,6 +29,7 @@ import {
   UserRound,
   Lock,
   Loader2,
+  MessageSquare,
 } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
@@ -53,6 +55,8 @@ export default function AccountPage() {
   const [contactPhone, setContactPhone] = useState('')
   const [billing, setBilling] = useState<Partial<Address>>(emptyAddress)
   const [shipping, setShipping] = useState<Partial<Address>>(emptyAddress)
+  const [smsOptIn, setSmsOptIn] = useState(false)
+  const [smsSaving, setSmsSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/shop/profile')
@@ -67,10 +71,33 @@ export default function AccountPage() {
         setContactPhone(p.contactPhone ?? '')
         setBilling(p.billingAddress ?? emptyAddress)
         setShipping(p.shippingAddress ?? emptyAddress)
+        setSmsOptIn(p.smsOptIn === true)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // SMS consent saves immediately (its own PATCH) so withdrawal is never
+  // blocked by unrelated validation in the main Save flow (TCPA).
+  const handleSmsToggle = async (next: boolean) => {
+    setSmsSaving(true)
+    setError(null)
+    const prev = smsOptIn
+    setSmsOptIn(next)
+    try {
+      const res = await fetch('/api/shop/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ smsOptIn: next }),
+      })
+      if (!res.ok) throw new Error((await res.json()).message || 'Could not update SMS preference')
+    } catch (e) {
+      setSmsOptIn(prev)
+      setError(e instanceof Error ? e.message : 'Could not update SMS preference')
+    } finally {
+      setSmsSaving(false)
+    }
+  }
 
   // Mirror lib/profile.ts (profileUpdateSchema + addressSchema) so failures
   // are caught before the request and name the offending field.
@@ -269,6 +296,47 @@ export default function AccountPage() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* SMS notifications (TCPA consent) */}
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-white">
+                <MessageSquare className="h-5 w-5" />
+                Text Message Notifications
+              </CardTitle>
+              <CardDescription className="text-white/60">
+                Order and shipping updates by SMS to your practice phone
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={smsOptIn}
+                  onCheckedChange={(v) => handleSmsToggle(v === true)}
+                  disabled={smsSaving}
+                  className="mt-0.5 border-white/30 data-[state=checked]:bg-brand-primary data-[state=checked]:border-brand-primary"
+                />
+                <span className="text-sm text-white/80">
+                  I agree to receive order and shipping notification text messages from PeptSci at
+                  the phone number on file.
+                  {smsSaving && <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin" />}
+                </span>
+              </label>
+              <p className="text-xs text-white/40 leading-relaxed">
+                Message frequency varies. Message &amp; data rates may apply. Reply HELP for help or
+                STOP to cancel at any time. Consent is not a condition of purchase. We never share
+                your mobile number with third parties for marketing. See our{' '}
+                <Link href="/privacy" className="underline hover:text-white/70">
+                  Privacy Policy
+                </Link>{' '}
+                and{' '}
+                <Link href="/termsandconditions" className="underline hover:text-white/70">
+                  Terms
+                </Link>
+                .
+              </p>
             </CardContent>
           </Card>
 

@@ -5,6 +5,7 @@
     { "path": "/api/cron/low-stock", "schedule": "0 13 * * *" },
     { "path": "/api/cron/expiring-batches", "schedule": "30 13 * * *" },
     { "path": "/api/cron/invoices-overdue", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/weekly-report", "schedule": "0 13 * * 1" }
+    { "path": "/api/cron/weekly-report", "schedule": "0 13 * * 1" },
+    { "path": "/api/cron/monthly-statements", "schedule": "0 14 1 * *" }
   ]
 }

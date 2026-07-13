@@ -52,3 +52,14 @@ export function formatCurrency(amountInCents: number): string {
 export function toCents(amountInDollars: number): number {
   return Math.round(amountInDollars * 100)
 }
+
+/**
+ * Payment method types offered on Stripe Elements PaymentIntents.
+ * ACH (us_bank_account) is opt-in via ACH_ENABLED=true — it requires the
+ * `us_bank_account_ach_payments` capability on the connected account. ACH
+ * settles asynchronously: the PI stays `processing` for days, so orders remain
+ * AUTHORIZED (unshippable) until the webhook's `succeeded` flips them CAPTURED.
+ */
+export function elementsPaymentMethodTypes(): string[] {
+  return process.env.ACH_ENABLED === 'true' ? ['card', 'us_bank_account'] : ['card']
+}

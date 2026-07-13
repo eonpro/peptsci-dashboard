@@ -2,7 +2,7 @@
  * Privacy Policy (markdown) rendered at /privacy.
  */
 
-export const PRIVACY_POLICY_LAST_UPDATED = 'July 11, 2026'
+export const PRIVACY_POLICY_LAST_UPDATED = 'July 12, 2026'
 
 export const PRIVACY_POLICY_MARKDOWN = `
 Peptsci ("Peptsci," "we," "us," or "our") values your privacy and is committed to safeguarding the personal information you entrust to us. This Privacy Policy describes how we collect, use, disclose, and protect your information when you visit our website at www.peptsci.com (the "Site"), open an account, place an order, or otherwise engage with our services.
@@ -120,9 +120,11 @@ Some browsers send "Do Not Track" (DNT) signals. The Site does not currently res
 
 You can view, update, or correct your account details anytime by logging into your account or emailing support@peptsci.com. Changes to professional credentials may require re-verification.
 
-**7.2 Marketing Preferences**
+**7.2 Marketing and SMS Preferences**
 
 You may opt out of marketing emails by using the unsubscribe link in any message or contacting us directly. Even after opting out, we will continue sending transactional messages tied to your account and orders.
+
+If you have consented to receive text messages from Peptsci (for example, order and shipping notifications), you can withdraw that consent at any time by replying **STOP** to any message or by updating your SMS preferences in your account settings. Reply **HELP** for assistance. Message frequency varies and message and data rates may apply. We do not share your mobile phone number or SMS consent with third parties or affiliates for their own marketing purposes; mobile information is used solely to deliver the messages you signed up for through our SMS provider acting on our behalf.
 
 **7.3 Deleting Your Account**
 

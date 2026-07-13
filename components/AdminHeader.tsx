@@ -22,6 +22,7 @@ import {
   Store,
   Truck,
   RotateCcw,
+  Webhook,
   ReceiptText,
   BarChart3,
   Building2,
@@ -286,6 +287,15 @@ export function AdminHeader() {
                 <Link href="/settings/stripe">
                   <DollarSign className="mr-2 h-4 w-4" />
                   Payments (Stripe)
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+                asChild
+              >
+                <Link href="/settings/webhooks">
+                  <Webhook className="mr-2 h-4 w-4" />
+                  Webhook Events
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem

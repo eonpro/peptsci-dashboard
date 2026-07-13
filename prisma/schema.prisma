@@ -522,6 +522,10 @@ model Order {
   paymentMethodId       String?
   paymentFailureReason  String?
   paidAt                DateTime?
+  // Cumulative refunds issued against this order (Stripe or manual). When
+  // refundedTotal >= total the order's paymentStatus becomes REFUNDED.
+  refundedTotal         Decimal               @default(0) @db.Decimal(12, 2)
+  refundedAt            DateTime?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   submittedAt           DateTime?

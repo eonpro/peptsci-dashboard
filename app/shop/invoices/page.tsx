@@ -93,10 +93,18 @@ export default function ShopInvoicesPage() {
         <div className="h-11 w-11 rounded-xl bg-brand-primary/20 flex items-center justify-center">
           <Receipt className="h-6 w-6 text-brand-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-bold text-white">Invoices &amp; Billing</h1>
           <p className="text-sm text-white/50">Your account statements and payments</p>
         </div>
+        <a
+          href="/api/shop/statements/pdf"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
+        >
+          <Download className="h-4 w-4" /> Statement (last month)
+        </a>
       </div>
 
       {/* Summary cards */}

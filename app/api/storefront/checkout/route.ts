@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     // Public, unauthenticated endpoint that creates real orders and reserves
     // real inventory — throttle hard per IP to blunt bot/spam abuse.
-    const { limited, remaining, retryAfter } = checkRateLimit(
+    const { limited, remaining, retryAfter } = await checkRateLimit(
       getRateLimitKey(request),
       RATE_LIMITS.publicCheckout
     )

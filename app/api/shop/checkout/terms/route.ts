@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { userId, isAuthenticated } = await requireAuth()
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
-    const rl = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.auth)
+    const rl = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.auth)
     if (rl.limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
@@ -85,7 +85,12 @@ export async function POST(request: NextRequest) {
     const shipSpeed = parsed.data.shipSpeed ?? 'TWO_DAY'
 
     // Server-authoritative pricing (client-sent amounts are ignored).
-    const cart = await resolveCart({ clientId: actor.clientId, items, speed: shipSpeed })
+    const cart = await resolveCart({
+      clientId: actor.clientId,
+      items,
+      speed: shipSpeed,
+      enforceStock: true,
+    })
 
     // Terms gate: admin-granted terms required; credit limit (when set) caps
     // open AR + this order. Both values are server-side only.

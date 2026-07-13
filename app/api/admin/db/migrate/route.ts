@@ -99,6 +99,8 @@ interface SchemaProbe {
   clientCreditLimitColumn: boolean
   clientDocumentStatusColumn: boolean
   clientDocumentResaleCertValue: boolean
+  clientSmsOptInColumn: boolean
+  orderRefundedTotalColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -125,7 +127,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'creditLimit')
         OR (table_name = 'ProductVariant' AND column_name = 'inventoryReserved')
         OR (table_name = 'Product' AND column_name = 'casNumber')
-        OR (table_name = 'ClientDocument' AND column_name = 'status'))
+        OR (table_name = 'ClientDocument' AND column_name = 'status')
+        OR (table_name = 'Client' AND column_name = 'smsOptIn')
+        OR (table_name = 'Order' AND column_name = 'refundedTotal'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -168,6 +172,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     clientDocumentResaleCertValue: enumValues.some(
       (v) => v.typname === 'ClientDocumentType' && v.enumlabel === 'RESALE_CERT'
     ),
+    clientSmsOptInColumn: colKeys.has('Client.smsOptIn'),
+    orderRefundedTotalColumn: colKeys.has('Order.refundedTotal'),
   }
 }
 

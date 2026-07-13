@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
-    const { limited } = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+    const { limited } = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
     if (limited) return errorResponse('Rate limit exceeded', 429, 'RATE_LIMITED')
 
     const parsed = createSchema.safeParse(await request.json())

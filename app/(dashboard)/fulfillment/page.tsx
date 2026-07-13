@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Plus,
   CreditCard,
+  Undo2,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 
@@ -32,6 +33,9 @@ const NewOrderModal = dynamic(() => import('@/components/orders/NewOrderModal'),
   ssr: false,
 })
 const ChargeOrderModal = dynamic(() => import('@/components/orders/ChargeOrderModal'), {
+  ssr: false,
+})
+const RefundOrderModal = dynamic(() => import('@/components/orders/RefundOrderModal'), {
   ssr: false,
 })
 const ConvertStripeModal = dynamic(() => import('@/components/orders/ConvertStripeModal'), {
@@ -105,6 +109,7 @@ export default function FulfillmentPage() {
   const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
+  const [refundOrder, setRefundOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [convertRecord, setConvertRecord] = useState<StripeQueueRecord | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
   // Sequence searches so a slow, older response can't overwrite a newer one.
@@ -288,10 +293,16 @@ export default function FulfillmentPage() {
                         className={`text-xs ${
                           order.paymentStatus === 'CAPTURED'
                             ? 'border-emerald-400/40 text-emerald-300'
-                            : 'border-amber-400/40 text-amber-300'
+                            : order.paymentStatus === 'REFUNDED'
+                              ? 'border-white/20 text-white/50'
+                              : 'border-amber-400/40 text-amber-300'
                         }`}
                       >
-                        {order.paymentStatus === 'CAPTURED' ? 'Paid' : 'Unpaid'}
+                        {order.paymentStatus === 'CAPTURED'
+                          ? 'Paid'
+                          : order.paymentStatus === 'REFUNDED'
+                            ? 'Refunded'
+                            : 'Unpaid'}
                       </Badge>
                       <Badge
                         variant="outline"
@@ -348,9 +359,19 @@ export default function FulfillmentPage() {
                         <FileText className="mr-2 h-4 w-4" /> Packing Slip
                       </a>
                     </Button>
-                    {order.paymentStatus !== 'CAPTURED' && (
+                    {order.paymentStatus !== 'CAPTURED' && order.paymentStatus !== 'REFUNDED' && (
                       <Button size="sm" variant="outline" onClick={() => setChargeOrder({ id: order.id, orderNumber: order.orderNumber })}>
                         <CreditCard className="mr-2 h-4 w-4" /> Take Payment
+                      </Button>
+                    )}
+                    {order.paymentStatus === 'CAPTURED' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-white/50 hover:text-red-300"
+                        onClick={() => setRefundOrder({ id: order.id, orderNumber: order.orderNumber })}
+                      >
+                        <Undo2 className="mr-2 h-4 w-4" /> Refund
                       </Button>
                     )}
                     {order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING' ? (
@@ -421,6 +442,16 @@ export default function FulfillmentPage() {
           orderId={chargeOrder.id}
           orderNumber={chargeOrder.orderNumber}
           onPaid={load}
+        />
+      )}
+
+      {refundOrder && (
+        <RefundOrderModal
+          open={!!refundOrder}
+          onOpenChange={(open) => !open && setRefundOrder(null)}
+          orderId={refundOrder.id}
+          orderNumber={refundOrder.orderNumber}
+          onRefunded={load}
         />
       )}
 

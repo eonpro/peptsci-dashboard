@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { clerkClient } from '@clerk/nextjs/server'
 import {
   requireAdmin,
   unauthorizedResponse,
@@ -13,16 +12,10 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { addressSchema } from '@/lib/address'
 import { einSchema, npiSchema, serializeClientProfile } from '@/lib/profile'
-import {
-  sendPartnerApprovedEmail,
-  sendPartnerRejectedEmail,
-  sendPartnerNeedsInfoEmail,
-} from '@/lib/email'
 import { deleteClientForce } from '@/lib/clients/delete-client'
+import { cascadeOnboardingDecision } from '@/lib/clients/approval'
 
 export const dynamic = 'force-dynamic'
-
-const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
 const clientSelect = {
   id: true,
@@ -73,15 +66,42 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         users: {
           select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true },
         },
-        _count: { select: { orders: true, patients: true } },
+        _count: {
+          select: {
+            orders: true,
+            patients: true,
+            customPricing: { where: { isActive: true } },
+          },
+        },
       },
     })
     if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
 
+    // Onboarding setup snapshot: what an admin still needs to configure for
+    // this practice to be fully operational (pricing / terms / documents).
+    const docGroups = await prisma.clientDocument.groupBy({
+      by: ['status'],
+      where: { clientId: id },
+      _count: { _all: true },
+    })
+    const docCount = (status: string) =>
+      docGroups.find((g) => g.status === status)?._count._all ?? 0
+    const setup = {
+      customPricingCount: client._count.customPricing,
+      termsSet: client.paymentTermsDays != null,
+      documents: {
+        total: docGroups.reduce((sum, g) => sum + g._count._all, 0),
+        pendingReview: docCount('PENDING_REVIEW'),
+        approved: docCount('APPROVED'),
+        rejected: docCount('REJECTED'),
+      },
+    }
+
     return successResponse({
       profile: serializeClientProfile(client),
       users: client.users,
-      counts: client._count,
+      counts: { orders: client._count.orders, patients: client._count.patients },
+      setup,
       createdAt: client.createdAt,
     })
   } catch (error) {
@@ -126,7 +146,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.billingAddress = input.billingAddress as unknown as Prisma.InputJsonValue
     if (input.shippingAddress !== undefined)
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
-    if (input.onboardingStatus !== undefined) data.onboardingStatus = input.onboardingStatus
     if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
     if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
 
@@ -135,10 +154,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       client = await prisma.client.update({
         where: { id },
         data,
-        select: {
-          ...clientSelect,
-          users: { select: { id: true, clerkUserId: true, email: true } },
-        },
+        select: clientSelect,
       })
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -149,52 +165,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       throw err
     }
 
-    // Cascade approval/rejection to the linked users.
-    if (input.onboardingStatus === 'APPROVED' || input.onboardingStatus === 'REJECTED') {
-      const newStatus = input.onboardingStatus === 'APPROVED' ? 'ACTIVE' : 'SUSPENDED'
-      await prisma.user.updateMany({ where: { clientId: id }, data: { status: newStatus } })
-
-      if (isClerkConfigured) {
-        const clerk = await clerkClient()
-        await Promise.all(
-          client.users.map(async (u) => {
-            try {
-              await clerk.users.updateUserMetadata(u.clerkUserId, {
-                publicMetadata: { role: 'CLIENT', status: newStatus, clientId: id },
-              })
-            } catch (e) {
-              logger.error(
-                'Failed to sync user status to Clerk',
-                { userId: u.id },
-                e instanceof Error ? e : new Error(String(e))
-              )
-            }
-          })
-        )
+    // Onboarding decisions go through the canonical cascade (client status +
+    // linked users' DB/Clerk status + decision emails) shared with the /users
+    // approval route, so no path can drift. Resetting to PENDING is a plain
+    // status write (no user cascade, no email).
+    if (input.onboardingStatus !== undefined) {
+      if (input.onboardingStatus === 'PENDING') {
+        await prisma.client.update({ where: { id }, data: { onboardingStatus: 'PENDING' } })
+      } else {
+        await cascadeOnboardingDecision({ clientId: id, decision: input.onboardingStatus })
       }
-      logger.info('[ADMIN CLIENTS] status cascade', { clientId: id, newStatus })
-    }
-
-    // Notify the partner of the onboarding decision. Recipients = the practice
-    // contact + any linked user emails. Senders never throw.
-    if (input.onboardingStatus) {
-      const recipients = Array.from(
-        new Set(
-          [client.contactEmail, ...client.users.map((u) => u.email)].filter(
-            (e): e is string => Boolean(e)
-          )
-        )
-      )
-      const name = client.contactName || client.organizationName
-      if (recipients.length > 0) {
-        if (input.onboardingStatus === 'APPROVED') {
-          await sendPartnerApprovedEmail({ to: recipients, name })
-        } else if (input.onboardingStatus === 'REJECTED') {
-          await sendPartnerRejectedEmail({ to: recipients, name })
-        } else if (input.onboardingStatus === 'NEEDS_INFO') {
-          await sendPartnerNeedsInfoEmail({ to: recipients, name })
-        }
-      }
+      client = { ...client, onboardingStatus: input.onboardingStatus }
     }
 
     return successResponse({ profile: serializeClientProfile(client) })

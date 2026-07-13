@@ -1,3 +1,61 @@
+# Readiness Gap Closure Sprint (Jul 12, 2026)  [EXECUTOR — DONE, local, NOT deployed]
+
+All items from the Jul-12 readiness assessment implemented in one session. `tsc --noEmit` clean, 271/271 unit tests (17 new), `next lint` clean (pre-existing warnings only), `next build` green (clean cache).
+
+## Project Status Board
+- [x] **Approval path standardized** — new `lib/clients/approval.ts` `cascadeOnboardingDecision()` (client status + ALL linked users' DB/Clerk status + decision email, email only on actual status change, per-user role preserved). Both `/api/admin/clients/[id]` PATCH and `/api/admin/users/[id]/approve` now use it; /users approve of a second login on an already-approved practice falls back to a direct per-user email.
+- [x] **Account Setup card** on `/clients/[id]` — pricing count (filtered `_count.customPricing`), terms set, documents (approved/pending/rejected) with deep links; GET returns a `setup` block.
+- [x] **Privacy §7.2 SMS clause** (STOP/HELP, frequency, no number sharing) + bumped LAST_UPDATED to Jul 12.
+- [x] **SMS opt-in toggle** on `/shop/account` — own PATCH (`smsOptIn` in profileUpdateSchema; enabling stamps smsOptInAt, withdrawing keeps it for audit), saves independently of the main form (TCPA withdrawal can't be blocked by validation).
+- [x] **Double-charge race fixed** — `createDraftOrder` find-or-create now inside a transaction holding `pg_advisory_xact_lock(hashtext('draft-order'), hashtext(clientId))`.
+- [x] **Hard stock check at checkout** — `resolveCart({enforceStock:true})` from card + terms checkout throws `INSUFFICIENT_STOCK` when qty > onHand−reserved (pure `findStockShortages` in checkout-core, 6 tests). Admin manual orders still warn-only by design.
+- [x] **Programmatic refunds** — `Order.refundedTotal/refundedAt` (migration `20260713010000_add_order_refund_fields`, applied locally, probe extended incl. the missing smsOptIn probe). `GET/POST /api/admin/orders/[id]/refund` (full/partial, cumulative-position idempotency key, releases reservations when full), `RefundOrderModal` + Refund button on Fulfillment. `syncSalesRecordFromOrder` now nets refunds (COGS scaled); webhook `charge.refunded` also persists refundedTotal + resyncs, so Stripe-dashboard refunds stay consistent.
+- [x] **Upstash rate limiting** — `checkRateLimit` is now async: Upstash REST INCR+PEXPIRE(NX) fixed window when `UPSTASH_REDIS_REST_URL/TOKEN` set, in-memory fallback otherwise (fail-open to per-instance, never unlimited); buckets namespaced per config; all 24 call sites awaited.
+- [x] **Webhook DLQ UI** — processor extracted to `lib/stripe/webhook-processor.ts` (shared); `GET /api/admin/webhook-events` (+counts, cursor pagination) and `POST /api/admin/webhook-events/[id]/retry` (atomic ERROR→RECEIVED claim, replays stored payload); page `/settings/webhooks` in the admin settings dropdown.
+- [x] **Admin 2FA gate** — `ADMIN_REQUIRE_2FA=true` → dashboard layout bounces admins without `twoFactorEnabled` to `/enable-2fa` (Clerk UserProfile embedded). Default OFF to avoid surprise-locking; enable after admins enroll.
+- [x] **Playwright E2E scaffold** — `playwright.config.ts` (E2E_BASE_URL), `e2e/smoke.spec.ts` (health/landing/sign-in/legal/authz), `e2e/checkout.spec.ts` (sign-in → cart → checkout totals; paid 4242 flow gated behind E2E_RUN_PAYMENT; skips without E2E_CLERK_EMAIL/PASSWORD). `npm run test:e2e`; needs `npx playwright install chromium` once.
+- [x] **Monthly statements** — `lib/invoicing/statement.ts` (ledger: invoices grossTotal − payments, opening/closing, aging) + `statement-pdf.ts`; `GET /api/admin/clients/[id]/statement?month=` and `GET /api/shop/statements/pdf?month=`; download links on client detail + `/shop/invoices`; cron `/api/cron/monthly-statements` (1st @ 14:00 UTC, AuditLog dedup per client+month, emails summary + portal link via new `statementEmail` template).
+- [x] **ACH** — `elementsPaymentMethodTypes()` gated by `ACH_ENABLED=true` adds `us_bank_account` on Elements PIs (checkout, invoice pay, admin charge). Confirm endpoints + dialogs treat `processing` as `pending` (accepted, settles via webhook; order stays AUTHORIZED/unshippable until captured). Requires the ACH capability on the connected account before enabling.
+- [x] **Client-initiated returns** — `GET/POST /api/shop/orders/[id]/returns` (owner-scoped, shipped-only, per-line cap = ordered − already-requested excl. REJECTED, reuses `createReturnRequest` → notifyAdmins); `RequestReturnDialog` + Returns card on `/shop/orders/[id]`; order API now returns item ids.
+- [ ] **RDS backups/PITR — BLOCKED (owner)**: prod cluster `peptsci-dashboard` lives in AWS acct 631413806260; local profiles (147997129811 italo, 368912176358 eonpro-dbops) cannot assume `arn:aws:iam::631413806260:role/Vercel/access-peptsci-dashboard` (rds-db:connect only anyway). Owner must run with 631413806260 creds: `aws rds describe-db-clusters --db-cluster-identifier peptsci-dashboard --region us-east-1 --query 'DBClusters[0].{BackupRetention:BackupRetentionPeriod,EarliestRestore:EarliestRestorableTime,DeletionProtection:DeletionProtection}'` — verify BackupRetention ≥ 7 and turn on DeletionProtection.
+
+## ⚠️ Before live in prod
+1. Commit + deploy to `main` (all work is local only).
+2. Apply prod migration via `POST /api/admin/db/migrate` (SUPER_ADMIN) — covers `20260713010000_add_order_refund_fields`; probe now also reports `clientSmsOptInColumn` + `orderRefundedTotalColumn`.
+3. Optional env to activate new capabilities: `UPSTASH_REDIS_REST_URL/TOKEN` (global rate limits), `ADMIN_REQUIRE_2FA=true` (after admins enroll 2FA), `ACH_ENABLED=true` (after Stripe ACH capability active on the connected account).
+4. Vercel cron list changed (`monthly-statements`) — picked up automatically on deploy.
+
+## Lessons
+- `pg_advisory_xact_lock(int,int)` via `hashtext()` inside `prisma.$transaction` serializes find-or-create per client with no schema change — the Stripe PI idempotency key (`pi_create_${orderId}`) then guarantees one charge.
+- Making a widely-used sync helper (checkRateLimit) async is safe to roll out mechanically: tsc flags every call site that forgot `await` because property access on a Promise fails the destructure types.
+- Upstash REST pipeline `[INCR, PEXPIRE ... NX, PTTL]` is an atomic-enough fixed window without any SDK dependency.
+- SES SendEmailResult exposes `{ok, skipped}` — cron senders should mark their AuditLog dedup on `ok || skipped` so enabling EMAIL_ENABLED later doesn't burst-send stale notifications, but NOT on hard errors (those retry next run).
+- Payment Element renders ACH automatically when the PI's `payment_method_types` includes `us_bank_account`; the async settlement just needs `processing` treated as "pending success" in confirm endpoints + a webhook capture path (which already existed).
+
+---
+
+# Clinic-Onboarding Readiness Assessment (Jul 12, 2026)  [PLANNER]
+
+**Verdict: YES for controlled onboarding (first 5–10 clinics with hands-on support).** Prod is healthy (`/api/health` 200, running latest `24ac674`), and the full clinic loop is deployed: sign-up → NPI onboarding (+SMS consent, Places autocomplete) → admin approval (notification + dashboard queue, approval-sync bug fixed today) → `/shop` with per-client pricing → checkout (card / saved card / net terms w/ credit gate) → fulfillment (payment gate, FedEx, tracking) → invoicing portal + emails.
+
+## Pre-first-clinic checklist (small, mostly ops)
+- [ ] **Restrict the Google Maps browser key** (currently UNRESTRICTED, ships in the public bundle) — referrer `peptsci.com/*`, `*.peptsci.com/*`, `localhost:3000/*` + API restriction (Maps JS, Places New).
+- [ ] **Rotate legacy exposed secrets**: `GOOGLE_SHEETS_API_KEY` (in git history since P0 audit; Sheets no longer used — disable the key) and the shared `sk_live` Stripe key (open since go-live list). Optionally purge history.
+- [ ] **Verify RDS automated backups/PITR** are enabled + restore runbook (Phase-1 ops item, never confirmed done).
+- [ ] **Canonical approval path**: instruct admins to approve from `/clients/{id}` (full cascade). `/users` approve now cascades PENDING→APPROVED, but keep one documented path until E2E-tested.
+- [ ] Per-clinic setup at approval time: custom pricing (`/pricing`), billing terms if net-X (`/clients/[id]` Billing Terms), document review.
+
+## Known gaps — acceptable for launch, fix in first month
+- Double-charge race on draft-order dedup; no hard stock check at checkout (reservations can go negative → oversell risk); programmatic refunds missing (manual via Stripe dashboard). (Jul 6 Phase-3 list.)
+- In-memory rate limiting (per-instance only on Vercel) — move to Upstash/Redis.
+- No Playwright E2E for checkout/invoice-pay (T4-1); admin 2FA not enforced in Clerk (T4-3); no WebhookEvent DLQ review UI (T4-2).
+- Tier 2 remainder: monthly statements, ACH, client-initiated returns.
+- Privacy policy §7.2 SMS clause + account-page SMS opt-in toggle for existing clients.
+- Sales-tax posture (Stripe Tax + resale-cert exemption, T3-3) — needs a business decision; currently no tax is charged.
+- White-label B2C storefronts NOT launch-ready (no end-customer Stripe payments, no wildcard DNS) — separate from clinic onboarding; don't offer yet.
+
+---
+
 # ACTIVE PLAN — Onboarding-approval visibility (Jul 12)  [EXECUTOR — DONE, local]
 
 ## Background and Motivation

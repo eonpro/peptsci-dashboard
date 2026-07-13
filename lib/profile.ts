@@ -67,6 +67,8 @@ export const profileUpdateSchema = z.object({
   contactPhone: phoneSchema.optional(),
   billingAddress: addressSchema.optional(),
   shippingAddress: addressSchema.optional(),
+  // TCPA: clients may grant or withdraw SMS consent from their account page.
+  smsOptIn: z.boolean().optional(),
 })
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>
@@ -95,6 +97,8 @@ export interface ClientProfile {
   /** Net-terms billing (admin-managed). Null = card-only checkout. */
   paymentTermsDays: number | null
   creditLimit: number | null
+  /** TCPA SMS consent (null when the caller didn't select it). */
+  smsOptIn: boolean | null
 }
 
 /**
@@ -116,6 +120,7 @@ export function serializeClientProfile(client: {
   onboardingStatus: string
   paymentTermsDays?: number | null
   creditLimit?: unknown
+  smsOptIn?: boolean
 }): ClientProfile {
   return {
     id: client.id,
@@ -132,5 +137,6 @@ export function serializeClientProfile(client: {
     npiLocked: client.onboardingStatus === 'APPROVED',
     paymentTermsDays: client.paymentTermsDays ?? null,
     creditLimit: client.creditLimit != null ? Number(client.creditLimit) : null,
+    smsOptIn: client.smsOptIn ?? null,
   }
 }

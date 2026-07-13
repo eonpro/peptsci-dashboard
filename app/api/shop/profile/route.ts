@@ -20,6 +20,7 @@ const clientSelect = {
   billingAddress: true,
   shippingAddress: true,
   onboardingStatus: true,
+  smsOptIn: true,
 } as const
 
 /** GET /api/shop/profile — the caller's own practice profile. */
@@ -52,7 +53,7 @@ export async function PATCH(request: NextRequest) {
     const { userId, isAuthenticated } = await requireAuth()
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
-    const rl = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+    const rl = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
     if (rl.limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
@@ -89,6 +90,14 @@ export async function PATCH(request: NextRequest) {
       data.billingAddress = input.billingAddress as unknown as Prisma.InputJsonValue
     if (input.shippingAddress !== undefined)
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
+
+    // TCPA SMS consent toggle. Granting stamps a fresh consent timestamp;
+    // withdrawing keeps the historical timestamp for the audit trail.
+    if (input.smsOptIn !== undefined) {
+      data.smsOptIn = input.smsOptIn
+      if (input.smsOptIn) data.smsOptInAt = new Date()
+      logger.info('[PROFILE] SMS consent changed', { clientId, smsOptIn: input.smsOptIn })
+    }
 
     // NPI + practice name are editable only before approval.
     if (!locked) {

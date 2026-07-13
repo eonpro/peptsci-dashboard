@@ -112,6 +112,35 @@ NEXT_PUBLIC_ROOT_DOMAIN="peptsci.com"
 END_CUSTOMER_JWT_SECRET="change-me-to-a-random-64-char-string"
 
 # ===========================================
+# PAYMENTS - ACH bank debits (optional)
+# ===========================================
+# When "true", Stripe Elements checkout + invoice payment offer ACH bank
+# debit (us_bank_account) alongside cards. Requires the
+# `us_bank_account_ach_payments` capability ACTIVE on the connected account —
+# enabling this without the capability makes PaymentIntent creation fail.
+# ACH settles in ~4 business days; orders stay unshippable (AUTHORIZED) until
+# the debit clears via webhook.
+ACH_ENABLED=""
+
+# ===========================================
+# SECURITY - Admin 2FA enforcement
+# ===========================================
+# When "true", ADMIN/SUPER_ADMIN users must have a second factor enrolled in
+# Clerk (TOTP/SMS) to use the admin console; without one they are redirected
+# to /enable-2fa. Leave unset/false until every admin has enrolled.
+ADMIN_REQUIRE_2FA=""
+
+# ===========================================
+# RATE LIMITING - Upstash Redis (optional but recommended in production)
+# ===========================================
+# When set, API rate limits are enforced GLOBALLY across all serverless
+# instances via Upstash Redis (REST). When unset (or Redis is unreachable),
+# limiting falls back to per-instance in-memory windows. Create a database at
+# https://console.upstash.com and copy the REST URL + token.
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+
+# ===========================================
 # OBSERVABILITY - Sentry (optional; no-ops when unset)
 # ===========================================
 # Server + edge DSN

@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const { userId, isAuthenticated } = await requireAuth()
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
-    const { limited } = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+    const { limited } = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
     if (limited) return errorResponse('Rate limit exceeded', 429, 'RATE_LIMITED')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 

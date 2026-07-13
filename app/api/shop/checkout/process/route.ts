@@ -7,7 +7,7 @@ import { getUserMetadata } from '@/lib/roles'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { toCents, getStripePublishableKey } from '@/lib/stripe'
+import { toCents, getStripePublishableKey, elementsPaymentMethodTypes } from '@/lib/stripe'
 import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import {
   connectRequestOptions,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
     const rateLimitKey = getRateLimitKey(request, userId)
-    const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
+    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
@@ -92,7 +92,12 @@ export async function POST(request: NextRequest) {
     const shipSpeed = parsed.data.shipSpeed ?? 'TWO_DAY'
 
     // Server-authoritative pricing + shipping — client-sent amounts are ignored.
-    const cart = await resolveCart({ clientId: actor.clientId, items, speed: shipSpeed })
+    const cart = await resolveCart({
+      clientId: actor.clientId,
+      items,
+      speed: shipSpeed,
+      enforceStock: true,
+    })
 
     // Resolve the ship-to address server-side. For "ship to patient" the saved
     // patient record (owned by this client) is authoritative.
@@ -229,8 +234,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── New-card path: create unconfirmed PI; client confirms via Elements ──
+    // Payment Element offers every type on the PI (card + ACH when enabled).
     const intent = await stripe.paymentIntents.create(
-      baseParams,
+      { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
       connectRequestOptions({ idempotencyKey: `pi_create_${order.id}` })
     )
 

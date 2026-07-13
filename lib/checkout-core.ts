@@ -111,6 +111,33 @@ export function validateCartInput(items: unknown): CartLineInput[] {
   })
 }
 
+export interface StockCheckLine {
+  sku: string
+  productName: string
+  quantity: number
+  /** Sellable units: onHand - reserved (can be negative when oversold). */
+  available: number
+}
+
+/**
+ * Lines whose requested quantity exceeds sellable stock. Pure so the oversell
+ * gate is unit-testable; callers decide whether shortages hard-block (clinic
+ * checkout) or only warn (admin manual orders).
+ */
+export function findStockShortages(lines: StockCheckLine[]): StockCheckLine[] {
+  return lines.filter((l) => l.quantity > Math.max(0, l.available))
+}
+
+/** Human-readable summary of stock shortages for error messages. */
+export function describeStockShortages(shortages: StockCheckLine[]): string {
+  return shortages
+    .map(
+      (s) =>
+        `${s.productName} (${s.sku}): requested ${s.quantity}, ${Math.max(0, s.available)} available`
+    )
+    .join('; ')
+}
+
 /** Does this subtotal qualify for the discounted (free 2-day) shipping tier? */
 export function qualifiesForFreeShipping(subtotal: number): boolean {
   return subtotal >= FREE_SHIPPING_THRESHOLD

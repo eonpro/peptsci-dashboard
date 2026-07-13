@@ -39,6 +39,12 @@ interface LinkedUser {
   status: string
 }
 
+interface SetupSnapshot {
+  customPricingCount: number
+  termsSet: boolean
+  documents: { total: number; pendingReview: number; approved: number; rejected: number }
+}
+
 const emptyAddress: Partial<Address> = { country: 'US' }
 const inputClass = 'h-12 bg-white/5 border-white/10 text-white rounded-xl'
 const labelClass = 'text-white/70'
@@ -67,6 +73,7 @@ export default function ClientDetailPage() {
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [users, setUsers] = useState<LinkedUser[]>([])
   const [counts, setCounts] = useState<{ orders: number; patients: number } | null>(null)
+  const [setup, setSetup] = useState<SetupSnapshot | null>(null)
 
   const [organizationName, setOrganizationName] = useState('')
   const [providerName, setProviderName] = useState('')
@@ -111,6 +118,7 @@ export default function ClientDetailPage() {
         hydrate(data.profile)
         setUsers(data.users ?? [])
         setCounts(data.counts ?? null)
+        setSetup(data.setup ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -257,6 +265,88 @@ export default function ClientDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Onboarding setup checklist — what still needs configuring for this
+          practice to be fully operational. */}
+      {setup && (
+        <Card className="bg-[#0a0e3a]/50 border-white/10">
+          <CardHeader>
+            <CardTitle className="text-base text-white">Account Setup</CardTitle>
+            <CardDescription className="text-white/50">
+              Complete these when approving a new practice.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center justify-between rounded-lg border border-white/10 p-3">
+              <div className="flex items-center gap-2">
+                {setup.customPricingCount > 0 ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Clock className="h-4 w-4 text-amber-400" />
+                )}
+                <span className="text-white">
+                  Custom pricing{' '}
+                  <span className="text-white/50">
+                    {setup.customPricingCount > 0
+                      ? `— ${setup.customPricingCount} SKU${setup.customPricingCount === 1 ? '' : 's'} priced`
+                      : '— none set (catalog SRP applies)'}
+                  </span>
+                </span>
+              </div>
+              <Link
+                href="/pricing/client-pricing"
+                className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
+              >
+                Manage
+              </Link>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 p-3">
+              <div className="flex items-center gap-2">
+                {setup.termsSet ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Clock className="h-4 w-4 text-amber-400" />
+                )}
+                <span className="text-white">
+                  Billing terms{' '}
+                  <span className="text-white/50">
+                    {setup.termsSet
+                      ? `— Net ${paymentTermsDays || profile.paymentTermsDays}`
+                      : '— card-only (set terms below to enable bill-to-account)'}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 p-3">
+              <div className="flex items-center gap-2">
+                {setup.documents.pendingReview > 0 ? (
+                  <Clock className="h-4 w-4 text-amber-400" />
+                ) : setup.documents.approved > 0 ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Clock className="h-4 w-4 text-white/40" />
+                )}
+                <span className="text-white">
+                  Documents{' '}
+                  <span className="text-white/50">
+                    {setup.documents.total === 0
+                      ? '— none uploaded yet'
+                      : `— ${setup.documents.approved} approved, ${setup.documents.pendingReview} awaiting review${
+                          setup.documents.rejected > 0 ? `, ${setup.documents.rejected} rejected` : ''
+                        }`}
+                  </span>
+                </span>
+              </div>
+              <a
+                href="#documents"
+                className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
+              >
+                Review
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Provider & practice */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
         <CardHeader>
@@ -309,7 +399,17 @@ export default function ClientDetailPage() {
       {/* Billing terms */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
         <CardHeader>
-          <CardTitle className="text-base text-white">Billing Terms</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base text-white">Billing Terms</CardTitle>
+            <a
+              href={`/api/admin/clients/${id}/statement`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
+            >
+              Statement (last month)
+            </a>
+          </div>
           <CardDescription className="text-white/50">
             Grant net terms to enable &ldquo;Bill to account&rdquo; at checkout. Leave payment
             terms blank for card-only. Credit limit caps open balance + new orders (blank = no
@@ -424,7 +524,9 @@ export default function ClientDetailPage() {
       <Separator className="bg-white/10" />
 
       {/* Compliance documents */}
-      <ClientDocumentsCard clientId={id} />
+      <div id="documents">
+        <ClientDocumentsCard clientId={id} />
+      </div>
 
       {/* Linked users */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">

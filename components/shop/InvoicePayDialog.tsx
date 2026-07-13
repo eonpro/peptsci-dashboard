@@ -129,7 +129,7 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
           body: JSON.stringify({ paymentIntentId: data.paymentIntentId }),
         })
         const confirmData = await confirm.json()
-        if (!confirm.ok || !confirmData.success) {
+        if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
           throw new Error(confirmData.message || 'Payment not completed')
         }
         onPaid()
@@ -283,7 +283,9 @@ function NewCardPayForm({
         body: JSON.stringify({ paymentIntentId: paymentIntent?.id }),
       })
       const confirmData = await confirm.json()
-      if (!confirm.ok || !confirmData.success) {
+      // ACH bank debits settle over days — `pending` means the debit was
+      // accepted; the invoice is marked paid by the webhook when it clears.
+      if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
         throw new Error(confirmData.message || 'Payment was not completed')
       }
       onPaid()

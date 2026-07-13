@@ -49,7 +49,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (intent.status !== 'succeeded') {
-      return successResponse({ success: false, stripeStatus: intent.status })
+      // ACH debits stay `processing` for days — the webhook records the
+      // payment when it clears. Report pending so the UI can confirm receipt.
+      return successResponse({
+        success: false,
+        pending: intent.status === 'processing',
+        stripeStatus: intent.status,
+      })
     }
 
     const view = await recordPayment(id, {

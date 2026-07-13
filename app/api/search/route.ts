@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     // Rate limit check
     const rateLimitKey = getRateLimitKey(request, userId)
-    const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
+    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
 
     if (limited) {
       return NextResponse.json(

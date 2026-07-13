@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { toCents, getStripePublishableKey } from '@/lib/stripe'
+import { toCents, getStripePublishableKey, elementsPaymentMethodTypes } from '@/lib/stripe'
 import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId, applicationFeeAmount } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // ── New-card path: create unconfirmed PI; admin confirms via Elements ──
     const intent = await stripe.paymentIntents.create(
-      baseParams,
+      { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
       connectRequestOptions({ idempotencyKey: `pi_admin_create_${order.id}` })
     )
     await prisma.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: intent.id } })

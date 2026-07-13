@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
 
-    const { limited } = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+    const { limited } = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
     if (limited) return errorResponse('Rate limit exceeded', 429, 'RATE_LIMITED')
 
     const parsed = bodySchema.safeParse(await request.json())

@@ -11,6 +11,7 @@ import { getUserMetadata } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { sendPartnerApprovedEmail } from '@/lib/email'
+import { cascadeOnboardingDecision } from '@/lib/clients/approval'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Update database if configured
     let approvedUser: { email: string | null; firstName: string | null; clientId: string | null } | null = null
+    let cascaded = false
     if (prisma) {
       await prisma.user.updateMany({
         where: { clerkUserId: targetUserId },
@@ -62,33 +64,40 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         select: { email: true, firstName: true, clientId: true },
       })
 
-      // Keep the practice record in sync: approving the login of a pending
-      // self-onboarded practice approves the practice too, so /clients doesn't
-      // keep showing it as awaiting approval after the user can already shop.
+      // Practice-linked users go through the canonical approval cascade
+      // (same code path as approving from /clients/[id]): practice APPROVED,
+      // ALL sibling users ACTIVE in DB + Clerk, decision email sent once.
       if (approvedUser?.clientId) {
-        await prisma.client.updateMany({
-          where: { id: approvedUser.clientId, onboardingStatus: 'PENDING' },
-          data: { onboardingStatus: 'APPROVED' },
+        const result = await cascadeOnboardingDecision({
+          clientId: approvedUser.clientId,
+          decision: 'APPROVED',
+          actorId: userId ?? undefined,
         })
+        // If the practice was already APPROVED (e.g. a second login being
+        // activated later), the cascade sends no email — fall through to the
+        // direct per-user email below.
+        cascaded = result?.changed === true && result.emailedTo.length > 0
       }
     }
 
-    logger.info('User approved', { targetUserId, approvedBy: userId })
+    logger.info('User approved', { targetUserId, approvedBy: userId, cascaded })
 
-    // Notify the partner that they're approved. The local User row can lack an
-    // email (onboarding upsert doesn't set one), so fall back to Clerk's
-    // primary email. Never throws.
-    const clerkEmail = clerkUser.emailAddresses.find(
-      (e) => e.id === clerkUser.primaryEmailAddressId
-    )?.emailAddress
-    const notifyEmail = approvedUser?.email || clerkEmail
-    if (notifyEmail) {
-      await sendPartnerApprovedEmail({
-        to: notifyEmail,
-        name: approvedUser?.firstName || clerkUser.firstName,
-      })
-    } else {
-      logger.warn('Approved user has no email on file; approval email skipped', { targetUserId })
+    // Users with no linked practice (e.g. staff accounts) still get a direct
+    // approval email. The local User row can lack an email (onboarding upsert
+    // doesn't set one), so fall back to Clerk's primary email. Never throws.
+    if (!cascaded) {
+      const clerkEmail = clerkUser.emailAddresses.find(
+        (e) => e.id === clerkUser.primaryEmailAddressId
+      )?.emailAddress
+      const notifyEmail = approvedUser?.email || clerkEmail
+      if (notifyEmail) {
+        await sendPartnerApprovedEmail({
+          to: notifyEmail,
+          name: approvedUser?.firstName || clerkUser.firstName,
+        })
+      } else {
+        logger.warn('Approved user has no email on file; approval email skipped', { targetUserId })
+      }
     }
 
     return successResponse({

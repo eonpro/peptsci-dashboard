@@ -15,7 +15,7 @@ async function authClient(request: NextRequest) {
   const { userId, isAuthenticated } = await requireAuth()
   if (!isAuthenticated || !userId) return { error: unauthorizedResponse() }
 
-  const rl = checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
+  const rl = await checkRateLimit(getRateLimitKey(request, userId), RATE_LIMITS.standard)
   if (rl.limited) {
     return {
       error: NextResponse.json(

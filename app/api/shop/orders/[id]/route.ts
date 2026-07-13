@@ -54,10 +54,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         },
         items: {
           select: {
+            id: true,
             quantity: true,
             unitPrice: true,
             totalPrice: true,
-            variant: { select: { dose: true, sku: true, product: { select: { name: true } } } },
+            variant: { select: { id: true, dose: true, sku: true, product: { select: { name: true } } } },
           },
         },
         packagePhotos: {
@@ -109,6 +110,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         shippingAddress: order.shippingAddress,
         payment,
         items: order.items.map((it) => ({
+          id: it.id,
+          variantId: it.variant.id,
           name: it.variant.product.name,
           dose: it.variant.dose,
           sku: it.variant.sku,

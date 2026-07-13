@@ -10,7 +10,23 @@ interface RateLimitEntry {
   resetTime: number
 }
 
-// In-memory store for rate limiting (use Redis in production for multi-instance)
+export interface RateLimitResult {
+  limited: boolean
+  remaining: number
+  retryAfter?: number
+}
+
+// ── Distributed backend (Upstash Redis over REST) ──
+// On Vercel each serverless instance has its own memory, so the in-memory
+// limiter only bounds per-instance traffic. When UPSTASH_REDIS_REST_URL and
+// UPSTASH_REDIS_REST_TOKEN are set, limits are enforced globally via an atomic
+// INCR + PEXPIRE(NX) fixed window. If Redis is unreachable the check falls
+// back to the in-memory limiter (fail-open to per-instance limiting, never to
+// unlimited).
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
+
+// In-memory fallback store (single-instance scope).
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
 // Clean up expired entries periodically
@@ -57,20 +73,49 @@ export function getRateLimitKey(request: NextRequest, userId?: string | null): s
   return `ip:${ip}`
 }
 
-/**
- * Checks if a request should be rate limited.
- * Returns { limited: false } if allowed, { limited: true, retryAfter } if blocked.
- */
-export function checkRateLimit(
-  key: string,
-  config: RateLimitConfig = RATE_LIMITS.standard
-): { limited: boolean; remaining: number; retryAfter?: number } {
+/** Fixed-window check against Upstash Redis. Returns null when unavailable. */
+async function checkRateLimitRedis(
+  bucketKey: string,
+  config: RateLimitConfig
+): Promise<RateLimitResult | null> {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null
+  try {
+    const res = await fetch(`${UPSTASH_URL}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        ['INCR', bucketKey],
+        // NX: only set the TTL when the key has none (i.e. window start).
+        ['PEXPIRE', bucketKey, config.interval, 'NX'],
+        ['PTTL', bucketKey],
+      ]),
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const rows = (await res.json()) as Array<{ result?: unknown; error?: string }>
+    const count = Number(rows?.[0]?.result)
+    const ttlMs = Number(rows?.[2]?.result)
+    if (!Number.isFinite(count)) return null
+
+    if (count > config.maxRequests) {
+      const retryAfter = Number.isFinite(ttlMs) && ttlMs > 0 ? Math.ceil(ttlMs / 1000) : Math.ceil(config.interval / 1000)
+      return { limited: true, remaining: 0, retryAfter }
+    }
+    return { limited: false, remaining: config.maxRequests - count }
+  } catch {
+    // Network/Redis failure → let the caller fall back to in-memory limiting.
+    return null
+  }
+}
+
+/** Fixed-window check against the per-instance in-memory store. */
+function checkRateLimitMemory(bucketKey: string, config: RateLimitConfig): RateLimitResult {
   const now = Date.now()
-  const entry = rateLimitStore.get(key)
+  const entry = rateLimitStore.get(bucketKey)
 
   // No existing entry or expired - create new
   if (!entry || entry.resetTime < now) {
-    rateLimitStore.set(key, {
+    rateLimitStore.set(bucketKey, {
       count: 1,
       resetTime: now + config.interval,
     })
@@ -85,9 +130,28 @@ export function checkRateLimit(
 
   // Increment counter
   entry.count++
-  rateLimitStore.set(key, entry)
+  rateLimitStore.set(bucketKey, entry)
 
   return { limited: false, remaining: config.maxRequests - entry.count }
+}
+
+/**
+ * Checks if a request should be rate limited.
+ * Returns { limited: false } if allowed, { limited: true, retryAfter } if blocked.
+ *
+ * Uses Upstash Redis (global, multi-instance) when configured; otherwise (or
+ * on Redis failure) the in-memory per-instance limiter.
+ */
+export async function checkRateLimit(
+  key: string,
+  config: RateLimitConfig = RATE_LIMITS.standard
+): Promise<RateLimitResult> {
+  // Namespace by config so e.g. `auth` and `standard` checks for the same
+  // caller use independent windows.
+  const bucketKey = `rl:${config.maxRequests}:${config.interval}:${key}`
+  const redis = await checkRateLimitRedis(bucketKey, config)
+  if (redis) return redis
+  return checkRateLimitMemory(bucketKey, config)
 }
 
 /**

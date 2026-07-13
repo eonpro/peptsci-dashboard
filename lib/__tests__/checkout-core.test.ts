@@ -10,6 +10,8 @@ import {
   FREE_SHIPPING_THRESHOLD,
   SHIPPING_RATES,
   MAX_LINE_QUANTITY,
+  findStockShortages,
+  describeStockShortages,
 } from '../checkout-core.ts'
 
 describe('validateCartInput', () => {
@@ -127,5 +129,48 @@ describe('computeCartTotals', () => {
     const totals = computeCartTotals([{ lineTotal: 19.99 }, { lineTotal: 0.02 }], 'TWO_DAY')
     assert.equal(totals.subtotal, 20.01)
     assert.equal(totals.total, round2(20.01 + 25))
+  })
+})
+
+describe('findStockShortages (oversell gate)', () => {
+  const line = (quantity: number, available: number, sku = 'SEMA-10') => ({
+    sku,
+    productName: 'Semaglutide',
+    quantity,
+    available,
+  })
+
+  test('passes when every line has enough sellable stock', () => {
+    assert.deepEqual(findStockShortages([line(2, 5), line(1, 1, 'TIRZ-5')]), [])
+  })
+
+  test('flags a line requesting more than available', () => {
+    const shortages = findStockShortages([line(3, 2)])
+    assert.equal(shortages.length, 1)
+    assert.equal(shortages[0].sku, 'SEMA-10')
+  })
+
+  test('exact availability is allowed (quantity === available)', () => {
+    assert.deepEqual(findStockShortages([line(4, 4)]), [])
+  })
+
+  test('negative availability (already oversold) blocks any quantity', () => {
+    const shortages = findStockShortages([line(1, -3)])
+    assert.equal(shortages.length, 1)
+  })
+
+  test('zero availability blocks and message clamps to 0 available', () => {
+    const shortages = findStockShortages([line(2, -1)])
+    const msg = describeStockShortages(shortages)
+    assert.match(msg, /Semaglutide \(SEMA-10\): requested 2, 0 available/)
+  })
+
+  test('describes multiple shortages joined with semicolons', () => {
+    const msg = describeStockShortages(
+      findStockShortages([line(3, 1), line(5, 0, 'TIRZ-5')])
+    )
+    assert.match(msg, /SEMA-10/)
+    assert.match(msg, /TIRZ-5/)
+    assert.match(msg, /; /)
   })
 })

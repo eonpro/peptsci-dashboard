@@ -21,16 +21,29 @@ import {
   XCircle,
   CreditCard,
   FileText,
+  RotateCcw,
 } from 'lucide-react'
 import { BuyAgainButton } from '@/components/shop/BuyAgainButton'
+import { RequestReturnDialog } from '@/components/shop/RequestReturnDialog'
 
 type OrderItem = {
+  id: string
+  variantId: string
   name: string
   dose: string | null
   sku: string | null
   quantity: number
   unitPrice: number
   total: number
+}
+
+type OrderReturn = {
+  id: string
+  rmaNumber: string
+  status: string
+  reason: string | null
+  createdAt: string
+  items: { productName: string; quantity: number }[]
 }
 
 type PackagePhoto = { id: string; url: string; notes: string | null; createdAt: string }
@@ -95,6 +108,19 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [returns, setReturns] = useState<OrderReturn[]>([])
+  const [canRequestReturn, setCanRequestReturn] = useState(false)
+  const [returnOpen, setReturnOpen] = useState(false)
+
+  const loadReturns = (id: string) =>
+    fetch(`/api/shop/orders/${id}/returns`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        setReturns(data.returns ?? [])
+        setCanRequestReturn(Boolean(data.canRequest))
+      })
+      .catch(() => {})
 
   useEffect(() => {
     let active = true
@@ -107,6 +133,7 @@ export default function OrderDetailPage() {
       .then((data) => active && setOrder(data.order))
       .catch((e) => active && setError(e instanceof Error ? e.message : 'Failed to load order'))
       .finally(() => active && setLoading(false))
+    void loadReturns(orderId)
     return () => {
       active = false
     }
@@ -170,8 +197,43 @@ export default function OrderDetailPage() {
           </div>
           <p className="text-gray-500 mt-1">Placed on {formatDate(order.createdAt)}</p>
         </div>
-        <BuyAgainButton orderId={order.id} size="default" />
+        <div className="flex items-center gap-2">
+          {canRequestReturn && (
+            <Button variant="outline" onClick={() => setReturnOpen(true)}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Request Return
+            </Button>
+          )}
+          <BuyAgainButton orderId={order.id} size="default" />
+        </div>
       </div>
+
+      {returns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RotateCcw className="h-5 w-5" /> Returns
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {returns.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-col gap-1 rounded-lg border p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <span className="font-mono font-medium">{r.rmaNumber}</span>
+                  <span className="ml-2 text-gray-500">
+                    {r.items.map((it) => `${it.quantity}× ${it.productName}`).join(', ')}
+                  </span>
+                </div>
+                <Badge variant="outline" className="w-fit">
+                  {r.status.replaceAll('_', ' ')}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
@@ -411,6 +473,20 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      <RequestReturnDialog
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        items={order.items.map((it) => ({
+          id: it.id,
+          name: it.name,
+          dose: it.dose,
+          quantity: it.quantity,
+        }))}
+        onCreated={() => void loadReturns(order.id)}
+      />
     </div>
   )
 }

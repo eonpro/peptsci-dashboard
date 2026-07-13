@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test lib/__tests__/*.test.ts",
+    "test:e2e": "playwright test",
     "test:finance": "node --import tsx --test lib/__tests__/finance.test.ts",
     "format": "prettier --write .",
     "prisma:generate": "prisma generate",
@@ -16,6 +17,7 @@
     "labels:template": "tsx scripts/build-label-template.ts",
     "labels:assets": "python3 scripts/build-label-assets.py",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "seed:competitors": "tsx --env-file=.env.local scripts/seed-competitors.ts",
     "remove-demo-clients": "tsx --env-file=.env.local scripts/remove-demo-clients.ts",
     "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "backfill:sales": "tsx --env-file=.env.local scripts/backfill-sales-from-orders.ts",
@@ -75,6 +77,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/google.maps": "^3.65.2",

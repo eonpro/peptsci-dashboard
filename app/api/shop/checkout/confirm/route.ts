@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
     const rateLimitKey = getRateLimitKey(request, userId)
-    const { limited, remaining, retryAfter } = checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
+    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
@@ -93,6 +93,10 @@ export async function POST(request: NextRequest) {
 
     return successResponse({
       success: result.paymentStatus === 'CAPTURED',
+      // ACH bank debits settle asynchronously: the PI sits in `processing` for
+      // days. The order is accepted now (AUTHORIZED) and flips CAPTURED via
+      // the webhook when the debit clears.
+      pending: intent.status === 'processing',
       orderId: result.orderId,
       paymentStatus: result.paymentStatus,
       stripeStatus: intent.status,

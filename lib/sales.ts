@@ -180,11 +180,18 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
     if (!order) return
 
     const vials = order.items.reduce((sum, it) => sum + it.quantity, 0)
-    const cogs = order.items.reduce(
+    const grossCogs = order.items.reduce(
       (sum, it) => sum + Number(it.variant.unitCost) * it.quantity,
       0
     )
-    const paidAmount = Number(order.total)
+    // Net of refunds: paidAmount is what we actually kept; COGS is scaled by
+    // the same fraction (mirrors the refund-aware external Stripe ingest) so
+    // margins stay consistent. Recomputed from current order state, idempotent.
+    const grossTotal = Number(order.total)
+    const refunded = Math.min(Number(order.refundedTotal ?? 0), grossTotal)
+    const paidAmount = Math.max(0, grossTotal - refunded)
+    const paidFraction = grossTotal > 0 ? paidAmount / grossTotal : 0
+    const cogs = grossCogs * paidFraction
     const productLabel =
       order.items.length === 0
         ? ''

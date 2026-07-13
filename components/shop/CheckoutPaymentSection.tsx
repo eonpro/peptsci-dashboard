@@ -254,7 +254,9 @@ export function CheckoutPaymentSection({
           body: JSON.stringify({ paymentIntentId: data.paymentIntentId }),
         })
         const confirmData = await confirm.json()
-        if (!confirm.ok || !confirmData.success) throw new Error(confirmData.message || 'Payment not completed')
+        if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
+          throw new Error(confirmData.message || 'Payment not completed')
+        }
         onSuccess(data.orderId || confirmData.orderId)
         return
       }
@@ -490,7 +492,9 @@ function NewCardForm({
         body: JSON.stringify({ paymentIntentId: paymentIntent?.id, saveCard }),
       })
       const confirmData = await confirm.json()
-      if (!confirm.ok || !confirmData.success) {
+      // `pending` = ACH bank debit accepted but still settling — the order is
+      // placed; payment captures via webhook when the debit clears.
+      if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
         throw new Error(confirmData.message || 'Payment was not completed')
       }
       onSuccess(orderId)
