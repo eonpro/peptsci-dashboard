@@ -179,10 +179,15 @@ export function forbiddenResponse(message = 'Insufficient permissions') {
  * Creates a standardized error response.
  */
 export function errorResponse(message: string, status = 500, code = 'INTERNAL_ERROR') {
+  // 4xx messages are intentionally user-facing (validation, stock, terms
+  // gates) and must survive to the client so checkout failures are
+  // actionable. Only 5xx messages (which can leak internals) are masked
+  // in production.
+  const maskMessage = status >= 500 && process.env.NODE_ENV === 'production'
   return NextResponse.json(
     {
       error: status >= 500 ? 'Internal Server Error' : 'Bad Request',
-      message: process.env.NODE_ENV === 'production' ? 'An error occurred' : message,
+      message: maskMessage ? 'An error occurred' : message,
       code,
     },
     { status }

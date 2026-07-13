@@ -2,6 +2,13 @@
 
 import { createContext, useContext, useReducer, useEffect, useMemo, ReactNode } from 'react'
 
+/** Maximum vials of a single product per order. */
+export const MAX_ITEM_QUANTITY = 100
+
+function clampQuantity(quantity: number): number {
+  return Math.min(Math.max(1, Math.floor(quantity)), MAX_ITEM_QUANTITY)
+}
+
 export interface CartItem {
   id: string
   productId: string
@@ -55,14 +62,17 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           ...state,
           items: state.items.map((item) =>
             item.id === action.payload.id
-              ? { ...item, quantity: item.quantity + (action.payload.quantity || 1) }
+              ? { ...item, quantity: clampQuantity(item.quantity + (action.payload.quantity || 1)) }
               : item
           ),
         }
       }
       return {
         ...state,
-        items: [...state.items, { ...action.payload, quantity: action.payload.quantity || 1 }],
+        items: [
+          ...state.items,
+          { ...action.payload, quantity: clampQuantity(action.payload.quantity || 1) },
+        ],
       }
     }
     case 'REMOVE_ITEM':
@@ -80,7 +90,9 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         items: state.items.map((item) =>
-          item.id === action.payload.id ? { ...item, quantity: action.payload.quantity } : item
+          item.id === action.payload.id
+            ? { ...item, quantity: clampQuantity(action.payload.quantity) }
+            : item
         ),
       }
     case 'CLEAR_CART':
@@ -92,7 +104,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case 'CLOSE_CART':
       return { ...state, isOpen: false }
     case 'LOAD_CART':
-      return { ...state, items: action.payload }
+      return {
+        ...state,
+        items: action.payload.map((item) => ({ ...item, quantity: clampQuantity(item.quantity) })),
+      }
     default:
       return state
   }

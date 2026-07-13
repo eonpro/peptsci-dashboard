@@ -11,6 +11,9 @@
 
 export const MAX_LINE_QUANTITY = 999
 
+/** Per-product cap for clinic shop orders (vials per line). */
+export const MAX_SHOP_ITEM_QUANTITY = 100
+
 // No sales tax. Shipping is tiered by speed and order size.
 export const FREE_SHIPPING_THRESHOLD = 500
 

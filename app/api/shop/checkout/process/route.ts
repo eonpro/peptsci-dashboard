@@ -16,7 +16,7 @@ import {
 } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
-import { CartValidationError } from '@/lib/checkout-core'
+import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
 import { resolveShopActor } from '@/lib/shop-actor'
 
@@ -40,7 +40,12 @@ const addressSchema = z
 
 const bodySchema = z.object({
   items: z
-    .array(z.object({ sku: z.string().min(1), quantity: z.number().int().min(1).max(999) }))
+    .array(
+      z.object({
+        sku: z.string().min(1),
+        quantity: z.number().int().min(1).max(MAX_SHOP_ITEM_QUANTITY),
+      })
+    )
     .min(1),
   shippingAddress: addressSchema.optional(),
   notes: z.string().max(500).optional(),
@@ -256,6 +261,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof CartValidationError) {
+      logger.warn('[CHECKOUT] Cart rejected', { code: error.code, message: error.message })
       return errorResponse(error.message, 400, error.code)
     }
     if (error instanceof StripeConfigError) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCart } from './CartContext'
+import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -159,13 +159,27 @@ export function CartDrawer() {
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
-                          <span className="w-10 text-center font-semibold text-white text-lg">
-                            {item.quantity}
-                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={MAX_ITEM_QUANTITY}
+                            value={item.quantity}
+                            aria-label={`Quantity for ${item.name}`}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value, 10)
+                              if (!Number.isNaN(parsed)) {
+                                updateQuantity(item.id, Math.min(parsed, MAX_ITEM_QUANTITY))
+                              }
+                            }}
+                            onFocus={(e) => e.target.select()}
+                            className="w-12 h-10 bg-transparent text-center font-semibold text-white text-lg outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-10 w-10 text-white hover:bg-white/10 rounded-lg"
+                            disabled={item.quantity >= MAX_ITEM_QUANTITY}
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           >
                             <Plus className="h-4 w-4" />

@@ -4,9 +4,9 @@ import { useState } from 'react'
 import Image from 'next/image'
 import type { ShopProduct } from '@/lib/types/shop'
 import { Button } from '@/components/ui/button'
-import { useCart } from './CartContext'
+import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Check } from 'lucide-react'
+import { ShoppingCart, Check, Minus, Plus } from 'lucide-react'
 
 interface ProductCardProps {
   product: ShopProduct
@@ -38,8 +38,9 @@ function formatMolecularFormula(formula: string | null | undefined): JSX.Element
 }
 
 export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
-  const { addItem, items, openCart } = useCart()
+  const { addItem, items, updateQuantity, openCart } = useCart()
   const [isAdding, setIsAdding] = useState(false)
+  const [qty, setQty] = useState(1)
 
   const productId = product.id
   const isInCart = items.some((item) => item.id === productId)
@@ -52,6 +53,24 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     }).format(price)
   }
 
+  // Sellable units (already net of reservations, from the catalog). Checkout
+  // hard-rejects oversell, so the card must not let clinics add more than is
+  // actually available. Unknown stock (undefined) falls back to the order cap.
+  const outOfStock = product.inStock === false
+  const maxQty = Math.min(
+    MAX_ITEM_QUANTITY,
+    typeof product.inventoryOnHand === 'number' && product.inventoryOnHand > 0
+      ? product.inventoryOnHand
+      : MAX_ITEM_QUANTITY
+  )
+
+  const clampQty = (value: number) => Math.min(Math.max(1, value), maxQty)
+
+  const handleQtyInput = (raw: string) => {
+    const parsed = parseInt(raw, 10)
+    setQty(Number.isNaN(parsed) ? 1 : clampQty(parsed))
+  }
+
   const handleAddToCart = () => {
     setIsAdding(true)
     addItem({
@@ -61,14 +80,83 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       dose: product.dose,
       sku: product.sku || 'N/A',
       price: product.displayPrice,
-      quantity: 1,
+      quantity: qty,
       image: undefined,
     })
+    setQty(1)
 
     setTimeout(() => {
       setIsAdding(false)
     }, 600)
   }
+
+  // Compact stepper used before the item is in the cart (grid + list views)
+  const qtyStepper = (
+    <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
+      <button
+        type="button"
+        aria-label="Decrease quantity"
+        onClick={() => setQty((q) => clampQty(q - 1))}
+        disabled={qty <= 1}
+        className="h-8 w-7 flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <Minus className="h-3 w-3" />
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={maxQty}
+        value={qty}
+        aria-label="Quantity"
+        onChange={(e) => handleQtyInput(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        className="w-10 h-8 bg-transparent text-center text-sm font-semibold text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        aria-label="Increase quantity"
+        onClick={() => setQty((q) => clampQty(q + 1))}
+        disabled={qty >= maxQty}
+        className="h-8 w-7 flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+    </div>
+  )
+
+  // Inline cart controls once the item is in the cart
+  const inCartControls = cartItem && (
+    <div className="flex items-center gap-1">
+      <div className="flex items-center rounded-lg border border-green-500/50 bg-green-500/10">
+        <button
+          type="button"
+          aria-label="Decrease quantity in cart"
+          onClick={() => updateQuantity(productId, cartItem.quantity - 1)}
+          className="h-8 w-7 flex items-center justify-center text-green-400 hover:text-green-300"
+        >
+          <Minus className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={openCart}
+          className="min-w-8 px-1 h-8 text-center text-sm font-semibold text-green-400"
+          title="View cart"
+        >
+          {cartItem.quantity}
+        </button>
+        <button
+          type="button"
+          aria-label="Increase quantity in cart"
+          onClick={() => updateQuantity(productId, cartItem.quantity + 1)}
+          disabled={cartItem.quantity >= maxQty}
+          className="h-8 w-7 flex items-center justify-center text-green-400 hover:text-green-300 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  )
 
   // Determine if this is a blend (contains multiple peptides)
   const isBlend =
@@ -129,24 +217,23 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               <p className="text-xl font-bold text-white">{formatPrice(product.displayPrice)}</p>
             </div>
             {isInCart ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-3 border-green-500/50 text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-xl"
-                onClick={openCart}
-              >
-                <Check className="mr-1 h-4 w-4" />
-                {cartItem?.quantity}
-              </Button>
+              inCartControls
+            ) : outOfStock ? (
+              <span className="text-xs font-medium text-white/40 border border-white/10 rounded-xl px-3 py-2">
+                Out of Stock
+              </span>
             ) : (
-              <Button
-                onClick={handleAddToCart}
-                disabled={isAdding}
-                size="sm"
-                className="h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
-              >
-                {isAdding ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-2">
+                {qtyStepper}
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={isAdding}
+                  size="sm"
+                  className="h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
+                >
+                  {isAdding ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -261,34 +348,33 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           </div>
 
           {isInCart ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-3 text-xs border-green-500/50 text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-lg"
-              onClick={openCart}
-            >
-              <Check className="mr-1 h-3.5 w-3.5" />
-              In Cart ({cartItem?.quantity})
-            </Button>
+            inCartControls
+          ) : outOfStock ? (
+            <span className="text-xs font-medium text-white/40 border border-white/10 rounded-lg px-3 py-2">
+              Out of Stock
+            </span>
           ) : (
-            <Button
-              onClick={handleAddToCart}
-              disabled={isAdding}
-              size="sm"
-              className="h-8 px-3 text-xs bg-brand-primary hover:bg-[#1a30c0] text-white rounded-lg font-medium"
-            >
-              {isAdding ? (
-                <>
-                  <Check className="mr-1 h-3.5 w-3.5" />
-                  Added
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="mr-1 h-3.5 w-3.5" />
-                  Add
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              {qtyStepper}
+              <Button
+                onClick={handleAddToCart}
+                disabled={isAdding}
+                size="sm"
+                className="h-8 px-3 text-xs bg-brand-primary hover:bg-[#1a30c0] text-white rounded-lg font-medium"
+              >
+                {isAdding ? (
+                  <>
+                    <Check className="mr-1 h-3.5 w-3.5" />
+                    Added
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="mr-1 h-3.5 w-3.5" />
+                    Add
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </div>
