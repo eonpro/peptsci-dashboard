@@ -48,7 +48,9 @@ const bodySchema = z.object({
   notes: z.string().max(500).optional(),
   shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
   shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
-  patientId: z.string().optional(),
+  // nullish, not optional: the checkout page always sends the field and it is
+  // null when shipping to the practice.
+  patientId: z.string().nullish(),
 })
 
 const usd = (n: number) =>
