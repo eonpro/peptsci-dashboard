@@ -123,6 +123,16 @@ END_CUSTOMER_JWT_SECRET="change-me-to-a-random-64-char-string"
 ACH_ENABLED=""
 
 # ===========================================
+# INVENTORY - Hard stock enforcement at checkout
+# ===========================================
+# When "true", clinic checkout rejects carts whose quantities exceed sellable
+# stock (onHand - reserved) and the shop marks zero-stock products as
+# "Out of Stock" with quantity steppers capped at availability.
+# Leave unset/false until real inventory counts are maintained in the DB —
+# with all-zero counts the gate blocks every checkout.
+CHECKOUT_ENFORCE_STOCK=""
+
+# ===========================================
 # SECURITY - Admin 2FA enforcement
 # ===========================================
 # When "true", ADMIN/SUPER_ADMIN users must have a second factor enrolled in

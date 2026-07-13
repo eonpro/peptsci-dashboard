@@ -6,6 +6,7 @@
  */
 
 import { prisma } from './prisma'
+import { stockEnforcementEnabled } from './stock-enforcement'
 import { logger } from './logger'
 import type { ShopProduct, ProductImage } from './types/shop'
 
@@ -50,7 +51,10 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
   const srp = Number(v.srp)
   // Availability, not gross on-hand: stock already reserved for other open
   // orders isn't purchasable. Prevents showing/selling units that are spoken
-  // for and reduces oversell at checkout.
+  // for and reduces oversell at checkout. Only surfaced when stock
+  // enforcement is on — otherwise unmaintained (all-zero) counts would mark
+  // the entire catalog "Out of Stock".
+  const enforceStock = stockEnforcementEnabled()
   const available = Math.max(0, v.inventoryOnHand - (v.inventoryReserved || 0))
   return {
     id: v.sku || v.id,
@@ -68,8 +72,8 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
       v.product.molecularWeight != null ? `${v.product.molecularWeight} g/mol` : null,
     pubchemCid: v.product.pubchemCid,
     images: toImages(v.product.media),
-    inventoryOnHand: available,
-    inStock: available > 0,
+    inventoryOnHand: enforceStock ? available : undefined,
+    inStock: enforceStock ? available > 0 : true,
     status: v.status as ShopProduct['status'],
   }
 }

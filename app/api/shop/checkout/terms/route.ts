@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
+import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import { assessTermsCheckout } from '@/lib/checkout-terms'
 import { createInvoice, getClientBillingSnapshot } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
       clientId: actor.clientId,
       items,
       speed: shipSpeed,
-      enforceStock: true,
+      enforceStock: stockEnforcementEnabled(),
     })
 
     // Terms gate: admin-granted terms required; credit limit (when set) caps

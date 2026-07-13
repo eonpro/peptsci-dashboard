@@ -17,6 +17,7 @@ import {
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
+import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
 import { resolveShopActor } from '@/lib/shop-actor'
 
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       clientId: actor.clientId,
       items,
       speed: shipSpeed,
-      enforceStock: true,
+      enforceStock: stockEnforcementEnabled(),
     })
 
     // Resolve the ship-to address server-side. For "ship to patient" the saved
