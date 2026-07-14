@@ -8,10 +8,10 @@ import { logger } from '@/lib/logger'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
-import { assessTermsCheckout } from '@/lib/checkout-terms'
-import { createInvoice, getClientBillingSnapshot } from '@/lib/invoicing/service'
+import { assessTermsCheckout, type TermsCheckoutResult } from '@/lib/checkout-terms'
+import { createInvoiceTx, getClientBillingSnapshot, recomputeStatus } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
-import { reserveForOrder } from '@/lib/inventory/reservations'
+import { InsufficientStockError, reserveForOrderTx } from '@/lib/inventory/reservations'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 import { sendInvoiceIssuedEmail } from '@/lib/email'
@@ -56,6 +56,40 @@ const bodySchema = z.object({
 
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
+/** Thrown inside the checkout transaction when the re-checked gate fails. */
+class TermsGateError extends Error {
+  constructor(readonly gate: Exclude<TermsCheckoutResult, { allowed: true }>) {
+    super(`Terms checkout rejected: ${gate.reason}`)
+    this.name = 'TermsGateError'
+  }
+}
+
+function termsGateResponse(gate: Exclude<TermsCheckoutResult, { allowed: true }>) {
+  if (gate.reason === 'NO_TERMS') {
+    return errorResponse('Your account is not set up for billing on terms', 403, 'NO_TERMS')
+  }
+  if (gate.reason === 'CREDIT_HOLD') {
+    return NextResponse.json(
+      {
+        error: 'Account on credit hold',
+        message:
+          'Your account has a past-due invoice. Please pay it at /shop/invoices (or use a card) to continue ordering on terms.',
+        code: 'CREDIT_HOLD',
+      },
+      { status: 409 }
+    )
+  }
+  return NextResponse.json(
+    {
+      error: 'Credit limit exceeded',
+      message: `This order exceeds your available credit (${usd(gate.availableCredit)} available). Please pay open invoices or use a card.`,
+      code: 'OVER_CREDIT_LIMIT',
+      availableCredit: gate.availableCredit,
+    },
+    { status: 409 }
+  )
+}
 
 /**
  * POST /api/shop/checkout/terms — "bill to account" checkout for clients with
@@ -108,6 +142,8 @@ export async function POST(request: NextRequest) {
     })
     if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
 
+    // Fast-fail pre-check (the authoritative gate re-runs inside the
+    // serialized transaction below, closing the concurrent-checkout window).
     const { openBalance, hasOverdue } = await getClientBillingSnapshot(actor.clientId)
     const gate = assessTermsCheckout({
       paymentTermsDays: client.paymentTermsDays,
@@ -116,31 +152,7 @@ export async function POST(request: NextRequest) {
       orderTotal: cart.totals.total,
       hasOverdue,
     })
-    if (!gate.allowed) {
-      if (gate.reason === 'NO_TERMS') {
-        return errorResponse('Your account is not set up for billing on terms', 403, 'NO_TERMS')
-      }
-      if (gate.reason === 'CREDIT_HOLD') {
-        return NextResponse.json(
-          {
-            error: 'Account on credit hold',
-            message:
-              'Your account has a past-due invoice. Please pay it at /shop/invoices (or use a card) to continue ordering on terms.',
-            code: 'CREDIT_HOLD',
-          },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json(
-        {
-          error: 'Credit limit exceeded',
-          message: `This order exceeds your available credit (${usd(gate.availableCredit)} available). Please pay open invoices or use a card.`,
-          code: 'OVER_CREDIT_LIMIT',
-          availableCredit: gate.availableCredit,
-        },
-        { status: 409 }
-      )
-    }
+    if (!gate.allowed) return termsGateResponse(gate)
 
     // Resolve ship-to-patient server-side (mirrors the card checkout).
     let resolvedShippingAddress: Prisma.InputJsonValue | undefined =
@@ -175,48 +187,76 @@ export async function POST(request: NextRequest) {
       patientId,
     })
 
-    // Submit the order (only from DRAFT — a reused draft may already be
-    // submitted if the client double-clicked; both calls converge here).
-    await prisma.order.updateMany({
-      where: { id: order.id, status: 'DRAFT' },
-      data: { status: 'SUBMITTED', submittedAt: new Date() },
+    // Submit + credit re-check + invoice + reserve, atomically. A per-client
+    // advisory lock serializes concurrent terms checkouts so two parallel
+    // orders can't both pass the credit gate against the same open balance
+    // (TOCTOU); the re-run gate inside the lock is authoritative. Because the
+    // SUBMITTED flip and the invoice creation share the transaction, a failed
+    // invoice can no longer strand a submitted-but-uninvoiced order. Stock is
+    // reserved in the same transaction (hard-fail when enforcement is on).
+    const txResult = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('terms-checkout'), hashtext(${actor.clientId}))`
+
+      const snapshot = await getClientBillingSnapshot(actor.clientId, tx)
+      const regate = assessTermsCheckout({
+        paymentTermsDays: client.paymentTermsDays,
+        creditLimit: client.creditLimit != null ? Number(client.creditLimit) : null,
+        openBalance: snapshot.openBalance,
+        orderTotal: cart.totals.total,
+        hasOverdue: snapshot.hasOverdue,
+      })
+      if (!regate.allowed) throw new TermsGateError(regate)
+
+      // Submit the order (only from DRAFT — a reused draft may already be
+      // submitted if the client double-clicked; both calls converge here).
+      await tx.order.updateMany({
+        where: { id: order.id, status: 'DRAFT' },
+        data: { status: 'SUBMITTED', submittedAt: new Date() },
+      })
+
+      // If the order is already on a non-void invoice (double-submit), reuse
+      // it — but still make sure stock is reserved (the first attempt's
+      // reservation may have failed).
+      const existingLine = await tx.invoiceLineItem.findFirst({
+        where: { orderId: order.id, invoice: { status: { not: 'VOID' } } },
+        select: { invoiceId: true, invoice: { select: { invoiceNumber: true } } },
+      })
+      if (existingLine) {
+        await reserveForOrderTx(tx, order.id, { enforce: false })
+        return { duplicate: true as const, existingLine }
+      }
+
+      const invoice = await createInvoiceTx(tx, {
+        clientId: actor.clientId,
+        orderIds: [order.id],
+        paymentTermsDays: regate.termsDays,
+        createdById: actor.userId,
+        notes: `Net-terms checkout — order #${order.orderNumber}`,
+        issue: true,
+      })
+
+      // Reserve stock now that the order is committed (card orders reserve at
+      // capture; terms orders reserve at submission). Hard-fails (rolling back
+      // submit + invoice) only when stock enforcement is on.
+      await reserveForOrderTx(tx, order.id, { enforce: stockEnforcementEnabled() })
+
+      return { duplicate: false as const, invoice, termsDays: regate.termsDays }
     })
 
-    // Invoice the order on the client's terms. If the order is already on a
-    // non-void invoice (double-submit), reuse it instead of failing.
-    let invoiceView
-    const existingLine = await prisma.invoiceLineItem.findFirst({
-      where: { orderId: order.id, invoice: { status: { not: 'VOID' } } },
-      select: { invoiceId: true, invoice: { select: { invoiceNumber: true } } },
-    })
-    if (existingLine) {
+    if (txResult.duplicate) {
       return successResponse({
         success: true,
         orderId: order.id,
         orderNumber: order.orderNumber,
-        invoiceId: existingLine.invoiceId,
-        invoiceNumber: formatInvoiceNumber(existingLine.invoice.invoiceNumber),
+        invoiceId: txResult.existingLine.invoiceId,
+        invoiceNumber: formatInvoiceNumber(txResult.existingLine.invoice.invoiceNumber),
         termsDays: gate.termsDays,
         duplicate: true,
       })
     }
-    invoiceView = await createInvoice({
-      clientId: actor.clientId,
-      orderIds: [order.id],
-      paymentTermsDays: gate.termsDays,
-      createdById: actor.userId,
-      notes: `Net-terms checkout — order #${order.orderNumber}`,
-      issue: true,
-    })
 
-    // Reserve stock now that the order is committed (card orders reserve at
-    // capture; terms orders reserve at submission). Non-blocking.
-    await reserveForOrder(order.id).catch((e) =>
-      logger.warn('[CHECKOUT TERMS] reserveForOrder failed (non-blocking)', {
-        orderId: order.id,
-        error: e instanceof Error ? e.message : String(e),
-      })
-    )
+    // Settle derived status (e.g. zero-total invoices) outside the hot tx.
+    const invoiceView = await recomputeStatus(txResult.invoice.id)
 
     // Notifications (fire-and-forget; never fail the checkout).
     void sendOrderConfirmationForOrder(order.id, {
@@ -274,6 +314,18 @@ export async function POST(request: NextRequest) {
     if (error instanceof CartValidationError) {
       logger.warn('[CHECKOUT TERMS] Cart rejected', { code: error.code, message: error.message })
       return errorResponse(error.message, 400, error.code)
+    }
+    if (error instanceof TermsGateError) {
+      logger.warn('[CHECKOUT TERMS] gate rejected inside transaction', { reason: error.gate.reason })
+      return termsGateResponse(error.gate)
+    }
+    if (error instanceof InsufficientStockError) {
+      logger.warn('[CHECKOUT TERMS] insufficient stock at reservation')
+      return errorResponse(
+        'Insufficient stock — one or more items in your cart are no longer available in the requested quantity.',
+        400,
+        'INSUFFICIENT_STOCK'
+      )
     }
     const message = error instanceof Error ? error.message : 'Checkout failed'
     logger.error('[CHECKOUT TERMS] error', { message }, error as Error)

@@ -11,7 +11,7 @@ import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { verifyCronAuth } from '@/lib/cron/auth'
-import { markOverdueInvoices } from '@/lib/invoicing/service'
+import { listOverdueInvoiceViews, markOverdueInvoices } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { nyDayString } from '@/lib/reports/core'
 import { sendInvoiceOverdueEmail } from '@/lib/email'
@@ -63,12 +63,16 @@ async function run(req: NextRequest) {
   }
   try {
     const flipped = await markOverdueInvoices()
+    // Remind on EVERY outstanding overdue invoice (flipped ones are now
+    // OVERDUE too, so this list covers them) — not only first-day flips.
+    // The per-invoice per-day markers below keep it to one send per day.
+    const overdue = await listOverdueInvoiceViews()
     const dayKey = nyDayString(new Date())
     const seenThisRun = new Set<string>()
     let emailed = 0
     let texted = 0
     let skippedDuplicates = 0
-    for (const view of flipped) {
+    for (const view of overdue) {
       // In-run + same-day dedup: never notify the same invoice twice.
       if (seenThisRun.has(view.invoice.id) || (await alreadyNotified(view.invoice.id, dayKey))) {
         skippedDuplicates += 1
@@ -145,6 +149,7 @@ async function run(req: NextRequest) {
     }
     logger.info('[CRON invoices-overdue] complete', {
       flipped: flipped.length,
+      overdue: overdue.length,
       emailed,
       texted,
       skippedDuplicates,
@@ -152,6 +157,7 @@ async function run(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       flipped: flipped.length,
+      overdue: overdue.length,
       emailed,
       texted,
       skippedDuplicates,

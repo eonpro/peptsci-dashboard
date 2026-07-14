@@ -179,6 +179,19 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
     })
     if (!order) return
 
+    // A record created by the Stripe ingest (stripe-convert / backfill) holds
+    // the TRUE captured amount from Stripe. Overwriting it with catalog line
+    // totals (source: 'order') would silently shift reported revenue, so
+    // Stripe-sourced records are owned by the Stripe reconcile path.
+    const existing = await prisma.salesRecord.findUnique({
+      where: { orderId },
+      select: { id: true, source: true },
+    })
+    if (existing && existing.source === 'stripe') {
+      logger.info('Skipping sales sync: record is Stripe-sourced', { orderId })
+      return
+    }
+
     const vials = order.items.reduce((sum, it) => sum + it.quantity, 0)
     const grossCogs = order.items.reduce(
       (sum, it) => sum + Number(it.variant.unitCost) * it.quantity,

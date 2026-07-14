@@ -380,12 +380,27 @@ export async function recordLabelPrintEvent(
 }
 
 /**
+ * Start of the current UTC day. BUDs are stored as date-only UTC midnight;
+ * batches with `bud < minAllocatableBud()` are past their beyond-use date and
+ * must never be allocated or shipped (a batch whose BUD is today is still
+ * usable through the day).
+ */
+export function minAllocatableBud(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+}
+
+/**
  * Batches for a variant eligible for FIFO allocation (RECEIVED, on-hand > 0,
- * soonest BUD first).
+ * not past BUD, soonest BUD first).
  */
 export async function allocatableBatchesForVariant(variantId: string) {
   return db().inventoryBatch.findMany({
-    where: { variantId, status: 'RECEIVED', qtyOnHand: { gt: 0 } },
+    where: {
+      variantId,
+      status: 'RECEIVED',
+      qtyOnHand: { gt: 0 },
+      bud: { gte: minAllocatableBud() },
+    },
     orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
   })
 }
@@ -406,7 +421,12 @@ export async function allocatableBatchesForVariants(
   if (ids.length === 0) return grouped
 
   const rows = await db().inventoryBatch.findMany({
-    where: { variantId: { in: ids }, status: 'RECEIVED', qtyOnHand: { gt: 0 } },
+    where: {
+      variantId: { in: ids },
+      status: 'RECEIVED',
+      qtyOnHand: { gt: 0 },
+      bud: { gte: minAllocatableBud() },
+    },
     orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
   })
   for (const row of rows) {

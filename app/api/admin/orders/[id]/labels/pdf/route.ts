@@ -4,7 +4,11 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { allocatableBatchesForVariants, planAllocation } from '@/lib/inventory-batches'
 import { consumeOrderInventory } from '@/lib/fulfillment/service'
-import { assessShipmentPaymentGate, PAYMENT_GATE_MESSAGE } from '@/lib/fulfillment/payment-gate'
+import {
+  assessShipmentPaymentGate,
+  PAYMENT_GATE_MESSAGE,
+  PAYMENT_GATE_REFUNDED_MESSAGE,
+} from '@/lib/fulfillment/payment-gate'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
 
 export const runtime = 'nodejs'
@@ -47,7 +51,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         override: overrideUnpaidShip,
       })
       if (!gate.allowed) {
-        return errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
+        return gate.reason === 'refunded'
+          ? errorResponse(PAYMENT_GATE_REFUNDED_MESSAGE, 409, 'ORDER_REFUNDED')
+          : errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
       }
       if (gate.reason === 'override') {
         logger.warn('[Order labels] unpaid-consume override used', {

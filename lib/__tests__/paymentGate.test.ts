@@ -26,10 +26,22 @@ describe('assessShipmentPaymentGate', () => {
   })
 
   it('blocks unpaid, un-invoiced orders without override', () => {
-    for (const paymentStatus of ['PENDING', 'AUTHORIZED', 'FAILED', 'REFUNDED']) {
+    for (const paymentStatus of ['PENDING', 'AUTHORIZED', 'FAILED']) {
       const res = assessShipmentPaymentGate({ paymentStatus, invoiced: false })
       assert.equal(res.allowed, false, `expected ${paymentStatus} to be blocked`)
       assert.equal(res.reason, 'unpaid')
+    }
+  })
+
+  it('blocks refunded orders even when invoiced or overridden', () => {
+    for (const input of [
+      { paymentStatus: 'REFUNDED', invoiced: false },
+      { paymentStatus: 'REFUNDED', invoiced: true },
+      { paymentStatus: 'REFUNDED', invoiced: true, override: true },
+    ]) {
+      const res = assessShipmentPaymentGate(input)
+      assert.equal(res.allowed, false, `expected ${JSON.stringify(input)} to be blocked`)
+      assert.equal(res.reason, 'refunded')
     }
   })
 

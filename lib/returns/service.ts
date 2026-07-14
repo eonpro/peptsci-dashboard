@@ -70,9 +70,78 @@ export async function createReturnRequest(input: CreateReturnInput): Promise<Ret
 
   const order = await client.order.findUnique({
     where: { id: input.orderId },
-    select: { id: true, clientId: true, orderNumber: true },
+    select: {
+      id: true,
+      clientId: true,
+      orderNumber: true,
+      items: { select: { id: true, variantId: true, quantity: true } },
+    },
   })
   if (!order) throw new Error('Order not found')
+
+  // Cumulative cap shared by ALL entry points (shop + admin + direct API):
+  // per line, returnable = ordered − already requested across prior
+  // non-rejected returns. Without this, repeated RMAs could each claim the
+  // full ordered quantity → double restock / double refund.
+  const priorItems = await client.returnItem.findMany({
+    where: { returnRequest: { orderId: order.id, status: { not: 'REJECTED' } } },
+    select: { orderItemId: true, variantId: true, quantity: true },
+  })
+  const priorByOrderItem = new Map<string, number>()
+  const priorByVariant = new Map<string, number>()
+  for (const p of priorItems) {
+    if (p.orderItemId) {
+      priorByOrderItem.set(p.orderItemId, (priorByOrderItem.get(p.orderItemId) ?? 0) + p.quantity)
+    } else if (p.variantId) {
+      priorByVariant.set(p.variantId, (priorByVariant.get(p.variantId) ?? 0) + p.quantity)
+    }
+  }
+  const orderItemById = new Map(order.items.map((it) => [it.id, it]))
+  const orderedByVariant = new Map<string, number>()
+  for (const it of order.items) {
+    orderedByVariant.set(it.variantId, (orderedByVariant.get(it.variantId) ?? 0) + it.quantity)
+  }
+  // Requested quantities within THIS request also accumulate against the cap.
+  const requestedByOrderItem = new Map<string, number>()
+  const requestedByVariant = new Map<string, number>()
+  for (const item of input.items) {
+    const qty = Math.floor(item.quantity)
+    if (item.orderItemId) {
+      const orderItem = orderItemById.get(item.orderItemId)
+      if (!orderItem) {
+        throw new Error(`Item "${item.productName}" does not belong to this order`)
+      }
+      const requested = (requestedByOrderItem.get(orderItem.id) ?? 0) + qty
+      requestedByOrderItem.set(orderItem.id, requested)
+      const remaining = orderItem.quantity - (priorByOrderItem.get(orderItem.id) ?? 0)
+      if (requested > remaining) {
+        throw new Error(
+          `Return quantity for "${item.productName}" exceeds the returnable amount (${Math.max(0, remaining)})`
+        )
+      }
+    } else if (item.variantId) {
+      const ordered = orderedByVariant.get(item.variantId)
+      if (ordered === undefined) {
+        throw new Error(`Item "${item.productName}" does not belong to this order`)
+      }
+      const requested = (requestedByVariant.get(item.variantId) ?? 0) + qty
+      requestedByVariant.set(item.variantId, requested)
+      // Variant-level cap counts prior returns on the variant however they
+      // were keyed (order item or variant only).
+      const priorLinked = order.items.reduce(
+        (s, it) => (it.variantId === item.variantId ? s + (priorByOrderItem.get(it.id) ?? 0) : s),
+        0
+      )
+      const remaining = ordered - priorLinked - (priorByVariant.get(item.variantId) ?? 0)
+      if (requested > remaining) {
+        throw new Error(
+          `Return quantity for "${item.productName}" exceeds the returnable amount (${Math.max(0, remaining)})`
+        )
+      }
+    }
+    // Free-form items (no orderItemId/variantId) are informational only and
+    // can't be restocked, so they aren't capped here.
+  }
 
   // Retry to absorb the (rare) race on the per-day RMA sequence.
   for (let attempt = 1; attempt <= RMA_MAX_ATTEMPTS; attempt++) {

@@ -137,10 +137,39 @@ export async function getUnbilledOrders(clientId: string) {
  */
 export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceView> {
   const client = db()
+  const created = await client.$transaction((tx) => createInvoiceTx(tx, input))
+  // Recompute so a fully-zero or already-paid invoice lands in the right state.
+  return recomputeStatus(created.id)
+}
+
+/**
+ * Transactional core of {@link createInvoice} — callable inside a caller-owned
+ * transaction (e.g. terms checkout, which must submit + invoice atomically).
+ * Returns the raw created invoice; callers outside a transaction should use
+ * `createInvoice`, which also recomputes status.
+ */
+export async function createInvoiceTx(
+  tx: Prisma.TransactionClient,
+  input: CreateInvoiceInput
+): Promise<InvoiceWithRelations> {
   const issueDate = input.issueDate ?? new Date()
   const paymentTermsDays = input.paymentTermsDays ?? 30
 
-  const created = await client.$transaction(async (tx) => {
+  {
+    // Guard against AR double-counting: `balanceForward` embeds prior unpaid
+    // debt into this invoice's grossTotal. If the prior invoices carrying that
+    // debt are still open, both would count toward the client's open balance.
+    if ((input.balanceForward ?? 0) > 0) {
+      const openPrior = await tx.invoice.count({
+        where: { clientId: input.clientId, status: { in: ['OPEN', 'PARTIAL', 'OVERDUE'] } },
+      })
+      if (openPrior > 0) {
+        throw new Error(
+          'Cannot carry a balance forward while the client has open invoices — void or settle them first (their balance would be double-counted)'
+        )
+      }
+    }
+
     const lines: Prisma.InvoiceLineItemCreateWithoutInvoiceInput[] = []
     const orderIdsToLink: string[] = []
 
@@ -220,10 +249,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceV
       },
       include: INVOICE_INCLUDE,
     })
-  })
-
-  // Recompute so a fully-zero or already-paid invoice lands in the right state.
-  return recomputeStatus(created.id)
+  }
 }
 
 /** Recompute persisted status/dueDate/paidAt from current lines+payments. */
@@ -287,7 +313,7 @@ export async function recordPayment(
 
   const target = await client.invoice.findUnique({
     where: { id: invoiceId },
-    select: { id: true, status: true },
+    include: INVOICE_INCLUDE,
   })
   if (!target) throw new Error('Invoice not found')
   if (target.status === 'VOID') throw new Error('Cannot record a payment on a void invoice')
@@ -307,14 +333,39 @@ export async function recordPayment(
     }
   }
 
+  // Cap the recorded amount at the CURRENT amount due. A stale PaymentIntent
+  // (created before a partial payment elsewhere) can capture more than the
+  // live balance; recording the full stale amount would flip the invoice into
+  // silent overpayment. The excess is logged + noted for a manual refund.
+  const currentDue = decorateInvoice(target).totals.amountDue
+  let recordedAmount = input.amount
+  let overpayNote: string | null = null
+  if (recordedAmount > currentDue + 0.005) {
+    const excess = Math.round((recordedAmount - currentDue) * 100) / 100
+    logger.warn('[INVOICING] payment exceeds amount due — capping recorded amount', {
+      invoiceId,
+      paymentAmount: input.amount,
+      amountDue: currentDue,
+      excess,
+      stripePaymentIntentId: input.stripePaymentIntentId ?? null,
+    })
+    if (currentDue <= 0) {
+      // Nothing due — don't create a zero/negative payment row. Surface the
+      // situation via the log above; the charge needs a manual refund.
+      return recomputeStatus(invoiceId)
+    }
+    recordedAmount = currentDue
+    overpayNote = `Overpayment: charged ${input.amount.toFixed(2)}, recorded ${recordedAmount.toFixed(2)} (excess ${excess.toFixed(2)} needs refund)`
+  }
+
   await client.invoicePayment.create({
     data: {
       invoiceId,
-      amount: new Prisma.Decimal(input.amount),
+      amount: new Prisma.Decimal(recordedAmount),
       method: input.method,
       reference: input.reference,
       stripePaymentIntentId: input.stripePaymentIntentId,
-      notes: input.notes,
+      notes: overpayNote ? [input.notes, overpayNote].filter(Boolean).join(' | ') : input.notes,
       paidAt: input.paidAt ?? new Date(),
     },
   })
@@ -367,9 +418,10 @@ async function settleOrdersForPaidInvoice(invoiceId: string): Promise<void> {
  * checkout between overdue-cron runs is still held.
  */
 export async function getClientBillingSnapshot(
-  clientId: string
+  clientId: string,
+  dbc?: Prisma.TransactionClient
 ): Promise<{ openBalance: number; hasOverdue: boolean }> {
-  const client = db()
+  const client = dbc ?? db()
   const rows = await client.invoice.findMany({
     where: { clientId, status: { in: ['OPEN', 'PARTIAL', 'OVERDUE'] } },
     include: INVOICE_INCLUDE,
@@ -507,6 +559,19 @@ export async function listInvoices(params: ListInvoicesParams = {}) {
 export async function getInvoice(invoiceId: string): Promise<InvoiceView | null> {
   const inv = await db().invoice.findUnique({ where: { id: invoiceId }, include: INVOICE_INCLUDE })
   return inv ? decorateInvoice(inv) : null
+}
+
+/**
+ * All OVERDUE invoices that still carry a balance, decorated for notification.
+ * Used by the overdue cron so reminders keep going out while debt is
+ * outstanding (not only on the day the status first flips).
+ */
+export async function listOverdueInvoiceViews(now: Date = new Date()): Promise<InvoiceView[]> {
+  const rows = await db().invoice.findMany({
+    where: { status: 'OVERDUE' },
+    include: INVOICE_INCLUDE,
+  })
+  return rows.map((r) => decorateInvoice(r, now)).filter((v) => v.totals.amountDue > 0)
 }
 
 /**

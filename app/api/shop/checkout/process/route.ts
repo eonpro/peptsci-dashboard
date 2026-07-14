@@ -18,6 +18,12 @@ import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
+import {
+  InsufficientStockError,
+  releaseForOrder,
+  releaseStaleDraftReservations,
+  reserveForOrderEnforced,
+} from '@/lib/inventory/reservations'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
 import { resolveShopActor } from '@/lib/shop-actor'
 
@@ -144,6 +150,35 @@ export async function POST(request: NextRequest) {
       patientId,
     })
 
+    // Hard stock enforcement: reserve atomically BEFORE payment so two
+    // concurrent checkouts cannot both pass the read-only stock check and pay
+    // for the same last units. Idempotent (a resubmitted draft skips already-
+    // reserved lines). At capture, reserveForOrder is a no-op for these rows.
+    if (stockEnforcementEnabled()) {
+      try {
+        await reserveForOrderEnforced(order.id)
+      } catch (err) {
+        if (err instanceof InsufficientStockError) {
+          // Free stock held by abandoned checkouts, then retry once.
+          await releaseStaleDraftReservations().catch(() => {})
+          try {
+            await reserveForOrderEnforced(order.id)
+          } catch (retryErr) {
+            if (retryErr instanceof InsufficientStockError) {
+              return errorResponse(
+                'Insufficient stock — one or more items in your cart are no longer available in the requested quantity.',
+                400,
+                'INSUFFICIENT_STOCK'
+              )
+            }
+            throw retryErr
+          }
+        } else {
+          throw err
+        }
+      }
+    }
+
     const amount = toCents(cart.totals.total)
     const appFee = applicationFeeAmount(amount)
     const baseParams: Stripe.PaymentIntentCreateParams = {
@@ -189,6 +224,9 @@ export async function POST(request: NextRequest) {
             stripePaymentIntentId: pi?.id,
           },
         })
+        // Free any stock reserved for this attempt (enforcement path); a retry
+        // creates a fresh draft and re-reserves.
+        await releaseForOrder(order.id).catch(() => {})
         logger.warn('[CHECKOUT] Saved-card charge failed', {
           orderId: order.id,
           error: message,

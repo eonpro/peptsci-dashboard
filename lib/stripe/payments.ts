@@ -13,7 +13,7 @@ import { requireStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
 import { logger } from '@/lib/logger'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
-import { reserveForOrder } from '@/lib/inventory/reservations'
+import { releaseForOrder, reserveForOrder } from '@/lib/inventory/reservations'
 import { toCents } from '@/lib/stripe'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 import { notifyAdmins } from '@/lib/notifications/service'
@@ -172,6 +172,17 @@ export async function reconcileOrderFromPaymentIntent(
     paymentIntentId: pi.id,
     paymentStatus,
   })
+
+  // A failed payment on a still-DRAFT order frees any stock reserved by the
+  // enforced-checkout path (idempotent no-op when nothing was reserved).
+  if (isFailed && order.status === 'DRAFT') {
+    await releaseForOrder(order.id).catch((e) =>
+      logger.warn('[STRIPE] releaseForOrder after failure failed (non-blocking)', {
+        orderId: order.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+  }
 
   // Mirror captured orders into SalesRecord so analytics (dashboard, customers,
   // P&L, search) reflect platform sales. Idempotent (upsert keyed by orderId);

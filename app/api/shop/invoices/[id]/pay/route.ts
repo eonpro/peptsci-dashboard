@@ -137,7 +137,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Card + ACH bank debit (when ACH_ENABLED) — Payment Element shows both.
     const intent = await stripe.paymentIntents.create(
       { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
-      connectRequestOptions()
+      // Amount-aware idempotency (distinct from the saved-card key since the
+      // params differ): reopening the pay dialog reuses the SAME unconfirmed
+      // PI instead of minting a new full-balance PI each time, so a user
+      // cannot end up completing two intents for one invoice balance.
+      connectRequestOptions({ idempotencyKey: `pi_inv_elements_${view.invoice.id}_${amount}` })
     )
     return successResponse({
       clientSecret: intent.client_secret,

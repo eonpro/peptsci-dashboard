@@ -13,7 +13,12 @@
 import { Prisma, type FulfillmentStage } from '@prisma/client'
 import { prisma } from '../prisma'
 import { logger } from '../logger'
-import { allocatableBatchesForVariants, planAllocation, recordLabelsPrintedTx } from '../inventory-batches'
+import {
+  allocatableBatchesForVariants,
+  minAllocatableBud,
+  planAllocation,
+  recordLabelsPrintedTx,
+} from '../inventory-batches'
 import type { BatchActor } from '../inventory-batches-core'
 import { aggregateByVariant } from '../inventory/reservations-core'
 import { closeReservationsTx } from '../inventory/reservations'
@@ -78,7 +83,13 @@ export async function consumeOrderInventory(
 
     const batches = variantIds.length
       ? await tx.inventoryBatch.findMany({
-          where: { variantId: { in: variantIds }, status: 'RECEIVED', qtyOnHand: { gt: 0 } },
+          where: {
+            variantId: { in: variantIds },
+            status: 'RECEIVED',
+            qtyOnHand: { gt: 0 },
+            // Never draw from batches past their beyond-use date.
+            bud: { gte: minAllocatableBud() },
+          },
           orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
           select: { id: true, variantId: true, batchNumber: true, bud: true, qtyOnHand: true },
         })

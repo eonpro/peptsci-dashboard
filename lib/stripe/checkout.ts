@@ -196,7 +196,19 @@ export async function createDraftOrder(params: {
           })) as ResolvedCart['lines']
         ) === fingerprint
     )
-    if (reusable) return { order: reusable, reused: true }
+    if (reusable) {
+      // Same cart, but the shopper may have edited the shipping address or
+      // notes since the draft was created — refresh them so fulfillment ships
+      // to what the buyer last confirmed, not the first attempt's snapshot.
+      const refreshed = await tx.order.update({
+        where: { id: reusable.id },
+        data: {
+          shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
+          notes: params.notes ?? null,
+        },
+      })
+      return { order: refreshed, reused: true }
+    }
 
     const created = await tx.order.create({
       data: {

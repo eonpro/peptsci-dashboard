@@ -36,6 +36,128 @@ export interface ReserveResult {
   skipped: number
 }
 
+/** Thrown by enforced reservation when a line exceeds sellable stock. */
+export class InsufficientStockError extends Error {
+  readonly code = 'INSUFFICIENT_STOCK'
+  constructor(message = 'Insufficient stock to reserve this order') {
+    super(message)
+    this.name = 'InsufficientStockError'
+  }
+}
+
+/**
+ * Transactional reservation of all of an order's lines. Idempotent per
+ * variant (existing rows for this order are skipped). With `enforce`, each
+ * increment is an ATOMIC conditional update (`onHand − reserved >= qty` in
+ * the WHERE clause) so two concurrent checkouts can never both reserve the
+ * last units — the loser's update affects 0 rows, InsufficientStockError is
+ * thrown, and the surrounding transaction rolls back every line.
+ */
+export async function reserveForOrderTx(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  opts: { enforce?: boolean } = {}
+): Promise<ReserveResult> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, items: { select: { id: true, variantId: true, quantity: true } } },
+  })
+  if (!order) throw new Error('Order not found')
+
+  const aggregated = aggregateByVariant(order.items)
+  const itemByVariant = new Map<string, string>()
+  for (const it of order.items) {
+    if (!itemByVariant.has(it.variantId)) itemByVariant.set(it.variantId, it.id)
+  }
+
+  const existing = await tx.inventoryReservation.findMany({
+    where: { orderId },
+    select: { variantId: true },
+  })
+  const alreadyReserved = new Set(existing.map((r) => r.variantId))
+
+  let reservedVariants = 0
+  let reservedUnits = 0
+  let skipped = 0
+
+  for (const line of aggregated) {
+    if (alreadyReserved.has(line.variantId)) {
+      skipped += 1
+      continue
+    }
+    await tx.inventoryReservation.create({
+      data: {
+        orderId,
+        variantId: line.variantId,
+        orderItemId: itemByVariant.get(line.variantId) ?? null,
+        quantity: line.quantity,
+        status: 'ACTIVE',
+      },
+    })
+    if (opts.enforce) {
+      const updated = await tx.$executeRaw`
+        UPDATE "ProductVariant"
+        SET "inventoryReserved" = "inventoryReserved" + ${line.quantity}
+        WHERE "id" = ${line.variantId}
+          AND "inventoryOnHand" - "inventoryReserved" >= ${line.quantity}`
+      if (updated === 0) {
+        throw new InsufficientStockError()
+      }
+    } else {
+      await tx.productVariant.update({
+        where: { id: line.variantId },
+        data: { inventoryReserved: { increment: line.quantity } },
+      })
+    }
+    reservedVariants += 1
+    reservedUnits += line.quantity
+  }
+
+  return { orderId, reservedVariants, reservedUnits, skipped }
+}
+
+/**
+ * Reserve an order's lines in a single transaction, hard-failing (and rolling
+ * everything back) when any line exceeds sellable stock. Used by checkout
+ * paths when CHECKOUT_ENFORCE_STOCK is on.
+ */
+export async function reserveForOrderEnforced(orderId: string): Promise<ReserveResult> {
+  const client = db()
+  const result = await client.$transaction((tx) => reserveForOrderTx(tx, orderId, { enforce: true }))
+  logger.info('Reserved inventory for order (enforced)', { ...result })
+  return result
+}
+
+/**
+ * Release ACTIVE reservations held by stale, never-paid DRAFT orders (abandoned
+ * checkouts). Keeps enforced checkout from being starved by carts that reserved
+ * stock but never completed payment. Returns released units.
+ */
+export async function releaseStaleDraftReservations(
+  olderThanMs = 45 * 60 * 1000
+): Promise<number> {
+  const client = db()
+  const stale = await client.order.findMany({
+    where: {
+      status: 'DRAFT',
+      paymentStatus: { in: ['PENDING', 'FAILED'] },
+      createdAt: { lt: new Date(Date.now() - olderThanMs) },
+      reservations: { some: { status: 'ACTIVE' } },
+    },
+    select: { id: true },
+    take: 100,
+  })
+  let released = 0
+  for (const o of stale) {
+    const r = await releaseForOrder(o.id)
+    released += r.units
+  }
+  if (released > 0) {
+    logger.info('Released stale draft reservations', { orders: stale.length, units: released })
+  }
+  return released
+}
+
 /**
  * Reserve all of an order's lines. Idempotent: a variant that already has a
  * reservation row for this order (in any state) is skipped, so re-running on

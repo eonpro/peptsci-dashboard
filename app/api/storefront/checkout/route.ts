@@ -90,11 +90,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If not logged in, try to find or create a guest end customer
+    // If not logged in, try to find or create a guest end customer.
+    // Only reuse an existing record when it is itself a guest account —
+    // attaching a guest order to a REGISTERED account matched by email alone
+    // would let anyone who pre-registers an email see the victim's orders.
     if (!endCustomerId) {
       const existing = await prisma.endCustomer.findUnique({
         where: { storefrontId_email: { storefrontId: config.id, email } },
       })
+      if (existing && !existing.isGuest) {
+        return errorResponse(
+          'An account exists for this email. Please sign in to complete checkout.',
+          409,
+          'ACCOUNT_EXISTS'
+        )
+      }
       if (existing) {
         endCustomerId = existing.id
       } else {

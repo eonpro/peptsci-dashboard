@@ -16,7 +16,11 @@ import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
 import { consumeOrderInventory } from '@/lib/fulfillment/service'
-import { assessShipmentPaymentGate, PAYMENT_GATE_MESSAGE } from '@/lib/fulfillment/payment-gate'
+import {
+  assessShipmentPaymentGate,
+  PAYMENT_GATE_MESSAGE,
+  PAYMENT_GATE_REFUNDED_MESSAGE,
+} from '@/lib/fulfillment/payment-gate'
 import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
 
@@ -142,7 +146,9 @@ export async function POST(request: NextRequest) {
         override: data.overrideUnpaidShip,
       })
       if (!gate.allowed) {
-        return errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
+        return gate.reason === 'refunded'
+          ? errorResponse(PAYMENT_GATE_REFUNDED_MESSAGE, 409, 'ORDER_REFUNDED')
+          : errorResponse(PAYMENT_GATE_MESSAGE, 402, 'PAYMENT_REQUIRED')
       }
       if (gate.reason === 'override') {
         logger.warn('[FedEx label] unpaid-ship override used', {
