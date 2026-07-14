@@ -1,6 +1,8 @@
-# Platform Bug Fix Sprint (Jul 13, 2026)  [EXECUTOR — ✅ IMPLEMENTED, local]
+# Platform Bug Fix Sprint (Jul 13, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
 
 Five-track audit (checkout/payments, fulfillment/inventory, billing, auth/approval, pricing/sales) surfaced ~45 functionality bugs; all four fix phases implemented per `~/.cursor/plans/platform_bug_fix_plan_a7daf0dc.plan.md`. Verified: `tsc --noEmit` clean, 278/278 unit tests (6 new), `next lint` (pre-existing warnings only), `next build` green.
+
+**Deployed Jul 13 ~11:00 PM ET**: Phase 1 + early Phase 2 in `e9e5b6d`, remainder in `974fcf0` → main → Vercel `dpl_BkEbkTaLBsSdVHWdiCw78maK31gY` READY on peptsci.com (`/api/health` 200, version `974fcf0`, DB up). No migrations, no new env vars.
 
 ## Project Status Board
 - [x] **P1 Clerk webhook invite wipe** — `user.created` now preserves invitation metadata (role/status/clientId) instead of resetting to CLIENT/PENDING; mirrors `clientId` into Postgres on created+updated (validated against Client table); invited users skip the "under review" welcome email.
