@@ -90,15 +90,24 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     }, 600)
   }
 
-  // Compact stepper used before the item is in the cart (grid + list views)
-  const qtyStepper = (
-    <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
+  // Compact stepper used before the item is in the cart.
+  // size="lg" is used in the grid card footer for a bigger touch target.
+  const renderQtyStepper = (size: 'sm' | 'lg' = 'sm') => (
+    <div
+      className={cn(
+        'flex shrink-0 items-center rounded-xl border border-white/15 bg-white/5',
+        size === 'lg' ? 'h-10' : 'h-8'
+      )}
+    >
       <button
         type="button"
         aria-label="Decrease quantity"
         onClick={() => setQty((q) => clampQty(q - 1))}
         disabled={qty <= 1}
-        className="h-8 w-7 flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+        className={cn(
+          'flex h-full items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed',
+          size === 'lg' ? 'w-8' : 'w-7'
+        )}
       >
         <Minus className="h-3 w-3" />
       </button>
@@ -111,52 +120,72 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         aria-label="Quantity"
         onChange={(e) => handleQtyInput(e.target.value)}
         onFocus={(e) => e.target.select()}
-        className="w-10 h-8 bg-transparent text-center text-sm font-semibold text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className={cn(
+          'h-full bg-transparent text-center text-sm font-semibold text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+          size === 'lg' ? 'w-9' : 'w-10'
+        )}
       />
       <button
         type="button"
         aria-label="Increase quantity"
         onClick={() => setQty((q) => clampQty(q + 1))}
         disabled={qty >= maxQty}
-        className="h-8 w-7 flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+        className={cn(
+          'flex h-full items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed',
+          size === 'lg' ? 'w-8' : 'w-7'
+        )}
       >
         <Plus className="h-3 w-3" />
       </button>
     </div>
   )
 
-  // Inline cart controls once the item is in the cart
-  const inCartControls = cartItem && (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center rounded-lg border border-green-500/50 bg-green-500/10">
+  // Inline cart controls once the item is in the cart.
+  // fullWidth stretches the control to fill the card footer (grid view).
+  const renderInCartControls = (fullWidth = false) =>
+    cartItem && (
+      <div
+        className={cn(
+          'flex items-center rounded-xl border border-green-500/50 bg-green-500/10',
+          fullWidth ? 'w-full justify-between h-10' : 'h-8'
+        )}
+      >
         <button
           type="button"
           aria-label="Decrease quantity in cart"
           onClick={() => updateQuantity(productId, cartItem.quantity - 1)}
-          className="h-8 w-7 flex items-center justify-center text-green-400 hover:text-green-300"
+          className={cn(
+            'flex h-full items-center justify-center text-green-400 hover:text-green-300',
+            fullWidth ? 'w-10' : 'w-7'
+          )}
         >
           <Minus className="h-3 w-3" />
         </button>
         <button
           type="button"
           onClick={openCart}
-          className="min-w-8 px-1 h-8 text-center text-sm font-semibold text-green-400"
+          className={cn(
+            'h-full truncate px-1 text-center text-sm font-semibold text-green-400',
+            fullWidth ? 'flex-1' : 'min-w-8'
+          )}
           title="View cart"
         >
-          {cartItem.quantity}
+          {cartItem.quantity} in cart
         </button>
         <button
           type="button"
           aria-label="Increase quantity in cart"
           onClick={() => updateQuantity(productId, cartItem.quantity + 1)}
           disabled={cartItem.quantity >= maxQty}
-          className="h-8 w-7 flex items-center justify-center text-green-400 hover:text-green-300 disabled:opacity-30 disabled:cursor-not-allowed"
+          className={cn(
+            'flex h-full items-center justify-center text-green-400 hover:text-green-300 disabled:opacity-30 disabled:cursor-not-allowed',
+            fullWidth ? 'w-10' : 'w-7'
+          )}
         >
           <Plus className="h-3 w-3" />
         </button>
       </div>
-    </div>
-  )
+    )
 
   // Determine if this is a blend (contains multiple peptides)
   const isBlend =
@@ -217,14 +246,14 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               <p className="text-xl font-bold text-white">{formatPrice(product.displayPrice)}</p>
             </div>
             {isInCart ? (
-              inCartControls
+              renderInCartControls()
             ) : outOfStock ? (
               <span className="text-xs font-medium text-white/40 border border-white/10 rounded-xl px-3 py-2">
                 Out of Stock
               </span>
             ) : (
               <div className="flex items-center gap-2">
-                {qtyStepper}
+                {renderQtyStepper('sm')}
                 <Button
                   onClick={handleAddToCart}
                   disabled={isAdding}
@@ -243,19 +272,19 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   // Scientific-style grid card (matches reference image)
   return (
-    <div className="group relative bg-linear-to-br from-[#0a0e3a] via-[#0d1242] to-brand-onyx border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[420px] flex flex-col">
+    <div className="@container group relative bg-linear-to-br from-[#0a0e3a] via-[#0d1242] to-brand-onyx border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[460px] flex flex-col">
       {/* Header with logo and type badge */}
-      <div className="flex items-start justify-between p-4 pb-2">
+      <div className="flex items-start justify-between gap-2 p-4 pb-2">
         <Image
           src={PEPTSCI_LOGO_URL}
           alt="PeptSci Research"
           width={120}
           height={40}
-          className="h-8 w-auto"
+          className="h-7 w-auto @[16rem]:h-8"
         />
         <span
           className={cn(
-            'text-sm font-semibold px-3 py-1 rounded-full',
+            'shrink-0 text-xs @[16rem]:text-sm font-semibold px-2.5 @[16rem]:px-3 py-1 rounded-full',
             isBlend ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
           )}
         >
@@ -263,16 +292,18 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         </span>
       </div>
 
-      {/* Main content - scrollable area for compounds */}
+      {/* Main content */}
       <div className="relative flex-1 px-4 py-2 overflow-hidden">
         {/* Product name */}
-        <h3 className="font-bold text-white text-xl leading-tight mb-1">{product.name}</h3>
+        <h3 className="font-bold text-white text-lg @[16rem]:text-xl leading-tight mb-1">
+          {product.name}
+        </h3>
 
         {/* Dose */}
-        <p className="text-white/70 text-lg mb-3">{doseDisplay}</p>
+        <p className="text-white/70 text-base @[16rem]:text-lg mb-3">{doseDisplay}</p>
 
-        {/* Scientific details */}
-        <div className="space-y-1.5 text-sm">
+        {/* Scientific details - right padding reserves room for the vial shot */}
+        <div className="space-y-1.5 text-xs @[16rem]:text-sm pr-20 @[20rem]:pr-24">
           {product.casNumber && (
             <p className="text-white/60">
               <span className="text-white/40">CAS #:</span>{' '}
@@ -300,8 +331,8 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
         {/* Category badge */}
         {product.category && (
-          <div className="mt-3">
-            <span className="inline-block text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-white/50 border border-white/10">
+          <div className="mt-3 pr-20 @[20rem]:pr-24">
+            <span className="inline-block text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-white/50 border border-white/10 max-w-full truncate align-bottom">
               {product.category}
             </span>
           </div>
@@ -309,7 +340,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
         {/* Vial photo - transparent product shot overlapping bottom-right (reference style) */}
         {photo && (
-          <div className="absolute bottom-0 right-3 h-40 flex items-end pointer-events-none">
+          <div className="absolute bottom-0 right-3 h-32 @[16rem]:h-40 flex items-end pointer-events-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photo.url}
@@ -323,60 +354,63 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       {/* Footer - PRUO disclaimer */}
       <div className="px-4 py-2 border-t border-white/5">
         <div className="flex items-center gap-2 text-xs">
-          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
+          <span className="shrink-0 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
             PRUO
           </span>
-          <span className="text-white/40">Physician Research Use Only</span>
+          <span className="text-white/40 truncate">Physician Research Use Only</span>
         </div>
       </div>
 
       {/* Price and Cart Section */}
-      <div className="p-4 pt-2 border-t border-white/10 bg-black/20">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-white">{formatPrice(product.displayPrice)}</p>
-              {product.isCustomPrice && product.standardPrice && (
-                <span className="text-sm text-white/40 line-through">
-                  {formatPrice(product.standardPrice)}
-                </span>
-              )}
-            </div>
-            {product.isCustomPrice && (
-              <p className="text-xs font-medium text-green-400">Your account price</p>
+      <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-3">
+        {/* Price row */}
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <p className="text-xl @[16rem]:text-2xl font-bold text-white">
+              {formatPrice(product.displayPrice)}
+            </p>
+            {product.isCustomPrice && product.standardPrice && (
+              <span className="text-sm text-white/40 line-through">
+                {formatPrice(product.standardPrice)}
+              </span>
             )}
           </div>
-
-          {isInCart ? (
-            inCartControls
-          ) : outOfStock ? (
-            <span className="text-xs font-medium text-white/40 border border-white/10 rounded-lg px-3 py-2">
-              Out of Stock
-            </span>
-          ) : (
-            <div className="flex items-center gap-2">
-              {qtyStepper}
-              <Button
-                onClick={handleAddToCart}
-                disabled={isAdding}
-                size="sm"
-                className="h-8 px-3 text-xs bg-brand-primary hover:bg-[#1a30c0] text-white rounded-lg font-medium"
-              >
-                {isAdding ? (
-                  <>
-                    <Check className="mr-1 h-3.5 w-3.5" />
-                    Added
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="mr-1 h-3.5 w-3.5" />
-                    Add
-                  </>
-                )}
-              </Button>
-            </div>
+          {product.isCustomPrice && (
+            <p className="text-xs font-medium text-green-400 shrink-0">Your account price</p>
           )}
         </div>
+
+        {/* Action row - full width so the button is never clipped */}
+        {isInCart ? (
+          renderInCartControls(true)
+        ) : outOfStock ? (
+          <div className="w-full h-10 flex items-center justify-center text-xs font-medium text-white/40 border border-white/10 rounded-xl">
+            Out of Stock
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {renderQtyStepper('lg')}
+            <Button
+              onClick={handleAddToCart}
+              disabled={isAdding}
+              className="h-10 flex-1 min-w-0 gap-1.5 px-2 text-sm bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold"
+            >
+              {isAdding ? (
+                <>
+                  <Check className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Added</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    Add<span className="hidden @[17rem]:inline"> to Cart</span>
+                  </span>
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* In cart indicator badge */}
