@@ -13,7 +13,7 @@ import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { verifyCronAuth } from '@/lib/cron/auth'
-import { buildStatement } from '@/lib/invoicing/statement'
+import { buildStatement, monthBounds } from '@/lib/invoicing/statement'
 import { sendStatementEmail } from '@/lib/email'
 import { appUrl } from '@/lib/app-url'
 
@@ -37,14 +37,21 @@ async function alreadySent(clientId: string, monthKey: string): Promise<boolean>
 
 async function recordSent(clientId: string, monthKey: string, meta: Record<string, unknown>) {
   if (!prisma) return
-  await prisma.auditLog.create({
-    data: {
-      entity: MARKER_ENTITY,
-      entityId: `${clientId}:${monthKey}`,
-      action: 'STATEMENT_SENT',
-      metadata: meta as Prisma.InputJsonValue,
-    },
-  })
+  try {
+    await prisma.auditLog.create({
+      data: {
+        entity: MARKER_ENTITY,
+        entityId: `${clientId}:${monthKey}`,
+        action: 'STATEMENT_SENT',
+        metadata: meta as Prisma.InputJsonValue,
+      },
+    })
+  } catch (err) {
+    // Unique-marker clash = a concurrent/overlapping run already recorded this
+    // send — absorb it so the loop's catch doesn't misreport an error.
+    const message = err instanceof Error ? err.message : String(err)
+    if (!message.includes('Unique constraint')) throw err
+  }
 }
 
 async function run(req: NextRequest) {
@@ -55,12 +62,18 @@ async function run(req: NextRequest) {
     return NextResponse.json({ error: 'Database not connected' }, { status: 503 })
   }
 
-  // Previous calendar month (UTC).
+  // Previous calendar month in the business timezone (America/New_York),
+  // matching the statement PDF's month bounds so the email summary and the
+  // downloadable statement agree.
   const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const monthKey = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`
-  const periodLabel = start.toLocaleDateString('en-US', {
+  const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15))
+  const monthKey = `${prevMonth.getUTCFullYear()}-${String(prevMonth.getUTCMonth() + 1).padStart(2, '0')}`
+  const bounds = monthBounds(monthKey)
+  if (!bounds) {
+    return NextResponse.json({ error: 'Could not compute statement month' }, { status: 500 })
+  }
+  const { start, end } = bounds
+  const periodLabel = prevMonth.toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',

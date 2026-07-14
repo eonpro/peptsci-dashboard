@@ -185,9 +185,19 @@ const middleware = isClerkConfigured
         return NextResponse.next()
       }
 
-      // Check if user is pending approval
-      if (status === 'PENDING' && !pathname.startsWith('/pending-approval')) {
-        return NextResponse.redirect(new URL('/pending-approval', request.url))
+      // Check if user is pending approval. API calls get 403 JSON (mirroring
+      // the suspended path) — a 307 to the pending-approval HTML page breaks
+      // fetch() callers that try to parse the response as JSON.
+      if (status === 'PENDING') {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'Forbidden', message: 'Account pending approval', code: 'ACCOUNT_PENDING' },
+            { status: 403 }
+          )
+        }
+        if (!pathname.startsWith('/pending-approval')) {
+          return NextResponse.redirect(new URL('/pending-approval', request.url))
+        }
       }
 
       // Approved accounts have no business on the pending screen — move them

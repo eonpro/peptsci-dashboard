@@ -1,3 +1,33 @@
+# Platform Bug Fix Sprint (Jul 13, 2026)  [EXECUTOR — ✅ IMPLEMENTED, local]
+
+Five-track audit (checkout/payments, fulfillment/inventory, billing, auth/approval, pricing/sales) surfaced ~45 functionality bugs; all four fix phases implemented per `~/.cursor/plans/platform_bug_fix_plan_a7daf0dc.plan.md`. Verified: `tsc --noEmit` clean, 278/278 unit tests (6 new), `next lint` (pre-existing warnings only), `next build` green.
+
+## Project Status Board
+- [x] **P1 Clerk webhook invite wipe** — `user.created` now preserves invitation metadata (role/status/clientId) instead of resetting to CLIENT/PENDING; mirrors `clientId` into Postgres on created+updated (validated against Client table); invited users skip the "under review" welcome email.
+- [x] **P1 storefront guest-checkout hijack** — guest checkout returns 409 `ACCOUNT_EXISTS` instead of attaching orders to a REGISTERED (non-guest) end-customer matched by email.
+- [x] **P1 expired batches shippable** — `minAllocatableBud()` floor (`bud >= start of UTC today`) on all three allocatable-batch queries (per-variant, batched, consume).
+- [x] **P1 refunded orders fulfillable** — payment gate rejects `paymentStatus REFUNDED` before the invoiced/override bypasses (409 `ORDER_REFUNDED` from FedEx label + labels-consume).
+- [x] **P1 invoice double-PI** — Elements invoice PI now amount-aware idempotent (`pi_inv_elements_{id}_{amount}`); `recordPayment` caps at live `amountDue` (overpay logged + noted for refund; nothing-due charges recorded as log-only).
+- [x] **P1 sales overwrite** — `syncSalesRecordFromOrder` skips records with `source: 'stripe'` (stripe-convert/backfill rows keep true captured revenue).
+- [x] **P2 checkout/AR** — draft reuse refreshes shippingAddress+notes; terms checkout wrapped in one tx under `pg_advisory_xact_lock('terms-checkout', clientId)` with re-run credit gate (closes TOCTOU), atomic submit+invoice (`createInvoiceTx`), reservation in BOTH paths (dup included); `reserveForOrderEnforced` (atomic conditional `onHand−reserved>=qty` raw update) called pre-payment when `CHECKOUT_ENFORCE_STOCK=true`, with `releaseStaleDraftReservations()` retry + release on payment failure; overdue cron now reminds on ALL outstanding OVERDUE invoices daily (per-day dedup); `balanceForward` rejected while other open invoices exist (AR double-count).
+- [x] **P2 fulfillment** — FedEx label: ShipmentLabel + SHIPPED flip + `consumeOrderInventoryTx(requireFull)` in ONE transaction (FedEx shipment cancelled on rollback); consume records exact draws in AuditLog (`consume_draws`); void reverses the consume (batch/variant/reservations restored, atomic claim) and only clears order tracking when no other active label remains (else repoints to it); returns: cumulative per-line caps moved into `createReturnRequest` (all entry points); RMA REFUNDED status now issues a real Stripe refund first (`lib/orders/refund.ts` shared with the refund endpoint); stripe-convert asserts order total == SalesRecord.paidAmount (`expectedTotal` in createManualOrder).
+- [x] **P2 approval/pricing** — shop ordering mutations require `Client.onboardingStatus=APPROVED` (`ShopActor.clientApproved`); admin user PATCH to ACTIVE blocked while linked practice unapproved; client reset→PENDING cascades users down (DB+Clerk); storefront wholesale uses `resolveEffectiveUnitPrice` (no more $0 on zero customPrice); NewOrderModal only sends `unitPrice` for manual edits (server resolves auto lines); product CSV re-import updates only present fields (never zeroes srp/unitCost, never reparents variants); sales CSV skips rows matching platform-order records.
+- [x] **P3 medium** — ACH `processing` surfaced as distinct pending state (checkout success page verifies the order server-side; invoice page amber "bank transfer initiated" banner; orders advance DRAFT→SUBMITTED on AUTHORIZED so ACH orders show in /shop/orders); saveCard in PI idempotency key; Pay button shows the SERVER amount from /process; middleware returns 403 JSON `ACCOUNT_PENDING` on /api/* (no HTML redirect); `validFrom` enforced in all 6 clientPricing queries; inactive variants blocked in manual orders + `/shop/product/[sku]` + storefront checkout; statements use America/New_York month bounds + aging/open-invoices snapshotted at period end; DRAFT invoices can't be emailed or receive payments.
+- [x] **P4 low** — success page no longer trusts `?order=`; `validateCartInput` caps at 100 (MAX_SHOP_ITEM_QUANTITY); monthly-statements marker absorbs P2002; NEEDS_INFO cascades users to PENDING; per-user suspend documented as intentionally non-cascading; labels-PDF prints from ACTUAL consume draws (concurrency-safe); rate limiter warns (throttled) when Redis fallback is active.
+
+## Before prod deploy
+1. Commit + deploy to `main` (all work local). No new migrations; no new env vars required.
+2. Behavior notes for ops: FedEx labeling now HARD-FAILS on batch shortfall (`INSUFFICIENT_BATCH_STOCK` 409 — adjust inventory first); RMA "REFUNDED" now moves real money (requires refund amount + Stripe PI); `balanceForward` invoices rejected while older invoices are open; overdue reminders now go out daily per outstanding invoice (per-day dedup unchanged).
+3. Manual verification recommended: one Clerk invite (metadata survives sign-up), one storefront guest checkout against a registered email (409), one ACH test checkout (pending state + order visible pre-capture).
+
+## Lessons
+- Clerk invitation `publicMetadata` arrives on `user.created` — a webhook that unconditionally overwrites it silently breaks every admin invite.
+- `UPDATE ... WHERE onHand - reserved >= qty` (raw SQL conditional increment) is the cheapest race-proof stock reservation; Prisma can't compare two columns in a where clause.
+- Recording consume draws (batchId/qty) in AuditLog at consume time makes label voids reversible without schema changes.
+- When a fix changes parser semantics (CSV blank price 0 → undefined), grep the tests for the old expectation before running the suite — two tests encoded the bug.
+
+---
+
 # Readiness Gap Closure Sprint (Jul 12, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
 
 All items from the Jul-12 readiness assessment implemented in one session. `tsc --noEmit` clean, 271/271 unit tests (17 new), `next lint` clean (pre-existing warnings only), `next build` green (clean cache).

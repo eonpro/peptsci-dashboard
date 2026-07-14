@@ -55,7 +55,7 @@ export default function ShopInvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paying, setPaying] = useState<InvoiceRow | null>(null)
-  const [justPaid, setJustPaid] = useState(false)
+  const [justPaid, setJustPaid] = useState<false | 'paid' | 'pending'>(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -144,9 +144,15 @@ export default function ShopInvoicesPage() {
         </Card>
       </div>
 
-      {justPaid && (
+      {justPaid === 'paid' && (
         <div className="rounded-xl bg-green-500/10 border border-green-500/30 text-green-300 text-sm p-3 flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4" /> Payment received — thank you!
+        </div>
+      )}
+      {justPaid === 'pending' && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm p-3 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Bank transfer initiated — the invoice will be
+          marked paid once the payment clears (typically a few business days).
         </div>
       )}
       {error && (
@@ -241,9 +247,9 @@ export default function ShopInvoicesPage() {
           amountDue={paying.amountDue}
           open={!!paying}
           onClose={() => setPaying(null)}
-          onPaid={() => {
+          onPaid={(opts) => {
             setPaying(null)
-            setJustPaid(true)
+            setJustPaid(opts?.pending ? 'pending' : 'paid')
             load()
           }}
         />

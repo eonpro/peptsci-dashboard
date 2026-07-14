@@ -145,7 +145,9 @@ export async function getShopProductBySku(sku: string): Promise<ShopProduct | nu
       where: { sku },
       select: variantSelect,
     })
-    if (!variant) return null
+    // Match the catalog listing: discontinued/inactive SKUs are not shoppable
+    // even via a direct product URL (checkout would reject them anyway).
+    if (!variant || variant.status !== 'ACTIVE') return null
     return toShopProduct(variant as unknown as VariantWithProduct)
   } catch (error) {
     logger.warn('Error fetching shop product by SKU', { sku, error: String(error) })

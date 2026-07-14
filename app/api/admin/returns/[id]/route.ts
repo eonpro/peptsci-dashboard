@@ -10,6 +10,9 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getReturnRequest, updateReturnStatus } from '@/lib/returns/service'
+import { canTransition, type ReturnStatus } from '@/lib/returns/core'
+import { issueOrderRefund, OrderRefundError } from '@/lib/orders/refund'
+import { StripeConfigError } from '@/lib/stripe/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -74,14 +77,57 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // REFUNDED must move real money: issue the Stripe refund BEFORE the status
+    // flips, so the RMA can never claim "refunded" while the customer was not.
+    let refundResult: Awaited<ReturnType<typeof issueOrderRefund>> | null = null
+    if (parsed.data.status === 'REFUNDED') {
+      const amount = parsed.data.refundAmount
+      if (!amount || amount <= 0) {
+        return errorResponse(
+          'A positive refund amount is required to mark a return refunded',
+          400,
+          'REFUND_AMOUNT_REQUIRED'
+        )
+      }
+      const found = await getReturnRequest(id)
+      if (!found) return errorResponse('Return not found', 404, 'NOT_FOUND')
+      if (!found.order?.id) {
+        return errorResponse('This return is not linked to an order', 409, 'NO_ORDER')
+      }
+      // Validate the transition BEFORE moving money, so a rejected status
+      // update can never leave a refund issued with the RMA stuck elsewhere.
+      if (!canTransition(found.status as ReturnStatus, 'REFUNDED')) {
+        return errorResponse(
+          `Cannot move return from ${found.status} to REFUNDED`,
+          409,
+          'INVALID_TRANSITION'
+        )
+      }
+      refundResult = await issueOrderRefund(found.order.id, {
+        amount,
+        reason: 'requested_by_customer',
+        refundedBy: userId ?? null,
+      })
+    }
+
     const updated = await updateReturnStatus(id, parsed.data.status, {
       refundAmount: parsed.data.refundAmount,
       notes: parsed.data.notes,
       actorId: userId ?? undefined,
     })
 
-    return successResponse({ id: updated.id, status: updated.status })
+    return successResponse({
+      id: updated.id,
+      status: updated.status,
+      ...(refundResult ? { refund: refundResult } : {}),
+    })
   } catch (error) {
+    if (error instanceof OrderRefundError) {
+      return errorResponse(error.message, error.status, error.code)
+    }
+    if (error instanceof StripeConfigError) {
+      return errorResponse('Payments are not configured', 503, error.code)
+    }
     const message = error instanceof Error ? error.message : 'Failed to update return'
     if (message === 'Return not found') return errorResponse(message, 404, 'NOT_FOUND')
     if (message.startsWith('Cannot move return')) return errorResponse(message, 409, 'INVALID_TRANSITION')

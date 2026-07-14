@@ -15,7 +15,11 @@ import {
 import { isValidServiceType, isValidPackagingType } from '@/lib/fedex-services'
 import { fedexAddressSchema } from '@/lib/shipping/address'
 import { putObject, getObject } from '@/lib/storage'
-import { consumeOrderInventory } from '@/lib/fulfillment/service'
+import {
+  consumeOrderInventoryTx,
+  InsufficientBatchStockError,
+  reverseOrderConsume,
+} from '@/lib/fulfillment/service'
 import {
   assessShipmentPaymentGate,
   PAYMENT_GATE_MESSAGE,
@@ -213,71 +217,85 @@ export async function POST(request: NextRequest) {
 
     const trackingUrl = fedexTrackingUrl(result.trackingNumber)
 
-    const label = await prisma.$transaction(async (tx) => {
-      const created = await tx.shipmentLabel.create({
-        data: {
-          orderId: order?.id ?? null,
-          clientId: order?.clientId ?? null,
-          createdById: userId && userId !== 'dev-user' ? userId : null,
-          carrier: 'FEDEX',
-          trackingNumber: result.trackingNumber,
-          shipmentId: result.shipmentId,
-          serviceType: result.serviceType,
-          originAddress: data.origin as unknown as Prisma.InputJsonValue,
-          destinationAddress: data.destination as unknown as Prisma.InputJsonValue,
-          weightLbs: data.weightLbs,
-          length: data.length ?? null,
-          width: data.width ?? null,
-          height: data.height ?? null,
-          labelFormat: result.labelFormat,
-          labelBlobUrl: stored.url ?? null,
-          labelPdfBase64: stored.base64 ?? null,
-        },
-      })
-
-      if (order) {
-        await tx.order.update({
-          where: { id: order.id },
+    // Label row, order SHIPPED flip, and inventory consume commit or roll back
+    // TOGETHER — no more "SHIPPED with reservations still ACTIVE" (consume
+    // failed after commit) or "shipped short but all reservations closed"
+    // (requireFull draws all-or-nothing). If anything fails, the FedEx
+    // shipment is cancelled so no orphan label exists at the carrier.
+    let label
+    try {
+      label = await prisma.$transaction(async (tx) => {
+        const created = await tx.shipmentLabel.create({
           data: {
-            carrier: 'FedEx',
+            orderId: order?.id ?? null,
+            clientId: order?.clientId ?? null,
+            createdById: userId && userId !== 'dev-user' ? userId : null,
+            carrier: 'FEDEX',
             trackingNumber: result.trackingNumber,
-            trackingUrl,
-            shippingStatus: 'LABEL_CREATED',
-            shippedAt: new Date(),
-            // Reflect shipment on the order unless it's already terminal.
-            ...(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'FULFILLED'].includes(order.status)
-              ? { status: 'SHIPPED' as const }
-              : {}),
+            shipmentId: result.shipmentId,
+            serviceType: result.serviceType,
+            originAddress: data.origin as unknown as Prisma.InputJsonValue,
+            destinationAddress: data.destination as unknown as Prisma.InputJsonValue,
+            weightLbs: data.weightLbs,
+            length: data.length ?? null,
+            width: data.width ?? null,
+            height: data.height ?? null,
+            labelFormat: result.labelFormat,
+            labelBlobUrl: stored.url ?? null,
+            labelPdfBase64: stored.base64 ?? null,
           },
         })
-      }
 
-      return created
-    })
-
-    // Shipping must draw down inventory: consume the order's stock + reservations
-    // now that a label exists and the order is SHIPPED. Idempotent — if the order
-    // was already consumed via the labels-PDF path this is a no-op, so we never
-    // double-draw. Not requireFull: a short/again-consumed order should still
-    // ship. A failure here must not fail the (already-created) FedEx label.
-    if (order) {
-      try {
-        const consumed = await consumeOrderInventory(order.id, {
-          clerkUserId: userId && userId !== 'dev-user' ? userId : null,
-          label: userId ?? null,
-        })
-        if (consumed.shortfall > 0) {
-          logger.warn('[FedEx label] shipped with inventory shortfall', {
-            orderId: order.id,
-            shortfall: consumed.shortfall,
+        if (order) {
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              carrier: 'FedEx',
+              trackingNumber: result.trackingNumber,
+              trackingUrl,
+              shippingStatus: 'LABEL_CREATED',
+              shippedAt: new Date(),
+              // Reflect shipment on the order unless it's already terminal.
+              ...(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'FULFILLED'].includes(order.status)
+                ? { status: 'SHIPPED' as const }
+                : {}),
+            },
           })
+
+          // Idempotent — if the order was already consumed via the labels-PDF
+          // path this is a no-op, so we never double-draw.
+          await consumeOrderInventoryTx(
+            tx,
+            order.id,
+            {
+              clerkUserId: userId && userId !== 'dev-user' ? userId : null,
+              label: userId ?? null,
+            },
+            { requireFull: true }
+          )
         }
-      } catch (consumeErr) {
-        logger.error('[FedEx label] inventory consume failed (label already created)', {
-          orderId: order.id,
-          error: consumeErr instanceof Error ? consumeErr.message : String(consumeErr),
+
+        return created
+      })
+    } catch (txErr) {
+      // DB changes rolled back — cancel the already-created FedEx shipment so
+      // it can't be used (best effort; FedEx labels also expire unused).
+      try {
+        await cancelShipment(credentials, result.trackingNumber)
+      } catch (cancelErr) {
+        logger.warn('[FedEx label] failed to cancel shipment after rollback', {
+          trackingNumber: result.trackingNumber,
+          error: cancelErr instanceof Error ? cancelErr.message : String(cancelErr),
         })
       }
+      if (txErr instanceof InsufficientBatchStockError) {
+        return errorResponse(
+          'Insufficient batch stock to fulfill this order — receive/adjust inventory before shipping.',
+          409,
+          'INSUFFICIENT_BATCH_STOCK'
+        )
+      }
+      throw txErr
     }
 
     if (userId && userId !== 'dev-user') {
@@ -425,6 +443,7 @@ export async function DELETE(request: NextRequest) {
       // Continue to mark voided locally even if FedEx rejects (e.g. already shipped)
     }
 
+    let lastActiveLabelVoided = false
     await prisma.$transaction(async (tx) => {
       await tx.shipmentLabel.update({
         where: { id: label.id },
@@ -435,9 +454,29 @@ export async function DELETE(request: NextRequest) {
         },
       })
       if (label.orderId) {
+        // Multi-package orders: only clear tracking / roll status back when NO
+        // other active label remains — otherwise point the order's tracking at
+        // the latest remaining label.
+        const otherActive = await tx.shipmentLabel.findFirst({
+          where: { orderId: label.orderId, id: { not: label.id }, status: { not: 'VOIDED' } },
+          orderBy: { createdAt: 'desc' },
+        })
+        if (otherActive) {
+          await tx.order.update({
+            where: { id: label.orderId },
+            data: {
+              trackingNumber: otherActive.trackingNumber,
+              trackingUrl: fedexTrackingUrl(otherActive.trackingNumber),
+              carrier: 'FedEx',
+            },
+          })
+          return
+        }
+
         // Voiding the only label must not leave the order stuck in SHIPPED with
         // no tracking. Roll a SHIPPED order back to APPROVED (a pre-ship state)
         // and clear the shipped timestamp; other statuses are left untouched.
+        lastActiveLabelVoided = true
         const linked = await tx.order.findUnique({
           where: { id: label.orderId },
           select: { status: true },
@@ -456,6 +495,29 @@ export async function DELETE(request: NextRequest) {
         })
       }
     })
+
+    // The goods never left: restore the batch draws + variant on-hand recorded
+    // at consume time and re-open the order's reservations, so voiding a
+    // mistaken label doesn't permanently leak inventory. Idempotent.
+    if (label.orderId && lastActiveLabelVoided) {
+      try {
+        const reversed = await reverseOrderConsume(label.orderId, {
+          clerkUserId: userId && userId !== 'dev-user' ? userId : null,
+          label: userId ?? null,
+        })
+        if (reversed.reversed) {
+          logger.info('[FedEx label] consume reversed after void', {
+            orderId: label.orderId,
+            units: reversed.units,
+          })
+        }
+      } catch (revErr) {
+        logger.error('[FedEx label] consume reversal failed after void', {
+          orderId: label.orderId,
+          error: revErr instanceof Error ? revErr.message : String(revErr),
+        })
+      }
+    }
 
     logger.info('FedEx label voided', { labelId: label.id, trackingNumber: label.trackingNumber })
     return successResponse({ success: true })

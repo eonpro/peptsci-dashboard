@@ -583,10 +583,10 @@ export default function ProductsPage() {
                             <TableCell className="text-white">{r.name}</TableCell>
                             <TableCell className="text-white/60">{r.sku}</TableCell>
                             <TableCell className="text-white/70 text-right">
-                              ${r.unitCost.toFixed(2)}
+                              {r.unitCost !== undefined ? `$${r.unitCost.toFixed(2)}` : '—'}
                             </TableCell>
                             <TableCell className="text-green-400 text-right">
-                              ${r.srp.toFixed(2)}
+                              {r.srp !== undefined ? `$${r.srp.toFixed(2)}` : '—'}
                             </TableCell>
                             <TableCell className="text-white/60">{r.supplierName || '-'}</TableCell>
                           </TableRow>

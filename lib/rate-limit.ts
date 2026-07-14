@@ -142,6 +142,10 @@ function checkRateLimitMemory(bucketKey: string, config: RateLimitConfig): RateL
  * Uses Upstash Redis (global, multi-instance) when configured; otherwise (or
  * on Redis failure) the in-memory per-instance limiter.
  */
+// Throttled alert so a Redis outage is visible in logs without spamming one
+// line per request (limits become per-instance ~N× while degraded).
+let lastFallbackWarnAt = 0
+
 export async function checkRateLimit(
   key: string,
   config: RateLimitConfig = RATE_LIMITS.standard
@@ -151,6 +155,12 @@ export async function checkRateLimit(
   const bucketKey = `rl:${config.maxRequests}:${config.interval}:${key}`
   const redis = await checkRateLimitRedis(bucketKey, config)
   if (redis) return redis
+  if (UPSTASH_URL && UPSTASH_TOKEN && Date.now() - lastFallbackWarnAt > 60_000) {
+    lastFallbackWarnAt = Date.now()
+    console.warn(
+      '[rate-limit] Upstash Redis unreachable — falling back to per-instance in-memory limiting (global limits degraded)'
+    )
+  }
   return checkRateLimitMemory(bucketKey, config)
 }
 

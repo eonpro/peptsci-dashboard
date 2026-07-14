@@ -40,7 +40,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                   where: {
                     clientId,
                     isActive: true,
-                    OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+                    AND: [
+                      { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+                      { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+                    ],
                   },
                   select: { customPrice: true },
                 },

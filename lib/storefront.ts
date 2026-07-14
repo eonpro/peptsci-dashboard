@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { logger } from './logger'
 import { reserveForOrder } from './inventory/reservations'
+import { resolveEffectiveUnitPrice } from './access'
 import type { BrandingConfig, StorefrontProductItem, StorefrontPublicConfig } from './types/storefront'
 
 function toJsonInput(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -309,7 +310,10 @@ export async function createRetailOrder(data: {
             where: {
               clientId: storefront.clientId,
               isActive: true,
-              OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+              AND: [
+                { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+                { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+              ],
             },
           },
         },
@@ -325,8 +329,16 @@ export async function createRetailOrder(data: {
   const peptsciItems = data.items.map((item) => {
     const sp = productMap.get(item.storefrontProductId)
     if (!sp) throw new Error(`StorefrontProduct ${item.storefrontProductId} not found`)
+    if (sp.variant.status !== 'ACTIVE') {
+      throw new Error(`Product ${item.storefrontProductId} is no longer available`)
+    }
+    // Same effective-price rule as every other sell path: a ClientPricing row
+    // with a zero/invalid customPrice falls back to SRP (never $0 wholesale).
     const clientPrice = sp.variant.clientPricing[0]
-    const unitPrice = clientPrice ? Number(clientPrice.customPrice) : Number(sp.variant.srp)
+    const { price: unitPrice } = resolveEffectiveUnitPrice({
+      srp: Number(sp.variant.srp),
+      customPrice: clientPrice ? Number(clientPrice.customPrice) : null,
+    })
     return {
       variantId: sp.variantId,
       quantity: item.quantity,

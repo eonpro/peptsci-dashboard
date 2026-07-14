@@ -72,28 +72,45 @@ export async function reserveForOrderTx(
 
   const existing = await tx.inventoryReservation.findMany({
     where: { orderId },
-    select: { variantId: true },
+    select: { id: true, variantId: true, status: true },
   })
-  const alreadyReserved = new Set(existing.map((r) => r.variantId))
+  // ACTIVE (already holding stock) and CONSUMED (already fulfilled) rows are
+  // final for this order; only RELEASED rows may be re-activated — e.g. an
+  // order re-committed after a refund released its hold.
+  const settled = new Set(
+    existing.filter((r) => r.status !== 'RELEASED').map((r) => r.variantId)
+  )
+  const releasedByVariant = new Map(
+    existing.filter((r) => r.status === 'RELEASED').map((r) => [r.variantId, r.id])
+  )
 
   let reservedVariants = 0
   let reservedUnits = 0
   let skipped = 0
 
   for (const line of aggregated) {
-    if (alreadyReserved.has(line.variantId)) {
+    if (settled.has(line.variantId)) {
       skipped += 1
       continue
     }
-    await tx.inventoryReservation.create({
-      data: {
-        orderId,
-        variantId: line.variantId,
-        orderItemId: itemByVariant.get(line.variantId) ?? null,
-        quantity: line.quantity,
-        status: 'ACTIVE',
-      },
-    })
+    const releasedId = releasedByVariant.get(line.variantId)
+    if (releasedId) {
+      // (orderId, variantId) is unique — reactivate the released row.
+      await tx.inventoryReservation.update({
+        where: { id: releasedId },
+        data: { status: 'ACTIVE', quantity: line.quantity, releasedAt: null },
+      })
+    } else {
+      await tx.inventoryReservation.create({
+        data: {
+          orderId,
+          variantId: line.variantId,
+          orderItemId: itemByVariant.get(line.variantId) ?? null,
+          quantity: line.quantity,
+          status: 'ACTIVE',
+        },
+      })
+    }
     if (opts.enforce) {
       const updated = await tx.$executeRaw`
         UPDATE "ProductVariant"
@@ -159,72 +176,28 @@ export async function releaseStaleDraftReservations(
 }
 
 /**
- * Reserve all of an order's lines. Idempotent: a variant that already has a
- * reservation row for this order (in any state) is skipped, so re-running on
- * webhook + confirm never double-counts.
+ * Reserve all of an order's lines. Idempotent: variants with an ACTIVE or
+ * CONSUMED reservation row for this order are skipped; RELEASED rows (e.g. a
+ * refund freed the hold before the order was re-committed) are re-activated.
+ * A concurrent reservation from another path (webhook + confirm racing) is
+ * absorbed by retrying once — the second pass sees the rows and skips.
  */
 export async function reserveForOrder(orderId: string): Promise<ReserveResult> {
   const client = db()
-
-  const order = await client.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, items: { select: { id: true, variantId: true, quantity: true } } },
-  })
-  if (!order) throw new Error('Order not found')
-
-  const aggregated = aggregateByVariant(order.items)
-  // Map each aggregated variant back to a representative orderItemId for display.
-  const itemByVariant = new Map<string, string>()
-  for (const it of order.items) {
-    if (!itemByVariant.has(it.variantId)) itemByVariant.set(it.variantId, it.id)
-  }
-
-  const existing = await client.inventoryReservation.findMany({
-    where: { orderId },
-    select: { variantId: true },
-  })
-  const alreadyReserved = new Set(existing.map((r) => r.variantId))
-
-  let reservedVariants = 0
-  let reservedUnits = 0
-  let skipped = 0
-
-  for (const line of aggregated) {
-    if (alreadyReserved.has(line.variantId)) {
-      skipped += 1
-      continue
-    }
-    try {
-      await client.$transaction(async (tx) => {
-        await tx.inventoryReservation.create({
-          data: {
-            orderId,
-            variantId: line.variantId,
-            orderItemId: itemByVariant.get(line.variantId) ?? null,
-            quantity: line.quantity,
-            status: 'ACTIVE',
-          },
-        })
-        await tx.productVariant.update({
-          where: { id: line.variantId },
-          data: { inventoryReserved: { increment: line.quantity } },
-        })
-      })
-      reservedVariants += 1
-      reservedUnits += line.quantity
-    } catch (err) {
-      // Unique (orderId, variantId) clash → another path reserved it; treat as skip.
-      const message = err instanceof Error ? err.message : String(err)
-      if (message.includes('Unique constraint') || message.includes('orderId_variantId')) {
-        skipped += 1
-        continue
-      }
+  let result: ReserveResult
+  try {
+    result = await client.$transaction((tx) => reserveForOrderTx(tx, orderId, { enforce: false }))
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('Unique constraint') || message.includes('orderId_variantId')) {
+      result = await client.$transaction((tx) => reserveForOrderTx(tx, orderId, { enforce: false }))
+    } else {
       throw err
     }
   }
 
-  logger.info('Reserved inventory for order', { orderId, reservedVariants, reservedUnits, skipped })
-  return { orderId, reservedVariants, reservedUnits, skipped }
+  logger.info('Reserved inventory for order', { ...result })
+  return result
 }
 
 export interface ReservationCloseResult {

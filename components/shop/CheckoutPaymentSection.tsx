@@ -33,6 +33,8 @@ interface ProcessResponse {
   orderNumber?: number
   publishableKey?: string
   connectedAccountId?: string
+  /** Server-computed charge amount in cents — the authoritative total. */
+  amount?: number
   // saved-card immediate result
   success?: boolean
   paymentStatus?: string
@@ -47,7 +49,7 @@ interface Props {
   shipTo: 'PRACTICE' | 'PATIENT'
   shipSpeed: 'TWO_DAY' | 'OVERNIGHT'
   patientId?: string | null
-  onSuccess: (orderId: string) => void
+  onSuccess: (orderId: string, opts?: { pending?: boolean }) => void
 }
 
 const appearance: Appearance = {
@@ -96,6 +98,8 @@ export function CheckoutPaymentSection({
     orderId: string
     connectedAccountId?: string
     signature: string
+    /** Server-computed amount in cents (what Stripe will actually charge). */
+    amount?: number
   } | null>(null)
   const [creatingPi, setCreatingPi] = useState(false)
   // Signature of everything that affects the server-side PaymentIntent amount
@@ -202,6 +206,7 @@ export function CheckoutPaymentSection({
         orderId: data.orderId,
         connectedAccountId: data.connectedAccountId,
         signature: checkoutSignature,
+        amount: data.amount,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start payment')
@@ -257,7 +262,9 @@ export function CheckoutPaymentSection({
         if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
           throw new Error(confirmData.message || 'Payment not completed')
         }
-        onSuccess(data.orderId || confirmData.orderId)
+        onSuccess(data.orderId || confirmData.orderId, {
+          pending: !confirmData.success && Boolean(confirmData.pending),
+        })
         return
       }
 
@@ -425,7 +432,10 @@ export function CheckoutPaymentSection({
               <NewCardForm
                 orderId={pi.orderId}
                 paymentIntentId={pi.clientSecret}
-                total={total}
+                // The SERVER's amount is what Stripe charges — display that,
+                // not the locally computed total (which can go stale when
+                // per-client pricing changed since items were carted).
+                total={pi.amount != null ? pi.amount / 100 : total}
                 saveCard={saveCard}
                 onToggleSave={setSaveCard}
                 onSuccess={onSuccess}
@@ -457,7 +467,7 @@ function NewCardForm({
   total: number
   saveCard: boolean
   onToggleSave: (v: boolean) => void
-  onSuccess: (orderId: string) => void
+  onSuccess: (orderId: string, opts?: { pending?: boolean }) => void
   onError: (msg: string | null) => void
 }) {
   const stripe = useStripe()
@@ -493,11 +503,12 @@ function NewCardForm({
       })
       const confirmData = await confirm.json()
       // `pending` = ACH bank debit accepted but still settling — the order is
-      // placed; payment captures via webhook when the debit clears.
+      // placed; payment captures via webhook when the debit clears. Surfaced
+      // as a distinct "processing" state, never a false "paid" confirmation.
       if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
         throw new Error(confirmData.message || 'Payment was not completed')
       }
-      onSuccess(orderId)
+      onSuccess(orderId, { pending: !confirmData.success && Boolean(confirmData.pending) })
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Payment failed')
     } finally {

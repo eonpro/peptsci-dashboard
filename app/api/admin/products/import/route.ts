@@ -175,12 +175,28 @@ export async function POST(request: NextRequest) {
           select: { id: true, inventoryOnHand: true },
         })
 
+        // Only fields actually present in the CSV are applied on UPDATE, so a
+        // partial re-import (e.g. stock-only) can never zero out prices or
+        // blank supplier/dose data. CREATE falls back to sensible defaults.
+        const presentFields = {
+          ...(row.dose !== undefined ? { dose: row.dose } : {}),
+          ...(row.unitCost !== undefined ? { unitCost: row.unitCost } : {}),
+          ...(row.srp !== undefined ? { srp: row.srp } : {}),
+          ...(row.supplierName !== undefined ? { supplierName: row.supplierName } : {}),
+          ...(row.supplierSku !== undefined ? { supplierSku: row.supplierSku } : {}),
+          ...(row.inventoryOnHand !== undefined
+            ? { inventoryOnHand: Math.trunc(row.inventoryOnHand) }
+            : {}),
+          ...(row.reorderLevel !== undefined
+            ? { reorderLevel: Math.trunc(row.reorderLevel) }
+            : {}),
+        }
         const variantData = {
           productId,
           sku: row.sku,
           dose: row.dose ?? null,
-          unitCost: row.unitCost,
-          srp: row.srp,
+          unitCost: row.unitCost ?? 0,
+          srp: row.srp ?? 0,
           supplierName: row.supplierName ?? null,
           supplierSku: row.supplierSku ?? null,
           ...(row.inventoryOnHand !== undefined
@@ -196,9 +212,12 @@ export async function POST(request: NextRequest) {
         let stockDelta = 0
         let variantId: string
         if (existingVariant) {
+          // NOTE: productId is intentionally NOT updated — re-importing an
+          // existing SKU under a different product name must not silently
+          // reparent the variant (breaking pricing/catalog associations).
           await prisma.productVariant.update({
             where: { id: existingVariant.id },
-            data: variantData,
+            data: presentFields,
           })
           variantId = existingVariant.id
           if (row.inventoryOnHand !== undefined) {

@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
       })
       return errorResponse('No client account is linked to your user', 403, 'NO_CLIENT')
     }
+    if (!actor.clientApproved) {
+      return errorResponse(
+        'Your practice has not been approved for ordering yet',
+        403,
+        'PRACTICE_NOT_APPROVED'
+      )
+    }
 
     const json = await request.json()
     const parsed = bodySchema.safeParse(json)
@@ -281,9 +288,14 @@ export async function POST(request: NextRequest) {
 
     // ── New-card path: create unconfirmed PI; client confirms via Elements ──
     // Payment Element offers every type on the PI (card + ACH when enabled).
+    // saveCard participates in the idempotency key: toggling "save this card"
+    // after the PI exists must mint a fresh PI with the right
+    // setup_future_usage instead of silently replaying the old one.
     const intent = await stripe.paymentIntents.create(
       { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
-      connectRequestOptions({ idempotencyKey: `pi_create_${order.id}` })
+      connectRequestOptions({
+        idempotencyKey: `pi_create_${order.id}${saveCard ? '_save' : ''}`,
+      })
     )
 
     await prisma.order.update({

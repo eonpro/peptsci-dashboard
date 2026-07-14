@@ -317,6 +317,9 @@ export async function recordPayment(
   })
   if (!target) throw new Error('Invoice not found')
   if (target.status === 'VOID') throw new Error('Cannot record a payment on a void invoice')
+  if (target.status === 'DRAFT') {
+    throw new Error('Cannot record a payment on a draft invoice — issue it first')
+  }
 
   if (input.stripePaymentIntentId) {
     const existing = await client.invoicePayment.findUnique({

@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import type Stripe from 'stripe'
 import {
   requireAdmin,
   unauthorizedResponse,
@@ -10,11 +9,8 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { toCents } from '@/lib/stripe'
-import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
-import { connectRequestOptions } from '@/lib/stripe/connect'
-import { syncSalesRecordFromOrder } from '@/lib/sales'
-import { releaseForOrder } from '@/lib/inventory/reservations'
+import { StripeConfigError } from '@/lib/stripe/config'
+import { issueOrderRefund, OrderRefundError } from '@/lib/orders/refund'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -88,111 +84,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const order = await prisma.order.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        orderNumber: true,
-        total: true,
-        refundedTotal: true,
-        paymentStatus: true,
-        stripePaymentIntentId: true,
-      },
+    const result = await issueOrderRefund(id, {
+      amount: parsed.data.amount,
+      reason: parsed.data.reason,
+      refundedBy: userId ?? null,
     })
-    if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
-    if (!order.stripePaymentIntentId) {
-      return errorResponse(
-        'This order has no Stripe payment to refund (billed to account or unpaid).',
-        409,
-        'NO_STRIPE_PAYMENT'
-      )
-    }
-    if (order.paymentStatus !== 'CAPTURED' && order.paymentStatus !== 'REFUNDED') {
-      return errorResponse(
-        `Order payment is ${order.paymentStatus} — only captured payments can be refunded.`,
-        409,
-        'NOT_CAPTURED'
-      )
-    }
-
-    const total = Number(order.total)
-    const alreadyRefunded = Number(order.refundedTotal)
-    const remaining = Math.max(0, total - alreadyRefunded)
-    if (remaining <= 0) {
-      return errorResponse('Order is already fully refunded.', 409, 'ALREADY_REFUNDED')
-    }
-
-    const amount = parsed.data.amount ?? remaining
-    if (amount > remaining + 0.005) {
-      return errorResponse(
-        `Refund exceeds remaining balance: requested $${amount.toFixed(2)}, refundable $${remaining.toFixed(2)}.`,
-        400,
-        'AMOUNT_TOO_LARGE'
-      )
-    }
-    const amountCents = toCents(amount)
-
-    const stripe = requireStripeClient()
-    let refund: Stripe.Refund
-    try {
-      refund = await stripe.refunds.create(
-        {
-          payment_intent: order.stripePaymentIntentId,
-          amount: amountCents,
-          ...(parsed.data.reason ? { reason: parsed.data.reason } : {}),
-          metadata: { orderId: order.id, refundedBy: userId ?? 'unknown' },
-        },
-        // Cumulative position in the key: retries of THIS refund dedupe, while
-        // a subsequent refund (after refundedTotal advanced) gets a fresh key.
-        connectRequestOptions({
-          idempotencyKey: `refund_${order.id}_${toCents(alreadyRefunded)}_${amountCents}`,
-        })
-      )
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Stripe refund failed'
-      logger.error('[REFUND] Stripe refund failed', { orderId: order.id, message })
-      return errorResponse(message, 402, 'STRIPE_REFUND_FAILED')
-    }
-
-    const newRefundedTotal = Math.min(total, alreadyRefunded + amount)
-    const fullyRefunded = newRefundedTotal >= total - 0.005
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        refundedTotal: newRefundedTotal,
-        refundedAt: new Date(),
-        ...(fullyRefunded ? { paymentStatus: 'REFUNDED' } : {}),
-      },
-    })
-
-    // Fully refunded goods will not ship — free the reserved stock.
-    if (fullyRefunded) {
-      await releaseForOrder(order.id).catch(() => {})
-    }
-
-    // Net the refund out of analytics (never blocks the refund).
-    await syncSalesRecordFromOrder(order.id)
-
-    logger.info('[REFUND] Refund issued', {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      refundId: refund.id,
-      amount,
-      newRefundedTotal,
-      fullyRefunded,
-      by: userId,
-    })
-
-    return successResponse({
-      refundId: refund.id,
-      refundStatus: refund.status,
-      amount,
-      refundedTotal: newRefundedTotal,
-      remaining: Math.max(0, total - newRefundedTotal),
-      fullyRefunded,
-      paymentStatus: fullyRefunded ? 'REFUNDED' : 'CAPTURED',
-    })
+    return successResponse(result)
   } catch (error) {
+    if (error instanceof OrderRefundError) {
+      return errorResponse(error.message, error.status, error.code)
+    }
     if (error instanceof StripeConfigError) {
       return errorResponse('Payments are not configured', 503, error.code)
     }

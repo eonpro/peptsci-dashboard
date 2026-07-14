@@ -22,6 +22,7 @@ import {
 import type { BatchActor } from '../inventory-batches-core'
 import { aggregateByVariant } from '../inventory/reservations-core'
 import { closeReservationsTx } from '../inventory/reservations'
+import { resolveInventoryActor } from '../inventory-log'
 import {
   buildPickList,
   type PickableBatch,
@@ -40,6 +41,113 @@ export interface ConsumeResult {
   draws: number
   units: number
   shortfall: number
+  /** The exact batch draws applied (empty when alreadyConsumed). */
+  drawList: Array<{ batchId: string; variantId: string; qty: number }>
+}
+
+/** AuditLog action recording the exact batch draws of an order consume. */
+const CONSUME_DRAWS_ACTION = 'consume_draws'
+const CONSUME_DRAWS_REVERSED_ACTION = 'consume_draws_reversed'
+
+/**
+ * Transactional core of {@link consumeOrderInventory} — composable into a
+ * caller-owned transaction (e.g. FedEx label creation, so the label, the
+ * SHIPPED flip, and the stock draw commit or roll back together).
+ */
+export async function consumeOrderInventoryTx(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  actor: BatchActor,
+  opts: { requireFull?: boolean } = {}
+): Promise<ConsumeResult> {
+  const [consumedCount, activeCount] = await Promise.all([
+    tx.inventoryReservation.count({ where: { orderId, status: 'CONSUMED' } }),
+    tx.inventoryReservation.count({ where: { orderId, status: 'ACTIVE' } }),
+  ])
+  // Already fulfilled — nothing to draw again.
+  if (consumedCount > 0 && activeCount === 0) {
+    return { orderId, alreadyConsumed: true, draws: 0, units: 0, shortfall: 0, drawList: [] }
+  }
+
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, items: { select: { variantId: true, quantity: true } } },
+  })
+  if (!order) throw new Error('Order not found')
+
+  // Aggregate by variant so a variant on multiple lines is drawn once.
+  const aggregated = aggregateByVariant(order.items)
+  const variantIds = aggregated.map((a) => a.variantId)
+
+  const batches = variantIds.length
+    ? await tx.inventoryBatch.findMany({
+        where: {
+          variantId: { in: variantIds },
+          status: 'RECEIVED',
+          qtyOnHand: { gt: 0 },
+          // Never draw from batches past their beyond-use date.
+          bud: { gte: minAllocatableBud() },
+        },
+        orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
+        select: { id: true, variantId: true, batchNumber: true, bud: true, qtyOnHand: true },
+      })
+    : []
+  const byVariant = new Map<string, typeof batches>()
+  for (const b of batches) {
+    const list = byVariant.get(b.variantId)
+    if (list) list.push(b)
+    else byVariant.set(b.variantId, [b])
+  }
+
+  // Plan every line first so we can enforce all-or-nothing before drawing.
+  let shortfall = 0
+  const plans = aggregated.map((a) => {
+    const plan = planAllocation(byVariant.get(a.variantId) ?? [], a.quantity)
+    shortfall += plan.shortfall
+    return plan
+  })
+  if (opts.requireFull && shortfall > 0) {
+    throw new InsufficientBatchStockError()
+  }
+
+  let draws = 0
+  let units = 0
+  const drawLog: Array<{ batchId: string; variantId: string; qty: number }> = []
+  for (let i = 0; i < plans.length; i += 1) {
+    const plan = plans[i]
+    for (const d of plan.draws) {
+      await recordLabelsPrintedTx(tx, d.batchId, d.qty, actor)
+      drawLog.push({ batchId: d.batchId, variantId: aggregated[i].variantId, qty: d.qty })
+      draws += 1
+      units += d.qty
+    }
+  }
+
+  await closeReservationsTx(tx, orderId, 'CONSUMED')
+
+  // Persist the exact draws so a label void can reverse the consume precisely.
+  if (drawLog.length > 0) {
+    await tx.auditLog.create({
+      data: {
+        entity: 'Order',
+        entityId: orderId,
+        action: CONSUME_DRAWS_ACTION,
+        orderId,
+        metadata: { draws: drawLog } as unknown as Prisma.InputJsonValue,
+      },
+    })
+  }
+
+  return { orderId, alreadyConsumed: false, draws, units, shortfall, drawList: drawLog }
+}
+
+/** Thrown when `requireFull` consume cannot fully allocate from batches. */
+export class InsufficientBatchStockError extends Error {
+  readonly code = 'INSUFFICIENT_BATCH_STOCK'
+  constructor(message = 'Insufficient batch stock to fulfill this order') {
+    super(message)
+    this.name = 'InsufficientBatchStockError'
+  }
 }
 
 /**
@@ -61,72 +169,120 @@ export async function consumeOrderInventory(
   opts: { requireFull?: boolean } = {}
 ): Promise<ConsumeResult> {
   const client = db()
+  const result = await client.$transaction((tx) => consumeOrderInventoryTx(tx, orderId, actor, opts))
+  logger.info('Consumed order inventory', { ...result })
+  return result
+}
+
+export interface ReverseConsumeResult {
+  orderId: string
+  reversed: boolean
+  units: number
+}
+
+/**
+ * Reverse the most recent (un-reversed) consume for an order: restore each
+ * recorded batch draw (batch qtyOnHand + variant on-hand + audit trail) and
+ * re-open the order's CONSUMED reservations. Used when a shipping label is
+ * voided before the goods actually left. Idempotent: the consume-draws marker
+ * is atomically claimed, so a double-void reverses at most once.
+ */
+export async function reverseOrderConsume(
+  orderId: string,
+  actor: BatchActor
+): Promise<ReverseConsumeResult> {
+  const client = db()
   const result = await client.$transaction(async (tx) => {
-    const [consumedCount, activeCount] = await Promise.all([
-      tx.inventoryReservation.count({ where: { orderId, status: 'CONSUMED' } }),
-      tx.inventoryReservation.count({ where: { orderId, status: 'ACTIVE' } }),
-    ])
-    // Already fulfilled — nothing to draw again.
-    if (consumedCount > 0 && activeCount === 0) {
-      return { orderId, alreadyConsumed: true, draws: 0, units: 0, shortfall: 0 }
-    }
-
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, items: { select: { variantId: true, quantity: true } } },
+    const marker = await tx.auditLog.findFirst({
+      where: { entity: 'Order', entityId: orderId, action: CONSUME_DRAWS_ACTION },
+      orderBy: { createdAt: 'desc' },
     })
-    if (!order) throw new Error('Order not found')
+    if (!marker) return { orderId, reversed: false, units: 0 }
 
-    // Aggregate by variant so a variant on multiple lines is drawn once.
-    const aggregated = aggregateByVariant(order.items)
-    const variantIds = aggregated.map((a) => a.variantId)
-
-    const batches = variantIds.length
-      ? await tx.inventoryBatch.findMany({
-          where: {
-            variantId: { in: variantIds },
-            status: 'RECEIVED',
-            qtyOnHand: { gt: 0 },
-            // Never draw from batches past their beyond-use date.
-            bud: { gte: minAllocatableBud() },
-          },
-          orderBy: [{ bud: 'asc' }, { batchNumber: 'asc' }],
-          select: { id: true, variantId: true, batchNumber: true, bud: true, qtyOnHand: true },
-        })
-      : []
-    const byVariant = new Map<string, typeof batches>()
-    for (const b of batches) {
-      const list = byVariant.get(b.variantId)
-      if (list) list.push(b)
-      else byVariant.set(b.variantId, [b])
-    }
-
-    // Plan every line first so we can enforce all-or-nothing before drawing.
-    let shortfall = 0
-    const plans = aggregated.map((a) => {
-      const plan = planAllocation(byVariant.get(a.variantId) ?? [], a.quantity)
-      shortfall += plan.shortfall
-      return plan
+    // Atomic claim so concurrent voids can't double-restore.
+    const claim = await tx.auditLog.updateMany({
+      where: { id: marker.id, action: CONSUME_DRAWS_ACTION },
+      data: { action: CONSUME_DRAWS_REVERSED_ACTION },
     })
-    if (opts.requireFull && shortfall > 0) {
-      throw new Error('Insufficient batch stock to fulfill this order')
-    }
+    if (claim.count === 0) return { orderId, reversed: false, units: 0 }
 
-    let draws = 0
+    const meta = marker.metadata as { draws?: Array<{ batchId: string; variantId: string; qty: number }> } | null
+    const draws = meta?.draws ?? []
+    const { userId: actorUserId, name: actorName } = await resolveInventoryActor(
+      tx,
+      actor.clerkUserId,
+      actor.label
+    )
+
     let units = 0
-    for (const plan of plans) {
-      for (const d of plan.draws) {
-        await recordLabelsPrintedTx(tx, d.batchId, d.qty, actor)
-        draws += 1
-        units += d.qty
+    for (const d of draws) {
+      const batch = await tx.inventoryBatch.findUnique({
+        where: { id: d.batchId },
+        select: { id: true, batchNumber: true, status: true, qtyOnHand: true, variantId: true },
+      })
+      if (!batch || batch.status === 'VOIDED') {
+        logger.warn('Skipping consume reversal for missing/voided batch', {
+          orderId,
+          batchId: d.batchId,
+        })
+        continue
+      }
+      await tx.inventoryBatch.update({
+        where: { id: batch.id },
+        data: {
+          qtyOnHand: { increment: d.qty },
+          ...(batch.status === 'DEPLETED' ? { status: 'RECEIVED' as const } : {}),
+          events: {
+            create: {
+              type: 'ADJUSTED',
+              delta: d.qty,
+              note: 'Label voided — consume reversed',
+              performedBy: actorName ?? actor.label ?? null,
+            },
+          },
+        },
+      })
+      await tx.productVariant.update({
+        where: { id: batch.variantId },
+        data: { inventoryOnHand: { increment: d.qty } },
+      })
+      await tx.inventoryAdjustment.create({
+        data: {
+          variantId: batch.variantId,
+          delta: d.qty,
+          reason: 'MANUAL_ADJUSTMENT',
+          note: `Label void reversal for batch ${batch.batchNumber}`,
+          orderId,
+          createdById: actorUserId,
+          createdByName: actorName,
+        },
+      })
+      units += d.qty
+    }
+
+    // Re-open the order's reservations so availability math reflects the
+    // still-committed (unshipped) order.
+    const consumed = await tx.inventoryReservation.findMany({
+      where: { orderId, status: 'CONSUMED' },
+      select: { id: true, variantId: true, quantity: true },
+    })
+    for (const r of consumed) {
+      const res = await tx.inventoryReservation.updateMany({
+        where: { id: r.id, status: 'CONSUMED' },
+        data: { status: 'ACTIVE', consumedAt: null },
+      })
+      if (res.count === 1) {
+        await tx.productVariant.update({
+          where: { id: r.variantId },
+          data: { inventoryReserved: { increment: r.quantity } },
+        })
       }
     }
 
-    await closeReservationsTx(tx, orderId, 'CONSUMED')
-    return { orderId, alreadyConsumed: false, draws, units, shortfall }
+    return { orderId, reversed: true, units }
   })
 
-  logger.info('Consumed order inventory', result)
+  if (result.reversed) logger.info('Reversed order consume', result)
   return result
 }
 

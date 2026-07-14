@@ -51,15 +51,55 @@ export interface StatementData {
   aging: { current: number; net30: number; net60: number; net90: number; over90: number }
 }
 
-/** First/last instant of a YYYY-MM month (UTC). */
+const BUSINESS_TIME_ZONE = 'America/New_York'
+
+const tzPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TIME_ZONE,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
+/** UTC instant of local midnight (00:00) on Y-M-D in the business timezone. */
+function businessMidnightUtc(year: number, month: number, day: number): Date {
+  // Start from UTC midnight and correct by the timezone's rendering of that
+  // instant; two iterations converge across DST boundaries.
+  let guess = new Date(Date.UTC(year, month - 1, day))
+  for (let i = 0; i < 2; i += 1) {
+    const parts = Object.fromEntries(
+      tzPartsFormatter.formatToParts(guess).map((p) => [p.type, p.value])
+    ) as Record<string, string>
+    const rendered = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour) % 24,
+      Number(parts.minute),
+      Number(parts.second)
+    )
+    const desired = Date.UTC(year, month - 1, day)
+    guess = new Date(guess.getTime() + (desired - rendered))
+  }
+  return guess
+}
+
+/**
+ * First/last instant of a YYYY-MM month in the business timezone
+ * (America/New_York), so late-evening ET activity lands in the month the
+ * client experienced it — matching the reports' NY-day bucketing.
+ */
 export function monthBounds(month: string): { start: Date; end: Date } | null {
   const m = /^(\d{4})-(\d{2})$/.exec(month)
   if (!m) return null
   const year = Number(m[1])
   const mon = Number(m[2])
   if (mon < 1 || mon > 12) return null
-  const start = new Date(Date.UTC(year, mon - 1, 1))
-  const end = new Date(Date.UTC(year, mon, 1))
+  const start = businessMidnightUtc(year, mon, 1)
+  const end = mon === 12 ? businessMidnightUtc(year + 1, 1, 1) : businessMidnightUtc(year, mon + 1, 1)
   return { start, end }
 }
 
@@ -146,12 +186,22 @@ export async function buildStatement(
   }
   const closingBalance = running
 
-  // Aging + open invoices as of "now" (statement footer).
+  // Aging + open invoices as of the STATEMENT PERIOD END (capped at now for
+  // the current month) — a historical statement must show the aging picture
+  // the client had at month end, not today's. Payments made after the period
+  // are excluded from the snapshot for the same reason.
+  const snapshotAt = new Date(Math.min(periodEnd.getTime() - 1, Date.now()))
   const aging = { current: 0, net30: 0, net60: 0, net90: 0, over90: 0 }
   const openInvoices: StatementData['openInvoices'] = []
   for (const inv of invoices) {
+    // Only invoices issued by the snapshot instant existed on the statement.
+    if (inv.issueDate.getTime() > snapshotAt.getTime()) continue
+    const snapshotInv = {
+      ...inv,
+      payments: inv.payments.filter((p) => p.paidAt.getTime() <= snapshotAt.getTime()),
+    }
     // decorateInvoice needs the full include shape; payments/adjustments/lineItems present.
-    const view = decorateInvoice(inv as Parameters<typeof decorateInvoice>[0])
+    const view = decorateInvoice(snapshotInv as Parameters<typeof decorateInvoice>[0], snapshotAt)
     if (view.totals.amountDue <= 0) continue
     aging[view.aging] += view.totals.amountDue
     openInvoices.push({

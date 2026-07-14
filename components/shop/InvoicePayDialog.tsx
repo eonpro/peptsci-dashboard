@@ -28,7 +28,8 @@ interface Props {
   amountDue: number
   open: boolean
   onClose: () => void
-  onPaid: () => void
+  /** `pending` = ACH debit accepted but still settling (NOT yet paid). */
+  onPaid: (opts?: { pending?: boolean }) => void
 }
 
 const appearance: Appearance = {
@@ -132,7 +133,7 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
         if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
           throw new Error(confirmData.message || 'Payment not completed')
         }
-        onPaid()
+        onPaid({ pending: !confirmData.success && Boolean(confirmData.pending) })
         return
       }
 
@@ -255,7 +256,7 @@ function NewCardPayForm({
 }: {
   invoiceId: string
   amountDue: number
-  onPaid: () => void
+  onPaid: (opts?: { pending?: boolean }) => void
   onError: (msg: string | null) => void
 }) {
   const stripe = useStripe()
@@ -285,10 +286,11 @@ function NewCardPayForm({
       const confirmData = await confirm.json()
       // ACH bank debits settle over days — `pending` means the debit was
       // accepted; the invoice is marked paid by the webhook when it clears.
+      // Reported distinctly so the UI never claims "payment received" early.
       if (!confirm.ok || (!confirmData.success && !confirmData.pending)) {
         throw new Error(confirmData.message || 'Payment was not completed')
       }
-      onPaid()
+      onPaid({ pending: !confirmData.success && Boolean(confirmData.pending) })
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Payment failed')
     } finally {

@@ -134,12 +134,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const pdf = await generatePeptSciLabelsPdf(groups)
-
+    let labelGroups = groups
     if (consume) {
+      // Consume FIRST, then print from the ACTUAL draws — under concurrency
+      // the pre-computed plan can differ from what the transactional consume
+      // really drew, and the printed batch/lot numbers must match reality.
       // Single transaction: draw stock atomically (per-batch conditional
       // decrement) AND move reservations to CONSUMED. Idempotent — a repeat
-      // consume on an already-fulfilled order is a no-op.
+      // consume on an already-fulfilled order (reprint) falls back to the
+      // planned groups.
       try {
         const res = await consumeOrderInventory(id, { clerkUserId: userId, label: userId }, { requireFull: true })
         logger.info('Order labels generated + stock consumed', {
@@ -147,6 +150,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           draws: res.draws,
           alreadyConsumed: res.alreadyConsumed,
         })
+        if (!res.alreadyConsumed && res.drawList.length > 0) {
+          const drawnBatches = await prisma.inventoryBatch.findMany({
+            where: { id: { in: res.drawList.map((d) => d.batchId) } },
+            select: {
+              id: true,
+              productName: true,
+              dose: true,
+              purity: true,
+              batchNumber: true,
+              bud: true,
+              yearColor: true,
+            },
+          })
+          const batchById = new Map(drawnBatches.map((b) => [b.id, b]))
+          labelGroups = res.drawList.flatMap((d) => {
+            const batch = batchById.get(d.batchId)
+            if (!batch) return []
+            return [
+              {
+                req: {
+                  productName: batch.productName,
+                  dose: batch.dose,
+                  purity: batch.purity,
+                  batchNumber: batch.batchNumber,
+                  budIsoDate: batch.bud.toISOString().slice(0, 10),
+                  accentColor: batch.yearColor || undefined,
+                },
+                quantity: d.qty,
+              },
+            ]
+          })
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('Insufficient batch stock')) {
@@ -162,6 +197,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         throw e
       }
     }
+
+    const pdf = await generatePeptSciLabelsPdf(labelGroups)
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {

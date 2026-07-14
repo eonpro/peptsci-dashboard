@@ -140,6 +140,10 @@ export async function reconcileOrderFromPaymentIntent(
 
   const isCaptured = paymentStatus === PaymentStatus.CAPTURED
   const isFailed = paymentStatus === PaymentStatus.FAILED
+  // ACH debits sit in `processing` (AUTHORIZED) for days. The buyer has
+  // committed — the order must be visible in their history (not a hidden
+  // DRAFT), while the pay-before-ship gate still holds until capture.
+  const isAuthorized = paymentStatus === PaymentStatus.AUTHORIZED
 
   // First-capture detection (atomic): claim paidAt only while it is still null
   // so concurrent deliveries (confirm endpoint + webhook) can't both treat the
@@ -160,8 +164,9 @@ export async function reconcileOrderFromPaymentIntent(
       stripePaymentIntentId: pi.id,
       stripeChargeId: chargeIdFromIntent(pi),
       paymentFailureReason: isFailed ? (pi.last_payment_error?.message ?? 'Payment failed') : null,
-      // Advance to SUBMITTED on capture (only from DRAFT so we never regress).
-      ...(isCaptured && order.status === 'DRAFT'
+      // Advance to SUBMITTED on capture or ACH-processing (only from DRAFT so
+      // we never regress).
+      ...((isCaptured || isAuthorized) && order.status === 'DRAFT'
         ? { status: 'SUBMITTED', submittedAt: new Date() }
         : {}),
     },

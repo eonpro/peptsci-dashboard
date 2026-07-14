@@ -13,8 +13,9 @@ export interface ProductImportRow {
   sku: string
   dose?: string
   category?: string
-  unitCost: number
-  srp: number
+  /** Undefined when the CSV cell is blank/absent — re-imports must not zero prices. */
+  unitCost?: number
+  srp?: number
   supplierName?: string
   supplierSku?: string
   inventoryOnHand?: number
@@ -337,15 +338,16 @@ export function parseProductCsv(input: string): ParseResult {
     if (!sku) rowErrors.push('sku is required')
     if (sku && seenSkus.has(sku.toLowerCase()))
       rowErrors.push(`duplicate sku "${sku}" within file`)
-    // unitCost and srp are optional; a blank/absent value defaults to 0. Only a
-    // present-but-non-numeric value is an error (supports cost-only catalogs).
-    let unitCostVal = 0
+    // unitCost and srp are optional; a blank/absent value stays undefined so a
+    // partial re-import (e.g. stock-only) can never zero out existing catalog
+    // prices. Only a present-but-non-numeric value is an error.
+    let unitCostVal: number | undefined
     if (unitCost !== undefined) {
       if (Number.isNaN(unitCost)) rowErrors.push('unitCost must be a number')
       else if (unitCost < 0) rowErrors.push('unitCost must be >= 0')
       else unitCostVal = unitCost
     }
-    let srpVal = 0
+    let srpVal: number | undefined
     if (srp !== undefined) {
       if (Number.isNaN(srp)) rowErrors.push('srp must be a number')
       else if (srp < 0) rowErrors.push('srp must be >= 0')

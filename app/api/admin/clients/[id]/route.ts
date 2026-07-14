@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { clerkClient } from '@clerk/nextjs/server'
 import {
   requireAdmin,
   unauthorizedResponse,
@@ -167,11 +168,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     // Onboarding decisions go through the canonical cascade (client status +
     // linked users' DB/Clerk status + decision emails) shared with the /users
-    // approval route, so no path can drift. Resetting to PENDING is a plain
-    // status write (no user cascade, no email).
+    // approval route, so no path can drift. Resetting to PENDING also
+    // downgrades linked users (a pending practice must not keep shop access),
+    // just without decision emails.
     if (input.onboardingStatus !== undefined) {
       if (input.onboardingStatus === 'PENDING') {
         await prisma.client.update({ where: { id }, data: { onboardingStatus: 'PENDING' } })
+        const linkedUsers = await prisma.user.findMany({
+          where: { clientId: id },
+          select: { id: true, clerkUserId: true, role: true },
+        })
+        await prisma.user.updateMany({ where: { clientId: id }, data: { status: 'PENDING' } })
+        if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_') && linkedUsers.length > 0) {
+          const clerk = await clerkClient()
+          await Promise.all(
+            linkedUsers.map((u) =>
+              clerk.users
+                .updateUserMetadata(u.clerkUserId, {
+                  publicMetadata: { role: u.role ?? 'CLIENT', status: 'PENDING', clientId: id },
+                })
+                .catch((e) =>
+                  logger.error(
+                    '[ADMIN CLIENTS] Failed to sync PENDING status to Clerk',
+                    { userId: u.id, clientId: id },
+                    e instanceof Error ? e : new Error(String(e))
+                  )
+                )
+            )
+          )
+        }
       } else {
         await cascadeOnboardingDecision({ clientId: id, decision: input.onboardingStatus })
       }

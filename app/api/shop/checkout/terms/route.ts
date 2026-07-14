@@ -113,6 +113,13 @@ export async function POST(request: NextRequest) {
 
     const actor = await resolveShopActor(userId)
     if (!actor) return errorResponse('No client account is linked to your user', 403, 'NO_CLIENT')
+    if (!actor.clientApproved) {
+      return errorResponse(
+        'Your practice has not been approved for ordering yet',
+        403,
+        'PRACTICE_NOT_APPROVED'
+      )
+    }
 
     const parsed = bodySchema.safeParse(await request.json())
     if (!parsed.success) {

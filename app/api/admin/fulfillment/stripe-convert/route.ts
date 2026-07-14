@@ -67,7 +67,14 @@ export async function POST(request: NextRequest) {
 
     const record = await prisma.salesRecord.findUnique({
       where: { id: input.salesRecordId },
-      select: { id: true, source: true, orderId: true, stripePaymentIntentId: true, date: true },
+      select: {
+        id: true,
+        source: true,
+        orderId: true,
+        stripePaymentIntentId: true,
+        date: true,
+        paidAmount: true,
+      },
     })
     if (!record) return errorResponse('Sales record not found', 404, 'NOT_FOUND')
     if (record.orderId) return errorResponse('This payment has already been converted', 409, 'ALREADY_CONVERTED')
@@ -102,6 +109,9 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'CAPTURED',
       stripePaymentIntentId: record.stripePaymentIntentId ?? null,
       paidAt: record.date ?? new Date(),
+      // The mapped order must equal what Stripe actually captured — otherwise
+      // fulfillment/analytics diverge from real revenue.
+      expectedTotal: Number(record.paidAmount),
     })
 
     // Link the originating SalesRecord to the new order so it is not double

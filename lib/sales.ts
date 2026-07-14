@@ -175,6 +175,7 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
       include: {
         client: true,
         items: { include: { variant: { include: { product: true } } } },
+        _count: { select: { invoiceLineItems: { where: { invoice: { status: { not: 'VOID' } } } } } },
       },
     })
     if (!order) return
@@ -224,7 +225,9 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
       state: addr.state,
       zip: addr.zip,
       trackingNumber: order.trackingNumber || '',
-      invoicePaid: order.paymentStatus === 'CAPTURED',
+      // Captured card payments AND legitimately invoiced (net-terms) orders
+      // both count as "billed" — otherwise AR orders show as unpaid revenue.
+      invoicePaid: order.paymentStatus === 'CAPTURED' || order._count.invoiceLineItems > 0,
       paidAmount,
       vials,
       amountPerVial: vials > 0 ? paidAmount / vials : 0,

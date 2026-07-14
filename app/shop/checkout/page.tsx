@@ -143,9 +143,11 @@ export default function CheckoutPage() {
     }
   }, [shipTo, selectedPatient, practiceName, contactEmail, contactPhone, practiceAddr])
 
-  const handleOrderSuccess = (orderId: string) => {
+  const handleOrderSuccess = (orderId: string, opts?: { pending?: boolean }) => {
     clearCart()
-    router.push(`/shop/checkout/success?order=${encodeURIComponent(orderId)}`)
+    router.push(
+      `/shop/checkout/success?order=${encodeURIComponent(orderId)}${opts?.pending ? '&pending=1' : ''}`
+    )
   }
 
   // Mirror the server addressSchema: address1, city, and state required, ZIP

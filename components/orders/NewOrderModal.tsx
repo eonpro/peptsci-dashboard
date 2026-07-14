@@ -271,7 +271,15 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
           shipTo,
           shipSpeed,
           notes: notes.trim() || undefined,
-          lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice })),
+          // Auto-priced lines omit unitPrice so the SERVER resolves the
+          // client's current effective price (stale UI or a race before custom
+          // prices load can never lock in list price). Only explicit admin
+          // edits are sent as overrides.
+          lines: lines.map((l) => ({
+            variantId: l.variantId,
+            quantity: l.quantity,
+            ...(l.priceSource === 'manual' ? { unitPrice: l.unitPrice } : {}),
+          })),
         }),
       })
       const data = await res.json()

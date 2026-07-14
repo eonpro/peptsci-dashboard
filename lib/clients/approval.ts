@@ -23,8 +23,8 @@ export interface CascadeResult {
   decision: OnboardingDecision
   /** Whether the client's onboardingStatus actually changed. */
   changed: boolean
-  /** New user status applied to linked users (null for NEEDS_INFO). */
-  userStatus: 'ACTIVE' | 'SUSPENDED' | null
+  /** New user status applied to linked users. */
+  userStatus: 'ACTIVE' | 'SUSPENDED' | 'PENDING' | null
   /** Emails the decision notice was sent to ([] when skipped as unchanged). */
   emailedTo: string[]
 }
@@ -74,8 +74,10 @@ export async function cascadeOnboardingDecision(opts: {
   })
 
   // ── Cascade to linked auth users (DB + Clerk) ──
+  // NEEDS_INFO pulls users back to PENDING: a practice flagged for missing
+  // compliance info must not keep ordering on a previously-approved login.
   const userStatus =
-    decision === 'APPROVED' ? 'ACTIVE' : decision === 'REJECTED' ? 'SUSPENDED' : null
+    decision === 'APPROVED' ? 'ACTIVE' : decision === 'REJECTED' ? 'SUSPENDED' : 'PENDING'
   if (userStatus) {
     await prisma.user.updateMany({ where: { clientId }, data: { status: userStatus } })
 

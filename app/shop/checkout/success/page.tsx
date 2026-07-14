@@ -50,9 +50,40 @@ function SuccessContent() {
         return
       }
 
-      // Direct (non-redirect) flow: order already confirmed by the checkout page.
+      // Direct (non-redirect) flow: verify the order server-side (ownership +
+      // real payment/order state) instead of trusting the URL parameter.
+      // `pending=1` = ACH debit accepted but still settling.
       if (orderParam) {
-        setStatus('success')
+        try {
+          const res = await fetch(`/api/shop/orders/${encodeURIComponent(orderParam)}`)
+          const data = await res.json().catch(() => ({}))
+          if (!active) return
+          if (!res.ok || !data.order) {
+            setStatus('failed')
+            setMessage('We could not find this order on your account.')
+            return
+          }
+          const { status: orderStatus, payment } = data.order as {
+            status: string
+            payment?: { status?: string }
+          }
+          if (payment?.status === 'AUTHORIZED' || params.get('pending') === '1') {
+            setStatus('pending')
+            setMessage(
+              'Your order is placed and your bank transfer is processing. It will ship once the payment clears (typically a few business days).'
+            )
+          } else if (orderStatus === 'DRAFT' && payment?.status !== 'CAPTURED') {
+            setStatus('failed')
+            setMessage('Your payment could not be completed.')
+          } else {
+            setStatus('success')
+          }
+        } catch {
+          if (active) {
+            setStatus('failed')
+            setMessage('We could not verify your order.')
+          }
+        }
       } else {
         setStatus('failed')
         setMessage('Missing order reference.')
@@ -63,7 +94,7 @@ function SuccessContent() {
     return () => {
       active = false
     }
-  }, [paymentIntentId, orderParam])
+  }, [paymentIntentId, orderParam, params])
 
   if (status === 'loading') {
     return (

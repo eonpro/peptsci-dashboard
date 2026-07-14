@@ -91,13 +91,14 @@ describe('parseProductCsv', () => {
     assert.match(errors[0].message, /duplicate sku/)
   })
 
-  test('imports a cost-only catalog (no srp column), defaulting srp to 0', () => {
+  test('imports a cost-only catalog (no srp column), leaving srp absent', () => {
     const csv = ['name,sku,dose,unitCost,supplierSku', 'Tirzepatide,TR5,5mg,$4.20,TR5'].join('\n')
     const { rows, errors } = parseProductCsv(csv)
     assert.equal(errors.length, 0)
     assert.equal(rows.length, 1)
     assert.equal(rows[0].unitCost, 4.2)
-    assert.equal(rows[0].srp, 0)
+    // Absent price columns stay undefined so re-imports never zero out prices.
+    assert.equal(rows[0].srp, undefined)
     assert.equal(rows[0].supplierSku, 'TR5')
   })
 
@@ -168,7 +169,7 @@ describe('parseProductCsv', () => {
     assert.equal(r.name, 'Tesamorelin')
     assert.equal(r.dose, '10mg') // bare number under a Milligrams header gets mg suffix
     assert.equal(r.unitCost, 45)
-    assert.equal(r.srp, 0) // no price column: defaults to 0
+    assert.equal(r.srp, undefined) // no price column: stays absent (never overwrites)
     assert.equal(r.category, 'Peptides')
     assert.equal(r.casNumber, '218949-48-5')
     assert.equal(r.molecularFormula, 'C221H366N72O67S')

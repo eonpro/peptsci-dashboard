@@ -128,7 +128,10 @@ export async function getClientPricing(clientId: string): Promise<{
       where: {
         clientId,
         isActive: true,
-        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+        ],
       },
     })
 
@@ -310,7 +313,10 @@ export async function getClientPriceMapBySku(
       where: {
         clientId,
         isActive: true,
-        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+        ],
       },
       include: { variant: { select: { sku: true } } },
     })

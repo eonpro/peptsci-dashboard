@@ -43,6 +43,12 @@ export interface CreateManualOrderParams {
   stripePaymentIntentId?: string | null
   stripeChargeId?: string | null
   paidAt?: Date | null
+  /**
+   * When set, the computed order total must match this amount (dollars) or the
+   * creation is rejected. Used by Stripe conversions so a mapped order can
+   * never diverge from what the customer actually paid.
+   */
+  expectedTotal?: number | null
 }
 
 export interface CreateManualOrderResult {
@@ -82,14 +88,18 @@ export async function createManualOrder(
 
   const variantIds = lines.map((l) => l.variantId)
   const variants = await prisma.productVariant.findMany({
-    where: { id: { in: variantIds } },
+    // Archived/discontinued SKUs are not orderable (matches resolveCart).
+    where: { id: { in: variantIds }, status: 'ACTIVE' },
     include: {
       product: { select: { name: true } },
       clientPricing: {
         where: {
           clientId,
           isActive: true,
-          OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+          AND: [
+            { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+            { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+          ],
         },
       },
     },
@@ -110,6 +120,13 @@ export async function createManualOrder(
   const resolvedLines = buildManualOrderLines(lines, info)
   const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
   const totals = computeCartTotals(resolvedLines, shipSpeed)
+
+  if (params.expectedTotal != null && Math.abs(totals.total - params.expectedTotal) > 0.005) {
+    throw new ManualOrderError(
+      `Order total $${totals.total.toFixed(2)} does not match the captured payment $${params.expectedTotal.toFixed(2)} — adjust line prices/quantities to match what was charged`,
+      'TOTAL_MISMATCH'
+    )
+  }
 
   const order = await prisma.order.create({
     data: {

@@ -31,6 +31,8 @@ interface ImportSummary {
   processed: number
   created: number
   updated: number
+  /** Rows matching an existing platform-order record (kept authoritative). */
+  skipped: number
   failed: number
   validateOnly: boolean
   errors: RowError[]
@@ -99,6 +101,7 @@ export async function POST(request: NextRequest) {
       processed: 0,
       created: 0,
       updated: 0,
+      skipped: 0,
       failed: errors.length,
       validateOnly,
       errors: [...errors],
@@ -181,6 +184,24 @@ export async function POST(request: NextRequest) {
         ) {
           where = { stripePaymentIntentId: row.orderId }
         } else {
+          // A CSV orderId like "#1234" (or "1234") may reference a PLATFORM
+          // order that already has an order-synced SalesRecord (orderRef
+          // "#1234", unique key orderId). Upserting it as a fresh externalId
+          // row would double-count the sale — skip it, the order sync is
+          // authoritative.
+          if (row.orderId) {
+            const refCandidates = row.orderId.startsWith('#')
+              ? [row.orderId]
+              : [row.orderId, `#${row.orderId}`]
+            const platformRecord = await prisma.salesRecord.findFirst({
+              where: { source: 'order', orderRef: { in: refCandidates } },
+              select: { id: true },
+            })
+            if (platformRecord) {
+              summary.skipped++
+              continue
+            }
+          }
           where = { externalId: row.orderId ?? syntheticExternalId(row) }
         }
 

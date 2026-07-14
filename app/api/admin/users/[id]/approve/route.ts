@@ -146,7 +146,12 @@ export async function DELETE(
       )
     }
 
-    // Update Clerk user metadata
+    // Update Clerk user metadata.
+    // INTENTIONALLY per-user: suspending one login does NOT cascade to the
+    // practice or its sibling users — a clinic may have multiple staff logins
+    // and this action targets a single person. To shut down the whole
+    // practice, reject it from the client page (cascadeOnboardingDecision
+    // suspends every linked user).
     const client = await clerkClient()
     await client.users.updateUserMetadata(targetUserId, {
       publicMetadata: {

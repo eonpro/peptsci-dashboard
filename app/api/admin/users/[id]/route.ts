@@ -59,6 +59,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!client) return errorResponse('Selected client not found', 400, 'CLIENT_NOT_FOUND')
     }
 
+    // Activating a practice-linked login must not sidestep the onboarding
+    // decision: shop access follows User.status, so an ACTIVE user on a
+    // PENDING/REJECTED practice would grant ordering to an unapproved clinic.
+    // Approve the practice (which cascades to its users) instead.
+    if (status === 'ACTIVE' && prisma) {
+      const effectiveClientId =
+        clientId !== undefined
+          ? clientId
+          : ((await prisma.user.findUnique({
+              where: { clerkUserId },
+              select: { clientId: true },
+            }))?.clientId ?? null)
+      if (effectiveClientId) {
+        const linked = await prisma.client.findUnique({
+          where: { id: effectiveClientId },
+          select: { onboardingStatus: true, organizationName: true },
+        })
+        if (linked && linked.onboardingStatus !== 'APPROVED') {
+          return errorResponse(
+            `${linked.organizationName || 'The linked practice'} is ${linked.onboardingStatus} — approve the practice from its client page first (that activates its users).`,
+            409,
+            'PRACTICE_NOT_APPROVED'
+          )
+        }
+      }
+    }
+
     if (isClerkConfigured) {
       const clerk = await clerkClient()
       const publicMetadata: Record<string, unknown> = {}

@@ -103,9 +103,12 @@ export function validateCartInput(items: unknown): CartLineInput[] {
         'CART_QTY_INVALID'
       )
     }
-    if (quantity > MAX_LINE_QUANTITY) {
+    // Shop carts cap at MAX_SHOP_ITEM_QUANTITY — resolveCart only serves shop
+    // checkout, so even a caller that skips the route-level Zod schema cannot
+    // exceed the shop cap here.
+    if (quantity > MAX_SHOP_ITEM_QUANTITY) {
       throw new CartValidationError(
-        `Quantity for "${normalizedSku}" exceeds ${MAX_LINE_QUANTITY}`,
+        `Quantity for "${normalizedSku}" exceeds ${MAX_SHOP_ITEM_QUANTITY}`,
         'CART_QTY_TOO_LARGE'
       )
     }

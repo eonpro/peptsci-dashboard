@@ -9,7 +9,7 @@ import {
   CartValidationError,
   FREE_SHIPPING_THRESHOLD,
   SHIPPING_RATES,
-  MAX_LINE_QUANTITY,
+  MAX_SHOP_ITEM_QUANTITY,
   findStockShortages,
   describeStockShortages,
 } from '../checkout-core.ts'
@@ -58,9 +58,15 @@ describe('validateCartInput', () => {
     )
     assert.throws(() => validateCartInput([{ sku: 'A', quantity: 0 }]), CartValidationError)
     assert.throws(() => validateCartInput([{ sku: 'A', quantity: -3 }]), CartValidationError)
+    // Shop carts cap at the shop per-line quantity (100), not the internal
+    // 999 admin ceiling — resolveCart only serves shop checkout.
     assert.throws(
-      () => validateCartInput([{ sku: 'A', quantity: MAX_LINE_QUANTITY + 1 }]),
+      () => validateCartInput([{ sku: 'A', quantity: MAX_SHOP_ITEM_QUANTITY + 1 }]),
       (e: unknown) => e instanceof CartValidationError && e.code === 'CART_QTY_TOO_LARGE'
+    )
+    assert.equal(
+      validateCartInput([{ sku: 'A', quantity: MAX_SHOP_ITEM_QUANTITY }])[0].quantity,
+      MAX_SHOP_ITEM_QUANTITY
     )
   })
 })

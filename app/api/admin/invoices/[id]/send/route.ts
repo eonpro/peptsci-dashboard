@@ -31,6 +31,16 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const view = await getInvoice(id)
     if (!view) return errorResponse('Invoice not found', 404, 'NOT_FOUND')
 
+    // Never email clients about unissued (DRAFT) or VOID invoices — amounts
+    // may still change and the client portal hides drafts entirely.
+    if (view.invoice.status === 'DRAFT' || view.invoice.status === 'VOID') {
+      return errorResponse(
+        `This invoice is ${view.invoice.status} — issue it before sending it to the client.`,
+        409,
+        'NOT_ISSUED'
+      )
+    }
+
     const to = view.invoice.client?.contactEmail
     if (!to) return errorResponse('Client has no contact email on file', 422, 'NO_EMAIL')
 

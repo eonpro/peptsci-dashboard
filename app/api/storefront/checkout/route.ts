@@ -129,13 +129,17 @@ export async function POST(request: NextRequest) {
         storefrontId: config.id,
         isEnabled: true,
       },
-      include: { retailPrice: true },
+      include: { retailPrice: true, variant: { select: { status: true } } },
     })
 
     const productMap = new Map(sfProducts.map((p) => [p.id, p]))
     const orderItems = items.map((item) => {
       const sp = productMap.get(item.storefrontProductId)
       if (!sp) throw new Error(`Product ${item.storefrontProductId} not available`)
+      // A stale storefront listing must not sell an archived catalog variant.
+      if (sp.variant.status !== 'ACTIVE') {
+        throw new Error(`Product ${item.storefrontProductId} not available`)
+      }
       if (!sp.retailPrice || !sp.retailPrice.isActive) {
         throw new Error(`Product ${item.storefrontProductId} has no active price`)
       }
