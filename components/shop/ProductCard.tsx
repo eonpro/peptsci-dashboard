@@ -57,6 +57,8 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   // hard-rejects oversell, so the card must not let clinics add more than is
   // actually available. Unknown stock (undefined) falls back to the order cap.
   const outOfStock = product.inStock === false
+  // No SRP / custom price set — checkout rejects $0 lines, so don't offer Add.
+  const unpriced = !(product.displayPrice > 0)
   const maxQty = Math.min(
     MAX_ITEM_QUANTITY,
     typeof product.inventoryOnHand === 'number' && product.inventoryOnHand > 0
@@ -243,13 +245,15 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                   {formatPrice(product.standardPrice)}
                 </span>
               )}
-              <p className="text-xl font-bold text-white">{formatPrice(product.displayPrice)}</p>
+              <p className="text-xl font-bold text-white">
+                {unpriced ? '—' : formatPrice(product.displayPrice)}
+              </p>
             </div>
             {isInCart ? (
               renderInCartControls()
-            ) : outOfStock ? (
+            ) : outOfStock || unpriced ? (
               <span className="text-xs font-medium text-white/40 border border-white/10 rounded-xl px-3 py-2">
-                Out of Stock
+                {unpriced ? 'Call for Pricing' : 'Out of Stock'}
               </span>
             ) : (
               <div className="flex items-center gap-2">
@@ -367,7 +371,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex items-baseline gap-2 min-w-0">
             <p className="text-xl @[16rem]:text-2xl font-bold text-white">
-              {formatPrice(product.displayPrice)}
+              {unpriced ? '—' : formatPrice(product.displayPrice)}
             </p>
             {product.isCustomPrice && product.standardPrice && (
               <span className="text-sm text-white/40 line-through">
@@ -383,9 +387,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         {/* Action row - full width so the button is never clipped */}
         {isInCart ? (
           renderInCartControls(true)
-        ) : outOfStock ? (
+        ) : outOfStock || unpriced ? (
           <div className="w-full h-10 flex items-center justify-center text-xs font-medium text-white/40 border border-white/10 rounded-xl">
-            Out of Stock
+            {unpriced ? 'Call for Pricing' : 'Out of Stock'}
           </div>
         ) : (
           <div className="flex items-center gap-2">

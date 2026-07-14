@@ -61,7 +61,10 @@ export async function resolveCart(params: {
             where: {
               clientId: params.clientId,
               isActive: true,
-              OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+              AND: [
+                { OR: [{ validFrom: null }, { validFrom: { lte: new Date() } }] },
+                { OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] },
+              ],
             },
           }
         : false,
@@ -86,6 +89,14 @@ export async function resolveCart(params: {
     })
 
     const unitPrice = round2(price)
+    // Unpriced variants (SRP 0 and no custom client price) must not reach
+    // payment: Stripe rejects sub-minimum amounts with an opaque 500.
+    if (unitPrice <= 0) {
+      throw new CartValidationError(
+        `"${variant.product.name}" is not currently priced for ordering — please remove it from your cart and contact support`,
+        'CART_PRICE_UNSET'
+      )
+    }
     return {
       variantId: variant.id,
       sku: variant.sku!,
