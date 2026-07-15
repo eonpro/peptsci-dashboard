@@ -69,6 +69,17 @@ export default function PackagePhotosPage() {
     refresh()
   }, [refresh])
 
+  // Prefill from ?order= & ?tracking= so the Fulfillment page can hand off
+  // directly after a label is created (read on the client to avoid a
+  // useSearchParams Suspense boundary).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const order = params.get('order')
+    const tracking = params.get('tracking')
+    if (order) setOrderRef(order)
+    if (tracking) setTracking(tracking)
+  }, [])
+
   // Mirror the server limits so bad files fail fast with a clear message
   // instead of a slow, failed upload.
   const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB, matches the server limit

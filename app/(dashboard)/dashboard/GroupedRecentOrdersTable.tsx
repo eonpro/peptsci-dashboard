@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Sale } from '@/lib/sales'
@@ -235,9 +236,14 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
                             Needs Payment
                           </span>
                         ) : !order.trackingNumber ? (
-                          <span className="px-2 py-1 text-xs font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded-full">
+                          <Link
+                            href="/fulfillment"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Open Fulfillment to convert, label, and ship this order"
+                            className="px-2 py-1 text-xs font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded-full transition-colors hover:bg-amber-200 dark:hover:bg-amber-500/30"
+                          >
                             Needs Fulfillment
-                          </span>
+                          </Link>
                         ) : null}
                       </div>
                     </td>

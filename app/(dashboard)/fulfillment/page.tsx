@@ -21,6 +21,9 @@ import {
   Plus,
   CreditCard,
   Undo2,
+  Zap,
+  ArrowRight,
+  X,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 
@@ -90,6 +93,18 @@ function toLabelAddress(order: OrderRow): Partial<LabelAddress> {
   }
 }
 
+/** Build the label modal's recipient address from an unconverted Stripe record. */
+function stripeRecordToLabelAddress(rec: StripeQueueRecord): Partial<LabelAddress> {
+  return {
+    personName: rec.customerName || '',
+    phoneNumber: rec.customerPhone || '',
+    address1: rec.address.address || '',
+    city: rec.address.city || '',
+    state: (rec.address.state || '').toUpperCase(),
+    zip: rec.address.zip || '',
+  }
+}
+
 const filterTabs = [
   { id: 'false', label: 'Needs Label' },
   { id: 'true', label: 'Shipped' },
@@ -99,6 +114,9 @@ const filterTabs = [
 
 type TabId = (typeof filterTabs)[number]['id']
 
+type LabelTarget = { id: string; orderNumber: number; destination?: Partial<LabelAddress> }
+type NextStep = { orderNumber: number; trackingNumber: string | null }
+
 export default function FulfillmentPage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,7 +124,8 @@ export default function FulfillmentPage() {
   const [search, setSearch] = useState('')
   const [shipped, setShipped] = useState<TabId>('false')
   const [queue, setQueue] = useState<StripeQueueRecord[]>([])
-  const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
+  const [labelTarget, setLabelTarget] = useState<LabelTarget | null>(null)
+  const [nextStep, setNextStep] = useState<NextStep | null>(null)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [refundOrder, setRefundOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
@@ -114,6 +133,22 @@ export default function FulfillmentPage() {
   const [advancing, setAdvancing] = useState<string | null>(null)
   // Sequence searches so a slow, older response can't overwrite a newer one.
   const loadSeqRef = useRef(0)
+
+  // Best-effort background refresh of the Stripe queue so the "waiting to be
+  // converted" banner shows a count on every tab. Errors are surfaced by the
+  // From Stripe tab's own load, not here.
+  const loadQueue = useCallback(() => {
+    fetch('/api/admin/fulfillment/stripe-queue')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setQueue(data.records ?? [])
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    loadQueue()
+  }, [loadQueue])
 
   const load = useCallback(() => {
     const seq = ++loadSeqRef.current
@@ -180,7 +215,12 @@ export default function FulfillmentPage() {
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-  const modalDestination = useMemo(() => (modalOrder ? toLabelAddress(modalOrder) : undefined), [modalOrder])
+  const photoHref = useMemo(() => {
+    if (!nextStep) return '/package-photos'
+    const qs = new URLSearchParams({ order: String(nextStep.orderNumber) })
+    if (nextStep.trackingNumber) qs.set('tracking', nextStep.trackingNumber)
+    return `/package-photos?${qs.toString()}`
+  }, [nextStep])
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -204,6 +244,57 @@ export default function FulfillmentPage() {
           </Button>
         </div>
       </div>
+
+      {nextStep && (
+        <div className="flex flex-col gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm text-emerald-200">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+            <span>
+              Label created for Order #{nextStep.orderNumber}
+              {nextStep.trackingNumber && (
+                <>
+                  {' '}· tracking <span className="font-mono">{nextStep.trackingNumber}</span>
+                </>
+              )}
+              . Next step: photograph the sealed package.
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button size="sm" asChild>
+              <Link href={photoHref}>
+                <Camera className="mr-2 h-4 w-4" /> Take Package Photo
+              </Link>
+            </Button>
+            <button
+              onClick={() => setNextStep(null)}
+              className="text-emerald-200/70 transition-colors hover:text-emerald-100"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {shipped !== 'stripe' && queue.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm text-amber-200">
+            <Zap className="h-4 w-4 shrink-0 text-amber-300" />
+            <span>
+              <strong>{queue.length}</strong> paid Stripe payment{queue.length === 1 ? '' : 's'} waiting to be
+              converted into fulfillable orders.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-amber-400/40 text-amber-200 hover:bg-amber-400/10 hover:text-amber-100"
+            onClick={() => setShipped('stripe')}
+          >
+            Review From Stripe <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -412,7 +503,17 @@ export default function FulfillmentPage() {
                         Reset
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" onClick={() => setModalOrder(order)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setLabelTarget({
+                          id: order.id,
+                          orderNumber: order.orderNumber,
+                          destination: toLabelAddress(order),
+                        })
+                      }
+                    >
                       <Printer className="mr-2 h-4 w-4" />
                       {order.trackingNumber ? 'New Label' : 'Create Label'}
                     </Button>
@@ -460,19 +561,29 @@ export default function FulfillmentPage() {
           open={!!convertRecord}
           onOpenChange={(open) => !open && setConvertRecord(null)}
           record={convertRecord}
-          onConverted={load}
+          onConverted={(order) => {
+            // Hand the operator straight to the next step: the new order lands
+            // on Needs Label with the Stripe shipping address pre-filled in the
+            // label modal.
+            const destination = stripeRecordToLabelAddress(convertRecord)
+            setConvertRecord(null)
+            setShipped('false')
+            loadQueue()
+            setLabelTarget({ id: order.id, orderNumber: order.orderNumber, destination })
+          }}
         />
       )}
 
-      {modalOrder && (
+      {labelTarget && (
         <FedExLabelModal
-          open={!!modalOrder}
-          onOpenChange={(open) => !open && setModalOrder(null)}
-          orderId={modalOrder.id}
-          orderNumber={modalOrder.orderNumber}
-          destination={modalDestination}
-          onCreated={() => {
-            setModalOrder(null)
+          open={!!labelTarget}
+          onOpenChange={(open) => !open && setLabelTarget(null)}
+          orderId={labelTarget.id}
+          orderNumber={labelTarget.orderNumber}
+          destination={labelTarget.destination}
+          onCreated={({ trackingNumber }) => {
+            setNextStep({ orderNumber: labelTarget.orderNumber, trackingNumber: trackingNumber || null })
+            setLabelTarget(null)
             load()
           }}
         />

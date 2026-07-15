@@ -48,7 +48,8 @@ export type ConvertStripeModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   record: StripeQueueRecord | null
-  onConverted?: () => void
+  /** Called with the newly created order so the caller can continue the fulfillment flow (e.g. open the label modal). */
+  onConverted?: (order: { id: string; orderNumber: number }) => void
 }
 
 function formatPrice(n: number) {
@@ -256,7 +257,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to convert')
-      onConverted?.()
+      onConverted?.({ id: data.order.id, orderNumber: data.order.orderNumber })
       onOpenChange(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to convert')

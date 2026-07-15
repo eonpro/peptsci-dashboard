@@ -2228,3 +2228,19 @@ Files changed:
 - Adding an enum value ships via the runtime migrate runner; extend `probeSchema()` (pg_enum lookup) so GET `upToDate` reflects it — same pattern as the `productCasNumberColumn` probe.
 - A stale `.next` cache can fail `next build` with `PageNotFoundError` for unrelated pages; `rm -rf .next` fixes it.
 
+
+## Fulfillment handoff flow — Stripe queue banner + label→photo path (Jul 15 2026) [EXECUTOR]
+
+**Why**: Paid Stripe sales show "Needs Fulfillment" on the dashboard (SalesRecord) but the Fulfillment page's default "Needs Label" tab reads the Order table, which was empty → operator saw "No orders found" and thought orders were missing.
+
+**Shipped (local, needs commit + deploy)**:
+- `fulfillment/page.tsx`: amber banner on Needs Label/Shipped/All tabs showing the count of unconverted Stripe payments with a "Review From Stripe" jump; queue is background-refreshed on mount via the stripe-queue endpoint.
+- Convert → Label handoff: `ConvertStripeModal.onConverted` now returns `{id, orderNumber}`; page switches to Needs Label and auto-opens `FedExLabelModal` with the Stripe shipping address pre-filled (`stripeRecordToLabelAddress`).
+- Label → Photo handoff: after label creation a green next-step banner links to `/package-photos?order=<n>&tracking=<tn>`; package-photos page prefills from those query params (window.location, no useSearchParams Suspense).
+- Dashboard: "Needs Fulfillment" badge is now a link to `/fulfillment`.
+- Analytics consistency: FedEx label create/void now mirrors tracking onto the linked `SalesRecord` (`updateMany` by orderId, tracking only — revenue/COGS untouched) so the dashboard badge clears when a label is created and reappears if the last label is voided ('' not null; SalesRecord.trackingNumber is non-null string).
+
+**Verified**: tsc clean, eslint clean, 278/278 unit tests, `next build` passes.
+
+### Lessons (this effort)
+- The dashboard badge and the fulfillment queue read different tables (SalesRecord vs Order); any surface that flips Order.trackingNumber must mirror it to the linked SalesRecord or the two disagree.

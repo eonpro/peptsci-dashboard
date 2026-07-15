@@ -262,6 +262,15 @@ export async function POST(request: NextRequest) {
             },
           })
 
+          // Keep analytics in step: the dashboard's "Needs Fulfillment" badge
+          // reads SalesRecord.trackingNumber, so mirror tracking onto the
+          // linked row (tracking only — revenue/COGS stay owned by their
+          // original writer, including Stripe-sourced records).
+          await tx.salesRecord.updateMany({
+            where: { orderId: order.id },
+            data: { trackingNumber: result.trackingNumber },
+          })
+
           // Idempotent — if the order was already consumed via the labels-PDF
           // path this is a no-op, so we never double-draw.
           await consumeOrderInventoryTx(
@@ -470,6 +479,10 @@ export async function DELETE(request: NextRequest) {
               carrier: 'FedEx',
             },
           })
+          await tx.salesRecord.updateMany({
+            where: { orderId: label.orderId },
+            data: { trackingNumber: otherActive.trackingNumber },
+          })
           return
         }
 
@@ -492,6 +505,12 @@ export async function DELETE(request: NextRequest) {
               ? { status: 'APPROVED' as const, shippedAt: null }
               : {}),
           },
+        })
+        // SalesRecord.trackingNumber is a non-null string ('' = no tracking),
+        // so the dashboard badge flips back to "Needs Fulfillment".
+        await tx.salesRecord.updateMany({
+          where: { orderId: label.orderId },
+          data: { trackingNumber: '' },
         })
       }
     })
