@@ -55,11 +55,11 @@ const DEFAULT_ORIGIN: LabelAddress = {
   personName: 'PeptSci',
   companyName: '',
   phoneNumber: '8138862800',
-  address1: '7543 West Waters Avenue',
-  address2: '',
+  address1: '401 Jackson St',
+  address2: 'Suite 2340-K23',
   city: 'Tampa',
   state: 'FL',
-  zip: '33615',
+  zip: '33602',
 }
 
 const inputCls =

@@ -131,18 +131,18 @@ export function requireCredentials(): FedExCredentials {
 
 /**
  * Default ship-from origin. Overridable via FEDEX_ORIGIN_* env vars. Defaults
- * to the Logos RX Tampa fulfillment address (matches the EonPro reference).
+ * to the PeptSci Tampa fulfillment address.
  */
 export function getOriginAddress(): FedExAddress {
   return {
-    personName: process.env.FEDEX_ORIGIN_NAME || 'Logos RX',
+    personName: process.env.FEDEX_ORIGIN_NAME || 'PeptSci',
     companyName: process.env.FEDEX_ORIGIN_COMPANY || undefined,
     phoneNumber: process.env.FEDEX_ORIGIN_PHONE || '8138862800',
-    address1: process.env.FEDEX_ORIGIN_ADDRESS1 || '7543 West Waters Avenue',
-    address2: process.env.FEDEX_ORIGIN_ADDRESS2 || '',
+    address1: process.env.FEDEX_ORIGIN_ADDRESS1 || '401 Jackson St',
+    address2: process.env.FEDEX_ORIGIN_ADDRESS2 || 'Suite 2340-K23',
     city: process.env.FEDEX_ORIGIN_CITY || 'Tampa',
     state: process.env.FEDEX_ORIGIN_STATE || 'FL',
-    zip: process.env.FEDEX_ORIGIN_ZIP || '33615',
+    zip: process.env.FEDEX_ORIGIN_ZIP || '33602',
     countryCode: process.env.FEDEX_ORIGIN_COUNTRY || 'US',
   }
 }
