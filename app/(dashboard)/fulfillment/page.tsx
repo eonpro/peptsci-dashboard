@@ -24,6 +24,7 @@ import {
   Zap,
   ArrowRight,
   X,
+  PackageCheck,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 
@@ -42,6 +43,9 @@ const RefundOrderModal = dynamic(() => import('@/components/orders/RefundOrderMo
   ssr: false,
 })
 const ConvertStripeModal = dynamic(() => import('@/components/orders/ConvertStripeModal'), {
+  ssr: false,
+})
+const ManualDispositionModal = dynamic(() => import('@/components/orders/ManualDispositionModal'), {
   ssr: false,
 })
 import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
@@ -131,6 +135,7 @@ export default function FulfillmentPage() {
   const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [refundOrder, setRefundOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [convertRecord, setConvertRecord] = useState<StripeQueueRecord | null>(null)
+  const [dispositionOrder, setDispositionOrder] = useState<{ id: string; orderNumber: number } | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
   // Sequence searches so a slow, older response can't overwrite a newer one.
   const loadSeqRef = useRef(0)
@@ -528,6 +533,16 @@ export default function FulfillmentPage() {
                       <Printer className="mr-2 h-4 w-4" />
                       {order.trackingNumber ? 'New Label' : 'Create Label'}
                     </Button>
+                    {!order.trackingNumber && order.shippingStatus !== 'SHIPPED' && order.shippingStatus !== 'DELIVERED' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Fulfilled outside the app? Mark it shipped/delivered manually."
+                        onClick={() => setDispositionOrder({ id: order.id, orderNumber: order.orderNumber })}
+                      >
+                        <PackageCheck className="mr-2 h-4 w-4" /> Manual Disposition
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -581,6 +596,24 @@ export default function FulfillmentPage() {
             setShipped('false')
             loadQueue()
             setLabelTarget({ id: order.id, orderNumber: order.orderNumber, destination })
+          }}
+        />
+      )}
+
+      {dispositionOrder && (
+        <ManualDispositionModal
+          open={!!dispositionOrder}
+          onOpenChange={(open) => !open && setDispositionOrder(null)}
+          orderId={dispositionOrder.id}
+          orderNumber={dispositionOrder.orderNumber}
+          onDone={({ orderNumber, outcome, trackingNumber }) => {
+            // Shipped packages should still get a proof-of-shipment photo;
+            // hand-delivered/pickup orders skip that step.
+            if (outcome === 'SHIPPED') {
+              setNextStep({ orderNumber, trackingNumber })
+            }
+            setDispositionOrder(null)
+            load()
           }}
         />
       )}

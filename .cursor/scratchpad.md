@@ -2244,3 +2244,9 @@ Files changed:
 
 ### Lessons (this effort)
 - The dashboard badge and the fulfillment queue read different tables (SalesRecord vs Order); any surface that flips Order.trackingNumber must mirror it to the linked SalesRecord or the two disagree.
+
+## Manual disposition button (Jul 17 2026) [EXECUTOR]
+- `POST /api/admin/orders/[id]/disposition` — disposition orders fulfilled OUTSIDE the in-app FedEx flow (external label/carrier, hand-delivered, pickup). Mirrors the label route: payment gate (+ audited unpaid override), SHIPPED status flip, SalesRecord tracking mirror (placeholder 'Shipped (manual)'/'Delivered (manual)' when no tracking so the dashboard badge clears), audit log `manual_disposition`, shipped/delivered email+SMS. Inventory consume is BEST-EFFORT (requireFull: false — goods already left; shortfall audit-logged), unlike the pre-ship FedEx path.
+- `ManualDispositionModal` + "Manual Disposition" ghost button on unshipped fulfillment rows; SHIPPED outcome feeds the package-photo next-step banner.
+- Needs Label tab now also requires `shippingStatus null`; Shipped tab matches tracking OR shippingStatus (wrapped in AND to avoid the search OR collision).
+- Lesson: `next build` failing on a teammate's new Prisma enum = stale generated client → `npx prisma generate`.

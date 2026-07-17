@@ -30,8 +30,15 @@ export async function GET(request: NextRequest) {
     const params = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams))
 
     const where: Record<string, unknown> = { status: { not: 'DRAFT' } }
-    if (params.shipped === 'true') where.trackingNumber = { not: null }
-    else if (params.shipped === 'false') where.trackingNumber = null
+    // "Shipped" means a label/tracking exists OR the order was manually
+    // dispositioned (shippingStatus set without tracking, e.g. hand delivery).
+    // Wrapped in AND so it can't collide with the search OR below.
+    if (params.shipped === 'true') {
+      where.AND = [{ OR: [{ trackingNumber: { not: null } }, { shippingStatus: { not: null } }] }]
+    } else if (params.shipped === 'false') {
+      where.trackingNumber = null
+      where.shippingStatus = null
+    }
     if (params.status && params.status !== 'all') where.status = params.status
     if (params.search) {
       const asNum = Number(params.search.replace(/^#/, ''))
