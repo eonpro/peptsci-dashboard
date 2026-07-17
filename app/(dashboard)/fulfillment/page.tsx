@@ -62,6 +62,7 @@ type OrderRow = {
   shippedAt: string | null
   shippingAddress: StoredAddress
   client: { id: string; organizationName: string; contactName: string | null; contactPhone: string | null } | null
+  items: { name: string; dose: string | null; quantity: number }[]
   fulfillmentStage: 'NOT_STARTED' | 'PICKING' | 'PICKED' | 'PACKED'
   photoCount: number
   labelCount: number
@@ -411,6 +412,16 @@ export default function FulfillmentPage() {
                       {order.client?.organizationName || 'Unknown client'} · {formatDate(order.createdAt)} ·{' '}
                       {formatPrice(order.total)}
                     </p>
+                    {(order.items?.length ?? 0) > 0 && (
+                      <p className="mt-0.5 truncate text-sm text-white/70">
+                        {order.items
+                          .map(
+                            (it) =>
+                              `${it.quantity}× ${it.name}${it.dose ? ` ${it.dose}` : ''}`
+                          )
+                          .join(' · ')}
+                      </p>
+                    )}
                     {order.trackingNumber && (
                       <div className="mt-1 flex items-center gap-2 text-xs">
                         <Truck className="h-3 w-3 text-blue-400" />

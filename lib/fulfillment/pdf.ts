@@ -7,7 +7,9 @@
  * @module lib/fulfillment/pdf
  */
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import path from 'path'
+import { access, readFile } from 'fs/promises'
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
 import type { OrderPickList, PackingSlipData } from './service'
 
 const PT = 72
@@ -20,6 +22,27 @@ const INDIGO = rgb(0x2b / 255, 0x2c / 255, 0x84 / 255)
 const LINE = rgb(0.82, 0.82, 0.86)
 
 type Fonts = { reg: PDFFont; bold: PDFFont }
+
+// Dark-on-light brand mark for white paper (same asset the web UI serves from
+// Wix). Traced into the pick-list/packing-slip functions via
+// `outputFileTracingIncludes` in next.config.mjs; when unavailable the header
+// falls back to the indigo "PeptSci" wordmark.
+const LOGO_CANDIDATES = [
+  path.join(process.cwd(), 'public', 'brand', 'peptsci-logo-dark.png'),
+  path.join(process.cwd(), 'assets', 'brand', 'peptsci-logo-dark.png'),
+]
+
+async function embedBrandLogo(doc: PDFDocument): Promise<PDFImage | null> {
+  for (const candidate of LOGO_CANDIDATES) {
+    try {
+      await access(candidate)
+      return await doc.embedPng(await readFile(candidate))
+    } catch {
+      // try next / fall through to the text wordmark
+    }
+  }
+  return null
+}
 
 /**
  * Standard-14 PDF fonts only support WinAnsi (CP-1252). Any glyph outside it
@@ -67,9 +90,21 @@ function fmtDate(iso: string): string {
 }
 
 /** Draw the shared PeptSci document header; returns the new cursor Y. */
-function drawHeader(page: PDFPage, fonts: Fonts, title: string, subtitle: string): number {
+function drawHeader(
+  page: PDFPage,
+  fonts: Fonts,
+  logo: PDFImage | null,
+  title: string,
+  subtitle: string
+): number {
   const top = PAGE_H - MARGIN
-  page.drawText('PeptSci', { x: MARGIN, y: top - 14, size: 18, font: fonts.bold, color: INDIGO })
+  if (logo) {
+    const logoH = 24
+    const logoW = (logo.width / logo.height) * logoH
+    page.drawImage(logo, { x: MARGIN, y: top - logoH - 2, width: logoW, height: logoH })
+  } else {
+    page.drawText('PeptSci', { x: MARGIN, y: top - 14, size: 18, font: fonts.bold, color: INDIGO })
+  }
   page.drawText(title, {
     x: PAGE_W - MARGIN - fonts.bold.widthOfTextAtSize(title, 16),
     y: top - 13,
@@ -105,8 +140,9 @@ async function makeFonts(doc: PDFDocument): Promise<Fonts> {
 export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
   const doc = await PDFDocument.create()
   const fonts = await makeFonts(doc)
+  const logo = await embedBrandLogo(doc)
   const page = doc.addPage([PAGE_W, PAGE_H])
-  let y = drawHeader(page, fonts, 'PICK LIST', `Order #${pl.orderNumber}`)
+  let y = drawHeader(page, fonts, logo, 'PICK LIST', `Order #${pl.orderNumber}`)
 
   page.drawText(S(`Client: ${pl.clientName ?? '—'}`), { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })
   page.drawText(`Ordered: ${fmtDate(pl.createdAt)}`, {
@@ -158,7 +194,7 @@ export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
 
   for (const line of pl.lines) {
     if (y < MARGIN + 40) {
-      y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, 'PICK LIST', `Order #${pl.orderNumber}`)
+      y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, logo, 'PICK LIST', `Order #${pl.orderNumber}`)
     }
     const pageRef = doc.getPages()[doc.getPageCount() - 1]
     pageRef.drawText(S(line.productName).slice(0, 40), {
@@ -216,8 +252,9 @@ export async function generatePickListPdf(pl: OrderPickList): Promise<Buffer> {
 export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buffer> {
   const doc = await PDFDocument.create()
   const fonts = await makeFonts(doc)
+  const logo = await embedBrandLogo(doc)
   const page = doc.addPage([PAGE_W, PAGE_H])
-  let y = drawHeader(page, fonts, 'PACKING SLIP', `Order #${slip.orderNumber}`)
+  let y = drawHeader(page, fonts, logo, 'PACKING SLIP', `Order #${slip.orderNumber}`)
 
   // Ship-to block.
   page.drawText('SHIP TO', { x: MARGIN, y, size: 8, font: fonts.bold, color: MUTED })
@@ -270,7 +307,7 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
 
   for (const ln of slip.lines) {
     if (y < MARGIN + 40) {
-      y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, 'PACKING SLIP', `Order #${slip.orderNumber}`)
+      y = drawHeader(doc.addPage([PAGE_W, PAGE_H]), fonts, logo, 'PACKING SLIP', `Order #${slip.orderNumber}`)
     }
     const pageRef = doc.getPages()[doc.getPageCount() - 1]
     pageRef.drawText(S(ln.productName).slice(0, 46), {

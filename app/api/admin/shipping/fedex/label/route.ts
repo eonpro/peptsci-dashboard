@@ -27,6 +27,7 @@ import {
 } from '@/lib/fulfillment/payment-gate'
 import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
+import { resolveAdminUserId } from '@/lib/notifications/current-user'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -100,6 +101,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('FedEx is not configured. Contact your administrator.', 422, 'FEDEX_UNCONFIGURED')
     }
 
+    // requireAdmin() yields a Clerk id; FK columns (ShipmentLabel.createdById,
+    // AuditLog.userId) reference the internal User.id, so map it first.
+    const dbUserId = await resolveAdminUserId(userId)
+
     // Resolve the linked order (optional) to attach tracking + clientId, plus
     // the practice contact so we can email a shipment confirmation.
     let order:
@@ -160,11 +165,11 @@ export async function POST(request: NextRequest) {
           paymentStatus: found.paymentStatus,
           userId: userId ?? null,
         })
-        if (userId && userId !== 'dev-user') {
+        if (dbUserId) {
           await prisma.auditLog
             .create({
               data: {
-                userId,
+                userId: dbUserId,
                 entity: 'Order',
                 entityId: found.id,
                 action: 'unpaid_ship_override',
@@ -229,7 +234,7 @@ export async function POST(request: NextRequest) {
           data: {
             orderId: order?.id ?? null,
             clientId: order?.clientId ?? null,
-            createdById: userId && userId !== 'dev-user' ? userId : null,
+            createdById: dbUserId,
             carrier: 'FEDEX',
             trackingNumber: result.trackingNumber,
             shipmentId: result.shipmentId,
@@ -307,11 +312,11 @@ export async function POST(request: NextRequest) {
       throw txErr
     }
 
-    if (userId && userId !== 'dev-user') {
+    if (dbUserId) {
       await prisma.auditLog
         .create({
           data: {
-            userId,
+            userId: dbUserId,
             entity: 'ShipmentLabel',
             entityId: label.id,
             action: 'fedex_label_created',
@@ -452,6 +457,7 @@ export async function DELETE(request: NextRequest) {
       // Continue to mark voided locally even if FedEx rejects (e.g. already shipped)
     }
 
+    const dbUserId = await resolveAdminUserId(userId)
     let lastActiveLabelVoided = false
     await prisma.$transaction(async (tx) => {
       await tx.shipmentLabel.update({
@@ -459,7 +465,7 @@ export async function DELETE(request: NextRequest) {
         data: {
           status: 'VOIDED',
           voidedAt: new Date(),
-          voidedById: userId && userId !== 'dev-user' ? userId : null,
+          voidedById: dbUserId,
         },
       })
       if (label.orderId) {

@@ -62,6 +62,12 @@ export async function GET(request: NextRequest) {
           shippedAt: true,
           shippingAddress: true,
           client: { select: { id: true, organizationName: true, contactName: true, contactPhone: true } },
+          items: {
+            select: {
+              quantity: true,
+              variant: { select: { dose: true, product: { select: { name: true } } } },
+            },
+          },
           fulfillment: { select: { stage: true } },
           _count: { select: { packagePhotos: true, shipmentLabels: true } },
         },
@@ -83,6 +89,11 @@ export async function GET(request: NextRequest) {
       shippedAt: o.shippedAt?.toISOString() ?? null,
       shippingAddress: o.shippingAddress,
       client: o.client,
+      items: o.items.map((it) => ({
+        name: it.variant.product.name,
+        dose: it.variant.dose,
+        quantity: it.quantity,
+      })),
       fulfillmentStage: o.fulfillment?.stage ?? 'NOT_STARTED',
       photoCount: o._count.packagePhotos,
       labelCount: o._count.shipmentLabels,

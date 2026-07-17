@@ -10,6 +10,7 @@ import {
   PAYMENT_GATE_REFUNDED_MESSAGE,
 } from '@/lib/fulfillment/payment-gate'
 import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
+import { resolveAdminUserId } from '@/lib/notifications/current-user'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,11 +62,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           paymentStatus: order.paymentStatus,
           userId: userId ?? null,
         })
-        if (userId && userId !== 'dev-user') {
+        // AuditLog.userId is an FK to the internal User.id — map the Clerk id.
+        const dbUserId = await resolveAdminUserId(userId)
+        if (dbUserId) {
           await prisma.auditLog
             .create({
               data: {
-                userId,
+                userId: dbUserId,
                 entity: 'Order',
                 entityId: order.id,
                 action: 'unpaid_ship_override',
