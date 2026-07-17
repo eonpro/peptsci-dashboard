@@ -2306,11 +2306,14 @@ Sales organizations ("partner orgs") and their reps need to earn commission on s
 - MSA: `lib/partners/msa.ts` (versioned doc + SHA-256), `/partners/agreement` (canvas signature pad → PartnerAgreement record w/ IP/UA), portal-blocking gate for org owners + reps.
 - API/webhooks: `lib/partners/api-auth.ts` (hashed `pk_live_…` keys), `GET /api/partner/v1/[summary|transactions|payouts|clinics|links]` (Bearer + rate-limited), `lib/partners/webhooks.ts` (HMAC `t=…,v1=…` signatures, dispatch on commission.accrued/reversed + payout.recorded).
 
-### ⚠️ Follow-ups before fully live in prod
-1. Prod migration via `POST /api/admin/db/migrate` (SUPER_ADMIN) — new tables + `UserRole.PARTNER` enum value must apply before any partner flow runs in prod.
-2. Commit + deploy (work is local only).
-3. Clerk session token must expose `publicMetadata` as `metadata` (already configured for existing roles — PARTNER rides on it).
-4. Optional: seed the first partner org via `/partners-admin` → New Partner Org → Approve & invite.
+### Production verification (Jul 17 — DONE)
+- Committed + deployed (`fa8b9f2`, `f7a97a2`, `ffb01cd`, `e4042b4` on main → Vercel prod, live on peptsci.com).
+- **Prod migration applied** via the in-app runner (`POST /api/admin/db/migrate`), authenticated with a temporary Clerk SUPER_ADMIN service user (created via Backend API → sign-in ticket → FAPI session → Bearer session JWT). Both new migrations applied cleanly (8 + 96 statements, 0 skipped); probe `upToDate: true`. Temp user deleted afterward.
+- **Full E2E on production, all green:** apply → PENDING org in admin list → set 10% rate → approve (real Clerk invitation issued) → partner session resolves → MSA signed (agreement record + gate cleared) → referral link created → `/join/<code>` sets 90-day `ps_ref` cookie + click counted → clinic attached → $500 transaction → exactly $50 commission → API key created → `/api/partner/v1/summary` earned/unpaid $50 → approve-all + $50 payout → unpaid $0 / paid $50. All test data (org cascade, clinic, Clerk users, invitation) deleted after.
+- Added during verification: `DELETE /api/admin/partners/[id]` (SUPER_ADMIN, history-guarded, `?force=true`) and a **self-heal identity link** in `getPartnerContext` (links org/rep/member from session-claim metadata when the row is unlinked).
+
+### ⚠️ Open issue found during verification
+**Clerk webhooks are not reaching prod** — zero requests to `/api/webhooks/clerk` in runtime logs while `user.created`/`user.updated` events fired. Check Clerk Dashboard → Webhooks: endpoint should be `https://peptsci.com/api/webhooks/clerk` with `CLERK_WEBHOOK_SECRET` matching the Vercel env. Partner linking self-heals, but clinic-signup User sync + welcome emails depend on this webhook.
 
 ### Lessons (this effort)
 - Keep the partner ledger in integer cents + integer bps (Logos port) even though the rest of the app is Decimal dollars; convert once at the boundary (`dollarsToCents`) — splits then sum exactly and reversals net to zero.
