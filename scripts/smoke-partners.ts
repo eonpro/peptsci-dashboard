@@ -8,8 +8,14 @@
 
 import assert from 'node:assert/strict'
 import { prisma } from '../lib/prisma'
-import { accrueCommissionForOrder, reverseCommissionForOrder, orderReference } from '../lib/partners/accrual'
-import { commissionSummary, approvedBalance } from '../lib/partners/queries'
+import {
+  accrueCommissionForOrder,
+  reverseCommissionForOrder,
+  accrueManualTransaction,
+  orderReference,
+} from '../lib/partners/accrual'
+import { commissionSummary, approvedBalance, clinicBook, monthlyTrend } from '../lib/partners/queries'
+import { attributionFromLink, generateReferralCode } from '../lib/partners/referral'
 
 async function main() {
   if (!prisma) throw new Error('No DB connection')
@@ -131,12 +137,141 @@ async function main() {
     assert.equal(paidSummary.unpaidCents, 0)
     console.log('✓ payout: entries flipped PAID, balance drained, summary reflects it')
 
+    // ── Referral attribution: link → clinic stamp (the /join + onboarding path).
+    const link = await prisma.referralLink.create({
+      data: { code: generateReferralCode(), orgId: org.id, repId: rep.id, label: 'smoke' },
+    })
+    const attribution = attributionFromLink({
+      id: link.id,
+      orgId: link.orgId,
+      repId: link.repId,
+      active: link.active,
+    })
+    assert.ok(attribution)
+    const clinic2 = await prisma.client.create({
+      data: {
+        organizationName: `Smoke Clinic B ${stamp}`,
+        partnerOrgId: attribution.partnerOrgId,
+        partnerRepId: attribution.partnerRepId,
+        referralLinkId: attribution.referralLinkId,
+      },
+    })
+    const stamped = await prisma.client.findUnique({
+      where: { id: clinic2.id },
+      select: { partnerOrgId: true, partnerRepId: true, referralLinkId: true },
+    })
+    assert.deepEqual(stamped, {
+      partnerOrgId: org.id,
+      partnerRepId: rep.id,
+      referralLinkId: link.id,
+    })
+    console.log('✓ referral link attribution stamps org/rep/link onto the clinic')
+
+    // ── Manual transaction (admin entry) + reference dedup (CSV re-import).
+    const manual = await accrueManualTransaction({
+      orgId: org.id,
+      clientId: clinic2.id,
+      transactionDate: new Date(),
+      description: 'Smoke manual sale',
+      reference: `smoke-ref-${stamp}`,
+      revenueCents: 10_000, // $100 at 10% = $10; rep 3% = $3
+      source: 'MANUAL',
+      createdBy: 'smoke',
+    })
+    assert.ok(manual)
+    const dup = await accrueManualTransaction({
+      orgId: org.id,
+      clientId: clinic2.id,
+      transactionDate: new Date(),
+      reference: `smoke-ref-${stamp}`,
+      revenueCents: 10_000,
+      source: 'CSV',
+      createdBy: 'smoke',
+    })
+    assert.equal(dup, null, 'duplicate reference must be skipped')
+    const manualTxn = await prisma.partnerTransaction.findUnique({
+      where: { reference: `smoke-ref-${stamp}` },
+      include: { entries: true },
+    })
+    assert.equal(manualTxn!.entries.find((e) => e.payee === 'ORG')!.amountCents, 700)
+    assert.equal(manualTxn!.entries.find((e) => e.payee === 'REP')!.amountCents, 300)
+    console.log('✓ manual transaction: $100 → $7 org / $3 rep, duplicate reference skipped')
+
+    // ── Book of business + trend reflect both clinics.
+    const book = await clinicBook({ orgId: org.id }, 'ORG')
+    assert.equal(book.length, 2)
+    const bookB = book.find((r) => r.clientId === clinic2.id)!
+    assert.equal(bookB.revenueCents, 10_000)
+    assert.equal(bookB.repName, 'Smoke Rep')
+    const trend = await monthlyTrend({ orgId: org.id }, 'ORG', 3)
+    const thisMonth = trend[trend.length - 1]
+    assert.equal(thisMonth.revenueCents, 60_000) // $500 order + $100 manual
+    console.log('✓ clinic book + monthly trend aggregate both transactions')
+
+    // ── MARGIN model: floor-based accrual on a second org.
+    const product = await prisma.product.create({ data: { name: `Smoke Peptide ${stamp}` } })
+    const variant = await prisma.productVariant.create({
+      data: { productId: product.id, unitCost: 40, srp: 100 },
+    })
+    const marginOrg = await prisma.partnerOrg.create({
+      data: {
+        name: `Smoke Margin Org ${stamp}`,
+        contactEmail: `smoke-margin-${stamp}@example.com`,
+        status: 'ACTIVE',
+        compensationModel: 'MARGIN',
+      },
+    })
+    await prisma.partnerOrgPricing.create({
+      data: { orgId: marginOrg.id, variantId: variant.id, floorCents: 6000 }, // $60 floor
+    })
+    const marginClinic = await prisma.client.create({
+      data: { organizationName: `Smoke Margin Clinic ${stamp}`, partnerOrgId: marginOrg.id },
+    })
+    const marginOrder = await prisma.order.create({
+      data: {
+        clientId: marginClinic.id,
+        createdById: user.id,
+        subtotal: 170,
+        total: 170,
+        paymentStatus: 'CAPTURED',
+        paidAt: new Date(),
+        items: {
+          create: [{ variantId: variant.id, quantity: 2, unitPrice: 85, totalPrice: 170 }],
+        },
+      },
+    })
+    try {
+      // 2 × $85 sell − 2 × $60 floor = $50 margin, all to the org (no rep).
+      await accrueCommissionForOrder(marginOrder.id)
+      const marginTxn = await prisma.partnerTransaction.findUnique({
+        where: { reference: orderReference(marginOrder.id) },
+        include: { entries: true },
+      })
+      assert.ok(marginTxn)
+      assert.equal(marginTxn.revenueCents, 17_000)
+      assert.equal(marginTxn.costCents, 12_000)
+      assert.equal(marginTxn.entries.length, 1)
+      assert.equal(marginTxn.entries[0].payee, 'ORG')
+      assert.equal(marginTxn.entries[0].amountCents, 5000)
+      console.log('✓ margin model: 2×($85−$60 floor) = $50 spread accrued to the org')
+    } finally {
+      // FK order: items → order → clinic/org (cascades partner rows) → catalog.
+      await prisma.orderItem.deleteMany({ where: { orderId: marginOrder.id } }).catch(() => {})
+      await prisma.partnerOrg.delete({ where: { id: marginOrg.id } }).catch(() => {})
+      await prisma.order.delete({ where: { id: marginOrder.id } }).catch(() => {})
+      await prisma.client.delete({ where: { id: marginClinic.id } }).catch(() => {})
+      await prisma.productVariant.delete({ where: { id: variant.id } }).catch(() => {})
+      await prisma.product.delete({ where: { id: product.id } }).catch(() => {})
+    }
+
+    await prisma.client.delete({ where: { id: clinic2.id } }).catch(() => {})
+
     console.log('\nALL SMOKE CHECKS PASSED')
   } finally {
-    // Cleanup (cascades take out reps/links/transactions/entries/payouts).
+    // Cleanup (org cascade takes out reps/links/transactions/entries/payouts).
+    await prisma.partnerOrg.delete({ where: { id: org.id } }).catch(() => {})
     await prisma.order.delete({ where: { id: order.id } }).catch(() => {})
     await prisma.client.delete({ where: { id: client.id } }).catch(() => {})
-    await prisma.partnerOrg.delete({ where: { id: org.id } }).catch(() => {})
     await prisma.user.delete({ where: { id: user.id } }).catch(() => {})
     await prisma.$disconnect()
   }
