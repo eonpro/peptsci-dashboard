@@ -20,13 +20,13 @@ interface OrderRow {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
-  PROCESSING: 'bg-purple-100 text-purple-800',
-  SHIPPED: 'bg-indigo-100 text-indigo-800',
-  DELIVERED: 'bg-emerald-100 text-emerald-800',
-  CANCELLED: 'bg-red-100 text-red-800',
-  REFUNDED: 'bg-gray-100 text-gray-800',
+  PENDING: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+  CONFIRMED: 'bg-blue-500/15 text-blue-300 border border-blue-500/30',
+  PROCESSING: 'bg-purple-500/15 text-purple-300 border border-purple-500/30',
+  SHIPPED: 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30',
+  DELIVERED: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  CANCELLED: 'bg-red-500/15 text-red-300 border border-red-500/30',
+  REFUNDED: 'bg-white/10 text-white/70 border border-white/20',
 }
 
 export default function StorefrontOrdersPage() {
@@ -44,7 +44,7 @@ export default function StorefrontOrdersPage() {
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto p-6"><div className="h-64 bg-gray-100 rounded animate-pulse" /></div>
+    return <div className="max-w-4xl mx-auto p-6"><div className="h-64 bg-white/5 rounded animate-pulse" /></div>
   }
 
   return (
@@ -54,8 +54,8 @@ export default function StorefrontOrdersPage() {
           <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Storefront Orders</h1>
-          <p className="text-sm text-gray-500">Orders placed through your white-label store</p>
+          <h1 className="text-2xl font-bold text-white">Storefront Orders</h1>
+          <p className="text-sm text-white/60">Orders placed through your white-label store</p>
         </div>
       </div>
 
@@ -64,13 +64,13 @@ export default function StorefrontOrdersPage() {
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold">{orders.length}</p>
-            <p className="text-xs text-gray-500">Total Orders</p>
+            <p className="text-xs text-white/60">Total Orders</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold">${totalRevenue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500">Total Revenue</p>
+            <p className="text-xs text-white/60">Total Revenue</p>
           </CardContent>
         </Card>
         <Card>
@@ -78,7 +78,7 @@ export default function StorefrontOrdersPage() {
             <p className="text-2xl font-bold">
               ${orders.length > 0 ? (totalRevenue / orders.length).toFixed(2) : '0.00'}
             </p>
-            <p className="text-xs text-gray-500">Avg Order Value</p>
+            <p className="text-xs text-white/60">Avg Order Value</p>
           </CardContent>
         </Card>
       </div>
@@ -91,30 +91,30 @@ export default function StorefrontOrdersPage() {
         <CardContent>
           {orders.length === 0 ? (
             <div className="py-12 text-center">
-              <ShoppingCart className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No orders yet. Share your storefront link to start receiving orders.</p>
+              <ShoppingCart className="h-10 w-10 text-white/30 mx-auto mb-3" />
+              <p className="text-white/60">No orders yet. Share your storefront link to start receiving orders.</p>
             </div>
           ) : (
             <div className="space-y-2">
               {orders.map((o) => (
                 <div
                   key={o.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{o.orderNumber}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-white/60">
                       {o.customerName || o.customerEmail || 'Guest'} &middot;{' '}
                       {o.itemCount} item{o.itemCount !== 1 ? 's' : ''}
                     </p>
                   </div>
-                  <Badge className={STATUS_COLORS[o.status] ?? 'bg-gray-100'}>
+                  <Badge className={STATUS_COLORS[o.status] ?? 'bg-white/10 text-white/70'}>
                     {o.status}
                   </Badge>
                   <span className="text-sm font-semibold whitespace-nowrap">
                     ${o.total.toFixed(2)}
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-white/50">
                     {new Date(o.createdAt).toLocaleDateString()}
                   </span>
                 </div>

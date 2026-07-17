@@ -94,12 +94,12 @@ type OrderDetail = {
 
 const statusBadge = (order: OrderDetail) => {
   if (order.status === 'CANCELLED' || order.status === 'REJECTED')
-    return { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: XCircle }
+    return { label: 'Cancelled', color: 'bg-red-500/15 text-red-300 border border-red-500/30', icon: XCircle }
   if (order.status === 'COMPLETED' || order.shippingStatus === 'DELIVERED')
-    return { label: 'Delivered', color: 'bg-green-100 text-green-700', icon: CheckCircle2 }
+    return { label: 'Delivered', color: 'bg-green-500/15 text-green-300 border border-green-500/30', icon: CheckCircle2 }
   if (order.status === 'SHIPPED' || order.trackingNumber)
-    return { label: 'Shipped', color: 'bg-blue-100 text-blue-700', icon: Truck }
-  return { label: 'Processing', color: 'bg-yellow-100 text-yellow-700', icon: Clock }
+    return { label: 'Shipped', color: 'bg-blue-500/15 text-blue-300 border border-blue-500/30', icon: Truck }
+  return { label: 'Processing', color: 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30', icon: Clock }
 }
 
 export default function OrderDetailPage() {
@@ -148,7 +148,7 @@ export default function OrderDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto py-20 text-center text-gray-500">
+      <div className="max-w-4xl mx-auto py-20 text-center text-white/60">
         <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin" />
         Loading order…
       </div>
@@ -158,11 +158,11 @@ export default function OrderDetailPage() {
   if (error || !order) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
-        <Link href="/shop/orders" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900">
+        <Link href="/shop/orders" className="inline-flex items-center text-sm text-white/60 hover:text-white">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Orders
         </Link>
         <Card>
-          <CardContent className="py-12 text-center text-red-600">{error || 'Order not found'}</CardContent>
+          <CardContent className="py-12 text-center text-red-400">{error || 'Order not found'}</CardContent>
         </Card>
       </div>
     )
@@ -182,20 +182,20 @@ export default function OrderDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <Link href="/shop/orders" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900">
+      <Link href="/shop/orders" className="inline-flex items-center text-sm text-white/60 hover:text-white">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Orders
       </Link>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Order #{order.orderNumber}</h1>
+            <h1 className="text-2xl font-bold text-white">Order #{order.orderNumber}</h1>
             <Badge className={status.color}>
               <StatusIcon className="mr-1 h-3 w-3" />
               {status.label}
             </Badge>
           </div>
-          <p className="text-gray-500 mt-1">Placed on {formatDate(order.createdAt)}</p>
+          <p className="text-white/60 mt-1">Placed on {formatDate(order.createdAt)}</p>
         </div>
         <div className="flex items-center gap-2">
           {canRequestReturn && (
@@ -222,7 +222,7 @@ export default function OrderDetailPage() {
               >
                 <div>
                   <span className="font-mono font-medium">{r.rmaNumber}</span>
-                  <span className="ml-2 text-gray-500">
+                  <span className="ml-2 text-white/60">
                     {r.items.map((it) => `${it.quantity}× ${it.productName}`).join(', ')}
                   </span>
                 </div>
@@ -250,33 +250,33 @@ export default function OrderDetailPage() {
                     <div className="relative flex flex-col items-center">
                       <div
                         className={`h-3 w-3 rounded-full ${
-                          idx === timeline.length - 1 ? 'bg-indigo-600 ring-4 ring-indigo-100' : 'bg-green-500'
+                          idx === timeline.length - 1 ? 'bg-indigo-500 ring-4 ring-indigo-500/25' : 'bg-green-500'
                         }`}
                       />
-                      {idx < timeline.length - 1 && <div className="absolute top-3 w-0.5 h-full bg-gray-200" />}
+                      {idx < timeline.length - 1 && <div className="absolute top-3 w-0.5 h-full bg-white/15" />}
                     </div>
                     <div className="flex-1 min-w-0 -mt-1">
                       <div className="flex items-center justify-between">
-                        <p className="font-medium text-gray-900">{event.label}</p>
-                        <p className="text-sm text-gray-500">{formatDateTime(event.date)}</p>
+                        <p className="font-medium text-white">{event.label}</p>
+                        <p className="text-sm text-white/60">{formatDateTime(event.date)}</p>
                       </div>
-                      <p className="text-sm text-gray-600 mt-0.5">{event.desc}</p>
+                      <p className="text-sm text-white/70 mt-0.5">{event.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
               {order.trackingNumber && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl">
-                  <div className="flex items-center gap-2 text-blue-700">
+                <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <div className="flex items-center gap-2 text-blue-300">
                     <Truck className="h-5 w-5" />
                     <span className="font-medium">{order.carrier || 'Tracking'} Number</span>
                   </div>
-                  <code className="block mt-2 text-sm bg-white px-3 py-2 rounded-lg border">
+                  <code className="block mt-2 text-sm bg-white/10 text-white px-3 py-2 rounded-lg border border-white/15">
                     {order.trackingNumber}
                   </code>
                   {order.trackingUrl && (
-                    <Button variant="link" className="mt-2 p-0 h-auto text-blue-600" asChild>
+                    <Button variant="link" className="mt-2 p-0 h-auto text-blue-300" asChild>
                       <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer">
                         Track Package →
                       </a>
@@ -303,7 +303,7 @@ export default function OrderDetailPage() {
                       href={photo.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group relative block aspect-square overflow-hidden rounded-xl border bg-gray-50"
+                      className="group relative block aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5"
                     >
                       <Image
                         src={photo.url}
@@ -315,7 +315,7 @@ export default function OrderDetailPage() {
                     </a>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-gray-500">
+                <p className="mt-3 text-xs text-white/50">
                   Photos captured by our fulfillment team before shipment.
                 </p>
               </CardContent>
@@ -331,18 +331,18 @@ export default function OrderDetailPage() {
             <CardContent>
               <div className="space-y-4">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-gray-50">
-                    <div className="h-16 w-16 rounded-xl bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center shrink-0">
-                      <span className="text-xl font-bold text-indigo-300">{item.name.charAt(0)}</span>
+                  <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                    <div className="h-16 w-16 rounded-xl bg-linear-to-br from-indigo-500/25 to-purple-500/25 flex items-center justify-center shrink-0">
+                      <span className="text-xl font-bold text-indigo-200">{item.name.charAt(0)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">{item.name}</p>
-                      {item.dose && <p className="text-sm text-gray-500">{item.dose}</p>}
-                      {item.sku && <p className="text-xs text-gray-400">SKU: {item.sku}</p>}
+                      <p className="font-medium text-white">{item.name}</p>
+                      {item.dose && <p className="text-sm text-white/60">{item.dose}</p>}
+                      {item.sku && <p className="text-xs text-white/40">SKU: {item.sku}</p>}
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-gray-900">{formatPrice(item.total)}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="font-medium text-white">{formatPrice(item.total)}</p>
+                      <p className="text-sm text-white/60">
                         {formatPrice(item.unitPrice)} × {item.quantity}
                       </p>
                     </div>
@@ -362,17 +362,17 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal</span>
+                <span className="text-white/70">Subtotal</span>
                 <span>{formatPrice(order.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Shipping</span>
-                <span className={order.shippingTotal === 0 ? 'text-green-600' : ''}>
+                <span className="text-white/70">Shipping</span>
+                <span className={order.shippingTotal === 0 ? 'text-green-400' : ''}>
                   {order.shippingTotal === 0 ? 'FREE' : formatPrice(order.shippingTotal)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax</span>
+                <span className="text-white/70">Tax</span>
                 <span>{formatPrice(order.taxTotal)}</span>
               </div>
               <Separator />
@@ -394,10 +394,10 @@ export default function OrderDetailPage() {
               <CardContent className="space-y-2 text-sm">
                 {order.payment.invoice ? (
                   <>
-                    <p className="text-gray-900 font-medium flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-gray-400" /> Billed to account
+                    <p className="text-white font-medium flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-white/40" /> Billed to account
                     </p>
-                    <p className="text-gray-600">
+                    <p className="text-white/70">
                       Invoice {order.payment.invoice.number}
                       {order.payment.invoice.dueDate
                         ? ` · due ${formatDate(order.payment.invoice.dueDate)}`
@@ -406,30 +406,30 @@ export default function OrderDetailPage() {
                     <Badge
                       className={
                         order.payment.invoice.status === 'PAID'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-green-500/15 text-green-300 border border-green-500/30'
                           : order.payment.invoice.status === 'OVERDUE'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-blue-100 text-blue-700'
+                            ? 'bg-red-500/15 text-red-300 border border-red-500/30'
+                            : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
                       }
                     >
                       {order.payment.invoice.status}
                     </Badge>
-                    <Button variant="link" className="p-0 h-auto text-indigo-600 block" asChild>
+                    <Button variant="link" className="p-0 h-auto text-indigo-300 block" asChild>
                       <Link href="/shop/invoices">View &amp; pay invoices →</Link>
                     </Button>
                   </>
                 ) : (
                   <>
-                    <p className="text-gray-900 font-medium">
+                    <p className="text-white font-medium">
                       {order.payment.card ?? 'Card payment'}
                     </p>
                     <Badge
                       className={
                         order.payment.status === 'CAPTURED'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-green-500/15 text-green-300 border border-green-500/30'
                           : order.payment.status === 'FAILED'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-yellow-100 text-yellow-700'
+                            ? 'bg-red-500/15 text-red-300 border border-red-500/30'
+                            : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
                       }
                     >
                       {order.payment.status === 'CAPTURED'
@@ -450,9 +450,9 @@ export default function OrderDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-gray-600 space-y-1">
+                <div className="text-sm text-white/70 space-y-1">
                   {(addr.name || addr.company || addr.companyName) && (
-                    <p className="font-medium text-gray-900">{addr.name || addr.company || addr.companyName}</p>
+                    <p className="font-medium text-white">{addr.name || addr.company || addr.companyName}</p>
                   )}
                   {addr.address1 && <p>{addr.address1}</p>}
                   {addr.address2 && <p>{addr.address2}</p>}

@@ -58,7 +58,7 @@ export default function BrandingPage() {
   }
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6"><div className="h-64 bg-gray-100 rounded animate-pulse" /></div>
+    return <div className="max-w-3xl mx-auto p-6"><div className="h-64 bg-white/5 rounded animate-pulse" /></div>
   }
 
   return (
@@ -68,8 +68,8 @@ export default function BrandingPage() {
           <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">Branding</h1>
-          <p className="text-sm text-gray-500">Customize your storefront appearance</p>
+          <h1 className="text-2xl font-bold text-white">Branding</h1>
+          <p className="text-sm text-white/60">Customize your storefront appearance</p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           <Save className="h-4 w-4" />
@@ -96,7 +96,7 @@ export default function BrandingPage() {
               placeholder="https://example.com/logo.png"
             />
             {branding.logo && (
-              <div className="mt-2 p-4 bg-gray-50 rounded-lg flex items-center justify-center">
+              <div className="mt-2 p-4 bg-white/10 rounded-lg flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={branding.logo} alt="Logo preview" className="max-h-16 object-contain" />
               </div>

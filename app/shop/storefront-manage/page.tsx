@@ -46,10 +46,10 @@ export default function StorefrontManagePage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse" />
+        <div className="h-8 bg-white/10 rounded w-1/3 animate-pulse" />
         <div className="grid grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 bg-gray-100 rounded animate-pulse" />
+            <div key={i} className="h-32 bg-white/5 rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -61,9 +61,9 @@ export default function StorefrontManagePage() {
       <div className="max-w-2xl mx-auto p-6">
         <Card>
           <CardContent className="flex flex-col items-center py-16">
-            <AlertCircle className="h-12 w-12 text-gray-300 mb-4" />
-            <h2 className="text-lg font-medium text-gray-700">No Storefront Available</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <AlertCircle className="h-12 w-12 text-white/30 mb-4" />
+            <h2 className="text-lg font-medium text-white">No Storefront Available</h2>
+            <p className="text-sm text-white/60 mt-1">
               {error || 'Contact PeptSci admin to set up your white-label storefront.'}
             </p>
             <Link href="/shop" className="mt-4">
@@ -81,14 +81,14 @@ export default function StorefrontManagePage() {
       description: 'Logo, colors, fonts, hero, and footer',
       icon: Palette,
       href: '/shop/storefront-manage/branding',
-      color: 'bg-purple-100 text-purple-600',
+      color: 'bg-purple-500/20 text-purple-300',
     },
     {
       title: 'Products',
       description: 'Choose which products to show',
       icon: Package,
       href: '/shop/storefront-manage/products',
-      color: 'bg-blue-100 text-blue-600',
+      color: 'bg-blue-500/20 text-blue-300',
       count: sf._count.products,
     },
     {
@@ -96,14 +96,14 @@ export default function StorefrontManagePage() {
       description: 'Set retail prices for your customers',
       icon: DollarSign,
       href: '/shop/storefront-manage/pricing',
-      color: 'bg-green-100 text-green-600',
+      color: 'bg-green-500/20 text-green-300',
     },
     {
       title: 'Orders',
       description: 'View orders from your storefront',
       icon: ShoppingCart,
       href: '/shop/storefront-manage/orders',
-      color: 'bg-amber-100 text-amber-600',
+      color: 'bg-amber-500/20 text-amber-300',
       count: sf._count.retailOrders,
     },
   ]
@@ -112,10 +112,10 @@ export default function StorefrontManagePage() {
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{sf.name}</h1>
+          <h1 className="text-2xl font-bold text-white">{sf.name}</h1>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant={sf.status === 'ACTIVE' ? 'default' : 'secondary'}>{sf.status}</Badge>
-            <span className="text-sm text-gray-500">{sf.slug}.peptsci.com</span>
+            <span className="text-sm text-white/60">{sf.slug}.peptsci.com</span>
           </div>
         </div>
         {sf.status === 'ACTIVE' && (
@@ -140,7 +140,7 @@ export default function StorefrontManagePage() {
                       <Icon className="h-5 w-5" />
                     </div>
                     {s.count !== undefined && (
-                      <span className="text-2xl font-bold text-gray-900">{s.count}</span>
+                      <span className="text-2xl font-bold text-white">{s.count}</span>
                     )}
                   </div>
                 </CardHeader>

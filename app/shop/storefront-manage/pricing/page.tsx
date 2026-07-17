@@ -81,7 +81,7 @@ export default function PricingPage() {
   }
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto p-6"><div className="h-64 bg-gray-100 rounded animate-pulse" /></div>
+    return <div className="max-w-4xl mx-auto p-6"><div className="h-64 bg-white/5 rounded animate-pulse" /></div>
   }
 
   return (
@@ -91,8 +91,8 @@ export default function PricingPage() {
           <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">Retail Pricing</h1>
-          <p className="text-sm text-gray-500">Set the prices your customers will see</p>
+          <h1 className="text-2xl font-bold text-white">Retail Pricing</h1>
+          <p className="text-sm text-white/60">Set the prices your customers will see</p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           <Save className="h-4 w-4" />
@@ -103,9 +103,9 @@ export default function PricingPage() {
       {products.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <DollarSign className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">
-              No products to price. <Link href="/shop/storefront-manage/products" className="text-blue-600 underline">Add products first</Link>.
+            <DollarSign className="h-10 w-10 text-white/30 mx-auto mb-3" />
+            <p className="text-white/60">
+              No products to price. <Link href="/shop/storefront-manage/products" className="text-blue-300 underline">Add products first</Link>.
             </p>
           </CardContent>
         </Card>
@@ -117,7 +117,7 @@ export default function PricingPage() {
           <CardContent>
             <div className="space-y-4">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-gray-500 px-2">
+              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-white/60 px-2">
                 <div className="col-span-5">Product</div>
                 <div className="col-span-2">SKU</div>
                 <div className="col-span-2">Retail Price</div>
@@ -127,15 +127,15 @@ export default function PricingPage() {
                 const pe = prices[p.id]
                 if (!pe) return null
                 return (
-                  <div key={p.id} className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-gray-50">
+                  <div key={p.id} className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-white/5">
                     <div className="col-span-5">
                       <p className="text-sm font-medium truncate">{p.displayName || p.productName}</p>
-                      <p className="text-xs text-gray-400">{p.dose}</p>
+                      <p className="text-xs text-white/50">{p.dose}</p>
                     </div>
-                    <div className="col-span-2 text-xs text-gray-500">{p.sku}</div>
+                    <div className="col-span-2 text-xs text-white/60">{p.sku}</div>
                     <div className="col-span-2">
                       <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/40 text-sm">$</span>
                         <Input
                           value={pe.retailPrice}
                           onChange={(e) => updatePrice(p.id, 'retailPrice', e.target.value)}
@@ -148,7 +148,7 @@ export default function PricingPage() {
                     </div>
                     <div className="col-span-3">
                       <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/40 text-sm">$</span>
                         <Input
                           value={pe.compareAtPrice}
                           onChange={(e) => updatePrice(p.id, 'compareAtPrice', e.target.value)}
