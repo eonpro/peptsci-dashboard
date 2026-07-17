@@ -404,7 +404,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Patients */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card id="patients" className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <UserRound className="h-5 w-5" />

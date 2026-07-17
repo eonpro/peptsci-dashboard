@@ -2250,3 +2250,70 @@ Files changed:
 - `ManualDispositionModal` + "Manual Disposition" ghost button on unshipped fulfillment rows; SHIPPED outcome feeds the package-photo next-step banner.
 - Needs Label tab now also requires `shippingStatus null`; Shipped tab matches tracking OR shippingStatus (wrapped in AND to avoid the search OR collision).
 - Lesson: `next build` failing on a teammate's new Prisma enum = stale generated client → `npx prisma generate`.
+
+## Patient chat — two-way clinic ↔ PeptSci messaging (Jul 17 2026) [EXECUTOR]
+
+**Background:** clinics need to talk to PeptSci staff about a specific patient (saved ship-to recipient) without leaving the app; staff need the reverse. No realtime infra exists, so this follows the notification-bell polling pattern.
+
+**What shipped:**
+- Schema: `PatientMessage` (patientId + denormalized clientId, nullable senderId with SetNull, frozen senderName, `PatientMessageSenderRole` CLINIC|PEPTSCI, per-side `readByClinic`/`readByAdmin` flags) + migration `20260717145836_add_patient_messages`.
+- Data layer `lib/patient-messages.ts`: `getThreadAndMarkRead` (fetch + bulk-mark other side read in one transaction), `sendMessage` (sender's own read flag stamped true), `unreadCountsByPatient` (groupBy for badges).
+- APIs: shop `GET/POST /api/shop/patients/[id]/messages` (ownership via resolveShopActor + clientId match, rate-limited) and `GET /api/shop/patients/unread-messages`; admin `GET/POST /api/admin/patients/[id]/messages` and `GET /api/admin/clients/[id]/patients` (patients + unread counts).
+- UI: shared `components/PatientChat.tsx` (bubbles, 15s poll while visible, Enter-to-send) in `PatientChatDialog`; clinic entry = message icon w/ unread badge per patient card in `PatientsManager` (60s badge poll); admin entry = new "Patients & Messages" card (`#patients` anchor) on `/clients/[id]`.
+- Notifications: clinic send → `notifyAdmins` (bell, actionUrl `/clients/{id}#patients`); admin send → `notifyUser` for the clinic's ACTIVE users (rows ready for a future clinic bell). Both best-effort (send never fails on notify errors).
+
+**Verified:** tsc, lint, `next build` green; DB smoke test (send both directions → unread counts 1/1 → clinic read → clinic unread 0) passed against local Postgres.
+
+### Lessons (this effort)
+- Local DB had drift (refund columns applied but migration unrecorded). Fix without data loss: `prisma migrate resolve --applied <name>` then `migrate dev` — never `migrate reset` on a DB with data.
+- `tsx` scripts don't auto-load `.env`; pass `DATABASE_URL` explicitly when running one-off Prisma scripts.
+
+## Sales / Affiliate Partner Platform (Jul 17 2026) [PLANNER + EXECUTOR]
+
+### Background and Motivation
+Sales organizations ("partner orgs") and their reps need to earn commission on sales they refer, see their numbers, onboard people, create custom referral links, and control clinic pricing. Modeled on the affiliate partner program in `eonpro/logosrx-website` (`src/lib/partners/*`, `src/app/partners/*`, `scripts/sql/0004–0016`), adapted to this stack: Prisma (not Drizzle) and automatic accrual from the existing `Order` capture path (not manual/CSV-only transaction entry).
+
+### Key Challenges and Analysis
+- **Attribution**: referral link → `/join/<code>` sets a 90-day cookie → clinic onboarding stamps `Client.partnerOrgId/partnerRepId/referralLinkId`. Admin can also attach clients manually.
+- **Automatic accrual**: hook where `syncSalesRecordFromOrder` runs on capture (`lib/stripe/payments.ts`) + reversal hook in `lib/orders/refund.ts`. Idempotent via unique `PartnerTransaction.reference = "order:<id>"`.
+- **Money**: partner ledger is integer cents + integer basis points (exact math, ported verbatim from Logos `commission.ts`); the rest of the app stays Decimal dollars. Convert at the boundary with `Math.round(dollars*100)`.
+- **Two compensation models**: COMMISSION (org rate bps, rep carve-out ≤ org rate) and MARGIN (org sets clinic price ≥ per-variant wholesale floor; earns the spread; rep carve-out from margin).
+- **Auth**: new `PARTNER` Clerk role (metadata) for middleware routing; real access resolved by DB lookup on `clerkUserId` across `PartnerOrg` (owner) / `PartnerOrgMember` / `PartnerRep` (Logos pattern). Provisioning: Clerk invitation seeded with `partnerOrgId`/`partnerRepId`/`partnerMemberId`; the Clerk webhook stamps `clerkUserId` into the matching row.
+- **Prod migrations** apply via `POST /api/admin/db/migrate` (extend `probeSchema`).
+
+### High-level Task Breakdown / Project Status Board
+| # | Phase | Status |
+| - | ----- | ------ |
+| P1 | Foundation: schema + migration, commission math lib + tests, partner auth, PARTNER role plumbing | ✅ |
+| P2 | Acquisition: apply page, /join/[code] + cookie, onboarding stamp, admin approval + Clerk provisioning | ✅ |
+| P3 | Admin: partners section (rates, ledger approve, manual/CSV transactions, payouts, attach clients) | ✅ |
+| P4 | Portal: KPIs, trend, clinics, transactions, payouts, links, reps, team, exports | ✅ |
+| P5 | Margin pricing: floors admin, partner pricing → ClientPricing, margin accrual | ✅ |
+| P6 | MSA e-sign gate + executed agreements | ✅ |
+| P7 | Goals, clinic CRM, quote builder | ✅ |
+| P8 | Partner API keys + webhooks | ✅ |
+
+### Executor's Feedback (Jul 17 — ALL PHASES DONE, local)
+**Verified:** tsc clean, eslint clean (no errors), 303/303 unit tests (25 new in `partnerCommission.test.ts`), `next build` green, DB smoke test (`scripts/smoke-partners.ts`: accrual split → idempotency → 50% refund reversal → approve → payout drain) passed against local Postgres.
+
+**What shipped (file map):**
+- Schema: 16 new models + 12 enums in one migration `20260717164907_add_partner_program` (PartnerOrg/Rep/OrgMember, ReferralLink, PartnerTransaction + CommissionEntry ledger [cents/bps ints], PartnerPayout, PartnerOrgPricing floors, PartnerAgreement MSA, PartnerClinicMeta/Activity CRM, PartnerGoal, PartnerQuote, PartnerApiKey/Webhook; Client gains partnerOrgId/partnerRepId/referralLinkId; UserRole gains PARTNER). Migrate-runner probes extended (partnerOrgTable, commissionEntryTable, clientPartnerOrgIdColumn, userRolePartnerValue).
+- Engine: `lib/partners/commission.ts` (Logos port; splits, margin, reversalDelta, rollups) + `accrual.ts` (auto accrual on capture — hooked in `lib/stripe/payments.ts`, `lib/invoicing/service.ts` [net-terms], reversal in `lib/orders/refund.ts`; manual/CSV accrual) + `queries.ts` (rollups, trend, clinic book, approvedBalance).
+- Auth: `lib/partners/auth.ts` (DB-lookup getPartnerContext/requirePartner: owner/member/rep), PARTNER role in middleware (`/partners(.*)` matcher, homeForRole), access.ts, roles.ts, app/page.tsx, Clerk webhook (VALID_ROLES + linkPartnerIdentity stamps clerkUserId from invitation metadata partnerOrgId/RepId/MemberId).
+- Acquisition: `/partners/apply` public page + `POST /api/partners/apply`; `/join/[code]` sets 90-day `ps_ref` cookie; onboarding stamps attribution + signup counter; `lib/partners/provision.ts` (approve/reject org + invite rep/member via Clerk invitations); affiliate email templates in `lib/email/templates.ts`.
+- Admin: `/partners-admin` (+ `[id]` detail: approve/reject/suspend, rate+model settings, KPIs, ledger approve-all, org/rep payouts, manual txn + CSV import, attach/detach clinics, floors editor, agreements list) + APIs under `app/api/admin/partners/…`; nav item in AdminHeader.
+- Portal: `app/partners/(portal)/…` layout (identity + MSA gate) with dashboard (KPIs, 12-mo trend, recent), clinics (+ `[id]` CRM w/ stage/tags/notes timeline), transactions, payouts, links manager, reps manager, team manager, goals w/ progress, quotes builder (+ print), pricing (margin orgs → writes ClientPricing via floor validation), api (keys + webhooks); CSV exports at `/partners/exports/[dataset]`.
+- MSA: `lib/partners/msa.ts` (versioned doc + SHA-256), `/partners/agreement` (canvas signature pad → PartnerAgreement record w/ IP/UA), portal-blocking gate for org owners + reps.
+- API/webhooks: `lib/partners/api-auth.ts` (hashed `pk_live_…` keys), `GET /api/partner/v1/[summary|transactions|payouts|clinics|links]` (Bearer + rate-limited), `lib/partners/webhooks.ts` (HMAC `t=…,v1=…` signatures, dispatch on commission.accrued/reversed + payout.recorded).
+
+### ⚠️ Follow-ups before fully live in prod
+1. Prod migration via `POST /api/admin/db/migrate` (SUPER_ADMIN) — new tables + `UserRole.PARTNER` enum value must apply before any partner flow runs in prod.
+2. Commit + deploy (work is local only).
+3. Clerk session token must expose `publicMetadata` as `metadata` (already configured for existing roles — PARTNER rides on it).
+4. Optional: seed the first partner org via `/partners-admin` → New Partner Org → Approve & invite.
+
+### Lessons (this effort)
+- Keep the partner ledger in integer cents + integer bps (Logos port) even though the rest of the app is Decimal dollars; convert once at the boundary (`dollarsToCents`) — splits then sum exactly and reversals net to zero.
+- `prisma migrate dev` in this repo can leave a stale generated client; run `npx prisma generate` if tsc reports missing model delegates right after a migration.
+- Public pages that live under an authed route group need their own path carve-outs in BOTH middleware `isPublicRoute` and the portal layout structure (`/partners/apply` + `/partners/agreement` sit outside `(portal)` so the MSA gate can't loop).
+- CSV-download anchors trip `@next/next/no-html-link-for-pages`; keep `<a>` (Link would prefetch the file) and disable the rule inline.

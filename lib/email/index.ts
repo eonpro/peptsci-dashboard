@@ -8,6 +8,9 @@ import {
   partnerApprovedEmail,
   partnerRejectedEmail,
   partnerNeedsInfoEmail,
+  affiliateApplicationReceivedEmail,
+  affiliateApprovedEmail,
+  affiliateRejectedEmail,
   orderConfirmationEmail,
   orderShippedEmail,
   orderDeliveredEmail,
@@ -56,6 +59,36 @@ export async function sendPartnerNeedsInfoEmail(opts: {
   message?: string
 }): Promise<SendEmailResult> {
   const { subject, html, text } = partnerNeedsInfoEmail({ name: opts.name, message: opts.message })
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Affiliate partner program (sales orgs / reps) ──
+
+export async function sendAffiliateApplicationReceivedEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  orgName: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = affiliateApplicationReceivedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendAffiliateApprovedEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  orgName: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = affiliateApprovedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendAffiliateRejectedEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  orgName: string
+  reason?: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = affiliateRejectedEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
 

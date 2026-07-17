@@ -5,7 +5,7 @@
  * between server guards (lib/auth.ts), middleware, and client hooks.
  */
 
-export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
+export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN' | 'PARTNER'
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
 
 export function isAdminRole(role: string | undefined | null): boolean {
@@ -16,6 +16,11 @@ export function isSuperAdminRole(role: string | undefined | null): boolean {
   return role === 'SUPER_ADMIN'
 }
 
+/** Affiliate sales-org account (partner portal user, not a clinic). */
+export function isPartnerRole(role: string | undefined | null): boolean {
+  return role === 'PARTNER'
+}
+
 export function isActiveStatus(status: string | undefined | null): boolean {
   return status === 'ACTIVE'
 }
@@ -24,7 +29,9 @@ export function isActiveStatus(status: string | undefined | null): boolean {
  * Where a user should land after auth, based on role.
  */
 export function defaultRouteForRole(role: string | undefined | null): string {
-  return isAdminRole(role) ? '/dashboard' : '/shop'
+  if (isAdminRole(role)) return '/dashboard'
+  if (isPartnerRole(role)) return '/partners'
+  return '/shop'
 }
 
 /**

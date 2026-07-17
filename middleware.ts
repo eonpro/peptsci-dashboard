@@ -32,6 +32,12 @@ const isPublicRoute = createRouteMatcher([
   '/api/cron(.*)',
   // Public self-service shipment tracking (no PII; see app/tracking).
   '/tracking(.*)',
+  // Affiliate program: public application form + referral-link redirect.
+  '/partners/apply(.*)',
+  '/api/partners/apply',
+  '/join(.*)',
+  // Partner read-only API authenticates via hashed API keys inside the route.
+  '/api/partner/v1(.*)',
 ])
 
 // Admin-only routes
@@ -51,14 +57,27 @@ const isAdminRoute = createRouteMatcher([
   '/po-generator(.*)',
   '/storefronts(.*)',
   '/users(.*)',
+  // Affiliate partner administration (orgs, ledger, payouts).
+  '/partners-admin(.*)',
   '/api/admin(.*)',
 ])
 
 // Client-only routes (shop)
 const isClientRoute = createRouteMatcher(['/shop(.*)'])
 
+// Partner-portal routes (affiliate sales orgs / reps). The public apply page
+// is excluded via isPublicRoute, which is checked first.
+const isPartnerRoute = createRouteMatcher(['/partners(.*)', '/api/partners(.*)'])
+
 // Routes that need pending approval check
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/shop(.*)'])
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/shop(.*)', '/partners(.*)'])
+
+/** Landing route by role (PARTNER → portal, admins → dashboard, else shop). */
+function homeForRole(role: string): string {
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/dashboard'
+  if (role === 'PARTNER') return '/partners'
+  return '/shop'
+}
 
 // Onboarding page + the APIs it relies on. Always reachable for a signed-in
 // user (even before they have a linked practice / while PENDING).
@@ -137,8 +156,7 @@ const middleware = isClerkConfigured
             request.nextUrl.pathname.startsWith('/sign-up'))
         ) {
           const role = (sessionClaims?.metadata as { role?: string })?.role || 'CLIENT'
-          const redirectUrl = role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/dashboard' : '/shop'
-          return NextResponse.redirect(new URL(redirectUrl, request.url))
+          return NextResponse.redirect(new URL(homeForRole(role), request.url))
         }
         return NextResponse.next()
       }
@@ -204,26 +222,37 @@ const middleware = isClerkConfigured
       // on (this is what makes the page's "Check Status" reload work once an
       // admin approves; session claims refresh within ~60s of the approval).
       if (status === 'ACTIVE' && pathname.startsWith('/pending-approval')) {
-        const redirectUrl = role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/dashboard' : '/shop'
-        return NextResponse.redirect(new URL(redirectUrl, request.url))
+        return NextResponse.redirect(new URL(homeForRole(role), request.url))
       }
 
       // Role-based access control
       if (isAdminRoute(request)) {
         if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-          // Non-admin trying to access admin routes - redirect to shop
-          return NextResponse.redirect(new URL('/shop', request.url))
+          // Non-admin trying to access admin routes - send them home
+          return NextResponse.redirect(new URL(homeForRole(role), request.url))
         }
       }
 
-      if (isClientRoute(request)) {
-        // Both admin and client can access shop, but we could restrict if needed
+      // Partner portal: PARTNER accounts only (admins manage partners from
+      // /dashboard; clinics have no business here). API calls get 403 JSON.
+      if (isPartnerRoute(request) && role !== 'PARTNER') {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'Forbidden', message: 'Partner access required', code: 'PARTNER_REQUIRED' },
+            { status: 403 }
+          )
+        }
+        return NextResponse.redirect(new URL(homeForRole(role), request.url))
+      }
+
+      // Shop is for clinic + admin accounts; partners are portal-only.
+      if (isClientRoute(request) && role === 'PARTNER') {
+        return NextResponse.redirect(new URL('/partners', request.url))
       }
 
       // Handle root path - redirect based on role
       if (request.nextUrl.pathname === '/') {
-        const redirectUrl = role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/dashboard' : '/shop'
-        return NextResponse.redirect(new URL(redirectUrl, request.url))
+        return NextResponse.redirect(new URL(homeForRole(role), request.url))
       }
 
       return NextResponse.next()

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { Prisma } from '@prisma/client'
 import { clerkClient } from '@clerk/nextjs/server'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
@@ -7,6 +8,39 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { onboardingSchema, resolveShippingAddress, serializeClientProfile } from '@/lib/profile'
+import {
+  REF_COOKIE,
+  isValidReferralCode,
+  attributionFromLink,
+  type ReferralAttribution,
+} from '@/lib/partners/referral'
+
+/**
+ * Resolve partner attribution from the referral cookie set by /join/<code>.
+ * Best-effort: any failure (or a deactivated link / suspended org) simply
+ * onboards the clinic unattributed.
+ */
+async function resolveReferralAttribution(): Promise<ReferralAttribution | null> {
+  if (!prisma) return null
+  try {
+    const jar = await cookies()
+    const code = jar.get(REF_COOKIE)?.value
+    if (!code || !isValidReferralCode(code)) return null
+    const link = await prisma.referralLink.findUnique({
+      where: { code: code.toLowerCase() },
+      select: { id: true, orgId: true, repId: true, active: true, org: { select: { status: true } } },
+    })
+    if (!link || link.org.status !== 'ACTIVE') return null
+    return attributionFromLink({
+      id: link.id,
+      orgId: link.orgId,
+      repId: link.repId,
+      active: link.active,
+    })
+  } catch {
+    return null
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -75,11 +109,19 @@ export async function POST(request: NextRequest) {
     }
 
     const shippingAddress = resolveShippingAddress(data)
+    const attribution = await resolveReferralAttribution()
 
     let client
     try {
       client = await prisma.client.create({
         data: {
+          ...(attribution
+            ? {
+                partnerOrgId: attribution.partnerOrgId,
+                partnerRepId: attribution.partnerRepId,
+                referralLinkId: attribution.referralLinkId,
+              }
+            : {}),
           organizationName: data.organizationName,
           npiNumber: data.npiNumber,
           providerName: data.providerName,
@@ -140,6 +182,21 @@ export async function POST(request: NextRequest) {
         error: e instanceof Error ? e.message : String(e),
       })
     )
+
+    // Referral attribution succeeded — bump the link's signup counter (best-effort).
+    if (attribution) {
+      prisma.referralLink
+        .update({
+          where: { id: attribution.referralLinkId },
+          data: { signupCount: { increment: 1 } },
+        })
+        .catch(() => {})
+      logger.info('[ONBOARDING] Client attributed to partner', {
+        clientId: client.id,
+        partnerOrgId: attribution.partnerOrgId,
+        partnerRepId: attribution.partnerRepId,
+      })
+    }
 
     logger.info('[ONBOARDING] Client created', { userId, clientId: client.id })
     return successResponse({ success: true, profile: serializeClientProfile(client) }, 201)

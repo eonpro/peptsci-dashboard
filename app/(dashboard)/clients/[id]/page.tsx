@@ -16,6 +16,7 @@ import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
 import DeleteClientButton from '../DeleteClientButton'
 import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
+import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
 import {
   ArrowLeft,
   Building2,
@@ -526,6 +527,11 @@ export default function ClientDetailPage() {
       {/* Compliance documents */}
       <div id="documents">
         <ClientDocumentsCard clientId={id} />
+      </div>
+
+      {/* Saved patients + clinic <-> PeptSci message threads */}
+      <div id="patients">
+        <ClientPatientsCard clientId={id} />
       </div>
 
       {/* Linked users */}

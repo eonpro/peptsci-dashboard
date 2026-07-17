@@ -582,3 +582,87 @@ Need help? ${SUPPORT_EMAIL}
 © ${new Date().getFullYear()} PeptSci`
   return { subject, html, text }
 }
+
+// ── Affiliate partner program (sales orgs / reps — not clinic accounts) ──
+
+export function affiliateApplicationReceivedEmail(opts: {
+  contactName?: string | null
+  orgName: string
+}): EmailContent {
+  const subject = 'We received your PeptSci partner application'
+  const html = layout({
+    heading: 'Application received',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `Thanks for applying to the PeptSci partner program on behalf of <strong>${escapeHtml(opts.orgName)}</strong>. Our team reviews every application and will follow up shortly — usually within 1&ndash;2 business days.`
+      ) +
+      para('Once approved, you&rsquo;ll receive an invitation to set up your partner portal login.'),
+  })
+  const text = `${greeting(opts.contactName)}
+
+Thanks for applying to the PeptSci partner program on behalf of ${opts.orgName}. Our team reviews every application and will follow up shortly — usually within 1-2 business days.
+
+Once approved, you'll receive an invitation to set up your partner portal login.
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function affiliateApprovedEmail(opts: {
+  contactName?: string | null
+  orgName: string
+}): EmailContent {
+  const subject = 'Your PeptSci partner application is approved'
+  const html = layout({
+    heading: 'Welcome to the partner program! 🎉',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `Great news — <strong>${escapeHtml(opts.orgName)}</strong> has been approved for the PeptSci partner program.`
+      ) +
+      para(
+        'You&rsquo;ll receive a separate sign-up invitation email in the next few minutes. Accept it to create your login, then sign in to your partner portal to create referral links, invite reps, and track your commissions.'
+      ),
+    cta: { label: 'Partner portal', href: `${APP_URL}/partners` },
+  })
+  const text = `${greeting(opts.contactName)}
+
+Great news — ${opts.orgName} has been approved for the PeptSci partner program.
+
+You'll receive a separate sign-up invitation email in the next few minutes. Accept it to create your login, then sign in to your partner portal to create referral links, invite reps, and track your commissions.
+
+Partner portal: ${APP_URL}/partners
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function affiliateRejectedEmail(opts: {
+  contactName?: string | null
+  orgName: string
+  reason?: string
+}): EmailContent {
+  const subject = 'Update on your PeptSci partner application'
+  const reasonBlock = opts.reason ? para(`<strong>Reason:</strong> ${escapeHtml(opts.reason)}`) : ''
+  const html = layout({
+    heading: 'About your application',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `Thanks for your interest in the PeptSci partner program. After review, we&rsquo;re unable to approve the application for <strong>${escapeHtml(opts.orgName)}</strong> at this time.`
+      ) +
+      reasonBlock +
+      para(`If you believe this is an error or your situation changes, reply to this email or contact ${SUPPORT_EMAIL}.`),
+  })
+  const text = `${greeting(opts.contactName)}
+
+Thanks for your interest in the PeptSci partner program. After review, we're unable to approve the application for ${opts.orgName} at this time.
+${opts.reason ? `\nReason: ${opts.reason}\n` : ''}
+If you believe this is an error or your situation changes, contact ${SUPPORT_EMAIL}.
+
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}

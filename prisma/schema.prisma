@@ -32,93 +32,137 @@ model User {
   shipmentLabels       ShipmentLabel[]       @relation("LabelsCreated")
   packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
   notifications        Notification[]
+  patientMessages      PatientMessage[]
 
   @@index([clientId])
 }
 
 model Client {
-  id               String                 @id @default(cuid())
-  organizationName String
+  id                    String                  @id @default(cuid())
+  organizationName      String
   // Credentialed medical provider verified against the NPPES NPI Registry.
-  npiNumber        String?                @unique // 10-digit National Provider Identifier
-  providerName     String?                // Provider/organization name as returned by NPPES
-  npiData          Json?                  // Frozen NPPES registry snapshot at verification time
+  npiNumber             String?                 @unique // 10-digit National Provider Identifier
+  providerName          String? // Provider/organization name as returned by NPPES
+  npiData               Json? // Frozen NPPES registry snapshot at verification time
   // Employer Identification Number (tax ID), optional — formatted as XX-XXXXXXX when known.
-  ein              String?
-  contactName      String?
-  contactEmail     String?
-  contactPhone     String?
+  ein                   String?
+  contactName           String?
+  contactEmail          String?
+  contactPhone          String?
   // SMS consent (TCPA / Twilio A2P): captured via the un-prechecked checkbox on
   // the onboarding web form. Texts are only sent when smsOptIn is true.
-  smsOptIn         Boolean                @default(false)
-  smsOptInAt       DateTime?              // When consent was given (audit trail)
-  billingAddress   Json?
-  shippingAddress  Json?
-  licenseNumber    String?
-  licenseExpiresAt DateTime?
-  onboardingStatus ClientOnboardingStatus @default(PENDING)
+  smsOptIn              Boolean                 @default(false)
+  smsOptInAt            DateTime? // When consent was given (audit trail)
+  billingAddress        Json?
+  shippingAddress       Json?
+  licenseNumber         String?
+  licenseExpiresAt      DateTime?
+  onboardingStatus      ClientOnboardingStatus  @default(PENDING)
+  // Affiliate attribution — which partner org/rep referred this practice.
+  // Stamped at onboarding from the /join/<code> referral cookie, or set by an
+  // admin. SetNull so partner deletions never break clinics.
+  partnerOrg            PartnerOrg?             @relation(fields: [partnerOrgId], references: [id], onDelete: SetNull)
+  partnerOrgId          String?
+  partnerRep            PartnerRep?             @relation(fields: [partnerRepId], references: [id], onDelete: SetNull)
+  partnerRepId          String?
+  referralLink          ReferralLink?           @relation(fields: [referralLinkId], references: [id], onDelete: SetNull)
+  referralLinkId        String?
   // Net-terms billing. When set, the client may check out "bill to account"
   // (order is invoiced on these terms instead of paying by card). NULL = card
   // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
-  paymentTermsDays Int?
-  creditLimit      Decimal?               @db.Decimal(12, 2)
+  paymentTermsDays      Int?
+  creditLimit           Decimal?                @db.Decimal(12, 2)
   // Stripe Customer for this B2B account. Saved cards are shared across the
   // client's users. Stripe never holds our product catalog (Model A).
-  stripeCustomerId String?                @unique
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  users            User[]
-  orders           Order[]
-  documents        ClientDocument[]
-  customPricing    ClientPricing[]
-  paymentMethods   PaymentMethod[]
-  patients         Patient[]
-  shipmentLabels   ShipmentLabel[]
-  packagePhotos    PackagePhoto[]
-  notifications    Notification[]
-  returnRequests   ReturnRequest[]
-  storefront       Storefront?
-  invoices         Invoice[]
+  stripeCustomerId      String?                 @unique
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  users                 User[]
+  orders                Order[]
+  documents             ClientDocument[]
+  customPricing         ClientPricing[]
+  paymentMethods        PaymentMethod[]
+  patients              Patient[]
+  shipmentLabels        ShipmentLabel[]
+  packagePhotos         PackagePhoto[]
+  notifications         Notification[]
+  returnRequests        ReturnRequest[]
+  storefront            Storefront?
+  invoices              Invoice[]
+  patientMessages       PatientMessage[]
+  partnerTransactions   PartnerTransaction[]
+  partnerClinicMeta     PartnerClinicMeta[]
+  partnerClinicActivity PartnerClinicActivity[]
+
+  @@index([partnerOrgId])
+  @@index([partnerRepId])
 }
 
 // Saved ship-to recipient for a practice ("ship to patient" at checkout).
 // Minimal PII only — name + address + optional contact. No health data.
 model Patient {
-  id        String   @id @default(cuid())
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  client    Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId  String
   firstName String
   lastName  String
-  address   Json     // { address1, address2?, city, state, zip, country? }
+  address   Json // { address1, address2?, city, state, zip, country? }
   phone     String?
   email     String?
   notes     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   orders    Order[]
+  messages  PatientMessage[]
 
   @@index([clientId])
+}
+
+// Two-way chat between the clinic (CLIENT users) and PeptSci staff (admins),
+// threaded per patient. Each side has its own read flag: the sender's side is
+// marked read at creation, the other side flips on fetch. senderName is frozen
+// at send time so history survives user deletion (senderId nulls out).
+model PatientMessage {
+  id           String                   @id @default(cuid())
+  patient      Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  // Denormalized from Patient for fast clinic-ownership checks and unread rollups.
+  client       Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  sender       User?                    @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  senderId     String?
+  senderName   String
+  senderRole   PatientMessageSenderRole
+  body         String
+  readByClinic Boolean                  @default(false)
+  readByAdmin  Boolean                  @default(false)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([clientId, senderRole, readByClinic])
+  @@index([patientId, senderRole, readByAdmin])
 }
 
 // Saved card (or other payment method) for a client's Stripe Customer.
 // Card PAN never touches our DB — only Stripe's tokenized id + display fields.
 model PaymentMethod {
-  id                    String   @id @default(cuid())
-  client                Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  client                Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId              String
-  stripePaymentMethodId String   @unique
+  stripePaymentMethodId String    @unique
   cardBrand             String?
   cardLast4             String?
   expiryMonth           Int?
   expiryYear            Int?
   cardholderName        String?
   billingZip            String?
-  isDefault             Boolean  @default(false)
-  isActive              Boolean  @default(true)
+  isDefault             Boolean   @default(false)
+  isActive              Boolean   @default(true)
   lastUsedAt            DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
   orders                Order[]
 
   @@index([clientId])
@@ -151,22 +195,22 @@ enum WebhookEventStatus {
 
 // Custom pricing per client - overrides standard SRP
 model ClientPricing {
-  id              String          @id @default(cuid())
-  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId        String
-  variant         ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   variantId       String
-  customPrice     Decimal         @db.Decimal(12, 2)  // The special price for this client
-  discountPercent Decimal?        @db.Decimal(5, 2)   // Optional: track as % off SRP
-  notes           String?                             // Reason for custom pricing
-  validFrom       DateTime?                           // Optional: pricing effective date
-  validUntil      DateTime?                           // Optional: pricing expiration
-  isActive        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  createdBy       String?                             // Admin who set this price
+  customPrice     Decimal        @db.Decimal(12, 2) // The special price for this client
+  discountPercent Decimal?       @db.Decimal(5, 2) // Optional: track as % off SRP
+  notes           String? // Reason for custom pricing
+  validFrom       DateTime? // Optional: pricing effective date
+  validUntil      DateTime? // Optional: pricing expiration
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdBy       String? // Admin who set this price
 
-  @@unique([clientId, variantId])                     // One custom price per client per variant
+  @@unique([clientId, variantId]) // One custom price per client per variant
   @@index([clientId])
   @@index([variantId])
 }
@@ -180,20 +224,20 @@ model ClientDocument {
   client      Client               @relation(fields: [clientId], references: [id])
   clientId    String
   type        ClientDocumentType
-  label       String?              // free-text label, mainly for OTHER
-  fileUrl     String?              // blob URL when the blob backend is used
-  fileBase64  String?              // inline fallback when no blob backend
+  label       String? // free-text label, mainly for OTHER
+  fileUrl     String? // blob URL when the blob backend is used
+  fileBase64  String? // inline fallback when no blob backend
   contentType String?
   fileName    String?
   fileSize    Int?
   status      ClientDocumentStatus @default(PENDING_REVIEW)
-  reviewNotes String?              // admin note shown to the client (esp. on rejection)
+  reviewNotes String? // admin note shown to the client (esp. on rejection)
   reviewedBy  String?
   reviewedAt  DateTime?
-  expiresAt   DateTime?            // document expiration (license/DEA renewals)
+  expiresAt   DateTime? // document expiration (license/DEA renewals)
   uploadedBy  String?
   createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt @default(now())
+  updatedAt   DateTime             @default(now()) @updatedAt
 
   @@index([clientId])
   @@index([status])
@@ -210,37 +254,37 @@ enum ClientDocumentStatus {
 // -------------------------------------------------
 
 model Storefront {
-  id              String           @id @default(cuid())
-  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId        String           @unique
-  slug            String           @unique // Subdomain slug, e.g. "drclinic" -> drclinic.peptsci.com
-  name            String
-  brandingConfig  Json?            // BrandingConfig: logo, colors, fonts, hero, footer, about, contact, socials
-  status          StorefrontStatus @default(DRAFT)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  products        StorefrontProduct[]
-  endCustomers    EndCustomer[]
-  retailOrders    RetailOrder[]
+  id             String              @id @default(cuid())
+  client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String              @unique
+  slug           String              @unique // Subdomain slug, e.g. "drclinic" -> drclinic.peptsci.com
+  name           String
+  brandingConfig Json? // BrandingConfig: logo, colors, fonts, hero, footer, about, contact, socials
+  status         StorefrontStatus    @default(DRAFT)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  products       StorefrontProduct[]
+  endCustomers   EndCustomer[]
+  retailOrders   RetailOrder[]
 
   @@index([slug])
 }
 
 model StorefrontProduct {
-  id                String                  @id @default(cuid())
-  storefront        Storefront              @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
-  storefrontId      String
-  variant           ProductVariant          @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  variantId         String
-  isEnabled         Boolean                 @default(true)
-  isFeatured        Boolean                 @default(false)
-  displayOrder      Int                     @default(0)
-  displayName       String?                 // Override product name for this storefront
-  displayDescription String?                // Override description for this storefront
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  retailPrice       StorefrontRetailPrice?
-  retailOrderItems  RetailOrderItem[]
+  id                 String                 @id @default(cuid())
+  storefront         Storefront             @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  storefrontId       String
+  variant            ProductVariant         @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId          String
+  isEnabled          Boolean                @default(true)
+  isFeatured         Boolean                @default(false)
+  displayOrder       Int                    @default(0)
+  displayName        String? // Override product name for this storefront
+  displayDescription String? // Override description for this storefront
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  retailPrice        StorefrontRetailPrice?
+  retailOrderItems   RetailOrderItem[]
 
   @@unique([storefrontId, variantId])
   @@index([storefrontId])
@@ -248,31 +292,31 @@ model StorefrontProduct {
 }
 
 model StorefrontRetailPrice {
-  id                 String            @id @default(cuid())
-  storefrontProduct  StorefrontProduct @relation(fields: [storefrontProductId], references: [id], onDelete: Cascade)
-  storefrontProductId String           @unique
-  retailPrice        Decimal           @db.Decimal(12, 2)
-  compareAtPrice     Decimal?          @db.Decimal(12, 2) // Optional strikethrough price
-  isActive           Boolean           @default(true)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                  String            @id @default(cuid())
+  storefrontProduct   StorefrontProduct @relation(fields: [storefrontProductId], references: [id], onDelete: Cascade)
+  storefrontProductId String            @unique
+  retailPrice         Decimal           @db.Decimal(12, 2)
+  compareAtPrice      Decimal?          @db.Decimal(12, 2) // Optional strikethrough price
+  isActive            Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 }
 
 model EndCustomer {
-  id             String       @id @default(cuid())
-  storefront     Storefront   @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
-  storefrontId   String
-  email          String
-  firstName      String?
-  lastName       String?
-  phone          String?
-  passwordHash   String?      // bcrypt hash; null for guest customers
-  isGuest        Boolean      @default(false)
+  id              String        @id @default(cuid())
+  storefront      Storefront    @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  storefrontId    String
+  email           String
+  firstName       String?
+  lastName        String?
+  phone           String?
+  passwordHash    String? // bcrypt hash; null for guest customers
+  isGuest         Boolean       @default(false)
   shippingAddress Json?
   billingAddress  Json?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  retailOrders   RetailOrder[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  retailOrders    RetailOrder[]
 
   @@unique([storefrontId, email])
   @@index([storefrontId])
@@ -286,7 +330,7 @@ model RetailOrder {
   storefrontId    String
   endCustomer     EndCustomer?      @relation(fields: [endCustomerId], references: [id])
   endCustomerId   String?
-  guestEmail      String?           // For guest checkout without EndCustomer account
+  guestEmail      String? // For guest checkout without EndCustomer account
   status          RetailOrderStatus @default(PENDING)
   subtotal        Decimal           @db.Decimal(12, 2)
   taxTotal        Decimal           @default(0) @db.Decimal(12, 2)
@@ -325,64 +369,65 @@ model RetailOrderItem {
 // -------------------------------------------------
 
 model Product {
-  id          String           @id @default(cuid())
-  sku         String?          @unique
-  airtableId  String?          @unique  // Link to Airtable record for content sync
-  name        String
-  description String?
-  category    String?
-  status      ProductStatus    @default(ACTIVE)
+  id                        String           @id @default(cuid())
+  sku                       String?          @unique
+  airtableId                String?          @unique // Link to Airtable record for content sync
+  name                      String
+  description               String?
+  category                  String?
+  status                    ProductStatus    @default(ACTIVE)
   // Scientific / reference data (per compound, populated by catalog CSV import)
   casNumber                 String?
   molecularFormula          String?
-  molecularWeight           Float?   // g/mol
+  molecularWeight           Float? // g/mol
   pubchemCid                String?
-  peptideLength             Int?     // number of amino acid residues
-  aka                       String?  // synonyms / "also known as"
+  peptideLength             Int? // number of amino acid residues
+  aka                       String? // synonyms / "also known as"
   monoisotopicMass          Float?
-  complexity                Float?   // PubChem complexity score
+  complexity                Float? // PubChem complexity score
   xlogp                     Float?
   hydrogenBondDonorCount    Int?
   hydrogenBondAcceptorCount Int?
   rotatableBondCount        Int?
   heavyAtomCount            Int?
   intendedUse               String?
-  safetySummary             String?  // PubChem Laboratory Chemical Safety Summary (LCSS)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  variants    ProductVariant[]
-  media       ProductMedia[]
+  safetySummary             String? // PubChem Laboratory Chemical Safety Summary (LCSS)
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  variants                  ProductVariant[]
+  media                     ProductMedia[]
 }
 
 model ProductVariant {
-  id              String                @id @default(cuid())
-  product         Product               @relation(fields: [productId], references: [id])
-  productId       String
-  airtableId      String?               @unique  // Link to Airtable variant record
-  sku             String?               @unique  // Variant-level SKU for ordering
-  dose            String?
-  unitSize        String?
-  unitCost        Decimal               @db.Decimal(12, 2)
-  srp             Decimal               @db.Decimal(12, 2)
+  id                 String                 @id @default(cuid())
+  product            Product                @relation(fields: [productId], references: [id])
+  productId          String
+  airtableId         String?                @unique // Link to Airtable variant record
+  sku                String?                @unique // Variant-level SKU for ordering
+  dose               String?
+  unitSize           String?
+  unitCost           Decimal                @db.Decimal(12, 2)
+  srp                Decimal                @db.Decimal(12, 2)
   // How we buy this from the manufacturer (purchasing terms)
-  supplierName    String?               // Manufacturer / supplier name
-  supplierSku     String?               // Supplier's catalog # / SKU for reorder
-  inventoryOnHand Int                   @default(0)
+  supplierName       String? // Manufacturer / supplier name
+  supplierSku        String? // Supplier's catalog # / SKU for reorder
+  inventoryOnHand    Int                    @default(0)
   // Units committed to open orders but not yet physically shipped. Availability
   // for new orders is (inventoryOnHand - inventoryReserved). Maintained by the
   // reservation service (lib/inventory/reservations.ts); never edited directly.
-  inventoryReserved Int                 @default(0)
-  reorderLevel    Int                   @default(0)
-  status          ProductStatus         @default(ACTIVE)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  orderItems          OrderItem[]
-  inventoryLogs       InventoryAdjustment[]
-  clientPricing       ClientPricing[]
-  storefrontProducts  StorefrontProduct[]
-  batches             InventoryBatch[]
-  returnItems         ReturnItem[]
-  reservations        InventoryReservation[]
+  inventoryReserved  Int                    @default(0)
+  reorderLevel       Int                    @default(0)
+  status             ProductStatus          @default(ACTIVE)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  orderItems         OrderItem[]
+  inventoryLogs      InventoryAdjustment[]
+  clientPricing      ClientPricing[]
+  storefrontProducts StorefrontProduct[]
+  batches            InventoryBatch[]
+  returnItems        ReturnItem[]
+  reservations       InventoryReservation[]
+  partnerOrgPricing  PartnerOrgPricing[]
 
   @@index([status])
   @@index([productId])
@@ -397,29 +442,29 @@ model ProductVariant {
 // (see lib/batch-number.ts) and are immutable thereafter. Receiving a batch
 // increments ProductVariant.inventoryOnHand and writes an InventoryAdjustment.
 model InventoryBatch {
-  id            String         @id @default(cuid())
-  batchNumber   String         @unique // e.g. "TES10-072027" — also the Code128 barcode payload
-  variant       ProductVariant @relation(fields: [variantId], references: [id])
-  variantId     String
+  id             String                @id @default(cuid())
+  batchNumber    String                @unique // e.g. "TES10-072027" — also the Code128 barcode payload
+  variant        ProductVariant        @relation(fields: [variantId], references: [id])
+  variantId      String
   // Label snapshots — frozen at intake so later catalog edits never change a printed batch.
-  productName   String                            // e.g. "Tesamorelin"
-  dose          String                            // e.g. "10mg" (label dose-box top line)
-  vialSize      String?                           // e.g. "3mL"
-  purity        String         @default("99%HPLC") // label dose-box bottom line
-  bud           DateTime                          // Beyond-Use Date
-  receivedOn    DateTime       @default(now())
-  qtyReceived   Int
-  qtyDamaged    Int            @default(0)
-  qtyOnHand     Int                               // decremented as labels/orders consume
-  yearColor     String?                           // optional hex accent for BUD day + batch text
-  notes         String?
-  status        BatchStatus    @default(RECEIVED)
-  receivedBy    User?          @relation(fields: [receivedById], references: [id])
-  receivedById  String?
-  receivedByName String?                          // snapshot of operator name/email
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  events        InventoryBatchEvent[]
+  productName    String // e.g. "Tesamorelin"
+  dose           String // e.g. "10mg" (label dose-box top line)
+  vialSize       String? // e.g. "3mL"
+  purity         String                @default("99%HPLC") // label dose-box bottom line
+  bud            DateTime // Beyond-Use Date
+  receivedOn     DateTime              @default(now())
+  qtyReceived    Int
+  qtyDamaged     Int                   @default(0)
+  qtyOnHand      Int // decremented as labels/orders consume
+  yearColor      String? // optional hex accent for BUD day + batch text
+  notes          String?
+  status         BatchStatus           @default(RECEIVED)
+  receivedBy     User?                 @relation(fields: [receivedById], references: [id])
+  receivedById   String?
+  receivedByName String? // snapshot of operator name/email
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  events         InventoryBatchEvent[]
 
   @@index([variantId])
   @@index([status])
@@ -433,9 +478,9 @@ model InventoryBatchEvent {
   batch       InventoryBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   batchId     String
   type        BatchEventType
-  delta       Int?           // qty change (negative for consumption), when applicable
+  delta       Int? // qty change (negative for consumption), when applicable
   note        String?
-  performedBy String?        // operator name/email snapshot
+  performedBy String? // operator name/email snapshot
   createdAt   DateTime       @default(now())
 
   @@index([batchId])
@@ -466,19 +511,19 @@ model ProductMedia {
 }
 
 model InventoryAdjustment {
-  id          String                    @id @default(cuid())
-  variant     ProductVariant            @relation(fields: [variantId], references: [id])
-  variantId   String
-  delta       Int
-  reason      InventoryAdjustmentReason
-  note        String?
-  order       Order?                    @relation(fields: [orderId], references: [id])
-  orderId     String?
-  createdBy   User?                     @relation(fields: [createdById], references: [id])
-  createdById String?
+  id            String                    @id @default(cuid())
+  variant       ProductVariant            @relation(fields: [variantId], references: [id])
+  variantId     String
+  delta         Int
+  reason        InventoryAdjustmentReason
+  note          String?
+  order         Order?                    @relation(fields: [orderId], references: [id])
+  orderId       String?
+  createdBy     User?                     @relation(fields: [createdById], references: [id])
+  createdById   String?
   // Display fallback when the actor has no User row (e.g. Clerk id only)
   createdByName String?
-  createdAt   DateTime                  @default(now())
+  createdAt     DateTime                  @default(now())
 
   @@index([variantId])
   @@index([orderId])
@@ -490,50 +535,50 @@ model InventoryAdjustment {
 // -------------------------------------------------
 
 model Order {
-  id                    String                @id @default(cuid())
-  orderNumber           Int                   @default(autoincrement())
-  client                Client                @relation(fields: [clientId], references: [id])
+  id                    String                 @id @default(cuid())
+  orderNumber           Int                    @default(autoincrement())
+  client                Client                 @relation(fields: [clientId], references: [id])
   clientId              String
-  source                OrderSource           @default(DIRECT)
-  status                OrderStatus           @default(DRAFT)
-  paymentStatus         PaymentStatus         @default(PENDING)
-  subtotal              Decimal               @db.Decimal(12, 2)
-  taxTotal              Decimal               @default(0) @db.Decimal(12, 2)
-  shippingTotal         Decimal               @default(0) @db.Decimal(12, 2)
-  total                 Decimal               @db.Decimal(12, 2)
-  currency              String                @default("USD")
+  source                OrderSource            @default(DIRECT)
+  status                OrderStatus            @default(DRAFT)
+  paymentStatus         PaymentStatus          @default(PENDING)
+  subtotal              Decimal                @db.Decimal(12, 2)
+  taxTotal              Decimal                @default(0) @db.Decimal(12, 2)
+  shippingTotal         Decimal                @default(0) @db.Decimal(12, 2)
+  total                 Decimal                @db.Decimal(12, 2)
+  currency              String                 @default("USD")
   notes                 String?
   internalNotes         String?
   shippingAddress       Json?
   // Where the order ships and how fast (priced server-side; see lib/checkout-core.ts).
-  shipTo                ShipTo                @default(PRACTICE)
-  shipSpeed             ShipSpeed             @default(TWO_DAY)
-  patient               Patient?              @relation(fields: [patientId], references: [id])
+  shipTo                ShipTo                 @default(PRACTICE)
+  shipSpeed             ShipSpeed              @default(TWO_DAY)
+  patient               Patient?               @relation(fields: [patientId], references: [id])
   patientId             String?
   // Carrier tracking — set when a FedEx label is created (see lib/fedex.ts).
   carrier               String?
   trackingNumber        String?
   trackingUrl           String?
-  shippingStatus        String?               // e.g. LABEL_CREATED, IN_TRANSIT, DELIVERED
+  shippingStatus        String? // e.g. LABEL_CREATED, IN_TRANSIT, DELIVERED
   shippedAt             DateTime?
-  stripePaymentIntentId String?               @unique
+  stripePaymentIntentId String?                @unique
   stripeChargeId        String?
-  paymentMethod         PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
+  paymentMethod         PaymentMethod?         @relation(fields: [paymentMethodId], references: [id])
   paymentMethodId       String?
   paymentFailureReason  String?
   paidAt                DateTime?
   // Cumulative refunds issued against this order (Stripe or manual). When
   // refundedTotal >= total the order's paymentStatus becomes REFUNDED.
-  refundedTotal         Decimal               @default(0) @db.Decimal(12, 2)
+  refundedTotal         Decimal                @default(0) @db.Decimal(12, 2)
   refundedAt            DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   submittedAt           DateTime?
   approvedAt            DateTime?
   fulfilledAt           DateTime?
-  createdBy             User                  @relation("OrdersCreated", fields: [createdById], references: [id])
+  createdBy             User                   @relation("OrdersCreated", fields: [createdById], references: [id])
   createdById           String
-  approvedBy            User?                 @relation("OrdersApproved", fields: [approvedById], references: [id])
+  approvedBy            User?                  @relation("OrdersApproved", fields: [approvedById], references: [id])
   approvedById          String?
   items                 OrderItem[]
   documents             OrderDocument[]
@@ -557,16 +602,16 @@ model Order {
 }
 
 model OrderItem {
-  id             String         @id @default(cuid())
-  order          Order          @relation(fields: [orderId], references: [id])
+  id             String                 @id @default(cuid())
+  order          Order                  @relation(fields: [orderId], references: [id])
   orderId        String
-  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  variant        ProductVariant         @relation(fields: [variantId], references: [id])
   variantId      String
   quantity       Int
-  unitPrice      Decimal        @db.Decimal(12, 2)
-  discountAmount Decimal        @default(0) @db.Decimal(12, 2)
-  totalPrice     Decimal        @db.Decimal(12, 2)
-  createdAt      DateTime       @default(now())
+  unitPrice      Decimal                @db.Decimal(12, 2)
+  discountAmount Decimal                @default(0) @db.Decimal(12, 2)
+  totalPrice     Decimal                @db.Decimal(12, 2)
+  createdAt      DateTime               @default(now())
   returnItems    ReturnItem[]
   reservations   InventoryReservation[]
 
@@ -692,17 +737,17 @@ model ShipmentLabel {
   createdById        String?
   carrier            String              @default("FEDEX")
   trackingNumber     String
-  shipmentId         String?             // FedEx master tracking id
-  serviceType        String              // FEDEX_GROUND, STANDARD_OVERNIGHT, etc.
-  originAddress      Json                // snapshot at label creation
+  shipmentId         String? // FedEx master tracking id
+  serviceType        String // FEDEX_GROUND, STANDARD_OVERNIGHT, etc.
+  originAddress      Json // snapshot at label creation
   destinationAddress Json
   weightLbs          Float               @default(1.0)
   length             Float?
   width              Float?
   height             Float?
   labelFormat        String              @default("PDF") // PDF | ZPLII | PNG
-  labelBlobUrl       String?             // storage URL when blob backend is used
-  labelPdfBase64     String?             // inline fallback when no blob backend
+  labelBlobUrl       String? // storage URL when blob backend is used
+  labelPdfBase64     String? // inline fallback when no blob backend
   status             ShipmentLabelStatus @default(CREATED)
   voidedAt           DateTime?
   voidedById         String?
@@ -722,25 +767,25 @@ enum ShipmentLabelStatus {
 // Matched to an Order by the scanned/typed order number; the owning client can
 // view it on their order detail page.
 model PackagePhoto {
-  id             String   @id @default(cuid())
-  order          Order?   @relation(fields: [orderId], references: [id])
+  id             String    @id @default(cuid())
+  order          Order?    @relation(fields: [orderId], references: [id])
   orderId        String?
-  client         Client?  @relation(fields: [clientId], references: [id])
+  client         Client?   @relation(fields: [clientId], references: [id])
   clientId       String?
   // The identifier the rep scanned/typed (PeptSci Order.orderNumber as text).
   orderRef       String
   trackingNumber String?
-  trackingSource String?  // order | fedex_label | manual
-  capturedBy     User?    @relation("PhotosCaptured", fields: [capturedById], references: [id])
+  trackingSource String? // order | fedex_label | manual
+  capturedBy     User?     @relation("PhotosCaptured", fields: [capturedById], references: [id])
   capturedById   String?
-  blobUrl        String?  // storage URL when blob backend is used
-  imageBase64    String?  // inline fallback when no blob backend
-  contentType    String   @default("image/jpeg")
+  blobUrl        String? // storage URL when blob backend is used
+  imageBase64    String? // inline fallback when no blob backend
+  contentType    String    @default("image/jpeg")
   fileSize       Int?
-  matched        Boolean  @default(false)
+  matched        Boolean   @default(false)
   matchedAt      DateTime?
   notes          String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([orderId])
   @@index([clientId])
@@ -880,8 +925,8 @@ model Notification {
   priority   NotificationPriority @default(NORMAL)
   title      String
   message    String
-  actionUrl  String?              // deep-link to the relevant admin page
-  metadata   Json?                // extra context (orderId, variantId, batchId, …)
+  actionUrl  String? // deep-link to the relevant admin page
+  metadata   Json? // extra context (orderId, variantId, batchId, …)
   isRead     Boolean              @default(false)
   readAt     DateTime?
   isArchived Boolean              @default(false)
@@ -890,14 +935,14 @@ model Notification {
   sourceType String?
   sourceId   String?
 
-  @@index([userId, isRead])
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isArchived])
-  @@index([sourceType, sourceId])
   // Durable dedup: racing cron runs / webhook redeliveries can't double-notify.
   // Rows with NULL sourceType/sourceId are exempt (Postgres treats NULLs as
   // distinct), so non-dedupable notifications are unaffected.
   @@unique([userId, sourceType, sourceId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isArchived])
+  @@index([sourceType, sourceId])
 }
 
 // -------------------------------------------------
@@ -908,20 +953,20 @@ model Notification {
 // -------------------------------------------------
 
 model ReturnRequest {
-  id            String        @id @default(cuid())
-  rmaNumber     String        @unique // e.g. "RMA-20260628-001"
-  order         Order         @relation(fields: [orderId], references: [id])
+  id            String       @id @default(cuid())
+  rmaNumber     String       @unique // e.g. "RMA-20260628-001"
+  order         Order        @relation(fields: [orderId], references: [id])
   orderId       String
-  client        Client?       @relation(fields: [clientId], references: [id])
+  client        Client?      @relation(fields: [clientId], references: [id])
   clientId      String?
-  status        ReturnStatus  @default(REQUESTED)
+  status        ReturnStatus @default(REQUESTED)
   reason        String?
   notes         String?
-  refundAmount  Decimal?      @db.Decimal(12, 2)
+  refundAmount  Decimal?     @db.Decimal(12, 2)
   // User.id snapshot of who opened the RMA (no relation to keep churn low).
   requestedById String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   approvedAt    DateTime?
   receivedAt    DateTime?
   closedAt      DateTime?
@@ -941,7 +986,7 @@ model ReturnItem {
   orderItemId     String?
   variant         ProductVariant?     @relation(fields: [variantId], references: [id])
   variantId       String?
-  productName     String              // snapshot for display even if variant later changes
+  productName     String // snapshot for display even if variant later changes
   quantity        Int
   condition       ReturnItemCondition @default(GOOD)
   restocked       Boolean             @default(false)
@@ -1006,8 +1051,421 @@ model InventoryReservation {
 }
 
 // -------------------------------------------------
+// Affiliate partner program (ported from eonpro/logosrx-website partner
+// portal). Sales organizations (PartnerOrg) and their reps earn commission on
+// attributed clinics' (Client) captured orders. All partner money columns are
+// INTEGER CENTS and all rates are INTEGER BASIS POINTS (100 bps = 1%) so
+// splits are exact — see lib/partners/commission.ts.
+// -------------------------------------------------
+
+model PartnerOrg {
+  id                String                   @id @default(cuid())
+  // Clerk account of the org owner; linked when the invited owner signs up.
+  clerkUserId       String?                  @unique
+  name              String
+  contactName       String?
+  contactEmail      String                   @unique
+  contactPhone      String?
+  website           String?
+  notes             String?
+  status            PartnerStatus            @default(PENDING)
+  // COMMISSION: org earns commissionRateBps of attributed revenue.
+  // MARGIN: org prices clinics above per-variant floors and earns the spread.
+  compensationModel PartnerCompensationModel @default(COMMISSION)
+  commissionRateBps Int                      @default(0)
+  msaSignedAt       DateTime?
+  approvedAt        DateTime?
+  approvedBy        String? // Clerk id of the approving admin
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  reps              PartnerRep[]
+  members           PartnerOrgMember[]
+  referralLinks     ReferralLink[]
+  clients           Client[]
+  transactions      PartnerTransaction[]
+  commissionEntries CommissionEntry[]
+  payouts           PartnerPayout[]
+  pricing           PartnerOrgPricing[]
+  agreements        PartnerAgreement[]
+  clinicMeta        PartnerClinicMeta[]
+  clinicActivity    PartnerClinicActivity[]
+  goals             PartnerGoal[]
+  quotes            PartnerQuote[]
+  apiKeys           PartnerApiKey[]
+  webhooks          PartnerWebhook[]
+
+  @@index([status])
+}
+
+model PartnerRep {
+  id                String                  @id @default(cuid())
+  org               PartnerOrg              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId             String
+  clerkUserId       String?                 @unique
+  name              String
+  email             String
+  phone             String?
+  status            PartnerStatus           @default(PENDING)
+  // Rep's carve-out rate, taken OUT of the org's commission (≤ org rate for
+  // COMMISSION orgs; share of margin for MARGIN orgs).
+  commissionRateBps Int                     @default(0)
+  msaSignedAt       DateTime?
+  invitedAt         DateTime                @default(now())
+  activatedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  referralLinks     ReferralLink[]
+  clients           Client[]
+  transactions      PartnerTransaction[]
+  commissionEntries CommissionEntry[]
+  payouts           PartnerPayout[]
+  agreements        PartnerAgreement[]
+  clinicActivity    PartnerClinicActivity[]
+  goals             PartnerGoal[]
+  quotes            PartnerQuote[]
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// Invited org teammates (beyond the owner) with portal roles.
+model PartnerOrgMember {
+  id          String               @id @default(cuid())
+  org         PartnerOrg           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  clerkUserId String?              @unique
+  name        String
+  email       String
+  role        PartnerOrgMemberRole @default(VIEWER)
+  status      PartnerStatus        @default(ACTIVE)
+  invitedBy   String?
+  invitedAt   DateTime             @default(now())
+  activatedAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// A shareable referral URL (/join/<code>). Deactivated links stop attributing
+// immediately. Codes are unambiguous lowercase alphanumerics.
+model ReferralLink {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  org         PartnerOrg  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  rep         PartnerRep? @relation(fields: [repId], references: [id], onDelete: Cascade)
+  repId       String?
+  label       String?
+  active      Boolean     @default(true)
+  clickCount  Int         @default(0)
+  signupCount Int         @default(0)
+  createdAt   DateTime    @default(now())
+  clients     Client[]
+
+  @@index([orgId])
+}
+
+// One attributed revenue event (usually a captured platform Order; also
+// manual/CSV admin entries). org/rep are frozen at accrual time so later
+// re-attribution never rewrites history. reference is unique for idempotency
+// ("order:<orderId>" for platform orders).
+model PartnerTransaction {
+  id              String                   @id @default(cuid())
+  client          Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId        String
+  org             PartnerOrg               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  rep             PartnerRep?              @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId           String?
+  transactionDate DateTime
+  description     String?
+  reference       String?                  @unique
+  revenueCents    Int
+  // Wholesale cost (floor × qty) for MARGIN-model orgs; margin = revenue − cost.
+  costCents       Int?
+  refundedCents   Int                      @default(0)
+  source          PartnerTransactionSource @default(ORDER)
+  createdBy       String? // Clerk id (null for system accrual)
+  createdAt       DateTime                 @default(now())
+  entries         CommissionEntry[]
+
+  @@index([clientId])
+  @@index([orgId, transactionDate])
+}
+
+// Commission ledger. EARNING rows are written at accrual; REVERSAL rows claw
+// back proportionally when the underlying transaction is refunded. Approve →
+// pay lifecycle is admin-driven; a payout stamps payoutId and status PAID.
+model CommissionEntry {
+  id            String                @id @default(cuid())
+  transaction   PartnerTransaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId String
+  org           PartnerOrg            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId         String
+  rep           PartnerRep?           @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId         String?
+  payee         CommissionPayee
+  kind          CommissionEntryKind   @default(EARNING)
+  rateBps       Int
+  amountCents   Int // positive; REVERSAL rows subtract in rollups
+  status        CommissionEntryStatus @default(PENDING)
+  payout        PartnerPayout?        @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  payoutId      String?
+  createdAt     DateTime              @default(now())
+
+  @@index([orgId, status])
+  @@index([repId])
+  @@index([transactionId])
+  @@index([payoutId])
+}
+
+// A recorded payment to an org or rep (check/ACH/wire — recorded, not moved).
+model PartnerPayout {
+  id              String            @id @default(cuid())
+  org             PartnerOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  rep             PartnerRep?       @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId           String?
+  payee           CommissionPayee
+  amountCents     Int
+  method          String?
+  reference       String?
+  notes           String?
+  paidAt          DateTime          @default(now())
+  recordedBy      String
+  recordedByEmail String?
+  createdAt       DateTime          @default(now())
+  entries         CommissionEntry[]
+
+  @@index([orgId])
+}
+
+// Per-variant wholesale floor for MARGIN-model orgs. The org may price its
+// clinics at or above the floor; the spread is the org's margin.
+model PartnerOrgPricing {
+  id         String         @id @default(cuid())
+  org        PartnerOrg     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId  String
+  floorCents Int
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([orgId, variantId])
+  @@index([orgId])
+}
+
+// Executed Marketing Services Agreement — the signed document of record.
+model PartnerAgreement {
+  id              String          @id @default(cuid())
+  org             PartnerOrg      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  rep             PartnerRep?     @relation(fields: [repId], references: [id], onDelete: Cascade)
+  repId           String?
+  signerKind      CommissionPayee
+  clerkUserId     String
+  documentVersion String
+  documentTitle   String
+  documentHash    String
+  documentText    String
+  legalEntityName String?
+  signerName      String
+  signerTitle     String?
+  signerEmail     String?
+  signatureImage  String // data-URL PNG of the drawn/typed signature
+  signedIp        String?
+  signedUserAgent String?
+  signedAt        DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+
+  @@unique([orgId, repId, documentVersion])
+  @@index([orgId])
+  @@index([repId])
+}
+
+// Partner CRM: relationship stage + tags per (org, clinic).
+model PartnerClinicMeta {
+  id        String             @id @default(cuid())
+  org       PartnerOrg         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  client    Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  stage     PartnerClinicStage @default(ACTIVE)
+  tags      Json               @default("[]")
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([orgId, clientId])
+  @@index([clientId])
+}
+
+// Partner CRM activity timeline (notes + logged stage/tag changes).
+model PartnerClinicActivity {
+  id        String                    @id @default(cuid())
+  org       PartnerOrg                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  client    Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  rep       PartnerRep?               @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId     String?
+  actorKind CommissionPayee
+  actorName String?
+  type      PartnerClinicActivityType
+  body      String
+  createdAt DateTime                  @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([orgId])
+}
+
+// Sales goals/quotas with progress tracked against the ledger.
+model PartnerGoal {
+  id          String            @id @default(cuid())
+  org         PartnerOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  rep         PartnerRep?       @relation(fields: [repId], references: [id], onDelete: Cascade)
+  repId       String?
+  metric      PartnerGoalMetric
+  period      PartnerGoalPeriod
+  targetCents Int
+  createdBy   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([orgId, repId, metric, period])
+  @@index([orgId])
+}
+
+// Partner-built price quote for a prospective/existing clinic. Items are a
+// frozen snapshot: [{variantId, name, dose, quantity, unitPriceCents}].
+model PartnerQuote {
+  id          String             @id @default(cuid())
+  org         PartnerOrg         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  rep         PartnerRep?        @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId       String?
+  clinicName  String
+  contactName String?
+  email       String?
+  notes       String?
+  items       Json               @default("[]")
+  totalCents  Int                @default(0)
+  status      PartnerQuoteStatus @default(DRAFT)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([orgId, createdAt])
+}
+
+// Read-only partner API keys. Only a SHA-256 hash is stored; the plaintext is
+// shown once at creation. keyPrefix supports display + lookup.
+model PartnerApiKey {
+  id         String     @id @default(cuid())
+  org        PartnerOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String
+  name       String
+  keyPrefix  String
+  keyHash    String     @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdBy  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([orgId])
+}
+
+// Outbound webhook subscriptions (HMAC-signed deliveries, best-effort).
+model PartnerWebhook {
+  id             String     @id @default(cuid())
+  org            PartnerOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId          String
+  url            String
+  secret         String
+  events         Json       @default("[]")
+  active         Boolean    @default(true)
+  lastDeliveryAt DateTime?
+  lastStatus     Int?
+  createdBy      String?
+  createdAt      DateTime   @default(now())
+
+  @@index([orgId])
+}
+
+// -------------------------------------------------
 // Enums
 // -------------------------------------------------
+
+enum PartnerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum PartnerCompensationModel {
+  COMMISSION
+  MARGIN
+}
+
+enum CommissionPayee {
+  ORG
+  REP
+}
+
+enum CommissionEntryKind {
+  EARNING
+  REVERSAL
+}
+
+enum CommissionEntryStatus {
+  PENDING
+  APPROVED
+  PAID
+}
+
+enum PartnerTransactionSource {
+  ORDER
+  MANUAL
+  CSV
+}
+
+enum PartnerOrgMemberRole {
+  ADMIN
+  VIEWER
+}
+
+enum PartnerClinicStage {
+  LEAD
+  ACTIVE
+  AT_RISK
+  DORMANT
+}
+
+enum PartnerClinicActivityType {
+  NOTE
+  STAGE_CHANGE
+  TAG_CHANGE
+}
+
+enum PartnerGoalMetric {
+  REVENUE
+  COMMISSION
+}
+
+enum PartnerGoalPeriod {
+  MONTH
+  QUARTER
+  YEAR
+}
+
+enum PartnerQuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+}
 
 enum ReservationStatus {
   ACTIVE
@@ -1071,10 +1529,17 @@ enum NotificationPriority {
   URGENT
 }
 
+// Which side of the clinic <-> PeptSci conversation sent a PatientMessage.
+enum PatientMessageSenderRole {
+  CLINIC // clinic/client user
+  PEPTSCI // PeptSci admin staff
+}
+
 enum UserRole {
   CLIENT
   ADMIN
   SUPER_ADMIN
+  PARTNER
 }
 
 enum UserStatus {

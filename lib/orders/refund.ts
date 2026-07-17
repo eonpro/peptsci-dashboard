@@ -14,6 +14,7 @@ import { requireStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { releaseForOrder } from '@/lib/inventory/reservations'
+import { reverseCommissionForOrder } from '@/lib/partners/accrual'
 
 export class OrderRefundError extends Error {
   constructor(
@@ -143,6 +144,9 @@ export async function issueOrderRefund(
 
   // Net the refund out of analytics (never blocks the refund).
   await syncSalesRecordFromOrder(order.id)
+
+  // Claw back partner commission proportionally (never blocks the refund).
+  await reverseCommissionForOrder(order.id)
 
   logger.info('[REFUND] Refund issued', {
     orderId: order.id,

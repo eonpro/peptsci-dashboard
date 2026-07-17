@@ -4,6 +4,7 @@ import { auth } from '@clerk/nextjs/server'
 import { AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
+import { defaultRouteForRole } from '@/lib/access'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -25,7 +26,7 @@ export default async function RootPage() {
   const { userId, sessionClaims } = await auth()
   if (userId) {
     const role = (sessionClaims?.metadata as { role?: string })?.role || 'CLIENT'
-    redirect(role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/dashboard' : '/shop')
+    redirect(defaultRouteForRole(role))
   }
 
   return (

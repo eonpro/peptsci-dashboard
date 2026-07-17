@@ -101,6 +101,10 @@ interface SchemaProbe {
   clientDocumentResaleCertValue: boolean
   clientSmsOptInColumn: boolean
   orderRefundedTotalColumn: boolean
+  partnerOrgTable: boolean
+  commissionEntryTable: boolean
+  clientPartnerOrgIdColumn: boolean
+  userRolePartnerValue: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -113,7 +117,7 @@ async function probeSchema(): Promise<SchemaProbe> {
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
         'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation',
         'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
-        'InvoiceAdjustment'
+        'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -129,13 +133,15 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Product' AND column_name = 'casNumber')
         OR (table_name = 'ClientDocument' AND column_name = 'status')
         OR (table_name = 'Client' AND column_name = 'smsOptIn')
-        OR (table_name = 'Order' AND column_name = 'refundedTotal'))
+        OR (table_name = 'Order' AND column_name = 'refundedTotal')
+        OR (table_name = 'Client' AND column_name = 'partnerOrgId'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
     JOIN pg_enum e ON e.enumtypid = t.oid
     WHERE (t.typname = 'OrderSource' AND e.enumlabel = 'STRIPE_INVOICE')
        OR (t.typname = 'ClientDocumentType' AND e.enumlabel = 'RESALE_CERT')
+       OR (t.typname = 'UserRole' AND e.enumlabel = 'PARTNER')
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -174,6 +180,12 @@ async function probeSchema(): Promise<SchemaProbe> {
     ),
     clientSmsOptInColumn: colKeys.has('Client.smsOptIn'),
     orderRefundedTotalColumn: colKeys.has('Order.refundedTotal'),
+    partnerOrgTable: tableNames.has('PartnerOrg'),
+    commissionEntryTable: tableNames.has('CommissionEntry'),
+    clientPartnerOrgIdColumn: colKeys.has('Client.partnerOrgId'),
+    userRolePartnerValue: enumValues.some(
+      (v) => v.typname === 'UserRole' && v.enumlabel === 'PARTNER'
+    ),
   }
 }
 

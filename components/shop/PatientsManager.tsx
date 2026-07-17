@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AddressFields } from '@/components/AddressFields'
+import { PatientChatDialog } from '@/components/PatientChatDialog'
 import type { Address } from '@/lib/address'
-import { UserRound, Plus, Trash2, Pencil, Loader2 } from 'lucide-react'
+import { UserRound, Plus, Trash2, Pencil, Loader2, MessagesSquare } from 'lucide-react'
 
 interface Patient {
   id: string
@@ -36,6 +37,8 @@ export function PatientsManager() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [chatPatient, setChatPatient] = useState<Patient | null>(null)
+  const [unread, setUnread] = useState<Record<string, number>>({})
 
   const load = () => {
     setLoading(true)
@@ -46,6 +49,22 @@ export function PatientsManager() {
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
+
+  // Unread PeptSci messages per patient (badge on the Messages button).
+  // Polled every 60s to match the app's notification cadence.
+  useEffect(() => {
+    const loadUnread = () => {
+      fetch('/api/shop/patients/unread-messages')
+        .then((r) => (r.ok ? r.json() : { counts: {} }))
+        .then((data) => setUnread(data.counts ?? {}))
+        .catch(() => {})
+    }
+    loadUnread()
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadUnread()
+    }, 60_000)
+    return () => clearInterval(timer)
+  }, [])
 
   const startEdit = (p: Patient) => {
     setEditingId(p.id)
@@ -156,6 +175,20 @@ export function PatientsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="relative h-7 w-7 text-white/50 hover:text-white hover:bg-white/10"
+                    onClick={() => setChatPatient(p)}
+                    aria-label={`Messages about ${p.firstName} ${p.lastName}`}
+                  >
+                    <MessagesSquare className="h-3.5 w-3.5" />
+                    {(unread[p.id] ?? 0) > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                        {unread[p.id]}
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-white/50 hover:text-white hover:bg-white/10"
                     onClick={() => startEdit(p)}
                   >
@@ -256,6 +289,19 @@ export function PatientsManager() {
         >
           <Plus className="mr-2 h-4 w-4" /> Add Patient
         </Button>
+      )}
+
+      {chatPatient && (
+        <PatientChatDialog
+          open
+          onOpenChange={(open) => !open && setChatPatient(null)}
+          patientId={chatPatient.id}
+          patientName={`${chatPatient.firstName} ${chatPatient.lastName}`}
+          viewerRole="CLINIC"
+          onRead={() =>
+            setUnread((prev) => (prev[chatPatient.id] ? { ...prev, [chatPatient.id]: 0 } : prev))
+          }
+        />
       )}
     </div>
   )

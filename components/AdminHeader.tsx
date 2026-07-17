@@ -29,6 +29,7 @@ import {
   UserCog,
   Tag,
   ChevronDown,
+  Handshake,
 } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -101,6 +102,7 @@ const navigation = [
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'PO Generator', href: '/po-generator', icon: FileText },
   { name: 'Storefronts', href: '/storefronts', icon: Store },
+  { name: 'Partners', href: '/partners-admin', icon: Handshake },
 ]
 
 // Management surfaces (create/edit records). Grouped in a "Manage" dropdown so

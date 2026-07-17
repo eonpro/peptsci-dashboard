@@ -22,6 +22,11 @@ interface ClerkUserEventData {
     role?: string
     status?: string
     clientId?: string
+    // Affiliate partner provisioning (seeded by the partner approval / invite
+    // flows) — links the new Clerk account to its partner identity row.
+    partnerOrgId?: string
+    partnerRepId?: string
+    partnerMemberId?: string
   }
 }
 
@@ -32,7 +37,7 @@ interface ClerkWebhookEvent {
 
 const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET
 
-const VALID_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN'] as const
+const VALID_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'PARTNER'] as const
 const VALID_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED'] as const
 type UserRole = (typeof VALID_ROLES)[number]
 type UserStatus = (typeof VALID_STATUSES)[number]
@@ -50,6 +55,46 @@ async function resolveExistingClientId(clientId: string | undefined): Promise<st
   if (!clientId || !prisma) return undefined
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })
   return client ? client.id : undefined
+}
+
+/**
+ * Stamp the new Clerk account onto its partner identity row (org owner, rep,
+ * or org member) when the invitation metadata carries a partner id. Idempotent
+ * (updateMany matches at most one row) and best-effort: a failed link never
+ * fails the webhook — the admin can re-link from the partner detail page.
+ */
+async function linkPartnerIdentity(
+  clerkUserId: string,
+  meta: ClerkUserEventData['public_metadata']
+): Promise<void> {
+  if (!prisma || !meta) return
+  const now = new Date()
+  try {
+    if (meta.partnerOrgId) {
+      await prisma.partnerOrg.updateMany({
+        where: { id: meta.partnerOrgId, clerkUserId: null },
+        data: { clerkUserId },
+      })
+    }
+    if (meta.partnerRepId) {
+      await prisma.partnerRep.updateMany({
+        where: { id: meta.partnerRepId, clerkUserId: null },
+        data: { clerkUserId, status: 'ACTIVE', activatedAt: now },
+      })
+    }
+    if (meta.partnerMemberId) {
+      await prisma.partnerOrgMember.updateMany({
+        where: { id: meta.partnerMemberId, clerkUserId: null },
+        data: { clerkUserId, status: 'ACTIVE', activatedAt: now },
+      })
+    }
+  } catch (err) {
+    logger.error(
+      'Failed to link partner identity from Clerk webhook',
+      { clerkUserId },
+      err instanceof Error ? err : new Error(String(err))
+    )
+  }
 }
 
 export async function POST(req: Request) {
@@ -163,6 +208,10 @@ export async function POST(req: Request) {
         logger.info('User created in database', { userId: id, status })
       }
 
+      // Affiliate partner sign-ups: connect the Clerk account to its
+      // PartnerOrg / PartnerRep / PartnerOrgMember row.
+      await linkPartnerIdentity(id, public_metadata)
+
       // Welcome / under-review email. Never throws; safe to await before 200.
       // Invited users are already active — skip the "under review" messaging.
       if (primaryEmail && !isInvited) {
@@ -213,6 +262,9 @@ export async function POST(req: Request) {
         })
         logger.info('User updated in database', { userId: id })
       }
+
+      // Idempotent partner link (covers metadata added after user creation).
+      await linkPartnerIdentity(id, public_metadata)
     }
 
     if (event.type === 'user.deleted') {

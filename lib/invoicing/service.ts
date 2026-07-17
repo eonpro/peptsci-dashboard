@@ -15,6 +15,7 @@ import { Prisma, type InvoiceStatus as PrismaInvoiceStatus } from '@prisma/clien
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { syncSalesRecordFromOrder } from '../sales'
+import { accrueCommissionForOrder } from '../partners/accrual'
 import {
   computeInvoiceTotals,
   deriveDueDate,
@@ -410,6 +411,8 @@ async function settleOrdersForPaidInvoice(invoiceId: string): Promise<void> {
     })
     if (updated.count > 0) {
       await syncSalesRecordFromOrder(orderId)
+      // Net-terms orders accrue affiliate commission when the invoice is paid.
+      await accrueCommissionForOrder(orderId)
     }
   }
 }

@@ -1,6 +1,6 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
 
-export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
+export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN' | 'PARTNER'
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
 
 export interface UserMetadata {
@@ -101,6 +101,8 @@ export function getRedirectUrl(role: UserRole): string {
     case 'ADMIN':
     case 'SUPER_ADMIN':
       return '/dashboard'
+    case 'PARTNER':
+      return '/partners'
     case 'CLIENT':
     default:
       return '/shop'
