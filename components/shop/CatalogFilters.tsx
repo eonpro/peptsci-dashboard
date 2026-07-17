@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -13,15 +12,24 @@ interface CatalogFiltersProps {
   categories: string[]
   selectedCategory?: string
   onCategoryChange?: (category: string) => void
+  priceRange?: [number, number]
+  onPriceRangeChange?: (range: [number, number]) => void
+  inStockOnly?: boolean
+  onInStockOnlyChange?: (inStockOnly: boolean) => void
 }
 
 export function CatalogFilters({
   categories,
   selectedCategory = 'all',
   onCategoryChange,
+  priceRange = [0, 1000],
+  onPriceRangeChange,
+  inStockOnly = false,
+  onInStockOnlyChange,
 }: CatalogFiltersProps) {
-  const [priceRange, setPriceRange] = useState([0, 1000])
-  const [inStockOnly, setInStockOnly] = useState(false)
+  const setPriceRange = (range: number[]) =>
+    onPriceRangeChange?.([range[0] ?? 0, range[1] ?? 1000])
+  const setInStockOnly = (value: boolean) => onInStockOnlyChange?.(value)
 
   const handleCategoryChange = (value: string) => {
     onCategoryChange?.(value)

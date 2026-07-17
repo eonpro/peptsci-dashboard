@@ -8,7 +8,7 @@ import { Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react'
 
 const navItems = [
   { href: '/shop', icon: Home, label: 'Shop', exact: true },
-  { href: '/shop/search', icon: Search, label: 'Search', action: 'search' },
+  { href: '/shop#search', icon: Search, label: 'Search', action: 'search' },
   { href: '#cart', icon: ShoppingCart, label: 'Cart', action: 'cart' },
   { href: '/shop/orders', icon: ClipboardList, label: 'Orders' },
   { href: '/shop/account', icon: User, label: 'Account' },

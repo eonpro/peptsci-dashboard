@@ -136,6 +136,7 @@ export default function InventoryClient({
             productName: string
             dose: string | null
             inventoryOnHand: number
+            inventoryReserved?: number
             reorderLevel: number
           }>
           setCatalog(
@@ -145,7 +146,7 @@ export default function InventoryClient({
               productName: v.productName,
               dose: v.dose,
               onHand: v.inventoryOnHand,
-              reserved: 0,
+              reserved: v.inventoryReserved ?? 0,
               reorderLevel: v.reorderLevel,
             }))
           )

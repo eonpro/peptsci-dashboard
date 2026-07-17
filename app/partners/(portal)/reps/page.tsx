@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { UserPlus } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface RepRow {
   id: string
@@ -28,6 +36,10 @@ export default function PartnerRepsPage() {
   const [orgRateBps, setOrgRateBps] = useState(0)
   const [loading, setLoading] = useState(true)
   const [inviting, setInviting] = useState(false)
+  const [rateEdit, setRateEdit] = useState<{ repId: string; name: string; value: string } | null>(
+    null
+  )
+  const [savingRate, setSavingRate] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -176,16 +188,14 @@ export default function PartnerRepsPage() {
                 <td className="px-4 py-3">
                   <button
                     className="text-[#213cef] hover:underline"
-                    onClick={() => {
-                      const next = window.prompt('New commission rate % for this rep:', String(rep.commissionRateBps / 100))
-                      if (next === null) return
-                      const value = Number(next)
-                      if (!Number.isFinite(value) || value < 0) {
-                        toast.error('Enter a valid rate')
-                        return
-                      }
-                      void update(rep.id, { ratePercent: value })
-                    }}
+                    aria-label={`Edit commission rate for ${rep.name}`}
+                    onClick={() =>
+                      setRateEdit({
+                        repId: rep.id,
+                        name: rep.name,
+                        value: String(rep.commissionRateBps / 100),
+                      })
+                    }
                   >
                     {rep.commissionRateBps / 100}%
                   </button>
@@ -211,6 +221,73 @@ export default function PartnerRepsPage() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={!!rateEdit} onOpenChange={(open) => !open && setRateEdit(null)}>
+        <DialogContent className="max-w-sm bg-white text-slate-900 border-slate-200">
+          <DialogHeader>
+            <DialogTitle>Edit commission rate</DialogTitle>
+            <DialogDescription className="text-slate-500">
+              {rateEdit?.name}&apos;s carve-out from your org rate
+              {orgRateBps > 0 ? ` (max ${orgRateBps / 100}%)` : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (!rateEdit) return
+              const value = Number(rateEdit.value)
+              if (!Number.isFinite(value) || value < 0 || value > 100) {
+                toast.error('Enter a rate between 0 and 100')
+                return
+              }
+              setSavingRate(true)
+              try {
+                await update(rateEdit.repId, { ratePercent: value })
+                setRateEdit(null)
+              } finally {
+                setSavingRate(false)
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-2">
+              <label htmlFor="rep-rate" className="sr-only">
+                Commission rate percent
+              </label>
+              <input
+                id="rep-rate"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                autoFocus
+                value={rateEdit?.value ?? ''}
+                onChange={(e) =>
+                  setRateEdit((prev) => (prev ? { ...prev, value: e.target.value } : prev))
+                }
+                className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <span className="text-sm text-slate-500">%</span>
+            </div>
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => setRateEdit(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingRate}
+                className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
+              >
+                {savingRate ? 'Saving…' : 'Save rate'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

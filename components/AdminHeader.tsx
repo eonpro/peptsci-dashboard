@@ -278,10 +278,6 @@ export function AdminHeader() {
             >
               <DropdownMenuLabel className="text-white/60">Admin Settings</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuItem className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white">
-                <Settings className="mr-2 h-4 w-4" />
-                System Settings
-              </DropdownMenuItem>
               <DropdownMenuItem
                 className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
                 asChild

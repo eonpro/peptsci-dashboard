@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Pagination } from '@/components/Pagination'
+import { toast } from 'sonner'
 import {
   Truck,
   Search,
@@ -138,6 +140,12 @@ export default function FulfillmentPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [shipped, setShipped] = useState<TabId>('false')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [meta, setMeta] = useState<{ total: number; totalPages: number }>({
+    total: 0,
+    totalPages: 1,
+  })
   const [queue, setQueue] = useState<StripeQueueRecord[]>([])
   const [labelTarget, setLabelTarget] = useState<LabelTarget | null>(null)
   const [nextStep, setNextStep] = useState<NextStep | null>(null)
@@ -179,7 +187,11 @@ export default function FulfillmentPage() {
       shipped === 'stripe'
         ? '/api/admin/fulfillment/stripe-queue'
         : (() => {
-            const qs = new URLSearchParams({ shipped })
+            const qs = new URLSearchParams({
+              shipped,
+              page: String(page),
+              limit: String(pageSize),
+            })
             if (search.trim()) qs.set('search', search.trim())
             return `/api/admin/orders?${qs.toString()}`
           })()
@@ -191,8 +203,15 @@ export default function FulfillmentPage() {
       })
       .then((data) => {
         if (seq !== loadSeqRef.current) return
-        if (shipped === 'stripe') setQueue(data.records ?? [])
-        else setOrders(data.orders ?? [])
+        if (shipped === 'stripe') {
+          setQueue(data.records ?? [])
+        } else {
+          setOrders(data.orders ?? [])
+          setMeta({
+            total: data.meta?.total ?? (data.orders?.length ?? 0),
+            totalPages: data.meta?.totalPages ?? 1,
+          })
+        }
       })
       .catch((e) => {
         if (seq !== loadSeqRef.current) return
@@ -201,7 +220,7 @@ export default function FulfillmentPage() {
       .finally(() => {
         if (seq === loadSeqRef.current) setLoading(false)
       })
-  }, [shipped, search])
+  }, [shipped, search, page, pageSize])
 
   useEffect(() => {
     const t = setTimeout(load, 250)
@@ -223,7 +242,8 @@ export default function FulfillmentPage() {
         }
         load()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to update fulfillment')
+        // Toast (not setError) so a failed action never wipes the list view.
+        toast.error(e instanceof Error ? e.message : 'Failed to update fulfillment')
       } finally {
         setAdvancing(null)
       }
@@ -343,7 +363,10 @@ export default function FulfillmentPage() {
           <Input
             placeholder="Search by order #, tracking, or client…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             className="pl-10"
           />
         </div>
@@ -351,7 +374,10 @@ export default function FulfillmentPage() {
           {filterTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setShipped(tab.id)}
+              onClick={() => {
+                setShipped(tab.id)
+                setPage(1)
+              }}
               className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                 shipped === tab.id ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'
               }`}
@@ -587,6 +613,20 @@ export default function FulfillmentPage() {
                 </div>
               ))}
             </div>
+          )}
+          {shipped !== 'stripe' && !loading && !error && meta.total > 0 && (
+            <Pagination
+              className="mt-4 border-t border-white/10 pt-4"
+              currentPage={page}
+              totalPages={meta.totalPages}
+              totalItems={meta.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size)
+                setPage(1)
+              }}
+            />
           )}
         </CardContent>
       </Card>

@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Logo } from '@/components/Logo'
-import { Clock, Mail, Phone, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
+import { Clock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
 
 export function PendingApprovalContent() {
   const { signOut } = useClerk()
@@ -79,13 +79,9 @@ export function PendingApprovalContent() {
                 <Mail className="h-4 w-4" />
                 support@peptsci.com
               </a>
-              <a
-                href="tel:+18005551234"
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-brand-primary transition-colors"
-              >
-                <Phone className="h-4 w-4" />
-                1-800-555-1234
-              </a>
+              <p className="text-xs text-gray-500">
+                Include your practice name and NPI for the fastest turnaround.
+              </p>
             </div>
           </div>
         </CardContent>

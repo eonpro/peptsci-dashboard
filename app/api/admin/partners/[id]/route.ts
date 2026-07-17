@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   requireAdmin,
+  requireSuperAdmin,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -165,5 +166,48 @@ export async function PATCH(request: NextRequest, context: Params) {
       error instanceof Error ? error : new Error(String(error))
     )
     return errorResponse('Failed to update partner org')
+  }
+}
+
+/**
+ * DELETE /api/admin/partners/[id] — permanently remove a partner org
+ * (rejected applications, test orgs). SUPER_ADMIN only. Orgs with a
+ * transaction/payout history are protected unless ?force=true — history
+ * cascades away with the org, so force is for test data only. Attributed
+ * clinics are detached (SetNull), never deleted.
+ */
+export async function DELETE(request: NextRequest, context: Params) {
+  try {
+    const { isAuthenticated, isSuperAdmin } = await requireSuperAdmin()
+    if (!isAuthenticated) return unauthorizedResponse()
+    if (!isSuperAdmin) return forbiddenResponse('Super Admin access required')
+    if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
+
+    const { id } = await context.params
+    const force = new URL(request.url).searchParams.get('force') === 'true'
+
+    const org = await prisma.partnerOrg.findUnique({
+      where: { id },
+      include: { _count: { select: { transactions: true, payouts: true } } },
+    })
+    if (!org) return errorResponse('Partner org not found', 404, 'NOT_FOUND')
+    if ((org._count.transactions > 0 || org._count.payouts > 0) && !force) {
+      return errorResponse(
+        'This org has ledger history. Suspend it instead, or pass ?force=true to delete anyway.',
+        409,
+        'HAS_HISTORY'
+      )
+    }
+
+    await prisma.partnerOrg.delete({ where: { id } })
+    logger.info('[ADMIN PARTNERS] Org deleted', { orgId: id, name: org.name, force })
+    return successResponse({ success: true })
+  } catch (error) {
+    logger.error(
+      'Error deleting partner org',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
+    return errorResponse('Failed to delete partner org')
   }
 }

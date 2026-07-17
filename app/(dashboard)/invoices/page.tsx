@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ReceiptText, Loader2, Plus, FileX, Clock } from 'lucide-react'
+import { Pagination } from '@/components/Pagination'
+import { toast } from 'sonner'
 
 type InvoiceView = {
   invoice: {
@@ -59,11 +61,17 @@ export default function InvoicesPage() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>('ALL')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [meta, setMeta] = useState<{ total: number; totalPages: number }>({
+    total: 0,
+    totalPages: 1,
+  })
 
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    const qs = new URLSearchParams()
+    const qs = new URLSearchParams({ page: String(page), limit: String(pageSize) })
     if (status !== 'ALL') qs.set('status', status)
     fetch(`/api/admin/invoices?${qs.toString()}`)
       .then(async (r) => {
@@ -71,10 +79,16 @@ export default function InvoicesPage() {
         if (!r.ok) throw new Error(data.message || data.error || 'Failed to load invoices')
         return data
       })
-      .then((data) => setRows(data.invoices ?? []))
+      .then((data) => {
+        setRows(data.invoices ?? [])
+        setMeta({
+          total: data.meta?.total ?? (data.invoices?.length ?? 0),
+          totalPages: data.meta?.totalPages ?? 1,
+        })
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load invoices'))
       .finally(() => setLoading(false))
-  }, [status])
+  }, [status, page, pageSize])
 
   useEffect(() => {
     load()
@@ -100,7 +114,10 @@ export default function InvoicesPage() {
         {STATUS_TABS.map((tab) => (
           <button
             key={tab}
-            onClick={() => setStatus(tab)}
+            onClick={() => {
+              setStatus(tab)
+              setPage(1)
+            }}
             className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
               status === tab ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'
             }`}
@@ -161,6 +178,20 @@ export default function InvoicesPage() {
               ))}
             </div>
           )}
+          {!loading && !error && meta.total > 0 && (
+            <Pagination
+              className="mt-4 border-t border-white/10 pt-4"
+              currentPage={page}
+              totalPages={meta.totalPages}
+              totalItems={meta.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size)
+                setPage(1)
+              }}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -169,6 +200,7 @@ export default function InvoicesPage() {
         onOpenChange={setDialogOpen}
         onCreated={() => {
           setDialogOpen(false)
+          toast.success('Invoice created')
           load()
         }}
       />

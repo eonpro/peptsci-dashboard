@@ -110,9 +110,12 @@ export function ClientHeader() {
           <Button
             variant="ghost"
             size="icon"
+            asChild
             className="hidden md:flex text-white/50 hover:text-white hover:bg-white/10"
           >
-            <HelpCircle className="h-5 w-5" />
+            <a href="mailto:support@peptsci.com" aria-label="Contact support">
+              <HelpCircle className="h-5 w-5" />
+            </a>
           </Button>
 
           {/* Cart button - visible on both mobile and desktop */}
@@ -188,9 +191,14 @@ export function ClientHeader() {
                     <DropdownMenuSeparator className="bg-white/10" />
                   </>
                 )}
-                <DropdownMenuItem className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer">
-                  <HelpCircle className="mr-2 h-4 w-4" />
-                  Help & Support
+                <DropdownMenuItem
+                  asChild
+                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
+                >
+                  <a href="mailto:support@peptsci.com">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Help & Support
+                  </a>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

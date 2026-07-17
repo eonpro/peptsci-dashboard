@@ -1,9 +1,22 @@
+import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getStorefrontBySlug } from '@/lib/storefront'
 import { StorefrontShell } from '@/components/storefront/StorefrontShell'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers()
+  const slug = headersList.get('x-storefront-slug')
+  if (!slug) return {}
+  const config = await getStorefrontBySlug(slug)
+  if (!config) return {}
+  return {
+    title: config.branding.name,
+    icons: config.branding.favicon ? { icon: config.branding.favicon } : undefined,
+  }
+}
 
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers()
@@ -37,26 +50,30 @@ export default async function StorefrontLayout({ children }: { children: React.R
       ? `https://fonts.googleapis.com/css2?${fontFamilies.map((f) => `family=${f}:wght@300;400;500;600;700`).join('&')}&display=swap`
       : null
 
+  // NOTE: this is a nested layout — the root layout owns <html>/<body>.
+  // Tenant theming is scoped to this wrapper div via CSS custom properties;
+  // the stylesheet link is hoisted to <head> by React (precedence attr).
   return (
-    <html lang="en">
-      <head>
-        <title>{branding.name}</title>
-        {branding.favicon && <link rel="icon" href={branding.favicon} />}
-        {googleFontsUrl && <link rel="stylesheet" href={googleFontsUrl} />}
-      </head>
-      <body
-        style={{
+    <div
+      style={
+        {
           ...cssVars,
           backgroundColor: branding.colors.background,
           color: branding.colors.text,
-          fontFamily: branding.fonts?.body ? `"${branding.fonts.body}", sans-serif` : 'system-ui, sans-serif',
-        } as React.CSSProperties}
-        className="min-h-screen"
-      >
-        <StorefrontShell config={config} slug={slug}>
-          {children}
-        </StorefrontShell>
-      </body>
-    </html>
+          fontFamily: branding.fonts?.body
+            ? `"${branding.fonts.body}", sans-serif`
+            : 'system-ui, sans-serif',
+        } as React.CSSProperties
+      }
+      className="min-h-screen"
+    >
+      {googleFontsUrl && (
+        // eslint-disable-next-line @next/next/no-css-tags
+        <link rel="stylesheet" href={googleFontsUrl} precedence="default" />
+      )}
+      <StorefrontShell config={config} slug={slug}>
+        {children}
+      </StorefrontShell>
+    </div>
   )
 }

@@ -28,6 +28,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { toast } from 'sonner'
 
 interface StorefrontRow {
   id: string
@@ -57,6 +65,9 @@ export default function StorefrontsPage() {
     try {
       const res = await fetch('/api/admin/storefronts')
       if (res.ok) setStorefronts(await res.json())
+      else toast.error('Failed to load storefronts')
+    } catch {
+      toast.error('Failed to load storefronts')
     } finally {
       setLoading(false)
     }
@@ -64,10 +75,17 @@ export default function StorefrontsPage() {
 
   const fetchClients = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/storefronts?_clients=1')
+      const res = await fetch('/api/admin/clients')
       if (!res.ok) return
+      const data = await res.json()
+      setClients(
+        (data.clients ?? []).map((c: { id: string; organizationName: string }) => ({
+          id: c.id,
+          organizationName: c.organizationName,
+        }))
+      )
     } catch {
-      // clients list is optional enhancement
+      // clients list is optional enhancement; the picker shows an empty state
     }
   }, [])
 
@@ -87,19 +105,35 @@ export default function StorefrontsPage() {
       if (res.ok) {
         setCreateOpen(false)
         setForm({ clientId: '', slug: '', name: '' })
+        toast.success('Storefront created')
         fetchStorefronts()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.message || data.error || 'Failed to create storefront')
       }
+    } catch {
+      toast.error('Failed to create storefront')
     } finally {
       setCreating(false)
     }
   }
 
   async function handleStatusChange(id: string, status: 'DRAFT' | 'ACTIVE' | 'SUSPENDED') {
-    await fetch(`/api/admin/storefronts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
+    try {
+      const res = await fetch(`/api/admin/storefronts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.message || data.error || 'Failed to update status')
+        return
+      }
+      toast.success(`Storefront ${STATUS_CONFIG[status].label.toLowerCase()}`)
+    } catch {
+      toast.error('Failed to update status')
+    }
     fetchStorefronts()
   }
 
@@ -128,13 +162,28 @@ export default function StorefrontsPage() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label>Client ID</Label>
-                <Input
-                  placeholder="Client CUID (from Clients table)"
+                <Label>Client</Label>
+                <Select
                   value={form.clientId}
-                  onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-                  className="bg-white/5 border-white/20 text-white"
-                />
+                  onValueChange={(value) => setForm((f) => ({ ...f, clientId: value }))}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                    <SelectValue
+                      placeholder={clients.length === 0 ? 'No clients found' : 'Select a client…'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0a0e3a] border-white/10 text-white">
+                    {clients.map((c) => (
+                      <SelectItem
+                        key={c.id}
+                        value={c.id}
+                        className="text-white focus:bg-white/10 focus:text-white"
+                      >
+                        {c.organizationName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Subdomain Slug</Label>

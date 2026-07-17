@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { getProductCatalog } from '@/lib/catalog'
-import { ProductGrid } from '@/components/shop/ProductGrid'
-import { CatalogFilters } from '@/components/shop/CatalogFilters'
+import { CatalogShell } from '@/components/shop/CatalogShell'
 import { CatalogHero } from '@/components/shop/CatalogHero'
 import { getCategories } from '@/lib/types/shop'
 import { getUserMetadata } from '@/lib/roles'
@@ -32,29 +31,17 @@ export default async function ShopPage() {
       )}
 
       {/* Main Content */}
-      <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
-        {/* Filters Sidebar */}
-        <aside className="hidden lg:block">
-          <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-white/5" />}>
-            <CatalogFilters categories={categories} />
-          </Suspense>
-        </aside>
-
-        {/* Product Grid */}
-        <div>
-          <Suspense
-            fallback={
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-80 animate-pulse rounded-2xl bg-[#0a0e3a]" />
-                ))}
-              </div>
-            }
-          >
-            <ProductGrid products={products} />
-          </Suspense>
-        </div>
-      </div>
+      <Suspense
+        fallback={
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-2xl bg-[#0a0e3a]" />
+            ))}
+          </div>
+        }
+      >
+        <CatalogShell products={products} categories={categories} />
+      </Suspense>
     </div>
   )
 }

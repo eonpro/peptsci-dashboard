@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { ShopProduct } from '@/lib/types/shop'
 import { Button } from '@/components/ui/button'
 import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
@@ -230,7 +231,14 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 <span className="text-white/40 text-xs">• {product.category}</span>
               )}
             </div>
-            <h3 className="font-bold text-white text-lg leading-tight truncate">{product.name}</h3>
+            <h3 className="font-bold text-white text-lg leading-tight truncate">
+              <Link
+                href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                className="hover:text-blue-300 transition-colors"
+              >
+                {product.name}
+              </Link>
+            </h3>
             <p className="text-white/60 text-sm">{doseDisplay}</p>
             {product.casNumber && (
               <p className="text-white/40 text-xs mt-1">CAS: {product.casNumber}</p>
@@ -300,7 +308,12 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       <div className="relative flex-1 px-4 py-2 overflow-hidden">
         {/* Product name */}
         <h3 className="font-bold text-white text-lg @[16rem]:text-xl leading-tight mb-1">
-          {product.name}
+          <Link
+            href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+            className="hover:text-blue-300 transition-colors"
+          >
+            {product.name}
+          </Link>
         </h3>
 
         {/* Dose */}
@@ -326,11 +339,13 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               <span className="text-white/80">{product.molecularWeight}</span>
             </p>
           )}
-          {/* Default purity */}
-          <p className="text-white/60">
-            <span className="text-white/40">Purity:</span>{' '}
-            <span className="text-green-400 font-medium">≥99%</span>
-          </p>
+          {/* Purity — only when the catalog actually provides it */}
+          {product.compounds?.[0]?.purity && (
+            <p className="text-white/60">
+              <span className="text-white/40">Purity:</span>{' '}
+              <span className="text-green-400 font-medium">{product.compounds[0].purity}</span>
+            </p>
+          )}
         </div>
 
         {/* Category badge */}

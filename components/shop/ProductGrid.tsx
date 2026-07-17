@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { ShopProduct } from '@/lib/types/shop'
 import { filterProducts, getCategories } from '@/lib/types/shop'
 import { ProductCard } from './ProductCard'
@@ -29,20 +29,53 @@ export type { ShopProduct } from '@/lib/types/shop'
 
 interface ProductGridProps {
   products: ShopProduct[]
+  /** Controlled category (when the desktop sidebar owns filter state). */
+  category?: string
+  onCategoryChange?: (category: string) => void
+  /** Price range filter from the sidebar; [0, 1000] means "no limit". */
+  priceRange?: [number, number]
+  inStockOnly?: boolean
 }
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'
 type ViewMode = 'grid' | 'list'
 
-export function ProductGrid({ products }: ProductGridProps) {
+export function ProductGrid({
+  products,
+  category,
+  onCategoryChange,
+  priceRange,
+  inStockOnly,
+}: ProductGridProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('name-asc')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [internalCategory, setInternalCategory] = useState<string>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
+
+  const selectedCategory = category ?? internalCategory
+  const setSelectedCategory = (value: string) => {
+    if (onCategoryChange) onCategoryChange(value)
+    else setInternalCategory(value)
+  }
 
   // Get unique categories
   const categories = useMemo(() => getCategories(products), [products])
+
+  // Focus the search input when arriving via /shop#search (mobile bottom-nav
+  // "Search" tab) — also handles in-page hash re-clicks.
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const focusFromHash = () => {
+      if (window.location.hash === '#search') {
+        searchInputRef.current?.focus()
+        searchInputRef.current?.scrollIntoView({ block: 'center' })
+      }
+    }
+    focusFromHash()
+    window.addEventListener('hashchange', focusFromHash)
+    return () => window.removeEventListener('hashchange', focusFromHash)
+  }, [])
 
   // Filter and sort products using unified filter function
   const filteredProducts = useMemo(() => {
@@ -50,8 +83,12 @@ export function ProductGrid({ products }: ProductGridProps) {
       search: searchQuery,
       category: selectedCategory,
       sortBy,
+      minPrice: priceRange && priceRange[0] > 0 ? priceRange[0] : undefined,
+      // The slider tops out at "$1,000+", so 1000 means unbounded.
+      maxPrice: priceRange && priceRange[1] < 1000 ? priceRange[1] : undefined,
+      inStockOnly: inStockOnly || undefined,
     })
-  }, [products, searchQuery, sortBy, selectedCategory])
+  }, [products, searchQuery, sortBy, selectedCategory, priceRange, inStockOnly])
 
   const hasActiveFilters = selectedCategory !== 'all' || searchQuery !== ''
   const activeFilterCount = (selectedCategory !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)
@@ -65,6 +102,8 @@ export function ProductGrid({ products }: ProductGridProps) {
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
             <Input
+              ref={searchInputRef}
+              id="catalog-search"
               type="search"
               placeholder="Search peptides..."
               value={searchQuery}

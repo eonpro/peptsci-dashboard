@@ -54,6 +54,14 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
+/*
+  Brand constants (theme-independent). These MUST stay in sync with the HSL
+  semantic vars below (:root/.dark) and with Clerk's colorPrimary in
+  components/Providers.tsx:
+    brand-bg      #f2f0ea = hsl(36 17% 95%)
+    brand-primary #213cef = hsl(228 87% 53%)
+    brand-onyx    #050722 = hsl(235 90% 8%)
+*/
 @theme {
   --color-brand-bg: #f2f0ea;
   --color-brand-white: #ffffff;
@@ -91,8 +99,8 @@
   so we've added these compatibility styles to make sure everything still
   looks the same as it did with Tailwind CSS v3.
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  Uses the semantic --border token (NOT a fixed light gray) so the default
+  border follows the active theme scope instead of fighting dark surfaces.
 */
 @layer base {
   *,
@@ -100,7 +108,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: hsl(var(--border));
   }
 }
 
@@ -344,13 +352,20 @@ select {
   }
 }
 
-/* Smooth transitions for interactive elements */
+/* Smooth transitions for interactive elements (specific properties, not
+   `all`, to avoid janky layout transitions) */
 button,
 a,
 input,
 select,
 textarea {
-  transition: all 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 /* Active states for touch devices */
@@ -438,20 +453,14 @@ textarea {
   }
 
   /* Specific component overrides */
-  [class*='Card'],
-  [data-slot='card'],
-  [class*='bg-[#0a0e3a]'],
-  [class*='SheetContent'],
-  [class*='DialogContent'] {
+  [data-slot='card'] {
     border-radius: 15px !important;
   }
 
   /* Input fields */
   input,
   textarea,
-  select,
-  [class*='SelectTrigger'],
-  [class*='Input'] {
+  select {
     border-radius: 12px !important;
   }
 
@@ -468,20 +477,24 @@ textarea {
     border-radius: 15px !important;
   }
 
-  /* Product images */
-  [class*='aspect-'] {
-    border-radius: 15px 15px 0 0 !important;
-  }
-
   /* Bottom navigation */
   .fixed.bottom-0 nav {
     border-radius: 0 !important;
   }
+}
 
-  /* Cart item cards */
-  .space-y-3 > div[class*='rounded'],
-  .space-y-4 > div[class*='rounded'] {
-    border-radius: 15px !important;
+/* Respect reduced-motion preferences: kill smooth scroll, transitions and
+   decorative animations for users who opt out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

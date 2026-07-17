@@ -33,12 +33,13 @@ export function Providers({ children, publishableKey }: ProvidersProps) {
       publishableKey={publishableKey}
       appearance={{
         variables: {
-          colorPrimary: '#5B4BFF',
+          // Brand primary — keep in sync with --color-brand-primary in globals.css
+          colorPrimary: '#213cef',
           colorText: '#050722',
           colorBackground: '#F2F0EA',
         },
         elements: {
-          card: 'shadow-[0px_32px_120px_-60px_rgba(91,75,255,0.45)] border border-white/70',
+          card: 'shadow-[0px_32px_120px_-60px_rgba(33,60,239,0.45)] border border-white/70',
           footer: 'hidden',
         },
       }}

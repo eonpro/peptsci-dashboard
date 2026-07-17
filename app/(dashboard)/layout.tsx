@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AdminFooter } from '@/components/AdminFooter'
+import { ThemeScope } from '@/components/ThemeScope'
 
 // Force dynamic rendering - dashboard requires auth context
 export const dynamic = 'force-dynamic'
@@ -32,6 +33,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   await assertAdmin2fa()
   return (
     <div className="dark flex min-h-screen w-full flex-col overflow-x-hidden bg-brand-onyx">
+      {/* Hoist .dark to <html> so portaled Radix content inherits the theme. */}
+      <ThemeScope theme="dark" />
       <AdminHeader />
       <main className="w-full min-w-0 flex-1 bg-linear-to-br from-brand-onyx via-brand-onyx to-[#0a0e3a]">
         <div className="p-4 md:p-6">{children}</div>
