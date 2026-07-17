@@ -49,6 +49,52 @@ export class PartnerForbiddenError extends Error {
 
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
+interface PartnerIdentityClaims {
+  partnerOrgId?: string
+  partnerRepId?: string
+  partnerMemberId?: string
+}
+
+/**
+ * Self-healing link: invitation metadata carries the partner identity id, and
+ * the Clerk webhook normally stamps `clerkUserId` into the row at sign-up.
+ * Webhook delivery is not guaranteed, so on first portal access we also link
+ * from the session claims. Idempotent: only ever claims an UNLINKED row, so a
+ * stale/forged claim can never steal an identity that belongs to another
+ * account.
+ */
+async function linkFromClaims(userId: string, claims: PartnerIdentityClaims): Promise<boolean> {
+  if (!prisma) return false
+  const now = new Date()
+  let linked = false
+  try {
+    if (claims.partnerOrgId) {
+      const res = await prisma.partnerOrg.updateMany({
+        where: { id: claims.partnerOrgId, clerkUserId: null },
+        data: { clerkUserId: userId },
+      })
+      linked ||= res.count > 0
+    }
+    if (claims.partnerRepId) {
+      const res = await prisma.partnerRep.updateMany({
+        where: { id: claims.partnerRepId, clerkUserId: null },
+        data: { clerkUserId: userId, status: 'ACTIVE', activatedAt: now },
+      })
+      linked ||= res.count > 0
+    }
+    if (claims.partnerMemberId) {
+      const res = await prisma.partnerOrgMember.updateMany({
+        where: { id: claims.partnerMemberId, clerkUserId: null },
+        data: { clerkUserId: userId, status: 'ACTIVE', activatedAt: now },
+      })
+      linked ||= res.count > 0
+    }
+  } catch {
+    // Best-effort — the webhook path may still link later.
+  }
+  return linked
+}
+
 /**
  * Resolves the current request to a partner identity, or `null` when the
  * caller is anonymous, not a partner, or suspended. Safe for server
@@ -56,8 +102,24 @@ const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsW
  */
 export async function getPartnerContext(): Promise<PartnerContext | null> {
   if (!prisma || !isClerkConfigured) return null
-  const { userId } = await auth()
+  const { userId, sessionClaims } = await auth()
   if (!userId) return null
+
+  const ctx = await lookupPartner(userId)
+  if (ctx) return ctx
+
+  // No linked identity yet — try the self-heal from invitation metadata.
+  const claims = (sessionClaims?.metadata ?? {}) as PartnerIdentityClaims
+  if (claims.partnerOrgId || claims.partnerRepId || claims.partnerMemberId) {
+    if (await linkFromClaims(userId, claims)) {
+      return lookupPartner(userId)
+    }
+  }
+  return null
+}
+
+async function lookupPartner(userId: string): Promise<PartnerContext | null> {
+  if (!prisma) return null
 
   // 1. Org owner (the account that was approved).
   const org = await prisma.partnerOrg.findUnique({ where: { clerkUserId: userId } })
