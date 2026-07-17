@@ -48,7 +48,11 @@ const ConvertStripeModal = dynamic(() => import('@/components/orders/ConvertStri
 const ManualDispositionModal = dynamic(() => import('@/components/orders/ManualDispositionModal'), {
   ssr: false,
 })
+const PackPhotoModal = dynamic(() => import('@/components/orders/PackPhotoModal'), {
+  ssr: false,
+})
 import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
+import type { PackPhotoOrder } from '@/components/orders/PackPhotoModal'
 
 type StoredAddress = Record<string, unknown> | null
 
@@ -119,8 +123,14 @@ const filterTabs = [
 
 type TabId = (typeof filterTabs)[number]['id']
 
-type LabelTarget = { id: string; orderNumber: number; destination?: Partial<LabelAddress> }
-type NextStep = { orderNumber: number; trackingNumber: string | null }
+type LabelTarget = {
+  id: string
+  orderNumber: number
+  destination?: Partial<LabelAddress>
+  /** Whether a contents (packing) photo already exists for this order. */
+  hasPhoto?: boolean
+}
+type NextStep = { orderNumber: number; trackingNumber: string | null; needsPhoto: boolean }
 
 export default function FulfillmentPage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
@@ -135,7 +145,12 @@ export default function FulfillmentPage() {
   const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [refundOrder, setRefundOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [convertRecord, setConvertRecord] = useState<StripeQueueRecord | null>(null)
-  const [dispositionOrder, setDispositionOrder] = useState<{ id: string; orderNumber: number } | null>(null)
+  const [dispositionOrder, setDispositionOrder] = useState<{
+    id: string
+    orderNumber: number
+    hasPhoto: boolean
+  } | null>(null)
+  const [packOrder, setPackOrder] = useState<PackPhotoOrder | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
   // Sequence searches so a slow, older response can't overwrite a newer one.
   const loadSeqRef = useRef(0)
@@ -242,7 +257,7 @@ export default function FulfillmentPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/package-photos">
-              <Camera className="mr-2 h-4 w-4" /> Capture Package Photo
+              <Camera className="mr-2 h-4 w-4" /> Packing Photos
             </Link>
           </Button>
           <Button onClick={() => setNewOrderOpen(true)}>
@@ -252,28 +267,48 @@ export default function FulfillmentPage() {
       </div>
 
       {nextStep && (
-        <div className="flex flex-col gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-sm text-emerald-200">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+        <div
+          className={`flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+            nextStep.needsPhoto
+              ? 'border-amber-400/30 bg-amber-400/10'
+              : 'border-emerald-400/30 bg-emerald-400/10'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-2 text-sm ${
+              nextStep.needsPhoto ? 'text-amber-200' : 'text-emerald-200'
+            }`}
+          >
+            <CheckCircle2
+              className={`h-4 w-4 shrink-0 ${nextStep.needsPhoto ? 'text-amber-300' : 'text-emerald-300'}`}
+            />
             <span>
-              Label created for Order #{nextStep.orderNumber}
+              Order #{nextStep.orderNumber} dispositioned
               {nextStep.trackingNumber && (
                 <>
                   {' '}· tracking <span className="font-mono">{nextStep.trackingNumber}</span>
                 </>
               )}
-              . Next step: photograph the sealed package.
+              {nextStep.needsPhoto
+                ? '. No contents photo is on file — photograph the products in the box.'
+                : '. Contents photo already on file.'}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" asChild>
-              <Link href={photoHref}>
-                <Camera className="mr-2 h-4 w-4" /> Take Package Photo
-              </Link>
-            </Button>
+            {nextStep.needsPhoto && (
+              <Button size="sm" asChild>
+                <Link href={photoHref}>
+                  <Camera className="mr-2 h-4 w-4" /> Capture Contents Photo
+                </Link>
+              </Button>
+            )}
             <button
               onClick={() => setNextStep(null)}
-              className="text-emerald-200/70 transition-colors hover:text-emerald-100"
+              className={`transition-colors ${
+                nextStep.needsPhoto
+                  ? 'text-amber-200/70 hover:text-amber-100'
+                  : 'text-emerald-200/70 hover:text-emerald-100'
+              }`}
               aria-label="Dismiss"
             >
               <X className="h-4 w-4" />
@@ -499,15 +534,13 @@ export default function FulfillmentPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={advancing === `${order.id}:pack`}
-                        onClick={() => advance(order.id, 'pack')}
+                        title="Photograph the products in the box, then mark packed"
+                        onClick={() =>
+                          setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
+                        }
                       >
-                        {advancing === `${order.id}:pack` ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                        )}
-                        Mark Packed
+                        <Camera className="mr-2 h-4 w-4" />
+                        Photo & Pack
                       </Button>
                     ) : (
                       <Button
@@ -527,6 +560,7 @@ export default function FulfillmentPage() {
                           id: order.id,
                           orderNumber: order.orderNumber,
                           destination: toLabelAddress(order),
+                          hasPhoto: order.photoCount > 0,
                         })
                       }
                     >
@@ -538,7 +572,13 @@ export default function FulfillmentPage() {
                         size="sm"
                         variant="ghost"
                         title="Fulfilled outside the app? Mark it shipped/delivered manually."
-                        onClick={() => setDispositionOrder({ id: order.id, orderNumber: order.orderNumber })}
+                        onClick={() =>
+                          setDispositionOrder({
+                            id: order.id,
+                            orderNumber: order.orderNumber,
+                            hasPhoto: order.photoCount > 0,
+                          })
+                        }
                       >
                         <PackageCheck className="mr-2 h-4 w-4" /> Manual Disposition
                       </Button>
@@ -600,6 +640,18 @@ export default function FulfillmentPage() {
         />
       )}
 
+      {packOrder && (
+        <PackPhotoModal
+          open={!!packOrder}
+          onOpenChange={(open) => !open && setPackOrder(null)}
+          order={packOrder}
+          onPacked={() => {
+            setPackOrder(null)
+            load()
+          }}
+        />
+      )}
+
       {dispositionOrder && (
         <ManualDispositionModal
           open={!!dispositionOrder}
@@ -607,11 +659,13 @@ export default function FulfillmentPage() {
           orderId={dispositionOrder.id}
           orderNumber={dispositionOrder.orderNumber}
           onDone={({ orderNumber, outcome, trackingNumber }) => {
-            // Shipped packages should still get a proof-of-shipment photo;
-            // hand-delivered/pickup orders skip that step.
-            if (outcome === 'SHIPPED') {
-              setNextStep({ orderNumber, trackingNumber })
-            }
+            setNextStep({
+              orderNumber,
+              trackingNumber,
+              // Contents photo should exist for every fulfilled order; flag it
+              // when the packer never captured one.
+              needsPhoto: !dispositionOrder.hasPhoto && outcome === 'SHIPPED',
+            })
             setDispositionOrder(null)
             load()
           }}
@@ -626,7 +680,11 @@ export default function FulfillmentPage() {
           orderNumber={labelTarget.orderNumber}
           destination={labelTarget.destination}
           onCreated={({ trackingNumber }) => {
-            setNextStep({ orderNumber: labelTarget.orderNumber, trackingNumber: trackingNumber || null })
+            setNextStep({
+              orderNumber: labelTarget.orderNumber,
+              trackingNumber: trackingNumber || null,
+              needsPhoto: !labelTarget.hasPhoto,
+            })
             setLabelTarget(null)
             load()
           }}

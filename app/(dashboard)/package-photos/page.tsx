@@ -177,7 +177,8 @@ export default function PackagePhotosPage() {
           <Camera className="h-6 w-6" /> Package Photos
         </h1>
         <p className="mt-1 text-sm text-white/60">
-          Capture proof-of-shipment photos and match them to orders so clients can see them.
+          Photograph the products going into each package — open box, before sealing — and match
+          them to orders so clients can see exactly what shipped.
         </p>
       </div>
 
