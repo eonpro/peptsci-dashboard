@@ -44,6 +44,12 @@ export default function PackagePhotosPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  // Live camera capture (getUserMedia) — works on desktop and mobile.
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   const [stats, setStats] = useState<Stats | null>(null)
   const [photos, setPhotos] = useState<PhotoRow[]>([])
@@ -126,7 +132,63 @@ export default function PackagePhotosPage() {
     setNotes('')
     onFileChange(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
   }
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setCameraOpen(false)
+  }, [])
+
+  const openCamera = async () => {
+    setError(null)
+    // Phones/tablets get the native full-screen camera via the capture input.
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMobile || !navigator.mediaDevices?.getUserMedia) {
+      cameraInputRef.current?.click()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      })
+      streamRef.current = stream
+      setCameraOpen(true)
+    } catch {
+      setError('Could not access the camera. Check browser permissions, or upload a file instead.')
+    }
+  }
+
+  const capturePhoto = () => {
+    const video = videoRef.current
+    if (!video || !video.videoWidth) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          onFileChange(new File([blob], `package-${Date.now()}.jpg`, { type: 'image/jpeg' }))
+        }
+        stopCamera()
+      },
+      'image/jpeg',
+      0.9
+    )
+  }
+
+  // Attach the stream once the video element is mounted.
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraOpen])
+
+  // Stop the camera if the user navigates away with it open.
+  useEffect(() => stopCamera, [stopCamera])
 
   const handleSubmit = async () => {
     setError(null)
@@ -240,10 +302,19 @@ export default function PackagePhotosPage() {
 
             <div>
               <Label>Photo</Label>
+              {/* Plain file picker (no capture attr, so it opens the gallery/finder) */}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+              {/* Camera capture input — mobile browsers open the native camera */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
                 capture="environment"
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
                 className="hidden"
@@ -260,14 +331,41 @@ export default function PackagePhotosPage() {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
+              ) : cameraOpen ? (
+                <div className="relative mt-1 overflow-hidden rounded-xl border border-white/10 bg-black">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="max-h-72 w-full object-contain"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-3 bg-gradient-to-t from-black/70 to-transparent p-3">
+                    <Button onClick={capturePhoto} size="sm">
+                      <Camera className="mr-2 h-4 w-4" /> Capture
+                    </Button>
+                    <Button onClick={stopCamera} size="sm" variant="outline">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-1 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 py-10 text-white/50 transition-colors hover:border-white/30 hover:text-white/70"
-                >
-                  <Upload className="h-8 w-8" />
-                  <span className="text-sm">Tap to take a photo or upload</span>
-                </button>
+                <div className="mt-1 grid grid-cols-2 gap-3">
+                  <button
+                    onClick={openCamera}
+                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 py-8 text-white/50 transition-colors hover:border-white/30 hover:text-white/70"
+                  >
+                    <Camera className="h-7 w-7" />
+                    <span className="text-sm">Take a photo</span>
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 py-8 text-white/50 transition-colors hover:border-white/30 hover:text-white/70"
+                  >
+                    <Upload className="h-7 w-7" />
+                    <span className="text-sm">Upload a file</span>
+                  </button>
+                </div>
               )}
             </div>
 
