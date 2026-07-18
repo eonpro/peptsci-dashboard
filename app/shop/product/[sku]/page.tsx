@@ -12,6 +12,8 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { getUserMetadata } from '@/lib/roles'
 import { applyClientPricing } from '@/lib/shop-pricing'
+import { hasPublishedCoa } from '@/lib/coa'
+import { FileCheck2 } from 'lucide-react'
 import type { ShopProduct } from '@/lib/types/shop'
 
 // Client-specific pricing requires per-request auth context.
@@ -101,6 +103,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const detailedData = buildDetailData(product)
+  const coaAvailable = await hasPublishedCoa(product.sku)
 
   return (
     <div className="space-y-8">
@@ -171,6 +174,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
               Contact us for volume pricing on orders of 10+ units
             </p>
           </div>
+
+          {/* Certificate of Analysis */}
+          {coaAvailable && (
+            <Link href={`/shop/product/${encodeURIComponent(product.sku)}/coa`} className="block">
+              <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6 hover:border-brand-primary/60 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary/15 text-[#7d90ff]">
+                    <FileCheck2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-white">Certificate of Analysis</h2>
+                    <p className="text-white/50 text-xs">
+                      View the supplier COA — purity, assay, and identity results
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
 
           {/* Product specifications */}
           {product.specifications && (

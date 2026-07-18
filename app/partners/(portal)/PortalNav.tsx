@@ -56,10 +56,11 @@ export function PortalNav({
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition',
                 active
-                  ? 'border-[#7b8cff] font-semibold text-white'
+                  ? 'border-primary font-semibold text-white'
                   : 'border-transparent text-white/60 hover:text-white'
               )}
             >

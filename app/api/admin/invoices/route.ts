@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 const listQuery = z.object({
   clientId: z.string().optional(),
   status: z.enum(['DRAFT', 'OPEN', 'PARTIAL', 'PAID', 'OVERDUE', 'VOID']).optional(),
+  search: z.string().max(120).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
 })
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
     const result = await listInvoices({
       clientId: q.clientId,
       status: q.status as InvoiceStatus | undefined,
+      search: q.search,
       page: q.page,
       limit: q.limit,
     })

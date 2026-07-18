@@ -121,7 +121,7 @@ export default function RefundOrderModal({
           </div>
         ) : done ? (
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <CheckCircle2 className="h-10 w-10 text-green-400" />
             <p className="font-medium">{formatPrice(done.amount)} refunded</p>
             <p className="text-sm text-muted-foreground">
               {done.fullyRefunded
@@ -133,13 +133,13 @@ export default function RefundOrderModal({
             </Button>
           </div>
         ) : !info?.hasStripePayment ? (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-300">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             This order was not paid by card through Stripe (billed to account or unpaid), so it
             cannot be refunded here.
           </div>
         ) : info.remaining <= 0 ? (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-300">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             This order is already fully refunded.
           </div>
@@ -174,7 +174,7 @@ export default function RefundOrderModal({
                 }}
               />
               {!amountValid && amount !== '' && (
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-red-400">
                   Enter an amount between $0.01 and {formatPrice(info.remaining)}.
                 </p>
               )}
@@ -198,7 +198,7 @@ export default function RefundOrderModal({
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 {error}
               </div>

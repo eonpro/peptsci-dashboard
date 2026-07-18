@@ -105,6 +105,8 @@ interface SchemaProbe {
   commissionEntryTable: boolean
   clientPartnerOrgIdColumn: boolean
   userRolePartnerValue: boolean
+  retailOrderPaymentStatusColumn: boolean
+  productCoaTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -117,7 +119,7 @@ async function probeSchema(): Promise<SchemaProbe> {
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
         'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation',
         'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
-        'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry'
+        'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -186,6 +188,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     userRolePartnerValue: enumValues.some(
       (v) => v.typname === 'UserRole' && v.enumlabel === 'PARTNER'
     ),
+    retailOrderPaymentStatusColumn: colKeys.has('RetailOrder.paymentStatus'),
+    productCoaTable: tableNames.has('ProductCoa'),
   }
 }
 

@@ -2321,3 +2321,35 @@ Note: `vercel env pull` redacts sensitive values (empty strings), so local scrip
 - `prisma migrate dev` in this repo can leave a stale generated client; run `npx prisma generate` if tsc reports missing model delegates right after a migration.
 - Public pages that live under an authed route group need their own path carve-outs in BOTH middleware `isPublicRoute` and the portal layout structure (`/partners/apply` + `/partners/agreement` sit outside `(portal)` so the MSA gate can't loop).
 - CSV-download anchors trip `@next/next/no-html-link-for-pages`; keep `<a>` (Link would prefetch the file) and disable the rule inline.
+
+---
+
+## Platform UI/UX Overhaul (Jul 17 2026) [EXECUTOR — plan: platform_ui_ux_overhaul]
+
+Three parallel audits (client ordering, admin ops, design foundation + partner portal) → phased overhaul. Owner chose: foundation first, full redesign authorized.
+
+### Project Status Board
+| Phase | Scope | Status |
+| ----- | ----- | ------ |
+| P0 broken flows | PDP add-to-cart wired + catalog links to PDP (real data, fake "≥99% purity" removed); desktop sidebar filters wired via new `CatalogShell` (lifted state incl. price/stock); mobile Search tab `/shop#search` focus (was 404); fulfillment + invoices real server pagination (was silent 25-cap) + failed actions toast instead of wiping list; storefronts admin client Select (fetchClients bug) + toasts; Help&Support → mailto, dead System Settings removed; placeholder 1-800 removed; reps `window.prompt` → dialog; inventory catalog reserved col real | ✅ |
+| P1 foundation | `ThemeScope` puts `.dark` on `<html>` per layout (kills portal-escape bug class); sf layout no longer nests `<html>/<body>` (generateMetadata + hoisted font link); border compat → semantic `--border`; reduced-motion support; scoped transitions (no `transition:all`); brittle `[class*=…]` radius hacks removed; Clerk colorPrimary #213cef; new primitives: tabs, tooltip, skeleton, alert-dialog, switch, progress, alert, form (rhf+zod), EmptyState | ✅ |
+| P2 surface migration | Modal re-theme to semantic tokens (subagent: orders/*, FedEx, ReceiveInventory, returns, AddCustomer — all light `gray-*`/`bg-white`/`*-50` chrome + ACCENT hex removed); partners-admin re-theme (subagent — zero slate/light classes remain); partner portal rebuilt on primitives (subagent — Table/Badge/Select/Input/Button/Progress/Skeleton/EmptyState/AlertDialog across all 15 portal files + apply/agreement; api page got loading skeletons + revoke/delete confirms + toggle toast; canvas signature a11y); orders-expenses + partners-admin badges fixed; SavedCards delete confirm (AlertDialog) + loading; NotificationBell error state + retry; StorefrontCartDrawer → Sheet (focus trap/Esc/aria); po-generator + clients + inventory toasts; ConvertStripeModal total-vs-captured mismatch warning | ✅ |
+| P3 fulfillment | Guided row (`components/fulfillment/FulfillmentOrderRow`): one primary next-step action (Pick → Photo&Pack → Label), overflow menu for the rest; honest payment badges (AUTHORIZED/PENDING/FAILED distinct from unpaid); bulk select + bulk Mark Picked; empty state w/ CTAs; From-Stripe tab search works (client filter); `?search=` deep link; Package Photos in Manage nav; ⌘K now searches clients/invoices/returns/partner orgs (DB-backed in /api/search) | ✅ |
+| P4 checkout/billing | Shop checkout: field-level validation (email/phone/ZIP) w/ inline errors, review-before-pay card on payment step, compact mobile bar on pay step, prefill-failure notice; double-submit ref guards on terms + saved-card paths; CartDrawer copy aligned w/ checkout-core ("FREE 2-day"); invoices list search (API `search` param) + sonner + DRAFT hides Email + Void AlertDialog; **SF RETAIL PAYMENTS**: RetailOrder gains paymentStatus/stripePaymentIntentId/paidAt (migration `20260717203000_add_retail_order_payment`, probe `retailOrderPaymentStatusColumn`), checkout creates card PI (metadata.retailOrderId, graceful degrade when Stripe unset), `/api/storefront/checkout/confirm` public reconcile, webhook branch, `StorefrontPaymentForm` (Elements) + Pay step + honest paid/pending/unpaid confirmation | ✅ |
+| P5 catalog/orders/growth | Cart line keys unified (SKU-first across card/PDP/BuyAgain); stale-price revalidation on cart restore (`POST /api/shop/cart/validate` + REFRESH_PRICES + toast); orders list tracking now links `trackingUrl`; sf account orders friendly statuses + error state; `/join/<code>` → branded `/join/welcome` landing (invalid codes → sign-up, no false attribution) | ✅ |
+
+### Verification (final)
+- `tsc --noEmit` clean after all merges; `next lint` zero errors (pre-existing warnings only); 303/303 unit tests pass; clean `rm -rf .next && next build` green (4m20s).
+- Local migration `20260717203000_add_retail_order_payment` applied (`prisma migrate deploy` + generate).
+- Visual smoke (dev server, unauthenticated surfaces): `/join/welcome` and `/partners/apply` render correctly post-rebuild; authed dashboard/shop surfaces gated by Clerk sign-in in the test browser — owner should eyeball fulfillment, checkout, and partner portal after deploy.
+- Dev-only note: a stale `.next` from a prod build makes `next dev` 500 with routes-manifest ENOENT — `rm -rf .next` before dev.
+
+### ⚠️ Go-live notes
+1. Prod migration required: `20260717203000_add_retail_order_payment` via POST /api/admin/db/migrate (SUPER_ADMIN).
+2. Storefront payments degrade gracefully when Stripe is unconfigured (order placed unpaid + honest copy).
+3. Deviations (justified): shop catalog card does NOT auto-open cart drawer (persistent in-card qty control is bulk-friendly feedback; PDP does open it); onboarding→shop theme handoff left as-is; shop order detail invoice link stays on list (no invoice detail page exists).
+
+### Lessons (this effort)
+- Radix portals escape a wrapper-scoped `.dark`; hoisting the class to `<html>` via a mounted client component (ThemeScope) fixes every portal at once while keeping the SSR wrapper class for no-flash.
+- `stripe.paymentIntents.retrieve(id, opts)` — RequestOptions must be the THIRD arg (`retrieve(id, {}, opts)`), the second is params.
+- A nested layout must never render `<html>/<body>` (app/sf did); use generateMetadata + a `<link precedence>` for fonts instead.

@@ -174,7 +174,21 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                       <div className="mt-4 flex items-center gap-2 text-sm">
                         <Truck className="h-4 w-4 text-white/40" />
                         <span className="text-white/60">{order.carrier || 'Tracking'}:</span>
-                        <code className="bg-white/10 text-white px-2 py-1 rounded text-xs">{order.trackingNumber}</code>
+                        {order.trackingUrl ? (
+                          <a
+                            href={order.trackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded bg-white/10 px-2 py-1 font-mono text-xs text-blue-300 underline-offset-2 hover:underline"
+                          >
+                            {order.trackingNumber}
+                          </a>
+                        ) : (
+                          <code className="bg-white/10 text-white px-2 py-1 rounded text-xs">
+                            {order.trackingNumber}
+                          </code>
+                        )}
                       </div>
                     )}
 

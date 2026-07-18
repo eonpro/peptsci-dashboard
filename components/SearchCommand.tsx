@@ -11,7 +11,17 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Users, Package, DollarSign, ShoppingCart, Loader2 } from 'lucide-react'
+import {
+  Users,
+  Package,
+  DollarSign,
+  ShoppingCart,
+  Loader2,
+  Building2,
+  ReceiptText,
+  RotateCcw,
+  Handshake,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SearchResult } from '@/lib/search'
 
@@ -25,6 +35,10 @@ const typeIcons = {
   order: ShoppingCart,
   product: DollarSign,
   inventory: Package,
+  client: Building2,
+  invoice: ReceiptText,
+  return: RotateCcw,
+  partner: Handshake,
 }
 
 const typeLabels = {
@@ -32,6 +46,10 @@ const typeLabels = {
   order: 'Orders',
   product: 'Products',
   inventory: 'Inventory',
+  client: 'Clients',
+  invoice: 'Invoices',
+  return: 'Returns',
+  partner: 'Partner Orgs',
 }
 
 export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
@@ -113,7 +131,7 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <Command className="rounded-lg border shadow-md">
         <CommandInput
-          placeholder="Search customers, orders, products..."
+          placeholder="Search customers, orders, invoices, clients, returns..."
           value={query}
           onValueChange={setQuery}
         />
@@ -158,7 +176,11 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
                           type === 'customer' && 'text-blue-500',
                           type === 'order' && 'text-green-500',
                           type === 'product' && 'text-purple-500',
-                          type === 'inventory' && 'text-orange-500'
+                          type === 'inventory' && 'text-orange-500',
+                          type === 'client' && 'text-sky-500',
+                          type === 'invoice' && 'text-emerald-500',
+                          type === 'return' && 'text-amber-500',
+                          type === 'partner' && 'text-pink-500'
                         )}
                       />
                       <div className="flex flex-col">

@@ -533,6 +533,8 @@ async function requireInvoice(invoiceId: string): Promise<InvoiceWithRelations> 
 export interface ListInvoicesParams {
   clientId?: string
   status?: PrismaInvoiceStatus
+  /** Free text: invoice number (with or without "INV-"/#) or client name. */
+  search?: string
   page?: number
   limit?: number
 }
@@ -541,9 +543,21 @@ export async function listInvoices(params: ListInvoicesParams = {}) {
   const client = db()
   const page = Math.max(1, params.page ?? 1)
   const limit = Math.min(100, Math.max(1, params.limit ?? 25))
+  const search = params.search?.trim()
+  let searchWhere: Prisma.InvoiceWhereInput | undefined
+  if (search) {
+    const asNumber = Number(search.replace(/^#|^inv-?0*/i, ''))
+    searchWhere = {
+      OR: [
+        ...(Number.isInteger(asNumber) && asNumber > 0 ? [{ invoiceNumber: asNumber }] : []),
+        { client: { organizationName: { contains: search, mode: 'insensitive' as const } } },
+      ],
+    }
+  }
   const where: Prisma.InvoiceWhereInput = {
     ...(params.clientId ? { clientId: params.clientId } : {}),
     ...(params.status ? { status: params.status } : {}),
+    ...(searchWhere ?? {}),
   }
   const [rows, total] = await Promise.all([
     client.invoice.findMany({

@@ -1,15 +1,28 @@
 import Link from 'next/link'
+import { Building2 } from 'lucide-react'
 import { requirePartner } from '@/lib/partners/auth'
 import { clinicBook } from '@/lib/partners/queries'
 import { formatCents } from '@/lib/partners/commission'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 export const dynamic = 'force-dynamic'
 
 const STAGE_BADGE: Record<string, string> = {
-  LEAD: 'bg-slate-100 text-slate-600',
-  ACTIVE: 'bg-emerald-100 text-emerald-700',
-  AT_RISK: 'bg-amber-100 text-amber-700',
-  DORMANT: 'bg-red-100 text-red-600',
+  LEAD: 'border-slate-200 bg-slate-100 text-slate-600',
+  ACTIVE: 'border-emerald-200 bg-emerald-100 text-emerald-700',
+  AT_RISK: 'border-amber-200 bg-amber-100 text-amber-700',
+  DORMANT: 'border-red-200 bg-red-100 text-red-600',
 }
 
 export default async function PartnerClinicsPage() {
@@ -33,58 +46,72 @@ export default async function PartnerClinicsPage() {
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/partners/exports/clinics"
-          className="rounded-lg border px-3 py-1.5 text-sm text-slate-600 hover:bg-white"
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
         >
           Export CSV
         </a>
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3">Clinic</th>
-              <th className="px-4 py-3">Stage</th>
-              {ctx.kind === 'ORG' && <th className="px-4 py-3">Rep</th>}
-              <th className="px-4 py-3">Since</th>
-              <th className="px-4 py-3">Last order</th>
-              <th className="px-4 py-3 text-right">Revenue</th>
-              <th className="px-4 py-3 text-right">Your commission</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50">
+              <TableHead className="text-xs uppercase tracking-wide">Clinic</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Stage</TableHead>
+              {ctx.kind === 'ORG' && (
+                <TableHead className="text-xs uppercase tracking-wide">Rep</TableHead>
+              )}
+              <TableHead className="text-xs uppercase tracking-wide">Since</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Last order</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Revenue</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Your commission</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                  No clinics yet. Share a referral link to start building your book.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <EmptyState
+                    icon={Building2}
+                    title="No clinics yet"
+                    description="Share a referral link to start building your book."
+                    className="py-6"
+                  />
+                </TableCell>
+              </TableRow>
             )}
             {rows.map((row) => (
-              <tr key={row.clientId} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="px-4 py-3">
+              <TableRow key={row.clientId}>
+                <TableCell className="py-3">
                   <Link
                     href={`/partners/clinics/${row.clientId}`}
-                    className="font-medium text-[#213cef] hover:underline"
+                    className="font-medium text-primary hover:underline"
                   >
                     {row.organizationName}
                   </Link>
                   {row.contactName && <div className="text-xs text-slate-400">{row.contactName}</div>}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_BADGE[row.stage] ?? STAGE_BADGE.ACTIVE}`}>
+                </TableCell>
+                <TableCell className="py-3">
+                  <Badge
+                    variant="outline"
+                    className={cn('font-medium', STAGE_BADGE[row.stage] ?? STAGE_BADGE.ACTIVE)}
+                  >
                     {row.stage.replace('_', ' ')}
-                  </span>
-                </td>
-                {ctx.kind === 'ORG' && <td className="px-4 py-3">{row.repName || '—'}</td>}
-                <td className="px-4 py-3">{row.createdAt.toLocaleDateString()}</td>
-                <td className="px-4 py-3">{row.lastOrderAt ? row.lastOrderAt.toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-3 text-right">{formatCents(row.revenueCents)}</td>
-                <td className="px-4 py-3 text-right font-medium">{formatCents(row.commissionCents)}</td>
-              </tr>
+                  </Badge>
+                </TableCell>
+                {ctx.kind === 'ORG' && <TableCell className="py-3">{row.repName || '—'}</TableCell>}
+                <TableCell className="py-3">{row.createdAt.toLocaleDateString()}</TableCell>
+                <TableCell className="py-3">
+                  {row.lastOrderAt ? row.lastOrderAt.toLocaleDateString() : '—'}
+                </TableCell>
+                <TableCell className="py-3 text-right">{formatCents(row.revenueCents)}</TableCell>
+                <TableCell className="py-3 text-right font-medium">
+                  {formatCents(row.commissionCents)}
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   )

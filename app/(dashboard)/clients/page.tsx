@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Building2, Search, Loader2, ChevronRight, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import AddClientDialog from './AddClientDialog'
 import DeleteClientButton from './DeleteClientButton'
 
@@ -45,9 +46,12 @@ export default function ClientsPage() {
 
   useEffect(() => {
     fetch('/api/admin/clients')
-      .then((r) => (r.ok ? r.json() : { clients: [] }))
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Failed to load clients')
+        return r.json()
+      })
       .then((data) => setClients(data.clients ?? []))
-      .catch(() => {})
+      .catch(() => toast.error('Failed to load clients — refresh to retry'))
       .finally(() => setLoading(false))
   }, [])
 

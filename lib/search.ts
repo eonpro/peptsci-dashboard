@@ -3,7 +3,7 @@ import type { Inventory } from './inventory'
 import type { PriceSheet } from './pricing'
 
 export interface SearchResult {
-  type: 'customer' | 'order' | 'product' | 'inventory'
+  type: 'customer' | 'order' | 'product' | 'inventory' | 'client' | 'invoice' | 'return' | 'partner'
   id: string
   title: string
   subtitle: string

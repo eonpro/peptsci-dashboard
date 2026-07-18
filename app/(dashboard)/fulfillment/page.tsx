@@ -14,21 +14,15 @@ import {
   Search,
   Package,
   Camera,
-  ExternalLink,
   Loader2,
-  Printer,
-  ClipboardList,
-  FileText,
   CheckCircle2,
   Plus,
-  CreditCard,
-  Undo2,
   Zap,
   ArrowRight,
   X,
-  PackageCheck,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
+import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
 
 // The FedEx label modal (and its form/stripe deps) only matters once a rep
 // opens it; load it on demand instead of in the page's initial bundle.
@@ -55,35 +49,6 @@ const PackPhotoModal = dynamic(() => import('@/components/orders/PackPhotoModal'
 })
 import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
 import type { PackPhotoOrder } from '@/components/orders/PackPhotoModal'
-
-type StoredAddress = Record<string, unknown> | null
-
-type OrderRow = {
-  id: string
-  orderNumber: number
-  status: string
-  paymentStatus: string
-  shippingStatus: string | null
-  carrier: string | null
-  trackingNumber: string | null
-  trackingUrl: string | null
-  total: number
-  createdAt: string
-  shippedAt: string | null
-  shippingAddress: StoredAddress
-  client: { id: string; organizationName: string; contactName: string | null; contactPhone: string | null } | null
-  items: { name: string; dose: string | null; quantity: number }[]
-  fulfillmentStage: 'NOT_STARTED' | 'PICKING' | 'PICKED' | 'PACKED'
-  photoCount: number
-  labelCount: number
-}
-
-const STAGE_META: Record<OrderRow['fulfillmentStage'], { label: string; className: string }> = {
-  NOT_STARTED: { label: 'Not started', className: 'border-white/15 text-white/50' },
-  PICKING: { label: 'Picking', className: 'border-amber-400/40 text-amber-300' },
-  PICKED: { label: 'Picked', className: 'border-sky-400/40 text-sky-300' },
-  PACKED: { label: 'Packed', className: 'border-emerald-400/40 text-emerald-300' },
-}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
@@ -160,6 +125,8 @@ export default function FulfillmentPage() {
   } | null>(null)
   const [packOrder, setPackOrder] = useState<PackPhotoOrder | null>(null)
   const [advancing, setAdvancing] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
   // Sequence searches so a slow, older response can't overwrite a newer one.
   const loadSeqRef = useRef(0)
 
@@ -178,6 +145,17 @@ export default function FulfillmentPage() {
   useEffect(() => {
     loadQueue()
   }, [loadQueue])
+
+  // Deep-links like /fulfillment?search=1234 (e.g. from a return's order link)
+  // pre-fill the search and widen to the All tab so the order is findable
+  // regardless of its shipped state.
+  useEffect(() => {
+    const initial = new URLSearchParams(window.location.search).get('search')
+    if (initial) {
+      setSearch(initial)
+      setShipped('all')
+    }
+  }, [])
 
   const load = useCallback(() => {
     const seq = ++loadSeqRef.current
@@ -211,6 +189,7 @@ export default function FulfillmentPage() {
             total: data.meta?.total ?? (data.orders?.length ?? 0),
             totalPages: data.meta?.totalPages ?? 1,
           })
+          setSelectedIds(new Set())
         }
       })
       .catch((e) => {
@@ -255,6 +234,48 @@ export default function FulfillmentPage() {
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  // Bulk "Mark Picked" over the selected rows that are still pickable.
+  const pickableSelected = orders.filter(
+    (o) =>
+      selectedIds.has(o.id) &&
+      (o.fulfillmentStage === 'NOT_STARTED' || o.fulfillmentStage === 'PICKING')
+  )
+  const bulkMarkPicked = async () => {
+    if (pickableSelected.length === 0) return
+    setBulkBusy(true)
+    let ok = 0
+    let failed = 0
+    for (const order of pickableSelected) {
+      try {
+        const r = await fetch(`/api/admin/orders/${order.id}/fulfillment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'pick' }),
+        })
+        if (!r.ok) throw new Error()
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkBusy(false)
+    if (ok > 0) toast.success(`${ok} order${ok === 1 ? '' : 's'} marked picked`)
+    if (failed > 0) toast.error(`${failed} order${failed === 1 ? '' : 's'} failed to update`)
+    load()
+  }
+
+  // The From Stripe tab loads the whole queue in one shot; apply the search
+  // box client-side there so it isn't a dead control on that tab.
+  const visibleQueue = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return queue
+    return queue.filter((rec) =>
+      [rec.customerName, rec.customerEmail, rec.orderRef, rec.product]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    )
+  }, [queue, search])
 
   const photoHref = useMemo(() => {
     if (!nextStep) return '/package-photos'
@@ -402,14 +423,16 @@ export default function FulfillmentPage() {
           ) : error ? (
             <p className="py-8 text-center text-red-400">{error}</p>
           ) : shipped === 'stripe' ? (
-            queue.length === 0 ? (
+            visibleQueue.length === 0 ? (
               <div className="flex flex-col items-center py-12 text-white/50">
                 <Package className="mb-3 h-10 w-10" />
-                No unconverted Stripe payments in this window.
+                {search.trim()
+                  ? 'No Stripe payments match this search.'
+                  : 'No unconverted Stripe payments in this window.'}
               </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {queue.map((rec) => (
+                {visibleQueue.map((rec) => (
                   <div key={rec.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -434,185 +457,115 @@ export default function FulfillmentPage() {
               </div>
             )
           ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center py-12 text-white/50">
+            <div className="flex flex-col items-center py-12 text-center text-white/50">
               <Package className="mb-3 h-10 w-10" />
-              No orders found.
+              <p className="font-medium text-white/70">
+                {search.trim() ? 'No orders match this search.' : 'No orders in this view.'}
+              </p>
+              <p className="mt-1 max-w-sm text-sm">
+                {search.trim()
+                  ? 'Try a different order #, tracking number, or client name.'
+                  : 'Create a manual order, or convert a paid Stripe payment into a fulfillable order.'}
+              </p>
+              {!search.trim() && (
+                <div className="mt-4 flex gap-2">
+                  <Button size="sm" onClick={() => setNewOrderOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> New Order
+                  </Button>
+                  {queue.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => setShipped('stripe')}>
+                      <Zap className="mr-2 h-4 w-4" /> Review From Stripe ({queue.length})
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="divide-y divide-white/5">
-              {orders.map((order) => (
-                <div key={order.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white">Order #{order.orderNumber}</span>
-                      <Badge variant="outline" className="text-xs">{order.status}</Badge>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${
-                          order.paymentStatus === 'CAPTURED'
-                            ? 'border-emerald-400/40 text-emerald-300'
-                            : order.paymentStatus === 'REFUNDED'
-                              ? 'border-white/20 text-white/50'
-                              : 'border-amber-400/40 text-amber-300'
-                        }`}
-                      >
-                        {order.paymentStatus === 'CAPTURED'
-                          ? 'Paid'
-                          : order.paymentStatus === 'REFUNDED'
-                            ? 'Refunded'
-                            : 'Unpaid'}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${STAGE_META[order.fulfillmentStage].className}`}
-                      >
-                        {STAGE_META[order.fulfillmentStage].label}
-                      </Badge>
-                      {order.photoCount > 0 && (
-                        <span className="inline-flex items-center gap-1 text-xs text-white/50">
-                          <Camera className="h-3 w-3" /> {order.photoCount}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 truncate text-sm text-white/60">
-                      {order.client?.organizationName || 'Unknown client'} · {formatDate(order.createdAt)} ·{' '}
-                      {formatPrice(order.total)}
-                    </p>
-                    {(order.items?.length ?? 0) > 0 && (
-                      <p className="mt-0.5 truncate text-sm text-white/70">
-                        {order.items
-                          .map(
-                            (it) =>
-                              `${it.quantity}× ${it.name}${it.dose ? ` ${it.dose}` : ''}`
-                          )
-                          .join(' · ')}
-                      </p>
-                    )}
-                    {order.trackingNumber && (
-                      <div className="mt-1 flex items-center gap-2 text-xs">
-                        <Truck className="h-3 w-3 text-blue-400" />
-                        <span className="text-white/50">{order.carrier || 'Tracking'}:</span>
-                        {order.trackingUrl ? (
-                          <a
-                            href={order.trackingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-mono text-blue-400 hover:underline"
-                          >
-                            {order.trackingNumber}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="font-mono text-white/70">{order.trackingNumber}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <Button size="sm" variant="ghost" asChild>
-                      <a
-                        href={`/api/admin/orders/${order.id}/pick-list/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ClipboardList className="mr-2 h-4 w-4" /> Pick List
-                      </a>
-                    </Button>
-                    <Button size="sm" variant="ghost" asChild>
-                      <a
-                        href={`/api/admin/orders/${order.id}/packing-slip/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <FileText className="mr-2 h-4 w-4" /> Packing Slip
-                      </a>
-                    </Button>
-                    {order.paymentStatus !== 'CAPTURED' && order.paymentStatus !== 'REFUNDED' && (
-                      <Button size="sm" variant="outline" onClick={() => setChargeOrder({ id: order.id, orderNumber: order.orderNumber })}>
-                        <CreditCard className="mr-2 h-4 w-4" /> Take Payment
-                      </Button>
-                    )}
-                    {order.paymentStatus === 'CAPTURED' && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-white/50 hover:text-red-300"
-                        onClick={() => setRefundOrder({ id: order.id, orderNumber: order.orderNumber })}
-                      >
-                        <Undo2 className="mr-2 h-4 w-4" /> Refund
-                      </Button>
-                    )}
-                    {order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING' ? (
+            <>
+              {shipped === 'false' && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-white/10 pb-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-white/60">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-brand-primary"
+                      checked={selectedIds.size > 0 && selectedIds.size === orders.length}
+                      onChange={(e) =>
+                        setSelectedIds(
+                          e.target.checked ? new Set(orders.map((o) => o.id)) : new Set()
+                        )
+                      }
+                      aria-label="Select all orders on this page"
+                    />
+                    Select all
+                  </label>
+                  {selectedIds.size > 0 && (
+                    <>
+                      <span className="text-sm text-white/50">{selectedIds.size} selected</span>
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={advancing === `${order.id}:pick`}
-                        onClick={() => advance(order.id, 'pick')}
+                        disabled={bulkBusy || pickableSelected.length === 0}
+                        onClick={bulkMarkPicked}
+                        title={
+                          pickableSelected.length === 0
+                            ? 'No selected orders are in a pickable stage'
+                            : undefined
+                        }
                       >
-                        {advancing === `${order.id}:pick` ? (
+                        {bulkBusy ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <CheckCircle2 className="mr-2 h-4 w-4" />
                         )}
-                        Mark Picked
+                        Mark Picked ({pickableSelected.length})
                       </Button>
-                    ) : order.fulfillmentStage === 'PICKED' ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        title="Photograph the products in the box, then mark packed"
-                        onClick={() =>
-                          setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
-                        }
-                      >
-                        <Camera className="mr-2 h-4 w-4" />
-                        Photo & Pack
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={advancing === `${order.id}:reset`}
-                        onClick={() => advance(order.id, 'reset')}
-                      >
-                        Reset
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        setLabelTarget({
-                          id: order.id,
-                          orderNumber: order.orderNumber,
-                          destination: toLabelAddress(order),
-                          hasPhoto: order.photoCount > 0,
-                        })
-                      }
-                    >
-                      <Printer className="mr-2 h-4 w-4" />
-                      {order.trackingNumber ? 'New Label' : 'Create Label'}
-                    </Button>
-                    {!order.trackingNumber && order.shippingStatus !== 'SHIPPED' && order.shippingStatus !== 'DELIVERED' && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        title="Fulfilled outside the app? Mark it shipped/delivered manually."
-                        onClick={() =>
-                          setDispositionOrder({
-                            id: order.id,
-                            orderNumber: order.orderNumber,
-                            hasPhoto: order.photoCount > 0,
-                          })
-                        }
-                      >
-                        <PackageCheck className="mr-2 h-4 w-4" /> Manual Disposition
-                      </Button>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
+              )}
+              <div className="divide-y divide-white/5">
+                {orders.map((order) => (
+                  <FulfillmentOrderRow
+                    key={order.id}
+                    order={order}
+                    advancing={advancing}
+                    selected={selectedIds.has(order.id)}
+                    onSelectChange={
+                      shipped === 'false'
+                        ? (checked) =>
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev)
+                              if (checked) next.add(order.id)
+                              else next.delete(order.id)
+                              return next
+                            })
+                        : undefined
+                    }
+                    onAdvance={advance}
+                    onCharge={() => setChargeOrder({ id: order.id, orderNumber: order.orderNumber })}
+                    onRefund={() => setRefundOrder({ id: order.id, orderNumber: order.orderNumber })}
+                    onPack={() =>
+                      setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
+                    }
+                    onLabel={() =>
+                      setLabelTarget({
+                        id: order.id,
+                        orderNumber: order.orderNumber,
+                        destination: toLabelAddress(order),
+                        hasPhoto: order.photoCount > 0,
+                      })
+                    }
+                    onDisposition={() =>
+                      setDispositionOrder({
+                        id: order.id,
+                        orderNumber: order.orderNumber,
+                        hasPhoto: order.photoCount > 0,
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </>
           )}
           {shipped !== 'stripe' && !loading && !error && meta.total > 0 && (
             <Pagination

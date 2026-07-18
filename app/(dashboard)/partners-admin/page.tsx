@@ -28,9 +28,9 @@ interface OrgRow {
 }
 
 const STATUS_BADGE: Record<OrgRow['status'], string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
-  ACTIVE: 'bg-emerald-100 text-emerald-800',
-  SUSPENDED: 'bg-red-100 text-red-700',
+  PENDING: 'bg-amber-500/15 text-amber-300 border border-amber-400/30',
+  ACTIVE: 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30',
+  SUSPENDED: 'bg-red-500/15 text-red-300 border border-red-400/30',
 }
 
 export default function PartnersAdminPage() {
@@ -94,10 +94,10 @@ export default function PartnersAdminPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Handshake className="h-6 w-6 text-slate-500" />
+          <Handshake className="h-6 w-6 text-muted-foreground" />
           <div>
             <h1 className="text-2xl font-bold">Partners</h1>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               Affiliate sales organizations, reps, commissions, and payouts.
             </p>
           </div>
@@ -116,11 +116,11 @@ export default function PartnersAdminPage() {
         <Card>
           <CardContent className="pt-6">
             <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <input name="name" required placeholder="Organization name *" className="rounded-md border px-3 py-2 text-sm" />
-              <input name="contactName" placeholder="Contact name" className="rounded-md border px-3 py-2 text-sm" />
-              <input name="contactEmail" type="email" required placeholder="Contact email *" className="rounded-md border px-3 py-2 text-sm" />
-              <input name="contactPhone" placeholder="Phone" className="rounded-md border px-3 py-2 text-sm" />
-              <select name="compensationModel" className="rounded-md border px-3 py-2 text-sm">
+              <input name="name" required placeholder="Organization name *" className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
+              <input name="contactName" placeholder="Contact name" className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
+              <input name="contactEmail" type="email" required placeholder="Contact email *" className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
+              <input name="contactPhone" placeholder="Phone" className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
+              <select name="compensationModel" className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground">
                 <option value="COMMISSION">Commission (% of revenue)</option>
                 <option value="MARGIN">Margin (price above floor)</option>
               </select>
@@ -131,7 +131,7 @@ export default function PartnersAdminPage() {
                 min="0"
                 max="100"
                 placeholder="Commission rate % (commission model)"
-                className="rounded-md border px-3 py-2 text-sm"
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
               <div className="sm:col-span-2 lg:col-span-3">
                 <Button type="submit" size="sm" disabled={creating}>
@@ -145,7 +145,7 @@ export default function PartnersAdminPage() {
 
       {pending.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-amber-700">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-amber-300">
             Pending applications ({pending.length})
           </h2>
           <OrgTable orgs={pending} />
@@ -153,16 +153,16 @@ export default function PartnersAdminPage() {
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Partner organizations
         </h2>
         {loading ? (
-          <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+          <p className="py-8 text-center text-sm text-muted-foreground/70">Loading…</p>
         ) : rest.length === 0 && pending.length === 0 ? (
           <Card>
-            <CardContent className="py-10 text-center text-sm text-slate-500">
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
               No partner orgs yet. Share the application link:{' '}
-              <code className="rounded bg-slate-100 px-1.5 py-0.5">/partners/apply</code>
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">/partners/apply</code>
             </CardContent>
           </Card>
         ) : (
@@ -179,7 +179,7 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-3">Organization</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Model</th>
@@ -193,17 +193,17 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
           </thead>
           <tbody>
             {orgs.map((org) => (
-              <tr key={org.id} className="border-b last:border-0 hover:bg-slate-50">
+              <tr key={org.id} className="border-b last:border-0 hover:bg-muted/40">
                 <td className="px-4 py-3">
-                  <Link href={`/partners-admin/${org.id}`} className="font-medium text-blue-700 hover:underline">
+                  <Link href={`/partners-admin/${org.id}`} className="font-medium text-primary hover:underline">
                     {org.name}
                   </Link>
-                  <div className="text-xs text-slate-500">{org.contactEmail}</div>
+                  <div className="text-xs text-muted-foreground">{org.contactEmail}</div>
                 </td>
                 <td className="px-4 py-3">
                   <Badge className={STATUS_BADGE[org.status]}>{org.status}</Badge>
                   {!org.hasLogin && org.status === 'ACTIVE' && (
-                    <div className="mt-1 text-[11px] text-amber-600">Invite pending</div>
+                    <div className="mt-1 text-[11px] text-amber-400">Invite pending</div>
                   )}
                 </td>
                 <td className="px-4 py-3">{org.compensationModel === 'MARGIN' ? 'Margin' : 'Commission'}</td>
@@ -213,10 +213,10 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
                 <td className="px-4 py-3 text-right">{org.clientCount}</td>
                 <td className="px-4 py-3 text-right">{org.repCount}</td>
                 <td className="px-4 py-3 text-right">{formatCents(org.revenueCents)}</td>
-                <td className="px-4 py-3 text-right font-medium text-amber-700">
+                <td className="px-4 py-3 text-right font-medium text-amber-300">
                   {formatCents(org.unpaidCents)}
                 </td>
-                <td className="px-4 py-3 text-right text-emerald-700">{formatCents(org.paidCents)}</td>
+                <td className="px-4 py-3 text-right text-emerald-300">{formatCents(org.paidCents)}</td>
               </tr>
             ))}
           </tbody>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 
 // Loaded on demand when the rep opens "Receive inventory" — keeps the modal's
 // product picker + form out of the inventory page's initial bundle.
@@ -154,6 +155,7 @@ export default function InventoryClient({
         if (log !== null) await loadLog()
       } catch (err) {
         console.error('Error loading inventory', err)
+        toast.error('Failed to refresh inventory — try again')
       } finally {
         setRefreshing(false)
       }

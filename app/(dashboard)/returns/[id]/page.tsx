@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Loader2, PackageCheck, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 import { nextStatuses, type ReturnStatus } from '@/lib/returns/core'
 
 type DetailItem = {
@@ -84,6 +85,14 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
 
   const applyStatus = () => {
     if (!nextStatus) return
+    // REFUNDED needs a real dollar amount — block the no-op "Apply with empty $".
+    if (nextStatus === 'REFUNDED') {
+      const amount = Number(refund)
+      if (!refund.trim() || !Number.isFinite(amount) || amount <= 0) {
+        setActionError('Enter the refund amount before marking as refunded.')
+        return
+      }
+    }
     setBusy(true)
     setActionError(null)
     fetch(`/api/admin/returns/${id}`, {
@@ -98,7 +107,10 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
         const body = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(body.message || body.error || 'Failed to update status')
       })
-      .then(() => load())
+      .then(() => {
+        toast.success(`Return moved to ${nextStatus}`)
+        load()
+      })
       .catch((e) => setActionError(e instanceof Error ? e.message : 'Failed to update status'))
       .finally(() => setBusy(false))
   }
@@ -111,7 +123,10 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
         const body = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(body.message || body.error || 'Failed to restock')
       })
-      .then(() => load())
+      .then(() => {
+        toast.success('Items restocked')
+        load()
+      })
       .catch((e) => setActionError(e instanceof Error ? e.message : 'Failed to restock'))
       .finally(() => setBusy(false))
   }
@@ -156,7 +171,10 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
           </h1>
           <p className="mt-1 text-sm text-white/60">
             {data.order ? (
-              <Link href={`/fulfillment`} className="hover:underline">
+              <Link
+                href={`/fulfillment?search=${data.order.orderNumber}`}
+                className="hover:underline"
+              >
                 Order #{data.order.orderNumber}
               </Link>
             ) : (

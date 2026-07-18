@@ -36,6 +36,7 @@ import {
   Plus,
   Pencil,
   ImagePlus,
+  FileText,
 } from 'lucide-react'
 import {
   parseProductCsv,
@@ -45,6 +46,7 @@ import {
   type RowError,
 } from '@/lib/product-import'
 import ProductFormDialog, { type ProductFormValues } from './ProductFormDialog'
+import CoaManagerDialog, { type CoaVariantRef } from '@/components/coa/CoaManagerDialog'
 
 interface VariantRow {
   id: string
@@ -59,6 +61,7 @@ interface VariantRow {
   inventoryOnHand: number
   reorderLevel: number
   imageUrl: string | null
+  coaCount?: number
 }
 
 interface ImportSummary {
@@ -88,6 +91,8 @@ export default function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ProductFormValues | null>(null)
   const [uploadingImageId, setUploadingImageId] = useState<string | null>(null)
+  const [coaOpen, setCoaOpen] = useState(false)
+  const [coaVariant, setCoaVariant] = useState<CoaVariantRef | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const imageTargetRef = useRef<VariantRow | null>(null)
@@ -211,6 +216,11 @@ export default function ProductsPage() {
   function pickImage(v: VariantRow) {
     imageTargetRef.current = v
     imageInputRef.current?.click()
+  }
+
+  function openCoa(v: VariantRow) {
+    setCoaVariant({ id: v.id, sku: v.sku, productName: v.productName, dose: v.dose })
+    setCoaOpen(true)
   }
 
   async function uploadImage(file: File) {
@@ -409,6 +419,20 @@ export default function ProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        title={v.coaCount ? `Certificates of analysis (${v.coaCount})` : 'Add certificate of analysis'}
+                        onClick={() => openCoa(v)}
+                        className="relative h-8 w-8 text-white/50 hover:bg-white/10 hover:text-white"
+                      >
+                        <FileText className="h-4 w-4" />
+                        {!!v.coaCount && v.coaCount > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[9px] font-bold text-white">
+                            {v.coaCount}
+                          </span>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         title="Edit product"
                         onClick={() => openEdit(v)}
                         className="h-8 w-8 text-white/50 hover:bg-white/10 hover:text-white"
@@ -456,6 +480,14 @@ export default function ProductsPage() {
         onOpenChange={setFormOpen}
         initial={editing}
         onSaved={load}
+      />
+
+      {/* Certificate of Analysis manager */}
+      <CoaManagerDialog
+        open={coaOpen}
+        onOpenChange={setCoaOpen}
+        variant={coaVariant}
+        onChanged={load}
       />
 
       {/* Import Dialog */}

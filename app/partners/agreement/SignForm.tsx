@@ -3,6 +3,10 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /**
  * MSA signature capture: signer details + a pointer-drawn signature pad.
@@ -98,63 +102,89 @@ export function SignForm({
     }
   }
 
-  const inputClass = 'w-full rounded-md border px-3 py-2 text-sm'
-
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border bg-white p-6">
       <h2 className="text-lg font-semibold text-slate-900">Sign the agreement</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="mb-1 block text-xs text-slate-500">Full legal name *</span>
-          <input name="signerName" required maxLength={200} defaultValue={defaultSignerName} className={inputClass} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs text-slate-500">Title (e.g. Owner, VP Sales)</span>
-          <input name="signerTitle" maxLength={120} className={inputClass} />
-        </label>
-        <label className="text-sm sm:col-span-2">
-          <span className="mb-1 block text-xs text-slate-500">Legal entity</span>
-          <input name="legalEntityName" maxLength={200} defaultValue={defaultEntityName} className={inputClass} />
-        </label>
+        <div className="text-sm">
+          <Label htmlFor="signerName" className="mb-1 block text-xs font-normal text-slate-500">
+            Full legal name *
+          </Label>
+          <Input
+            id="signerName"
+            name="signerName"
+            required
+            maxLength={200}
+            defaultValue={defaultSignerName}
+            className="bg-white"
+          />
+        </div>
+        <div className="text-sm">
+          <Label htmlFor="signerTitle" className="mb-1 block text-xs font-normal text-slate-500">
+            Title (e.g. Owner, VP Sales)
+          </Label>
+          <Input id="signerTitle" name="signerTitle" maxLength={120} className="bg-white" />
+        </div>
+        <div className="text-sm sm:col-span-2">
+          <Label htmlFor="legalEntityName" className="mb-1 block text-xs font-normal text-slate-500">
+            Legal entity
+          </Label>
+          <Input
+            id="legalEntityName"
+            name="legalEntityName"
+            maxLength={200}
+            defaultValue={defaultEntityName}
+            className="bg-white"
+          />
+        </div>
       </div>
 
       <div>
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs text-slate-500">Signature *</span>
-          <button type="button" onClick={clear} className="text-xs text-[#213cef] hover:underline">
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={clear}
+          >
             Clear
-          </button>
+          </Button>
         </div>
         <canvas
           ref={canvasRef}
           width={640}
           height={160}
+          role="img"
+          aria-label="Signature pad — draw your signature here"
           onPointerDown={start}
           onPointerMove={move}
           onPointerUp={end}
           onPointerLeave={end}
           className="h-40 w-full touch-none rounded-md border-2 border-dashed border-slate-300 bg-slate-50"
         />
+        <p className="mt-1 text-xs text-slate-400">
+          Draw your signature in the box above using your mouse, finger, or stylus.
+        </p>
       </div>
 
-      <label className="flex items-start gap-2 text-sm text-slate-700">
-        <input
-          type="checkbox"
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="agree-terms"
           checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
+          onCheckedChange={(checked) => setAgreed(checked === true)}
           className="mt-0.5"
         />
-        I have read and agree to the Marketing Services Agreement above, and I am authorized to
-        bind the entity named.
-      </label>
+        <Label htmlFor="agree-terms" className="text-sm font-normal leading-snug text-slate-700">
+          I have read and agree to the Marketing Services Agreement above, and I am authorized to
+          bind the entity named.
+        </Label>
+      </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-lg bg-[#213cef] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
-      >
+      <Button type="submit" disabled={submitting} className="font-semibold">
         {submitting ? 'Signing…' : 'Sign agreement'}
-      </button>
+      </Button>
     </form>
   )
 }

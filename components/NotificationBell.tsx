@@ -61,6 +61,7 @@ export function NotificationBell() {
   const [unread, setUnread] = useState(0)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchUnread = useCallback(async () => {
@@ -76,14 +77,18 @@ export function NotificationBell() {
 
   const fetchList = useCallback(async () => {
     setLoading(true)
+    setListError(false)
     try {
       const res = await fetch('/api/admin/notifications?pageSize=15', { cache: 'no-store' })
-      if (!res.ok) return
+      if (!res.ok) {
+        setListError(true)
+        return
+      }
       const data = (await res.json()) as { notifications?: NotificationItem[]; unreadCount?: number }
       setItems(data.notifications ?? [])
       if (typeof data.unreadCount === 'number') setUnread(data.unreadCount)
     } catch {
-      // Silent.
+      setListError(true)
     } finally {
       setLoading(false)
     }
@@ -175,6 +180,17 @@ export function NotificationBell() {
           {loading && items.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-white/50">
               <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : listError && items.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-white/50">
+              Couldn&apos;t load notifications.{' '}
+              <button
+                type="button"
+                onClick={() => void fetchList()}
+                className="text-brand-primary underline-offset-2 hover:underline"
+              >
+                Retry
+              </button>
             </div>
           ) : items.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-white/50">

@@ -29,7 +29,7 @@ const PERKS = [
 
 export default function PartnerApplyPage() {
   return (
-    <div className="min-h-screen bg-[#050722] text-white">
+    <div className="min-h-screen bg-brand-onyx text-white">
       <header className="border-b border-white/10">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" className="text-lg font-bold tracking-wide">
@@ -43,7 +43,7 @@ export default function PartnerApplyPage() {
 
       <main className="mx-auto grid max-w-5xl gap-12 px-6 py-14 lg:grid-cols-2">
         <section>
-          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-[#7b8cff]">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-indigo-400">
             Partner program
           </p>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">

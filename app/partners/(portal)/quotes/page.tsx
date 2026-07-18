@@ -2,7 +2,28 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Printer, Trash2 } from 'lucide-react'
+import { FileText, Plus, Printer, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 
 interface CatalogRow {
   variantId: string
@@ -117,12 +138,9 @@ export default function PartnerQuotesPage() {
             Build price quotes for prospective clinics, print them, and track their status.
           </p>
         </div>
-        <button
-          onClick={() => setBuilding((v) => !v)}
-          className="flex items-center gap-1 rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4]"
-        >
+        <Button onClick={() => setBuilding((v) => !v)} className="gap-1 font-semibold">
           <Plus className="h-4 w-4" /> New quote
-        </button>
+        </Button>
       </div>
 
       {building && (
@@ -136,69 +154,89 @@ export default function PartnerQuotesPage() {
       )}
 
       <div className="overflow-x-auto rounded-xl border bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3">Clinic</th>
-              <th className="px-4 py-3">Items</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">Loading…</td>
-              </tr>
-            )}
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50">
+              <TableHead className="text-xs uppercase tracking-wide">Clinic</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Items</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Total</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Created</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading &&
+              [0, 1, 2].map((i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={6} className="py-3">
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))}
             {!loading && quotes.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  No quotes yet — build your first quote above.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    icon={FileText}
+                    title="No quotes yet"
+                    description="Build your first quote above."
+                    className="py-6"
+                  />
+                </TableCell>
+              </TableRow>
             )}
             {quotes.map((quote) => (
-              <tr key={quote.id} className="border-b last:border-0">
-                <td className="px-4 py-3">
+              <TableRow key={quote.id}>
+                <TableCell className="py-3">
                   <div className="font-medium">{quote.clinicName}</div>
                   <div className="text-xs text-slate-400">
                     {quote.contactName || quote.email || ''}
                     {quote.rep && ` · ${quote.rep.name}`}
                   </div>
-                </td>
-                <td className="px-4 py-3 text-slate-500">
+                </TableCell>
+                <TableCell className="py-3 text-slate-500">
                   {quote.items.length} item{quote.items.length === 1 ? '' : 's'}
-                </td>
-                <td className="px-4 py-3 text-right font-medium">{usd(quote.totalCents)}</td>
-                <td className="px-4 py-3">
-                  <select
+                </TableCell>
+                <TableCell className="py-3 text-right font-medium">{usd(quote.totalCents)}</TableCell>
+                <TableCell className="py-3">
+                  <Select
                     value={quote.status}
-                    onChange={(e) => void setStatus(quote.id, e.target.value as Quote['status'])}
-                    className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${STATUS_BADGE[quote.status]}`}
+                    onValueChange={(value) => void setStatus(quote.id, value as Quote['status'])}
                   >
-                    <option value="DRAFT">Draft</option>
-                    <option value="SENT">Sent</option>
-                    <option value="ACCEPTED">Accepted</option>
-                    <option value="DECLINED">Declined</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3">{new Date(quote.createdAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-right">
-                  <button
+                    <SelectTrigger
+                      aria-label={`Status for ${quote.clinicName} quote`}
+                      className={cn(
+                        'h-auto w-auto gap-1 rounded-full border-0 px-2.5 py-1 text-xs font-medium',
+                        STATUS_BADGE[quote.status]
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DRAFT">Draft</SelectItem>
+                      <SelectItem value="SENT">Sent</SelectItem>
+                      <SelectItem value="ACCEPTED">Accepted</SelectItem>
+                      <SelectItem value="DECLINED">Declined</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className="py-3">{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell className="py-3 text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-slate-700"
                     onClick={() => printQuote(quote)}
-                    className="text-slate-400 hover:text-slate-700"
                     aria-label="Print quote"
                   >
                     <Printer className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   )
@@ -259,88 +297,99 @@ function QuoteBuilder({ catalog, onDone }: { catalog: CatalogRow[]; onDone: () =
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border bg-white p-4">
       <div className="grid gap-2 sm:grid-cols-3">
-        <input name="clinicName" required placeholder="Clinic name *" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="contactName" placeholder="Contact name" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="email" type="email" placeholder="Contact email" className="rounded-md border px-3 py-2 text-sm" />
+        <Input name="clinicName" required placeholder="Clinic name *" aria-label="Clinic name" className="bg-white" />
+        <Input name="contactName" placeholder="Contact name" aria-label="Contact name" className="bg-white" />
+        <Input name="email" type="email" placeholder="Contact email" aria-label="Contact email" className="bg-white" />
       </div>
 
       {lines.map((line, index) => {
         const row = catalogById.get(line.variantId)
         return (
           <div key={index} className="flex flex-wrap items-center gap-2">
-            <select
-              value={line.variantId}
-              onChange={(e) =>
-                setLines((ls) => ls.map((l, i) => (i === index ? { ...l, variantId: e.target.value } : l)))
+            <Select
+              value={line.variantId || undefined}
+              onValueChange={(value) =>
+                setLines((ls) => ls.map((l, i) => (i === index ? { ...l, variantId: value } : l)))
               }
-              className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm"
             >
-              <option value="">Product…</option>
-              {catalog.map((c) => (
-                <option key={c.variantId} value={c.variantId}>
-                  {c.name} {c.dose ?? ''} — SRP {usd(c.srpCents)}
-                </option>
-              ))}
-            </select>
-            <input
+              <SelectTrigger className="min-w-[260px] flex-1 bg-white" aria-label="Product">
+                <SelectValue placeholder="Product…" />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.map((c) => (
+                  <SelectItem key={c.variantId} value={c.variantId}>
+                    {c.name} {c.dose ?? ''} — SRP {usd(c.srpCents)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
               type="number"
               min={1}
               value={line.quantity}
+              aria-label="Quantity"
               onChange={(e) =>
                 setLines((ls) =>
                   ls.map((l, i) => (i === index ? { ...l, quantity: Number(e.target.value) || 1 } : l))
                 )
               }
-              className="w-20 rounded-md border px-3 py-2 text-sm"
+              className="w-20 bg-white"
             />
-            <input
+            <Input
               type="number"
               step="0.01"
               min={row?.floorCents ? row.floorCents / 100 : 0}
               value={line.price}
               placeholder={row ? (row.srpCents / 100).toFixed(2) : 'Unit $'}
+              aria-label="Unit price"
               onChange={(e) =>
                 setLines((ls) => ls.map((l, i) => (i === index ? { ...l, price: e.target.value } : l)))
               }
-              className="w-28 rounded-md border px-3 py-2 text-sm"
+              className="w-28 bg-white"
             />
             {row?.floorCents != null && (
               <span className="text-xs text-slate-400">floor {usd(row.floorCents)}</span>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-400 hover:text-red-600"
               onClick={() => setLines((ls) => ls.filter((_, i) => i !== index))}
-              className="text-slate-400 hover:text-red-600"
               aria-label="Remove line"
             >
               <Trash2 className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         )
       })}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
+          className="bg-white text-slate-600"
           onClick={() => setLines((ls) => [...ls, { variantId: '', quantity: 1, price: '' }])}
-          className="rounded-md border px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
         >
           + Add product
-        </button>
+        </Button>
         <span className="text-sm text-slate-500">
           Total: <strong className="text-slate-900">{usd(totalCents)}</strong>
         </span>
       </div>
 
-      <textarea name="notes" rows={2} placeholder="Notes (shown on the quote)" className="w-full rounded-md border px-3 py-2 text-sm" />
+      <Textarea
+        name="notes"
+        rows={2}
+        placeholder="Notes (shown on the quote)"
+        aria-label="Notes"
+        className="bg-white"
+      />
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-lg bg-[#213cef] px-5 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
-      >
+      <Button type="submit" disabled={submitting} className="font-semibold">
         {submitting ? 'Creating…' : 'Create quote'}
-      </button>
+      </Button>
     </form>
   )
 }

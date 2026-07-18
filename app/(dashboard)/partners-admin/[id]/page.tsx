@@ -98,12 +98,12 @@ interface DetailPayload {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
-  ACTIVE: 'bg-emerald-100 text-emerald-800',
-  SUSPENDED: 'bg-red-100 text-red-700',
+  PENDING: 'bg-amber-500/15 text-amber-300 border border-amber-400/30',
+  ACTIVE: 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30',
+  SUSPENDED: 'bg-red-500/15 text-red-300 border border-red-400/30',
 }
 
-const inputClass = 'rounded-md border px-3 py-2 text-sm'
+const inputClass = 'rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground'
 
 export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -163,8 +163,8 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
     return map
   }, [data])
 
-  if (loading && !data) return <p className="p-10 text-center text-sm text-slate-400">Loading…</p>
-  if (!data) return <p className="p-10 text-center text-sm text-slate-400">Partner org not found.</p>
+  if (loading && !data) return <p className="p-10 text-center text-sm text-muted-foreground/70">Loading…</p>
+  if (!data) return <p className="p-10 text-center text-sm text-muted-foreground/70">Partner org not found.</p>
 
   const { org, summary, totals, revenue, pendingCount, approvedCount, transactions } = data
   const attributedIds = new Set(org.clients.map((c) => c.id))
@@ -174,19 +174,19 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/partners-admin" className="mb-1 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+          <Link href="/partners-admin" className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> All partners
           </Link>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{org.name}</h1>
             <Badge className={STATUS_BADGE[org.status]}>{org.status}</Badge>
             {org.msaSignedAt ? (
-              <Badge className="bg-blue-100 text-blue-800">MSA signed</Badge>
+              <Badge className="bg-blue-500/15 text-blue-300 border border-blue-400/30">MSA signed</Badge>
             ) : (
-              <Badge className="bg-slate-100 text-slate-600">MSA unsigned</Badge>
+              <Badge className="bg-muted/60 text-foreground/80">MSA unsigned</Badge>
             )}
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             {org.contactName ? `${org.contactName} · ` : ''}
             {org.contactEmail}
             {org.contactPhone ? ` · ${org.contactPhone}` : ''}
@@ -313,14 +313,14 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             }}
           >
             <label className="text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Model</span>
+              <span className="mb-1 block text-xs text-muted-foreground">Model</span>
               <select name="compensationModel" defaultValue={org.compensationModel} className={inputClass}>
                 <option value="COMMISSION">Commission (% of revenue)</option>
                 <option value="MARGIN">Margin (price above floor)</option>
               </select>
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Org commission rate %</span>
+              <span className="mb-1 block text-xs text-muted-foreground">Org commission rate %</span>
               <input
                 name="ratePercent"
                 type="number"
@@ -334,7 +334,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             <Button type="submit" size="sm" disabled={busy}>
               Save
             </Button>
-            <p className="basis-full text-xs text-slate-400">
+            <p className="basis-full text-xs text-muted-foreground/70">
               Rate changes apply to future transactions only; recorded ledger entries are frozen.
               {org.compensationModel === 'MARGIN' && ' Margin orgs earn the spread above per-product floors (set below).'}
             </p>
@@ -419,7 +419,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-xs uppercase text-slate-500">
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="py-2 pr-4">Date</th>
                     <th className="py-2 pr-4">Payee</th>
                     <th className="py-2 pr-4">Method</th>
@@ -503,7 +503,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs uppercase text-slate-500">
+                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 pr-4">Date</th>
                   <th className="py-2 pr-4">Clinic</th>
                   <th className="py-2 pr-4">Description</th>
@@ -516,7 +516,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
               <tbody>
                 {transactions.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate-400">
+                    <td colSpan={7} className="py-6 text-center text-muted-foreground/70">
                       No transactions yet. Captured orders from attributed clinics appear here automatically.
                     </td>
                   </tr>
@@ -532,10 +532,10 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                       <td className="py-2 pr-4">{txn.client.organizationName}</td>
                       <td className="py-2 pr-4 max-w-[240px] truncate">{txn.description || txn.reference || '—'}</td>
                       <td className="py-2 pr-4">
-                        <Badge className="bg-slate-100 text-slate-700">{txn.source}</Badge>
+                        <Badge className="bg-muted/60 text-foreground/80">{txn.source}</Badge>
                       </td>
                       <td className="py-2 pr-4 text-right">{formatCents(txn.revenueCents)}</td>
-                      <td className="py-2 pr-4 text-right text-red-600">
+                      <td className="py-2 pr-4 text-right text-red-400">
                         {txn.refundedCents > 0 ? `−${formatCents(txn.refundedCents)}` : '—'}
                       </td>
                       <td className="py-2 text-right font-medium">{formatCents(net)}</td>
@@ -597,7 +597,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-xs uppercase text-slate-500">
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="py-2 pr-4">Clinic</th>
                     <th className="py-2 pr-4">Onboarding</th>
                     <th className="py-2 pr-4">Rep</th>
@@ -609,10 +609,10 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                   {org.clients.map((c) => (
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2 pr-4">
-                        <Link href={`/clients/${c.id}`} className="text-blue-700 hover:underline">
+                        <Link href={`/clients/${c.id}`} className="text-primary hover:underline">
                           {c.organizationName}
                         </Link>
-                        <div className="text-xs text-slate-400">{c.contactEmail}</div>
+                        <div className="text-xs text-muted-foreground/70">{c.contactEmail}</div>
                       </td>
                       <td className="py-2 pr-4">{c.onboardingStatus}</td>
                       <td className="py-2 pr-4">{repById.get(c.partnerRepId ?? '')?.name || '—'}</td>
@@ -655,17 +655,17 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
           </CardHeader>
           <CardContent>
             {org.reps.length === 0 ? (
-              <p className="text-sm text-slate-400">The org invites reps from its portal.</p>
+              <p className="text-sm text-muted-foreground/70">The org invites reps from its portal.</p>
             ) : (
               <ul className="space-y-2 text-sm">
                 {org.reps.map((rep) => (
                   <li key={rep.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                     <span>
-                      {rep.name} <span className="text-xs text-slate-400">({rep.email})</span>
+                      {rep.name} <span className="text-xs text-muted-foreground/70">({rep.email})</span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <Badge className={STATUS_BADGE[rep.status] ?? 'bg-slate-100 text-slate-600'}>{rep.status}</Badge>
-                      <span className="text-xs text-slate-500">{formatBps(rep.commissionRateBps)}</span>
+                      <Badge className={STATUS_BADGE[rep.status] ?? 'bg-muted/60 text-foreground/80'}>{rep.status}</Badge>
+                      <span className="text-xs text-muted-foreground">{formatBps(rep.commissionRateBps)}</span>
                     </span>
                   </li>
                 ))}
@@ -680,16 +680,16 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
           </CardHeader>
           <CardContent>
             {org.referralLinks.length === 0 ? (
-              <p className="text-sm text-slate-400">The org creates links from its portal.</p>
+              <p className="text-sm text-muted-foreground/70">The org creates links from its portal.</p>
             ) : (
               <ul className="space-y-2 text-sm">
                 {org.referralLinks.map((link) => (
                   <li key={link.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                     <span className="min-w-0">
                       <code className="text-xs">{referralUrl(link.code)}</code>
-                      {link.label && <span className="ml-2 text-xs text-slate-400">{link.label}</span>}
+                      {link.label && <span className="ml-2 text-xs text-muted-foreground/70">{link.label}</span>}
                     </span>
-                    <span className="shrink-0 text-xs text-slate-500">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {link.clickCount} clicks · {link.signupCount} signups {!link.active && '· inactive'}
                     </span>
                   </li>
@@ -711,11 +711,11 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                 <li key={a.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <span>
                     {a.signerName}{' '}
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-muted-foreground/70">
                       ({a.signerKind === 'ORG' ? 'organization' : 'rep'}) · {a.documentVersion}
                     </span>
                   </span>
-                  <span className="text-xs text-slate-500">{new Date(a.signedAt).toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(a.signedAt).toLocaleString()}</span>
                 </li>
               ))}
             </ul>
@@ -818,18 +818,18 @@ function FloorsEditor({ orgId }: { orgId: string }) {
           <Button size="sm" onClick={() => void saveAll()} disabled={saving || Object.keys(drafts).length === 0}>
             {saving ? 'Saving…' : `Save changes (${Object.keys(drafts).length})`}
           </Button>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground/70">
             The org prices its clinics at or above the floor and keeps the spread. Products
             without a floor earn the org nothing.
           </p>
         </div>
         {loading ? (
-          <p className="py-6 text-center text-sm text-slate-400">Loading catalog…</p>
+          <p className="py-6 text-center text-sm text-muted-foreground/70">Loading catalog…</p>
         ) : (
           <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b text-left text-xs uppercase text-slate-500">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 pr-4">Product</th>
                   <th className="py-2 pr-4 text-right">Our cost</th>
                   <th className="py-2 pr-4 text-right">SRP</th>
@@ -840,10 +840,10 @@ function FloorsEditor({ orgId }: { orgId: string }) {
                 {visible.map((row) => (
                   <tr key={row.variantId} className="border-b last:border-0">
                     <td className="py-2 pr-4">
-                      {row.name} <span className="text-xs text-slate-400">{row.dose}</span>
+                      {row.name} <span className="text-xs text-muted-foreground/70">{row.dose}</span>
                     </td>
-                    <td className="py-2 pr-4 text-right text-slate-500">{usd(row.unitCostCents)}</td>
-                    <td className="py-2 pr-4 text-right text-slate-500">{usd(row.srpCents)}</td>
+                    <td className="py-2 pr-4 text-right text-muted-foreground">{usd(row.unitCostCents)}</td>
+                    <td className="py-2 pr-4 text-right text-muted-foreground">{usd(row.srpCents)}</td>
                     <td className="py-2 text-right">
                       <input
                         type="number"
@@ -852,7 +852,7 @@ function FloorsEditor({ orgId }: { orgId: string }) {
                         value={drafts[row.variantId] ?? (row.floorCents != null ? (row.floorCents / 100).toFixed(2) : '')}
                         placeholder="—"
                         onChange={(e) => setDrafts((d) => ({ ...d, [row.variantId]: e.target.value }))}
-                        className="w-24 rounded-md border px-2 py-1 text-right text-sm"
+                        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-right text-sm text-foreground"
                       />
                     </td>
                   </tr>
@@ -867,11 +867,11 @@ function FloorsEditor({ orgId }: { orgId: string }) {
 }
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'amber' | 'emerald' }) {
-  const toneClass = tone === 'amber' ? 'text-amber-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-slate-900'
+  const toneClass = tone === 'amber' ? 'text-amber-300' : tone === 'emerald' ? 'text-emerald-300' : 'text-foreground'
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className={`mt-1 text-xl font-bold ${toneClass}`}>{value}</p>
       </CardContent>
     </Card>
@@ -944,8 +944,8 @@ function CsvImport({
     )
   }
   return (
-    <div className="rounded-md border bg-slate-50 p-3">
-      <p className="mb-2 text-xs text-slate-500">
+    <div className="rounded-md border bg-muted/40 p-3">
+      <p className="mb-2 text-xs text-muted-foreground">
         One row per line: <code>clinicEmail, date (YYYY-MM-DD), revenue{marginModel ? ', cost' : ', '} , reference, description</code>.
         Rows with an existing reference are skipped (safe to re-import).
       </p>
@@ -953,7 +953,7 @@ function CsvImport({
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={5}
-        className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs text-foreground"
         placeholder={`clinic@example.com, 2026-07-01, 1250.00${marginModel ? ', 900.00' : ','}, INV-1001, July order`}
       />
       <div className="mt-2 flex gap-2">

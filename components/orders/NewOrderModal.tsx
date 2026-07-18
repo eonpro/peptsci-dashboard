@@ -14,9 +14,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { computeCartTotals } from '@/lib/checkout-core'
 
-const ACCENT = '#2b2c84'
 const inputCls =
-  'rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#2b2c84] focus:outline-hidden focus:ring-1 focus:ring-[#2b2c84]'
+  'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
+const selectCls =
+  'rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
 
 type ClientRow = {
   id: string
@@ -298,7 +299,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" style={{ color: ACCENT }} />
+            <ShoppingCart className="h-5 w-5 text-primary" />
             New Order
           </DialogTitle>
           <DialogDescription>
@@ -308,33 +309,33 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
         </DialogHeader>
 
         {loadingRefs ? (
-          <div className="flex items-center justify-center py-12 text-gray-500">
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading catalog…
           </div>
         ) : (
           <div className="space-y-6">
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
 
             {/* Client */}
             <fieldset className="space-y-2">
-              <legend className="text-sm font-semibold text-gray-700">Customer</legend>
+              <legend className="text-sm font-semibold text-foreground/90">Customer</legend>
               {selectedClient ? (
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{selectedClient.organizationName}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-foreground">{selectedClient.organizationName}</p>
+                    <p className="text-xs text-muted-foreground">
                       {[selectedClient.contactName, selectedClient.contactEmail].filter(Boolean).join(' · ') || '—'}
                     </p>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => setClientId('')}>Change</Button>
                 </div>
               ) : creatingClient ? (
-                <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+                <div className="space-y-2 rounded-lg border border-border p-3">
                   <Input placeholder="Practice / customer name *" value={newClient.organizationName} onChange={(e) => setNewClient((p) => ({ ...p, organizationName: e.target.value }))} />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Input placeholder="Contact name" value={newClient.contactName} onChange={(e) => setNewClient((p) => ({ ...p, contactName: e.target.value }))} />
@@ -343,7 +344,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                   <Input placeholder="Contact phone" value={newClient.contactPhone} onChange={(e) => setNewClient((p) => ({ ...p, contactPhone: e.target.value }))} />
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setCreatingClient(false)} disabled={savingClient}>Cancel</Button>
-                    <Button size="sm" onClick={handleCreateClient} disabled={savingClient} style={{ backgroundColor: ACCENT }}>
+                    <Button size="sm" onClick={handleCreateClient} disabled={savingClient}>
                       {savingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                       Create & select
                     </Button>
@@ -352,7 +353,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
               ) : (
                 <div className="space-y-2">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                     <input
                       className={`w-full pl-9 ${inputCls}`}
                       placeholder="Search customers by name or email…"
@@ -361,19 +362,19 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                     />
                   </div>
                   {clientQuery.trim() && (
-                    <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-200">
+                    <div className="max-h-44 overflow-y-auto rounded-lg border border-border">
                       {filteredClients.length === 0 ? (
-                        <p className="px-3 py-2 text-sm text-gray-500">No matches.</p>
+                        <p className="px-3 py-2 text-sm text-muted-foreground">No matches.</p>
                       ) : (
                         filteredClients.map((c) => (
                           <button
                             key={c.id}
                             type="button"
                             onClick={() => { setClientId(c.id); setClientQuery('') }}
-                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-gray-50"
+                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-muted/60"
                           >
-                            <span className="text-sm font-medium text-gray-800">{c.organizationName}</span>
-                            <span className="text-xs text-gray-500">{[c.contactName, c.contactEmail].filter(Boolean).join(' · ') || '—'}</span>
+                            <span className="text-sm font-medium text-foreground">{c.organizationName}</span>
+                            <span className="text-xs text-muted-foreground">{[c.contactName, c.contactEmail].filter(Boolean).join(' · ') || '—'}</span>
                           </button>
                         ))
                       )}
@@ -388,9 +389,9 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
 
             {/* Products */}
             <fieldset className="space-y-2">
-              <legend className="text-sm font-semibold text-gray-700">Products</legend>
+              <legend className="text-sm font-semibold text-foreground/90">Products</legend>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                 <input
                   className={`w-full pl-9 ${inputCls}`}
                   placeholder="Search products to add…"
@@ -398,25 +399,25 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                   onChange={(e) => setProductQuery(e.target.value)}
                 />
                 {filteredVariants.length > 0 && (
-                  <div className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-lg">
                     {filteredVariants.map((v) => (
                       <button
                         key={v.id}
                         type="button"
                         onClick={() => addLine(v)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-gray-50"
+                        className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-muted/60"
                       >
-                        <span className="text-sm text-gray-800">
+                        <span className="text-sm text-foreground">
                           {v.productName}{v.dose ? ` ${v.dose}` : ''}
-                          <span className="ml-1 text-xs text-gray-400">{v.sku}</span>
+                          <span className="ml-1 text-xs text-muted-foreground/70">{v.sku}</span>
                         </span>
                         <span className="flex items-center gap-2 text-xs">
-                          <span className={v.available > 0 ? 'text-emerald-600' : 'text-red-500'}>{v.available} avail</span>
-                          <span className="font-medium text-gray-700">{formatPrice(resolveUnitPrice(v))}</span>
+                          <span className={v.available > 0 ? 'text-emerald-400' : 'text-red-500'}>{v.available} avail</span>
+                          <span className="font-medium text-foreground/90">{formatPrice(resolveUnitPrice(v))}</span>
                           {customPriceMap[v.id] != null && (
-                            <span className="rounded bg-emerald-50 px-1 text-[10px] font-medium text-emerald-700">Custom</span>
+                            <span className="rounded bg-emerald-500/15 px-1 text-[10px] font-medium text-emerald-300">Custom</span>
                           )}
-                          <Plus className="h-3.5 w-3.5 text-gray-400" />
+                          <Plus className="h-3.5 w-3.5 text-muted-foreground/70" />
                         </span>
                       </button>
                     ))}
@@ -425,12 +426,12 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
               </div>
 
               {lines.length > 0 && (
-                <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+                <div className="divide-y divide-border rounded-lg border border-border">
                   {lines.map((l) => (
                     <div key={l.variantId} className="flex items-center gap-2 p-2">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-gray-800">{l.label}</p>
-                        <p className={`text-xs ${l.quantity > l.available ? 'text-amber-600' : 'text-gray-400'}`}>
+                        <p className="truncate text-sm text-foreground">{l.label}</p>
+                        <p className={`text-xs ${l.quantity > l.available ? 'text-amber-400' : 'text-muted-foreground/70'}`}>
                           {l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}
                           {customPriceMap[l.variantId] != null && l.priceSource === 'auto' ? ' · Custom price' : ''}
                         </p>
@@ -444,7 +445,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                         aria-label="Quantity"
                       />
                       <div className="relative">
-                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">$</span>
                         <input
                           type="number"
                           min={0}
@@ -455,8 +456,8 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                           aria-label="Unit price"
                         />
                       </div>
-                      <span className="w-20 text-right text-sm font-medium text-gray-700">{formatPrice(l.unitPrice * l.quantity)}</span>
-                      <button type="button" onClick={() => removeLine(l.variantId)} className="text-gray-400 hover:text-red-500" aria-label="Remove line">
+                      <span className="w-20 text-right text-sm font-medium text-foreground/90">{formatPrice(l.unitPrice * l.quantity)}</span>
+                      <button type="button" onClick={() => removeLine(l.variantId)} className="text-muted-foreground/70 hover:text-red-500" aria-label="Remove line">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -468,15 +469,15 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
             {/* Shipping options */}
             <fieldset className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label className="mb-1 block text-xs font-medium text-gray-500">Ship to</Label>
-                <select value={shipTo} onChange={(e) => setShipTo(e.target.value as typeof shipTo)} className={`w-full ${inputCls}`}>
+                <Label className="mb-1 block text-xs font-medium text-muted-foreground">Ship to</Label>
+                <select value={shipTo} onChange={(e) => setShipTo(e.target.value as typeof shipTo)} className={`w-full ${selectCls}`}>
                   <option value="PRACTICE">Practice</option>
                   <option value="PATIENT">Patient</option>
                 </select>
               </div>
               <div>
-                <Label className="mb-1 block text-xs font-medium text-gray-500">Ship speed</Label>
-                <select value={shipSpeed} onChange={(e) => setShipSpeed(e.target.value as typeof shipSpeed)} className={`w-full ${inputCls}`}>
+                <Label className="mb-1 block text-xs font-medium text-muted-foreground">Ship speed</Label>
+                <select value={shipSpeed} onChange={(e) => setShipSpeed(e.target.value as typeof shipSpeed)} className={`w-full ${selectCls}`}>
                   <option value="TWO_DAY">2-Day</option>
                   <option value="OVERNIGHT">Overnight</option>
                 </select>
@@ -484,20 +485,20 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
             </fieldset>
 
             <div>
-              <Label className="mb-1 block text-xs font-medium text-gray-500">Notes (optional)</Label>
+              <Label className="mb-1 block text-xs font-medium text-muted-foreground">Notes (optional)</Label>
               <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Order notes…" />
             </div>
 
             {/* Totals */}
-            <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-              <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatPrice(totals.subtotal)}</span></div>
-              <div className="flex justify-between text-gray-600"><span>Shipping</span><span>{formatPrice(totals.shippingTotal)}</span></div>
-              <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold text-gray-900"><span>Total</span><span>{formatPrice(totals.total)}</span></div>
+            <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-sm">
+              <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{formatPrice(totals.subtotal)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Shipping</span><span>{formatPrice(totals.shippingTotal)}</span></div>
+              <div className="flex justify-between border-t border-border pt-1 font-semibold text-foreground"><span>Total</span><span>{formatPrice(totals.total)}</span></div>
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={!canSubmit} style={{ backgroundColor: ACCENT }}>
+              <Button onClick={handleSubmit} disabled={!canSubmit}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                 Create Order
               </Button>

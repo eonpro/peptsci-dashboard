@@ -111,26 +111,26 @@ export default function ManualDispositionModal({
               onClick={() => setOutcome('SHIPPED')}
               className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
                 outcome === 'SHIPPED'
-                  ? 'border-[#2b2c84] bg-[#2b2c84]/5 font-medium'
-                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  ? 'border-primary bg-primary/10 font-medium'
+                  : 'border-border text-muted-foreground hover:border-muted-foreground/40'
               }`}
             >
               <Truck className="h-5 w-5" />
               Shipped
-              <span className="text-xs font-normal text-gray-400">External carrier / label</span>
+              <span className="text-xs font-normal text-muted-foreground/70">External carrier / label</span>
             </button>
             <button
               type="button"
               onClick={() => setOutcome('DELIVERED')}
               className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
                 outcome === 'DELIVERED'
-                  ? 'border-[#2b2c84] bg-[#2b2c84]/5 font-medium'
-                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  ? 'border-primary bg-primary/10 font-medium'
+                  : 'border-border text-muted-foreground hover:border-muted-foreground/40'
               }`}
             >
               <HandHeart className="h-5 w-5" />
               Delivered
-              <span className="text-xs font-normal text-gray-400">Hand-delivered / pickup</span>
+              <span className="text-xs font-normal text-muted-foreground/70">Hand-delivered / pickup</span>
             </button>
           </div>
 
@@ -163,7 +163,7 @@ export default function ManualDispositionModal({
               autoComplete="off"
             />
             {!tracking.trim() && outcome === 'SHIPPED' && (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-amber-400">
                 Without a tracking number the customer gets no tracking link.
               </p>
             )}
@@ -180,7 +180,7 @@ export default function ManualDispositionModal({
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               {error}
             </div>
@@ -188,7 +188,7 @@ export default function ManualDispositionModal({
 
           {needsOverride ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-amber-700">
+              <p className="text-sm font-medium text-amber-300">
                 This order is unpaid and not invoiced. Disposition anyway? The override is
                 audit-logged.
               </p>

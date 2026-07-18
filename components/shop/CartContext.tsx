@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useReducer, useEffect, useMemo, ReactNode } from 'react'
+import { createContext, useContext, useReducer, useEffect, useMemo, useRef, ReactNode } from 'react'
+import { toast } from 'sonner'
 
 /** Maximum vials of a single product per order. */
 export const MAX_ITEM_QUANTITY = 100
@@ -34,6 +35,7 @@ type CartAction =
   | { type: 'OPEN_CART' }
   | { type: 'CLOSE_CART' }
   | { type: 'LOAD_CART'; payload: CartItem[] }
+  | { type: 'REFRESH_PRICES'; payload: { sku: string; price: number }[] }
 
 interface CartContextType {
   items: CartItem[]
@@ -108,6 +110,16 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: action.payload.map((item) => ({ ...item, quantity: clampQuantity(item.quantity) })),
       }
+    case 'REFRESH_PRICES': {
+      const priceBySku = new Map(action.payload.map((p) => [p.sku, p.price]))
+      return {
+        ...state,
+        items: state.items.map((item) => {
+          const fresh = priceBySku.get(item.sku)
+          return fresh != null && fresh !== item.price ? { ...item, price: fresh } : item
+        }),
+      }
+    }
     default:
       return state
   }
@@ -133,6 +145,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.items))
   }, [state.items])
+
+  // Revalidate persisted prices once per session: a cart restored from
+  // localStorage can carry stale custom pricing. Checkout always re-prices
+  // server-side; this keeps the DISPLAYED numbers honest too.
+  const revalidatedRef = useRef(false)
+  useEffect(() => {
+    if (revalidatedRef.current || state.items.length === 0) return
+    revalidatedRef.current = true
+    const skus = Array.from(new Set(state.items.map((i) => i.sku).filter(Boolean)))
+    if (skus.length === 0) return
+    fetch('/api/shop/cart/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skus }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.lines) return
+        const updates = (
+          data.lines as { sku: string; unitPrice: number | null; available: boolean }[]
+        )
+          .filter((l) => l.available && l.unitPrice != null)
+          .map((l) => ({ sku: l.sku, price: l.unitPrice as number }))
+        const changed = updates.some((u) => {
+          const item = state.items.find((i) => i.sku === u.sku)
+          return item && item.price !== u.price
+        })
+        if (changed) {
+          dispatch({ type: 'REFRESH_PRICES', payload: updates })
+          toast.info('Cart prices were updated to your current pricing.')
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.items.length])
 
   // Memoize the context value so consumers (the whole shop tree) only re-render
   // when the cart contents or open state actually change — not on every render

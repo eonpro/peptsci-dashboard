@@ -12,6 +12,10 @@ import {
   CartesianGrid,
 } from 'recharts'
 
+// Recharts needs concrete color values; keep the brand palette in one place.
+const BRAND_PRIMARY = '#213cef'
+const BRAND_PRIMARY_SOFT = '#c7d2fe'
+
 const usd = (v: number) =>
   v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
@@ -20,6 +24,18 @@ export function TrendChart({
 }: {
   data: Array<{ month: string; revenue: number; commission: number }>
 }) {
+  const hasData = data.some((p) => p.revenue !== 0 || p.commission !== 0)
+
+  if (!hasData) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center">
+        <p className="text-sm text-muted-foreground">
+          No activity yet — revenue and commission trends appear here once transactions come in.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -29,8 +45,8 @@ export function TrendChart({
           <YAxis tickFormatter={usd} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={70} />
           <Tooltip formatter={(value: number | string) => usd(Number(value))} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="revenue" name="Revenue" fill="#c7d2fe" radius={[4, 4, 0, 0]} />
-          <Line dataKey="commission" name="Commission" stroke="#213cef" strokeWidth={2} dot={false} />
+          <Bar dataKey="revenue" name="Revenue" fill={BRAND_PRIMARY_SOFT} radius={[4, 4, 0, 0]} />
+          <Line dataKey="commission" name="Commission" stroke={BRAND_PRIMARY} strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

@@ -22,6 +22,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   ArrowLeft,
   Loader2,
   Download,
@@ -31,6 +41,7 @@ import {
   Plus,
   CreditCard,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -81,9 +92,9 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
   const [payOpen, setPayOpen] = useState(false)
   const [adjOpen, setAdjOpen] = useState(false)
+  const [voidOpen, setVoidOpen] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -104,15 +115,14 @@ export default function InvoiceDetailPage() {
 
   const action = async (fn: () => Promise<Response>, key: string, okMsg?: string) => {
     setBusy(key)
-    setToast(null)
     try {
       const r = await fn()
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.message || data.error || 'Action failed')
-      if (okMsg) setToast(okMsg)
+      if (okMsg) toast.success(okMsg)
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Action failed')
+      toast.error(e instanceof Error ? e.message : 'Action failed')
     } finally {
       setBusy(null)
     }
@@ -159,7 +169,8 @@ export default function InvoiceDetailPage() {
               <Download className="mr-2 h-4 w-4" /> PDF
             </a>
           </Button>
-          {!isVoid && (
+          {/* Email is only valid once issued — the API rejects DRAFT/VOID. */}
+          {!isVoid && !isDraft && (
             <Button
               size="sm"
               variant="ghost"
@@ -205,8 +216,29 @@ export default function InvoiceDetailPage() {
               variant="ghost"
               className="text-red-300 hover:text-red-200"
               disabled={busy === 'void'}
+              onClick={() => setVoidOpen(true)}
+            >
+              <Ban className="mr-2 h-4 w-4" /> Void
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <AlertDialog open={voidOpen} onOpenChange={setVoidOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              INV-{String(invoice.invoiceNumber).padStart(5, '0')} will be voided. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep invoice</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
               onClick={() => {
-                if (!confirm('Void this invoice? This cannot be undone.')) return
+                setVoidOpen(false)
                 action(
                   () =>
                     fetch(`/api/admin/invoices/${id}`, {
@@ -219,14 +251,11 @@ export default function InvoiceDetailPage() {
                 )
               }}
             >
-              <Ban className="mr-2 h-4 w-4" /> Void
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {toast && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">{toast}</p>}
-      {error && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+              Void invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

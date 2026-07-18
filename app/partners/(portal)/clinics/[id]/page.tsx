@@ -4,6 +4,25 @@ import { use, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface Payload {
   clinic: {
@@ -80,7 +99,21 @@ export default function PartnerClinicDetailPage({ params }: { params: Promise<{ 
     }
   }
 
-  if (loading && !data) return <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
+  if (loading && !data)
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+      </div>
+    )
   if (!data) return <p className="py-10 text-center text-sm text-slate-400">Clinic not found.</p>
 
   const { clinic } = data
@@ -101,24 +134,33 @@ export default function PartnerClinicDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-4">
-        <label className="text-sm">
-          <span className="mr-2 text-xs text-slate-500">Stage</span>
-          <select
+        <div className="flex items-center gap-2 text-sm">
+          <Label htmlFor="clinic-stage" className="text-xs font-normal text-slate-500">
+            Stage
+          </Label>
+          <Select
             value={data.stage}
             disabled={busy}
-            onChange={(e) => void patch({ stage: e.target.value }, 'Stage updated')}
-            className="rounded-md border px-2 py-1.5 text-sm"
+            onValueChange={(value) => void patch({ stage: value }, 'Stage updated')}
           >
-            {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex-1 text-sm">
-          <span className="mr-2 text-xs text-slate-500">Tags (comma-separated)</span>
-          <input
+            <SelectTrigger id="clinic-stage" className="h-9 w-32 bg-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STAGES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s.replace('_', ' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1 text-sm">
+          <Label htmlFor="clinic-tags" className="mr-2 text-xs font-normal text-slate-500">
+            Tags (comma-separated)
+          </Label>
+          <Input
+            id="clinic-tags"
             defaultValue={data.tags.join(', ')}
             disabled={busy}
             onBlur={(e) => {
@@ -129,9 +171,9 @@ export default function PartnerClinicDetailPage({ params }: { params: Promise<{ 
               if (tags.join(',') !== data.tags.join(',')) void patch({ tags }, 'Tags updated')
             }}
             placeholder="e.g. weight-loss, west-coast"
-            className="w-full min-w-[220px] rounded-md border px-2 py-1.5 text-sm"
+            className="mt-1 w-full min-w-[220px] bg-white"
           />
-        </label>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -145,20 +187,17 @@ export default function PartnerClinicDetailPage({ params }: { params: Promise<{ 
             }}
             className="mb-4 flex gap-2"
           >
-            <input
+            <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={2000}
               placeholder="Add a note…"
-              className="flex-1 rounded-md border px-3 py-2 text-sm"
+              aria-label="Note"
+              className="flex-1 bg-white"
             />
-            <button
-              type="submit"
-              disabled={busy || !note.trim()}
-              className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-50"
-            >
+            <Button type="submit" disabled={busy || !note.trim()} className="font-semibold">
               Add
-            </button>
+            </Button>
           </form>
           {data.activity.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-400">No activity yet.</p>
@@ -183,29 +222,35 @@ export default function PartnerClinicDetailPage({ params }: { params: Promise<{ 
           {data.transactions.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-400">No transactions yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs uppercase text-slate-400">
-                  <th className="py-2 pr-4">Date</th>
-                  <th className="py-2 pr-4">Description</th>
-                  <th className="py-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.transactions.map((t) => (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="py-2 pr-4">{new Date(t.transactionDate).toLocaleDateString()}</td>
-                    <td className="max-w-[200px] truncate py-2 pr-4 text-slate-500">{t.description || '—'}</td>
-                    <td className="py-2 text-right">
-                      {usd(t.revenueCents)}
-                      {t.refundedCents > 0 && (
-                        <span className="ml-1 text-xs text-red-500">(−{usd(t.refundedCents)})</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-auto py-2 pl-0 pr-4 text-xs uppercase">Date</TableHead>
+                    <TableHead className="h-auto py-2 pl-0 pr-4 text-xs uppercase">Description</TableHead>
+                    <TableHead className="h-auto py-2 pl-0 pr-0 text-right text-xs uppercase">Revenue</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.transactions.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="py-2 pl-0 pr-4">
+                        {new Date(t.transactionDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate py-2 pl-0 pr-4 text-slate-500">
+                        {t.description || '—'}
+                      </TableCell>
+                      <TableCell className="py-2 pl-0 pr-0 text-right">
+                        {usd(t.revenueCents)}
+                        {t.refundedCents > 0 && (
+                          <span className="ml-1 text-xs text-red-500">(−{usd(t.refundedCents)})</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       </div>

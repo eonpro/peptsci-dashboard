@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getPartnerContext } from '@/lib/partners/auth'
+import { Button } from '@/components/ui/button'
 import { PortalNav } from './PortalNav'
 
 export const dynamic = 'force-dynamic'
@@ -16,25 +17,23 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
 
   if (!ctx) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#050722] px-6 text-center text-white">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
         <h1 className="text-2xl font-bold">Partner portal</h1>
         <p className="mt-3 max-w-md text-white/70">
           This account doesn&rsquo;t have partner access. If your organization was approved,
           accept the sign-up invitation email first — or apply to the program below.
         </p>
         <div className="mt-6 flex gap-3">
-          <Link
-            href="/partners/apply"
-            className="rounded-lg bg-[#213cef] px-5 py-2.5 text-sm font-semibold hover:bg-[#1a30c4]"
+          <Button asChild className="font-semibold">
+            <Link href="/partners/apply">Apply to the program</Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="border-white/20 bg-transparent font-semibold text-white hover:bg-white/10 hover:text-white"
           >
-            Apply to the program
-          </Link>
-          <Link
-            href="/"
-            className="rounded-lg border border-white/20 px-5 py-2.5 text-sm font-semibold hover:bg-white/10"
-          >
-            Back home
-          </Link>
+            <Link href="/">Back home</Link>
+          </Button>
         </div>
       </div>
     )
@@ -51,7 +50,7 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-[#050722] text-white">
+      <header className="bg-brand-onyx text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link href="/partners" className="text-lg font-bold tracking-wide">

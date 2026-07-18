@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Target } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface GoalRow {
   id: string
@@ -79,39 +86,59 @@ export default function PartnerGoalsPage() {
       </div>
 
       <form onSubmit={saveGoal} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
-        <select name="metric" className="rounded-md border px-3 py-2 text-sm">
+        {/* Native selects: this form is read via FormData by name, which Radix
+            Select doesn't participate in. */}
+        <select
+          name="metric"
+          aria-label="Metric"
+          className="h-10 rounded-md border border-input bg-white px-3 text-sm"
+        >
           <option value="REVENUE">Revenue</option>
           <option value="COMMISSION">Commission</option>
         </select>
-        <select name="period" className="rounded-md border px-3 py-2 text-sm">
+        <select
+          name="period"
+          aria-label="Period"
+          className="h-10 rounded-md border border-input bg-white px-3 text-sm"
+        >
           <option value="MONTH">Monthly</option>
           <option value="QUARTER">Quarterly</option>
           <option value="YEAR">Yearly</option>
         </select>
-        <input
+        <Input
           name="target"
           type="number"
           step="1"
           min="0"
           required
           placeholder="Target $"
-          className="w-32 rounded-md border px-3 py-2 text-sm"
+          aria-label="Target dollars"
+          className="w-32 bg-white"
         />
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
-        >
+        <Button type="submit" disabled={saving} className="font-semibold">
           {saving ? 'Saving…' : 'Set goal'}
-        </button>
+        </Button>
       </form>
 
       {loading ? (
-        <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[0, 1].map((i) => (
+            <div key={i} className="space-y-3 rounded-xl border bg-white p-5">
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-2.5 w-full rounded-full" />
+            </div>
+          ))}
+        </div>
       ) : goals.length === 0 ? (
-        <p className="rounded-xl border bg-white py-10 text-center text-sm text-slate-400">
-          No goals yet — set your first target above.
-        </p>
+        <div className="rounded-xl border bg-white">
+          <EmptyState
+            icon={Target}
+            title="No goals yet"
+            description="Set your first target above."
+            className="py-10"
+          />
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {goals.map((goal) => {
@@ -128,12 +155,10 @@ export default function PartnerGoalsPage() {
                   <strong className="text-slate-900">{usd(goal.actualCents)}</strong> of {usd(goal.targetCents)}{' '}
                   ({Math.round(pct)}%)
                 </p>
-                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-[#213cef]'}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
+                <Progress
+                  value={pct}
+                  className={cn('mt-2 h-2.5 bg-slate-100', pct >= 100 && '[&>div]:bg-emerald-500')}
+                />
               </div>
             )
           })}

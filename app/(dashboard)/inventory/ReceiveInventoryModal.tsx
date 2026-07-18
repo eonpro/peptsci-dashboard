@@ -223,7 +223,7 @@ export default function ReceiveInventoryModal({
                 type="color"
                 value={accentColor}
                 onChange={(e) => setAccentColor(e.target.value)}
-                className="h-9 w-12 cursor-pointer rounded border border-gray-300"
+                className="h-9 w-12 cursor-pointer rounded border border-input"
               />
               <Input
                 value={accentColor}
@@ -239,17 +239,17 @@ export default function ReceiveInventoryModal({
           </div>
         </div>
 
-        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <div className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
           <span className="font-semibold">Auto batch #:</span>{' '}
           {previewBatch ? (
             <span className="font-mono">{previewBatch}</span>
           ) : (
-            <span className="text-blue-700/70">enter name, dose and BUD to preview</span>
+            <span className="text-blue-300/70">enter name, dose and BUD to preview</span>
           )}
         </div>
 
         {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
             {error}
           </p>
         )}

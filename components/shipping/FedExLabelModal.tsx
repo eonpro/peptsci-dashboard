@@ -14,8 +14,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FEDEX_SERVICE_TYPES, FEDEX_PACKAGING_TYPES } from '@/lib/fedex-services'
 
-const ACCENT = '#2b2c84'
-
 export type LabelAddress = {
   personName: string
   companyName?: string
@@ -63,7 +61,7 @@ const DEFAULT_ORIGIN: LabelAddress = {
 }
 
 const inputCls =
-  'rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#2b2c84] focus:outline-hidden focus:ring-1 focus:ring-[#2b2c84]'
+  'rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
 
 function decodeBase64ToBytes(base64: string): Uint8Array {
   const bin = atob(base64)
@@ -290,7 +288,7 @@ export default function FedExLabelModal({
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Truck className="h-5 w-5" style={{ color: ACCENT }} />
+            <Truck className="h-5 w-5 text-primary" />
             Create FedEx Shipping Label
           </DialogTitle>
           <DialogDescription>
@@ -301,22 +299,22 @@ export default function FedExLabelModal({
 
         {success ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="rounded-lg border border-green-400/30 bg-green-500/10 p-4">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="font-medium text-green-800">Label created successfully</p>
+                <CheckCircle2 className="h-5 w-5 text-green-400" />
+                <p className="font-medium text-green-300">Label created successfully</p>
               </div>
-              <p className="mt-2 text-sm text-green-700">
+              <p className="mt-2 text-sm text-green-300">
                 Tracking: <span className="font-mono font-semibold">{success.trackingNumber}</span>
               </p>
               {labelFormat === 'ZPLII' ? (
-                <p className="mt-1 text-xs text-green-600">ZPL file downloaded — send to your Zebra printer.</p>
+                <p className="mt-1 text-xs text-green-400">ZPL file downloaded — send to your Zebra printer.</p>
               ) : success.popupBlocked ? (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-amber-300">
                   Popup blocked — use the button below to download the label.
                 </p>
               ) : (
-                <p className="mt-1 text-xs text-green-600">The label opened in a new tab for printing.</p>
+                <p className="mt-1 text-xs text-green-400">The label opened in a new tab for printing.</p>
               )}
             </div>
             <div className="flex items-center justify-end gap-3">
@@ -330,15 +328,15 @@ export default function FedExLabelModal({
         ) : (
           <div className="space-y-6">
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
                 <div className="space-y-2">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-400">{error}</p>
                   {paymentGateBlocked && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-red-300 text-red-700 hover:bg-red-100"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
                       disabled={loading}
                       onClick={() => handleSubmit(true)}
                     >
@@ -351,7 +349,7 @@ export default function FedExLabelModal({
 
             {/* Label format */}
             <fieldset className="space-y-2">
-              <legend className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <legend className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
                 <Printer className="h-4 w-4" /> Label Format
               </legend>
               <div className="flex gap-2">
@@ -365,14 +363,13 @@ export default function FedExLabelModal({
                     type="button"
                     onClick={() => setLabelFormat(opt.value)}
                     className={`flex-1 rounded-lg border p-2.5 text-left transition-colors ${
-                      labelFormat === opt.value ? 'bg-[#2b2c84]/5 ring-1' : 'border-gray-200 hover:border-gray-300'
+                      labelFormat === opt.value ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-muted-foreground/40'
                     }`}
-                    style={labelFormat === opt.value ? { borderColor: ACCENT, boxShadow: `0 0 0 1px ${ACCENT}` } : undefined}
                   >
-                    <p className="text-sm font-medium" style={{ color: labelFormat === opt.value ? ACCENT : '#374151' }}>
+                    <p className={`text-sm font-medium ${labelFormat === opt.value ? 'text-primary' : 'text-foreground/90'}`}>
                       {opt.label}
                     </p>
-                    <p className="text-xs text-gray-500">{opt.desc}</p>
+                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
                   </button>
                 ))}
               </div>
@@ -380,7 +377,7 @@ export default function FedExLabelModal({
 
             {/* Origin */}
             <fieldset className="space-y-3">
-              <legend className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <legend className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
                 <Package className="h-4 w-4" /> From (Origin)
               </legend>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -398,7 +395,7 @@ export default function FedExLabelModal({
 
             {/* Destination */}
             <fieldset className="space-y-3">
-              <legend className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <legend className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
                 <Package className="h-4 w-4" /> To (Destination)
               </legend>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -416,18 +413,19 @@ export default function FedExLabelModal({
 
             {/* Shipping options */}
             <fieldset className="space-y-3">
-              <legend className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <legend className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
                 <Truck className="h-4 w-4" /> Shipping Options
               </legend>
               <div
-                className="flex items-center justify-between rounded-lg border p-3"
-                style={oneRate ? { borderColor: ACCENT, backgroundColor: `${ACCENT}0d` } : { borderColor: '#e5e7eb' }}
+                className={`flex items-center justify-between rounded-lg border p-3 ${
+                  oneRate ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
               >
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" style={{ color: oneRate ? ACCENT : '#9ca3af' }} />
+                  <Zap className={`h-4 w-4 ${oneRate ? 'text-primary' : 'text-muted-foreground/70'}`} />
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Ship with FedEx One Rate</p>
-                    <p className="text-xs text-gray-500">Flat-rate pricing by package size</p>
+                    <p className="text-sm font-medium text-foreground">Ship with FedEx One Rate</p>
+                    <p className="text-xs text-muted-foreground">Flat-rate pricing by package size</p>
                   </div>
                 </div>
                 <button
@@ -435,8 +433,9 @@ export default function FedExLabelModal({
                   role="switch"
                   aria-checked={oneRate}
                   onClick={() => handleOneRateToggle(!oneRate)}
-                  className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
-                  style={{ backgroundColor: oneRate ? ACCENT : '#e5e7eb' }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    oneRate ? 'bg-primary' : 'bg-muted'
+                  }`}
                 >
                   <span
                     className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
@@ -447,7 +446,7 @@ export default function FedExLabelModal({
               </div>
 
               <div>
-                <Label className="mb-1 block text-xs font-medium text-gray-500">Service Type</Label>
+                <Label className="mb-1 block text-xs font-medium text-muted-foreground">Service Type</Label>
                 <select value={serviceType} onChange={(e) => { setServiceType(e.target.value); clearRate() }} className={`w-full ${inputCls}`}>
                   {availableServices.map((s) => (
                     <option key={s.code} value={s.code}>{s.label} — {s.estimatedDays}</option>
@@ -457,7 +456,7 @@ export default function FedExLabelModal({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label className="mb-1 block text-xs font-medium text-gray-500">Packaging{oneRate ? ' (One Rate)' : ''}</Label>
+                  <Label className="mb-1 block text-xs font-medium text-muted-foreground">Packaging{oneRate ? ' (One Rate)' : ''}</Label>
                   <select value={packagingType} onChange={(e) => { setPackagingType(e.target.value); clearRate() }} className={`w-full ${inputCls}`}>
                     {availablePackaging.map((p) => (
                       <option key={p.code} value={p.code}>
@@ -467,7 +466,7 @@ export default function FedExLabelModal({
                   </select>
                 </div>
                 <div>
-                  <Label className="mb-1 block text-xs font-medium text-gray-500">Weight (lbs)</Label>
+                  <Label className="mb-1 block text-xs font-medium text-muted-foreground">Weight (lbs)</Label>
                   <Input
                     type="number"
                     min={0.1}
@@ -478,24 +477,24 @@ export default function FedExLabelModal({
                   />
                 </div>
               </div>
-              {selectedService && <p className="text-xs text-gray-500">Estimated delivery: {selectedService.estimatedDays}</p>}
+              {selectedService && <p className="text-xs text-muted-foreground">Estimated delivery: {selectedService.estimatedDays}</p>}
             </fieldset>
 
             {/* Rate quote */}
             {rateQuote && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="rounded-lg border border-blue-400/30 bg-blue-500/10 p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-blue-600" />
-                    <p className="text-sm font-medium text-blue-800">Estimated Shipping Cost</p>
+                    <DollarSign className="h-4 w-4 text-blue-400" />
+                    <p className="text-sm font-medium text-blue-300">Estimated Shipping Cost</p>
                   </div>
-                  <p className="text-xl font-bold text-blue-900">{formatCurrency(rateQuote.totalCharge, rateQuote.currency)}</p>
+                  <p className="text-xl font-bold text-blue-300">{formatCurrency(rateQuote.totalCharge, rateQuote.currency)}</p>
                 </div>
-                {rateQuote.transitDays && <p className="mt-1 text-xs text-blue-600">Transit: {rateQuote.transitDays}</p>}
+                {rateQuote.transitDays && <p className="mt-1 text-xs text-blue-400">Transit: {rateQuote.transitDays}</p>}
                 {rateQuote.surcharges?.length > 0 && (
                   <div className="mt-2 space-y-0.5">
                     {rateQuote.surcharges.map((s, i) => (
-                      <div key={i} className="flex justify-between text-xs text-blue-700">
+                      <div key={i} className="flex justify-between text-xs text-blue-300">
                         <span>{s.description || s.type}</span>
                         <span>{formatCurrency(s.amount, rateQuote.currency)}</span>
                       </div>
@@ -515,13 +514,13 @@ export default function FedExLabelModal({
                   variant="outline"
                   onClick={handleGetRate}
                   disabled={rateLoading || !originAddr.address1 || !originAddr.zip || !destAddr.address1 || !destAddr.zip}
-                  style={{ borderColor: ACCENT, color: ACCENT }}
+                  className="border-primary text-primary"
                 >
                   {rateLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                   {rateLoading ? 'Getting Rate…' : 'Get Rate Quote'}
                 </Button>
               ) : (
-                <Button onClick={() => handleSubmit()} disabled={loading || !isOriginValid || !isDestValid} style={{ backgroundColor: ACCENT }}>
+                <Button onClick={() => handleSubmit()} disabled={loading || !isOriginValid || !isDestValid}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                   {loading ? 'Creating…' : `Confirm & Print — ${formatCurrency(rateQuote.totalCharge, rateQuote.currency)}`}
                 </Button>

@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { ShoppingCart, Minus, Plus, Trash2, ArrowRight, X, Package } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/checkout-core'
 
 export function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, clearCart, totalItems } =
@@ -20,8 +21,9 @@ export function CartDrawer() {
     }).format(price)
   }
 
-  // Calculate free shipping threshold
-  const freeShippingThreshold = 500
+  // Free-shipping progress mirrors lib/checkout-core: crossing the threshold
+  // makes 2-DAY shipping free (overnight stays discounted, not free).
+  const freeShippingThreshold = FREE_SHIPPING_THRESHOLD
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal)
   const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100)
 
@@ -59,7 +61,7 @@ export function CartDrawer() {
               <>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-white/70">
-                    Add {formatPrice(remainingForFreeShipping)} for FREE shipping
+                    Add {formatPrice(remainingForFreeShipping)} for FREE 2-day shipping
                   </span>
                   <span className="text-white/50">
                     {formatPrice(subtotal)} / {formatPrice(freeShippingThreshold)}
@@ -75,7 +77,7 @@ export function CartDrawer() {
             ) : (
               <div className="flex items-center justify-center gap-2 text-green-400">
                 <Package className="h-4 w-4" />
-                <span className="text-sm font-medium">🎉 You qualify for FREE shipping!</span>
+                <span className="text-sm font-medium">You qualify for FREE 2-day shipping!</span>
               </div>
             )}
           </div>

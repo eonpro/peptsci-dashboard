@@ -76,6 +76,9 @@ export default function CheckoutPage() {
   }>({ firstName: '', lastName: '', phone: '', address: emptyAddress })
 
   const [notes, setNotes] = useState('')
+  const [prefillFailed, setPrefillFailed] = useState(false)
+  // Field errors shown after the user tries to continue with invalid input.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
@@ -86,7 +89,11 @@ export default function CheckoutPage() {
     fetch('/api/shop/profile')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!active || !data?.profile) return
+        if (!active) return
+        if (!data?.profile) {
+          setPrefillFailed(true)
+          return
+        }
         const p = data.profile
         setPracticeName(p.organizationName ?? '')
         setContactEmail(p.contactEmail ?? '')
@@ -94,7 +101,9 @@ export default function CheckoutPage() {
         const addr = p.shippingAddress ?? p.billingAddress
         if (addr) setPracticeAddr(addr)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (active) setPrefillFailed(true)
+      })
     return () => {
       active = false
     }
@@ -116,10 +125,40 @@ export default function CheckoutPage() {
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId)
 
+  // Mirror the server addressSchema: address1/city/state required, ZIP must be
+  // 5 digits (optionally +4). Email/phone validated for deliverability.
+  const validatePracticeStep = (): Record<string, string> => {
+    const errors: Record<string, string> = {}
+    if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      errors.email = 'Enter a valid email address'
+    }
+    if (contactPhone.trim() && contactPhone.replace(/\D/g, '').length < 10) {
+      errors.phone = 'Enter a 10-digit phone number'
+    }
+    if (!practiceAddr.address1?.trim()) errors.address = 'Street address is required'
+    if (!practiceAddr.city?.trim()) errors.address = 'City is required'
+    if ((practiceAddr.state?.trim().length ?? 0) < 2) errors.address = 'State is required'
+    if (!/^\d{5}(-\d{4})?$/.test(practiceAddr.zip?.trim() ?? '')) {
+      errors.zip = 'Enter a valid 5-digit ZIP code'
+    }
+    return errors
+  }
+
   const shippingValid =
     shipTo === 'PRACTICE'
       ? Boolean(practiceAddr.address1 && practiceAddr.city && practiceAddr.state && practiceAddr.zip)
       : Boolean(selectedPatientId)
+
+  /** Validate then move to payment; on failure surface field errors inline. */
+  const continueToPayment = () => {
+    if (shipTo === 'PRACTICE') {
+      const errors = validatePracticeStep()
+      setFieldErrors(errors)
+      if (Object.keys(errors).length > 0) return
+    }
+    setFieldErrors({})
+    setCurrentStep('payment')
+  }
 
   const paymentItems = useMemo(
     () => items.map((i) => ({ sku: i.sku, quantity: i.quantity })),
@@ -325,6 +364,12 @@ export default function CheckoutPage() {
 
                   {shipTo === 'PRACTICE' ? (
                     <div className="space-y-4">
+                      {prefillFailed && (
+                        <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
+                          We couldn&apos;t load your saved practice details — please fill in the
+                          shipping info below.
+                        </div>
+                      )}
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="email" className="text-white/70">
@@ -335,8 +380,12 @@ export default function CheckoutPage() {
                             type="email"
                             value={contactEmail}
                             onChange={(e) => setContactEmail(e.target.value)}
-                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                            aria-invalid={!!fieldErrors.email}
+                            className={`h-12 bg-white/5 text-white rounded-xl ${fieldErrors.email ? 'border-red-500/60' : 'border-white/10'}`}
                           />
+                          {fieldErrors.email && (
+                            <p className="text-xs text-red-400">{fieldErrors.email}</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="phone" className="text-white/70">
@@ -347,8 +396,12 @@ export default function CheckoutPage() {
                             type="tel"
                             value={contactPhone}
                             onChange={(e) => setContactPhone(e.target.value)}
-                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                            aria-invalid={!!fieldErrors.phone}
+                            className={`h-12 bg-white/5 text-white rounded-xl ${fieldErrors.phone ? 'border-red-500/60' : 'border-white/10'}`}
                           />
+                          {fieldErrors.phone && (
+                            <p className="text-xs text-red-400">{fieldErrors.phone}</p>
+                          )}
                         </div>
                       </div>
                       <AddressFields
@@ -357,6 +410,11 @@ export default function CheckoutPage() {
                         idPrefix="practice"
                         dark
                       />
+                      {(fieldErrors.address || fieldErrors.zip) && (
+                        <p className="text-xs text-red-400">
+                          {fieldErrors.address || fieldErrors.zip}
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -534,28 +592,64 @@ export default function CheckoutPage() {
           )}
 
           {currentStep === 'payment' && (
-            <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-              <CardHeader className="border-b border-white/10 bg-white/5">
-                <CardTitle className="flex items-center gap-3 text-white">
-                  <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
-                    <CreditCard className="h-5 w-5 text-brand-primary" />
+            <>
+              {/* Review before pay: editable summary of where and how this ships. */}
+              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+                <CardContent className="p-4 md:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 text-sm">
+                      <p className="mb-1 flex items-center gap-2 font-medium text-white">
+                        <Truck className="h-4 w-4 text-brand-primary" />
+                        Shipping to{' '}
+                        {shipTo === 'PATIENT' && selectedPatient
+                          ? `${selectedPatient.firstName} ${selectedPatient.lastName}`
+                          : practiceName || 'your practice'}
+                      </p>
+                      <p className="text-white/60">
+                        {shipTo === 'PATIENT' && selectedPatient
+                          ? `${selectedPatient.address.address1}, ${selectedPatient.address.city}, ${selectedPatient.address.state} ${selectedPatient.address.zip}`
+                          : `${practiceAddr.address1 ?? ''}, ${practiceAddr.city ?? ''}, ${practiceAddr.state ?? ''} ${practiceAddr.zip ?? ''}`}
+                      </p>
+                      <p className="mt-1 text-white/60">
+                        {shipSpeed === 'TWO_DAY' ? '2-Day Shipping' : 'Overnight Shipping'} ·{' '}
+                        {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-white/20 text-white hover:bg-white/10 rounded-lg"
+                      onClick={() => setCurrentStep('shipping')}
+                    >
+                      Edit
+                    </Button>
                   </div>
-                  Payment
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 md:p-6">
-                <CheckoutPaymentSection
-                  items={paymentItems}
-                  shippingAddress={shippingAddressForOrder}
-                  notes={notes || undefined}
-                  total={total}
-                  shipTo={shipTo}
-                  shipSpeed={shipSpeed}
-                  patientId={shipTo === 'PATIENT' ? selectedPatientId : null}
-                  onSuccess={handleOrderSuccess}
-                />
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-white/10 bg-white/5">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                      <CreditCard className="h-5 w-5 text-brand-primary" />
+                    </div>
+                    Payment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6">
+                  <CheckoutPaymentSection
+                    items={paymentItems}
+                    shippingAddress={shippingAddressForOrder}
+                    notes={notes || undefined}
+                    total={total}
+                    shipTo={shipTo}
+                    shipSpeed={shipSpeed}
+                    patientId={shipTo === 'PATIENT' ? selectedPatientId : null}
+                    onSuccess={handleOrderSuccess}
+                  />
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
 
@@ -625,8 +719,8 @@ export default function CheckoutPage() {
                 {currentStep === 'shipping' && (
                   <Button
                     className="w-full h-12 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold disabled:opacity-50"
-                    onClick={() => setCurrentStep('payment')}
-                    disabled={!shippingValid}
+                    onClick={continueToPayment}
+                    disabled={shipTo === 'PATIENT' ? !selectedPatientId : !shippingValid}
                   >
                     Continue to Payment
                     <ChevronRight className="ml-2 h-4 w-4" />
@@ -647,30 +741,39 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Mobile fixed bottom bar */}
+      {/* Mobile fixed bottom bar. On the payment step it stays compact (total
+          + back link) so it never competes with the Pay button inside the
+          payment card. */}
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 lg:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 p-4 safe-area-bottom">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-white/60">Total</span>
-          <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
-        </div>
-        {currentStep === 'shipping' && (
-          <Button
-            className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold disabled:opacity-50"
-            onClick={() => setCurrentStep('payment')}
-            disabled={!shippingValid}
-          >
-            Continue to Payment
-            <ChevronRight className="ml-2 h-5 w-5" />
-          </Button>
-        )}
-        {currentStep === 'payment' && (
-          <Button
-            variant="outline"
-            className="w-full h-14 border-white/20 text-white hover:bg-white/10 rounded-2xl text-lg"
-            onClick={() => setCurrentStep('shipping')}
-          >
-            Back to Shipping
-          </Button>
+        {currentStep === 'shipping' ? (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-white/60">Total</span>
+              <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
+            </div>
+            <Button
+              className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold disabled:opacity-50"
+              onClick={continueToPayment}
+              disabled={shipTo === 'PATIENT' ? !selectedPatientId : !shippingValid}
+            >
+              Continue to Payment
+              <ChevronRight className="ml-2 h-5 w-5" />
+            </Button>
+          </>
+        ) : (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setCurrentStep('shipping')}
+              className="flex items-center gap-1 text-sm text-white/60 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" /> Shipping
+            </button>
+            <div className="text-right">
+              <span className="mr-2 text-sm text-white/60">Total</span>
+              <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -43,7 +43,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [qty, setQty] = useState(1)
 
-  const productId = product.id
+  // Cart lines are keyed by SKU (falling back to id) so every add path —
+  // catalog card, PDP, and Buy Again — merges into the same line.
+  const productId = product.sku || product.id
   const isInCart = items.some((item) => item.id === productId)
   const cartItem = items.find((item) => item.id === productId)
 

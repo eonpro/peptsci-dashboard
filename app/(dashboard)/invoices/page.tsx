@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ReceiptText, Loader2, Plus, FileX, Clock } from 'lucide-react'
+import { ReceiptText, Loader2, Plus, FileX, Clock, Search } from 'lucide-react'
 import { Pagination } from '@/components/Pagination'
 import { toast } from 'sonner'
 
@@ -61,6 +61,7 @@ export default function InvoicesPage() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>('ALL')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [meta, setMeta] = useState<{ total: number; totalPages: number }>({
@@ -73,6 +74,7 @@ export default function InvoicesPage() {
     setError(null)
     const qs = new URLSearchParams({ page: String(page), limit: String(pageSize) })
     if (status !== 'ALL') qs.set('status', status)
+    if (search.trim()) qs.set('search', search.trim())
     fetch(`/api/admin/invoices?${qs.toString()}`)
       .then(async (r) => {
         const data = await r.json().catch(() => ({}))
@@ -88,10 +90,11 @@ export default function InvoicesPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load invoices'))
       .finally(() => setLoading(false))
-  }, [status, page, pageSize])
+  }, [status, search, page, pageSize])
 
   useEffect(() => {
-    load()
+    const t = setTimeout(load, 250)
+    return () => clearTimeout(t)
   }, [load])
 
   return (
@@ -110,8 +113,21 @@ export default function InvoicesPage() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 p-1">
-        {STATUS_TABS.map((tab) => (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+          <Input
+            placeholder="Search by invoice # or client…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 p-1">
+          {STATUS_TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => {
@@ -124,7 +140,8 @@ export default function InvoicesPage() {
           >
             {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
           </button>
-        ))}
+          ))}
+        </div>
       </div>
 
       <Card>

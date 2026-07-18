@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { getPartnerContext } from '@/lib/partners/auth'
 import { prisma } from '@/lib/prisma'
 import { msaDocument } from '@/lib/partners/msa'
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
 import { SignForm } from './SignForm'
 import { PrintButton } from './PrintButton'
 
@@ -32,7 +34,7 @@ export default async function PartnerAgreementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-[#050722] text-white print:hidden">
+      <header className="bg-brand-onyx text-white print:hidden">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/partners" className="text-lg font-bold tracking-wide">
             PEPTSCI <span className="font-normal text-white/60">Partners</span>
@@ -101,7 +103,7 @@ export default async function PartnerAgreementPage() {
           <div className="mt-6 print:hidden">
             <Link
               href="/partners"
-              className="inline-block rounded-lg bg-[#213cef] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1a30c4]"
+              className={cn(buttonVariants(), 'font-semibold')}
             >
               Go to your portal
             </Link>

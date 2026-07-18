@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Search,
   FileText,
+  Camera,
   Receipt,
   Calculator,
   Menu,
@@ -113,6 +114,7 @@ const manageLinks = [
   { name: 'Products', href: '/products', icon: Boxes },
   { name: 'Pricing', href: '/pricing', icon: DollarSign },
   { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag },
+  { name: 'Package Photos', href: '/package-photos', icon: Camera },
 ]
 
 export function AdminHeader() {

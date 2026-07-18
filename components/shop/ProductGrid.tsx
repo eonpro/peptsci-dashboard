@@ -114,6 +114,7 @@ export function ProductGrid({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Clear search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-white/40 hover:text-white"
                 onClick={() => setSearchQuery('')}
               >
@@ -128,6 +129,7 @@ export function ProductGrid({
               <Button
                 variant="outline"
                 size="icon"
+                aria-label={`Filter and sort${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
                 className="h-12 w-12 border-white/20 bg-white/5 text-white hover:bg-white/10 rounded-xl relative"
               >
                 <SlidersHorizontal className="h-5 w-5" />
@@ -328,7 +330,10 @@ export function ProductGrid({
                 className="bg-brand-primary/20 text-brand-primary border-brand-primary/30 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
               >
                 {selectedCategory}
-                <button onClick={() => setSelectedCategory('all')}>
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  aria-label={`Clear category filter ${selectedCategory}`}
+                >
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
@@ -339,7 +344,7 @@ export function ProductGrid({
                 className="bg-white/10 text-white/80 border-white/20 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
               >
                 &quot;{searchQuery}&quot;
-                <button onClick={() => setSearchQuery('')}>
+                <button onClick={() => setSearchQuery('')} aria-label="Clear search">
                   <X className="h-3 w-3" />
                 </button>
               </Badge>

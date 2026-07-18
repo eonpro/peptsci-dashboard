@@ -5,6 +5,13 @@ import { getStorefrontBySlug, createRetailOrder } from '@/lib/storefront'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { toCents } from '@/lib/stripe'
+import { getStripeClient, getStripePublishableKey } from '@/lib/stripe/config'
+import {
+  connectRequestOptions,
+  getConnectedAccountId,
+  applicationFeeAmount,
+} from '@/lib/stripe/connect'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -160,12 +167,64 @@ export async function POST(request: NextRequest) {
       items: orderItems,
     })
 
+    // Create the card PaymentIntent so the buyer pays right now. When Stripe
+    // isn't configured, degrade gracefully: the order stays PENDING and the UI
+    // tells the buyer the store will follow up for payment.
+    let payment:
+      | {
+          clientSecret: string
+          paymentIntentId: string
+          publishableKey: string | undefined
+          connectedAccountId: string | undefined
+        }
+      | undefined
+    const stripe = getStripeClient()
+    if (stripe) {
+      try {
+        const amount = toCents(Number(result.retailOrder.total))
+        const appFee = applicationFeeAmount(amount)
+        const intent = await stripe.paymentIntents.create(
+          {
+            amount,
+            currency: 'usd',
+            description: `${config.branding.name} order ${result.retailOrder.orderNumber}`,
+            receipt_email: email,
+            // Card-only keeps the public flow redirect-free (no bank rails on
+            // an unauthenticated storefront checkout).
+            payment_method_types: ['card'],
+            metadata: { retailOrderId: result.retailOrder.id, storefrontId: config.id },
+            ...(appFee ? { application_fee_amount: appFee } : {}),
+          },
+          connectRequestOptions({ idempotencyKey: `pi_retail_${result.retailOrder.id}` })
+        )
+        await prisma.retailOrder.update({
+          where: { id: result.retailOrder.id },
+          data: { stripePaymentIntentId: intent.id },
+        })
+        if (intent.client_secret) {
+          payment = {
+            clientSecret: intent.client_secret,
+            paymentIntentId: intent.id,
+            publishableKey: getStripePublishableKey(),
+            connectedAccountId: getConnectedAccountId(),
+          }
+        }
+      } catch (err) {
+        // Order exists; payment can be collected later. Don't fail checkout.
+        logger.error('Storefront PI create failed', {
+          retailOrderId: result.retailOrder.id,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
     return successResponse(
       {
         orderId: result.retailOrder.id,
         orderNumber: result.retailOrder.orderNumber,
         total: Number(result.retailOrder.total),
         status: result.retailOrder.status,
+        payment,
       },
       201
     )

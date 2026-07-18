@@ -151,7 +151,7 @@ export default function PackagePhotosPage() {
       setSuccess(
         data.matched
           ? `Photo saved and matched to order #${orderRef.trim()}.`
-          : `Photo saved. No order matched "${orderRef.trim()}" yet — it can be re-matched later.`
+          : `Photo saved, but no order matched "${orderRef.trim()}". Double-check the order # and upload again to attach it.`
       )
       reset()
       refresh()

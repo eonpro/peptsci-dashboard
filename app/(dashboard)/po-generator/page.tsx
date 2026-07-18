@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Trash2, Plus, FileDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type JsPDF from 'jspdf'
 
@@ -61,6 +62,7 @@ export default function POGeneratorPage() {
         setProducts(normalised as unknown as PriceSheet[])
       } catch (error) {
         console.error('Error fetching products:', error)
+        toast.error('Failed to load the product catalog — refresh to retry')
       } finally {
         setLoading(false)
       }
@@ -309,7 +311,7 @@ export default function POGeneratorPage() {
       doc.save(`${poNumber}.pdf`)
     } catch (error) {
       console.error('Error saving PDF:', error)
-      alert('Error generating PDF. Please try again.')
+      toast.error('Error generating PDF. Please try again.')
     }
   }
 

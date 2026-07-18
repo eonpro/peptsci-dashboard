@@ -162,7 +162,14 @@ export function CheckoutPaymentSection({
     !billing?.hasOverdue &&
     (availableCredit == null || total <= availableCredit)
 
+  // Synchronous double-submit guard shared by the terms + saved-card paths:
+  // React state updates are async, so a fast double-click could otherwise fire
+  // two POSTs before `placing` disables the button.
+  const placingRef = useRef(false)
+
   const placeTermsOrder = useCallback(async () => {
+    if (placingRef.current) return
+    placingRef.current = true
     setPlacing(true)
     setError(null)
     try {
@@ -179,6 +186,7 @@ export function CheckoutPaymentSection({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not place the order')
     } finally {
+      placingRef.current = false
       setPlacing(false)
     }
   }, [items, shippingAddress, notes, shipTo, shipSpeed, patientId, onSuccess])
@@ -230,6 +238,8 @@ export function CheckoutPaymentSection({
   }, [selected, checkoutSignature, pi, creatingPi, createNewCardIntent])
 
   const paySavedCard = useCallback(async () => {
+    if (placingRef.current) return
+    placingRef.current = true
     setPlacing(true)
     setError(null)
     try {
@@ -275,6 +285,7 @@ export function CheckoutPaymentSection({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Payment failed')
     } finally {
+      placingRef.current = false
       setPlacing(false)
     }
   }, [items, shippingAddress, notes, selected, onSuccess, shipTo, shipSpeed, patientId])

@@ -2,10 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Check, Loader2, ShoppingBag, Truck, CreditCard } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Loader2, ShoppingBag, Truck, CreditCard } from 'lucide-react'
 import { useStorefront } from '@/components/storefront/StorefrontContext'
+import {
+  StorefrontPaymentForm,
+  type StorefrontPaymentInfo,
+} from '@/components/storefront/StorefrontPaymentForm'
 
-type Step = 'shipping' | 'review' | 'confirm'
+type Step = 'shipping' | 'review' | 'pay' | 'confirm'
 
 export default function CheckoutPage() {
   const { config, slug, cart, cartSubtotal, cartItemCount, clearCart, session } = useStorefront()
@@ -14,9 +18,12 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<Step>('shipping')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [payment, setPayment] = useState<StorefrontPaymentInfo | null>(null)
   const [confirmation, setConfirmation] = useState<{
     orderNumber: string
     total: number
+    /** 'paid' | 'pending' (card processing) | 'unpaid' (no payment collected) */
+    paymentState: 'paid' | 'pending' | 'unpaid'
   } | null>(null)
 
   const [email, setEmail] = useState(session?.email ?? '')
@@ -76,9 +83,21 @@ export default function CheckoutPage() {
         return
       }
 
-      setConfirmation({ orderNumber: data.orderNumber, total: data.total })
+      // Order is locked in server-side; the cart's job is done either way.
       clearCart()
-      setStep('confirm')
+      if (data.payment?.clientSecret) {
+        setConfirmation({
+          orderNumber: data.orderNumber,
+          total: data.total,
+          paymentState: 'unpaid',
+        })
+        setPayment(data.payment)
+        setStep('pay')
+      } else {
+        // Payments unavailable — order recorded, store follows up to collect.
+        setConfirmation({ orderNumber: data.orderNumber, total: data.total, paymentState: 'unpaid' })
+        setStep('confirm')
+      }
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -86,7 +105,7 @@ export default function CheckoutPage() {
     }
   }
 
-  if (cartItemCount === 0 && step !== 'confirm') {
+  if (cartItemCount === 0 && step !== 'confirm' && step !== 'pay') {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
         <ShoppingBag className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -103,17 +122,28 @@ export default function CheckoutPage() {
   }
 
   if (step === 'confirm' && confirmation) {
+    const isPending = confirmation.paymentState === 'pending'
+    const isUnpaid = confirmation.paymentState === 'unpaid'
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
         <div
           className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
           style={{ backgroundColor: `${branding?.colors.accent ?? '#10b981'}20` }}
         >
-          <Check className="h-8 w-8" style={{ color: branding?.colors.accent ?? '#10b981' }} />
+          {isPending ? (
+            <Clock className="h-8 w-8" style={{ color: branding?.colors.accent ?? '#10b981' }} />
+          ) : (
+            <Check className="h-8 w-8" style={{ color: branding?.colors.accent ?? '#10b981' }} />
+          )}
         </div>
-        <h1 className="text-2xl font-bold mb-2">Order Confirmed!</h1>
+        <h1 className="text-2xl font-bold mb-2">
+          {isPending ? 'Payment Processing' : 'Order Confirmed!'}
+        </h1>
         <p className="text-gray-500 mb-4">
           Order <span className="font-semibold">{confirmation.orderNumber}</span> has been placed.
+          {isPending && ' Your payment is processing — we\u2019ll email you once it completes.'}
+          {isUnpaid &&
+            ' Payment wasn\u2019t collected online; the store will contact you to complete payment.'}
         </p>
         <p className="text-lg font-bold mb-8" style={{ color: branding?.colors.primary }}>
           Total: ${confirmation.total.toFixed(2)}
@@ -154,11 +184,13 @@ export default function CheckoutPage() {
       <div className="flex items-center gap-2 mb-8">
         {[
           { key: 'shipping', label: 'Shipping', icon: Truck },
-          { key: 'review', label: 'Review & Pay', icon: CreditCard },
+          { key: 'review', label: 'Review', icon: ShoppingBag },
+          { key: 'pay', label: 'Pay', icon: CreditCard },
         ].map((s, i) => {
           const Icon = s.icon
+          const order = ['shipping', 'review', 'pay']
           const active = step === s.key
-          const completed = (step === 'review' && s.key === 'shipping')
+          const completed = order.indexOf(step) > order.indexOf(s.key)
           return (
             <div key={s.key} className="flex items-center gap-2">
               {i > 0 && <div className="w-12 h-px bg-gray-300" />}
@@ -350,9 +382,35 @@ export default function CheckoutPage() {
                     <Loader2 className="h-4 w-4 animate-spin" /> Processing...
                   </>
                 ) : (
-                  `Place Order — $${total.toFixed(2)}`
+                  `Continue to Payment — $${total.toFixed(2)}`
                 )}
               </button>
+              <p className="text-center text-xs text-gray-400">
+                Your card is charged on the next step.
+              </p>
+            </div>
+          )}
+
+          {step === 'pay' && payment && confirmation && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">Payment</h2>
+                <p className="text-sm text-gray-500">
+                  Order <span className="font-medium">{confirmation.orderNumber}</span> ·{' '}
+                  ${confirmation.total.toFixed(2)}
+                </p>
+              </div>
+              <StorefrontPaymentForm
+                payment={payment}
+                amountLabel={`$${confirmation.total.toFixed(2)}`}
+                primaryColor={branding?.colors.primary ?? '#213cef'}
+                onPaid={({ pending }) => {
+                  setConfirmation((prev) =>
+                    prev ? { ...prev, paymentState: pending ? 'pending' : 'paid' } : prev
+                  )
+                  setStep('confirm')
+                }}
+              />
             </div>
           )}
         </div>

@@ -26,13 +26,15 @@ interface OrderRow {
   createdAt: string
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
-  PROCESSING: 'bg-purple-100 text-purple-800',
-  SHIPPED: 'bg-indigo-100 text-indigo-800',
-  DELIVERED: 'bg-emerald-100 text-emerald-800',
-  CANCELLED: 'bg-red-100 text-red-800',
+/** Friendly, human status labels instead of raw enum values. */
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  PENDING: { label: 'Order received', className: 'bg-amber-100 text-amber-800' },
+  CONFIRMED: { label: 'Confirmed', className: 'bg-blue-100 text-blue-800' },
+  PROCESSING: { label: 'Preparing your order', className: 'bg-purple-100 text-purple-800' },
+  SHIPPED: { label: 'Shipped', className: 'bg-indigo-100 text-indigo-800' },
+  DELIVERED: { label: 'Delivered', className: 'bg-emerald-100 text-emerald-800' },
+  CANCELLED: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
+  REFUNDED: { label: 'Refunded', className: 'bg-gray-100 text-gray-700' },
 }
 
 export default function OrdersPage() {
@@ -40,18 +42,22 @@ export default function OrdersPage() {
   const branding = config?.branding
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     if (!session?.token) {
       setLoading(false)
       return
     }
+    setError(false)
     fetch('/api/storefront/account/orders', {
       headers: { Authorization: `Bearer ${session.token}` },
     })
       .then(async (res) => {
         if (res.ok) setOrders(await res.json())
+        else setError(true)
       })
+      .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [session])
 
@@ -87,6 +93,17 @@ export default function OrdersPage() {
             <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />
           ))}
         </div>
+      ) : error ? (
+        <div className="text-center py-16">
+          <p className="mb-4 text-gray-500">We couldn&apos;t load your orders.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-block rounded-lg px-6 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: branding?.colors.primary }}
+          >
+            Try Again
+          </button>
+        </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-16">
           <ShoppingBag className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -115,8 +132,12 @@ export default function OrdersPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLE[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                    {order.status}
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      STATUS_META[order.status]?.className ?? 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {STATUS_META[order.status]?.label ?? order.status}
                   </span>
                   <span className="font-semibold">${order.total.toFixed(2)}</span>
                 </div>

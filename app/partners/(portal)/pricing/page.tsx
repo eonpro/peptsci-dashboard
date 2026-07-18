@@ -2,6 +2,27 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { PackageSearch } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface PriceRow {
   variantId: string
@@ -79,48 +100,59 @@ export default function PartnerPricingPage() {
         </p>
       </div>
 
-      <select
-        value={clientId}
-        onChange={(e) => {
-          setClientId(e.target.value)
-          if (e.target.value) void load(e.target.value)
+      <Select
+        value={clientId || undefined}
+        onValueChange={(value) => {
+          setClientId(value)
+          if (value) void load(value)
           else setItems([])
         }}
-        className="rounded-md border bg-white px-3 py-2 text-sm"
       >
-        <option value="">Select a clinic…</option>
-        {clinics.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.organizationName}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-auto min-w-[220px] bg-white" aria-label="Clinic">
+          <SelectValue placeholder="Select a clinic…" />
+        </SelectTrigger>
+        <SelectContent>
+          {clinics.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.organizationName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {clientId && (
         <div className="overflow-x-auto rounded-xl border bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3 text-right">Your floor</th>
-                <th className="px-4 py-3 text-right">List (SRP)</th>
-                <th className="px-4 py-3 text-right">Clinic price</th>
-                <th className="px-4 py-3 text-right">Your margin</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400">Loading…</td>
-                </tr>
-              )}
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead className="text-xs uppercase tracking-wide">Product</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wide">Your floor</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wide">List (SRP)</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wide">Clinic price</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wide">Your margin</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading &&
+                [0, 1, 2].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={6} className="py-3">
+                      <Skeleton className="h-5 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))}
               {!loading && items.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                    No products have wholesale floors set for your org yet — contact PeptSci.
-                  </td>
-                </tr>
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <EmptyState
+                      icon={PackageSearch}
+                      title="No products have wholesale floors set for your org yet"
+                      description="Contact PeptSci."
+                      className="py-6"
+                    />
+                  </TableCell>
+                </TableRow>
               )}
               {items.map((row) => {
                 const draft = drafts[row.variantId]
@@ -130,44 +162,51 @@ export default function PartnerPricingPage() {
                     : (row.currentPriceCents ?? row.srpCents)
                 const margin = Number.isFinite(effective) ? effective - row.floorCents : 0
                 return (
-                  <tr key={row.variantId} className="border-b last:border-0">
-                    <td className="px-4 py-3">
+                  <TableRow key={row.variantId}>
+                    <TableCell className="py-3">
                       <div className="font-medium">{row.name}</div>
                       <div className="text-xs text-slate-400">
                         {row.dose}
                         {row.sku ? ` · ${row.sku}` : ''}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">{usd(row.floorCents)}</td>
-                    <td className="px-4 py-3 text-right text-slate-500">{usd(row.srpCents)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <input
+                    </TableCell>
+                    <TableCell className="py-3 text-right">{usd(row.floorCents)}</TableCell>
+                    <TableCell className="py-3 text-right text-slate-500">{usd(row.srpCents)}</TableCell>
+                    <TableCell className="py-3 text-right">
+                      <Input
                         type="number"
                         step="0.01"
                         min={row.floorCents / 100}
                         value={draft ?? (row.currentPriceCents != null ? (row.currentPriceCents / 100).toFixed(2) : '')}
                         placeholder={(row.srpCents / 100).toFixed(2)}
+                        aria-label={`Clinic price for ${row.name}`}
                         onChange={(e) => setDrafts((d) => ({ ...d, [row.variantId]: e.target.value }))}
-                        className="w-28 rounded-md border px-2 py-1.5 text-right text-sm"
+                        className="ml-auto h-9 w-28 bg-white text-right"
                       />
-                    </td>
-                    <td className={`px-4 py-3 text-right font-medium ${margin < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        'py-3 text-right font-medium',
+                        margin < 0 ? 'text-red-600' : 'text-emerald-600'
+                      )}
+                    >
                       {Number.isFinite(margin) ? usd(Math.max(0, margin)) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
+                    </TableCell>
+                    <TableCell className="py-3 text-right">
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs font-semibold"
                         onClick={() => void save(row)}
                         disabled={draft === undefined || draft === ''}
-                        className="rounded-md bg-[#213cef] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-40"
                       >
                         Save
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

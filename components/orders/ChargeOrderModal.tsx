@@ -152,21 +152,21 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" style={{ color: ACCENT }} />
+            <CreditCard className="h-5 w-5 text-primary" />
             Take Payment{orderNumber ? ` — Order #${orderNumber}` : ''}
           </DialogTitle>
           <DialogDescription>Charge a saved card or enter a new one. Payment is processed securely by Stripe.</DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-gray-500">
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading…
           </div>
         ) : done || alreadyPaid ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <p className="font-medium text-green-800">{alreadyPaid && !done ? 'This order is already paid.' : 'Payment captured.'}</p>
+            <div className="flex items-center gap-2 rounded-lg border border-green-400/30 bg-green-500/10 p-4">
+              <CheckCircle2 className="h-5 w-5 text-green-400" />
+              <p className="font-medium text-green-300">{alreadyPaid && !done ? 'This order is already paid.' : 'Payment captured.'}</p>
             </div>
             <div className="flex justify-end">
               <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -175,9 +175,9 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
         ) : (
           <div className="space-y-5">
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
 
@@ -189,38 +189,38 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
                     type="button"
                     onClick={() => setSelected(c.id)}
                     className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      selected === c.id ? 'border-[#2b2c84] bg-[#2b2c84]/5' : 'border-gray-200 hover:bg-gray-50'
+                      selected === c.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60'
                     }`}
                   >
-                    <CreditCard className="h-5 w-5 text-gray-500" />
-                    <span className="flex-1 text-sm text-gray-800">
+                    <CreditCard className="h-5 w-5 text-muted-foreground" />
+                    <span className="flex-1 text-sm text-foreground">
                       {(c.cardBrand ?? 'Card').toUpperCase()} ···· {c.cardLast4}
-                      <span className="ml-2 text-gray-400">{c.expiryMonth?.toString().padStart(2, '0')}/{c.expiryYear}</span>
+                      <span className="ml-2 text-muted-foreground/70">{c.expiryMonth?.toString().padStart(2, '0')}/{c.expiryYear}</span>
                     </span>
-                    {selected === c.id && <CheckCircle2 className="h-5 w-5" style={{ color: ACCENT }} />}
+                    {selected === c.id && <CheckCircle2 className="h-5 w-5 text-primary" />}
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={() => setSelected('new')}
                   className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                    selected === 'new' ? 'border-[#2b2c84] bg-[#2b2c84]/5' : 'border-gray-200 hover:bg-gray-50'
+                    selected === 'new' ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60'
                   }`}
                 >
-                  <Plus className="h-5 w-5 text-gray-500" />
-                  <span className="flex-1 text-sm text-gray-800">Use a new card</span>
-                  {selected === 'new' && <CheckCircle2 className="h-5 w-5" style={{ color: ACCENT }} />}
+                  <Plus className="h-5 w-5 text-muted-foreground" />
+                  <span className="flex-1 text-sm text-foreground">Use a new card</span>
+                  {selected === 'new' && <CheckCircle2 className="h-5 w-5 text-primary" />}
                 </button>
               </div>
             )}
 
             {selected !== 'new' ? (
-              <Button className="w-full" onClick={paySavedCard} disabled={placing} style={{ backgroundColor: ACCENT }}>
+              <Button className="w-full" onClick={paySavedCard} disabled={placing}>
                 {placing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
                 Pay {formatPrice(total)}
               </Button>
             ) : creatingPi || !pi || !stripePromise ? (
-              <div className="flex items-center justify-center py-10 text-gray-400">
+              <div className="flex items-center justify-center py-10 text-muted-foreground/70">
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : (
@@ -239,7 +239,7 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
               </Elements>
             )}
 
-            <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/70">
               <Lock className="h-3.5 w-3.5" />
               <span>Encrypted and processed securely by Stripe</span>
             </div>
@@ -305,11 +305,11 @@ function NewCardForm({
   return (
     <div className="space-y-4">
       <PaymentElement options={{ layout: 'tabs' }} />
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
         <input type="checkbox" checked={saveCard} onChange={(e) => onToggleSave(e.target.checked)} className="h-4 w-4" />
         Save this card for future reorders
       </label>
-      <Button className="w-full" onClick={handlePay} disabled={!stripe || submitting} style={{ backgroundColor: ACCENT }}>
+      <Button className="w-full" onClick={handlePay} disabled={!stripe || submitting}>
         {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
         Pay {formatPrice(total)}
       </Button>

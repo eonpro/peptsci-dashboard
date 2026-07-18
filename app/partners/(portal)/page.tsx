@@ -8,6 +8,17 @@ import {
   type LedgerScope,
 } from '@/lib/partners/queries'
 import { formatCents, formatBps } from '@/lib/partners/commission'
+import { Receipt } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { TrendChart } from './TrendChart'
 
 export const dynamic = 'force-dynamic'
@@ -54,12 +65,9 @@ export default async function PartnerDashboardPage() {
             {revenue.transactionCount === 1 ? '' : 's'}
           </p>
         </div>
-        <Link
-          href="/partners/links"
-          className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4]"
-        >
-          Create referral link
-        </Link>
+        <Button asChild className="font-semibold">
+          <Link href="/partners/links">Create referral link</Link>
+        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -94,45 +102,50 @@ export default async function PartnerDashboardPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Recent transactions
           </h2>
-          <Link href="/partners/transactions" className="text-sm text-[#213cef] hover:underline">
+          <Link href="/partners/transactions" className="text-sm text-primary hover:underline">
             View all
           </Link>
         </div>
         {recent.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">
-            No transactions yet — orders from your referred clinics appear here automatically.
-          </p>
+          <EmptyState
+            icon={Receipt}
+            title="No transactions yet"
+            description="Orders from your referred clinics appear here automatically."
+            className="py-6"
+          />
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs uppercase text-slate-400">
-                <th className="py-2 pr-4">Date</th>
-                <th className="py-2 pr-4">Clinic</th>
-                <th className="py-2 pr-4 text-right">Revenue</th>
-                <th className="py-2 text-right">Your commission</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((txn) => {
-                const mine = txn.entries.reduce((sum, entry) => {
-                  const isMine =
-                    viewer === 'ORG'
-                      ? entry.payee === 'ORG'
-                      : entry.payee === 'REP' && entry.repId === ctx.rep!.id
-                  if (!isMine) return sum
-                  return sum + (entry.kind === 'REVERSAL' ? -entry.amountCents : entry.amountCents)
-                }, 0)
-                return (
-                  <tr key={txn.id} className="border-b last:border-0">
-                    <td className="py-2 pr-4">{txn.transactionDate.toLocaleDateString()}</td>
-                    <td className="py-2 pr-4">{txn.client.organizationName}</td>
-                    <td className="py-2 pr-4 text-right">{formatCents(txn.revenueCents)}</td>
-                    <td className="py-2 text-right font-medium">{formatCents(mine)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-auto py-2 pl-0 pr-4 text-xs uppercase">Date</TableHead>
+                  <TableHead className="h-auto py-2 pl-0 pr-4 text-xs uppercase">Clinic</TableHead>
+                  <TableHead className="h-auto py-2 pl-0 pr-4 text-right text-xs uppercase">Revenue</TableHead>
+                  <TableHead className="h-auto py-2 pl-0 pr-0 text-right text-xs uppercase">Your commission</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recent.map((txn) => {
+                  const mine = txn.entries.reduce((sum, entry) => {
+                    const isMine =
+                      viewer === 'ORG'
+                        ? entry.payee === 'ORG'
+                        : entry.payee === 'REP' && entry.repId === ctx.rep!.id
+                    if (!isMine) return sum
+                    return sum + (entry.kind === 'REVERSAL' ? -entry.amountCents : entry.amountCents)
+                  }, 0)
+                  return (
+                    <TableRow key={txn.id}>
+                      <TableCell className="py-2 pl-0 pr-4">{txn.transactionDate.toLocaleDateString()}</TableCell>
+                      <TableCell className="py-2 pl-0 pr-4">{txn.client.organizationName}</TableCell>
+                      <TableCell className="py-2 pl-0 pr-4 text-right">{formatCents(txn.revenueCents)}</TableCell>
+                      <TableCell className="py-2 pl-0 pr-0 text-right font-medium">{formatCents(mine)}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
     </div>

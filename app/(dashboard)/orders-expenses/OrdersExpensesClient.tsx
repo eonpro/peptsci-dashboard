@@ -85,9 +85,9 @@ export default function OrdersExpensesClient({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'delivered':
-        return <Badge className="bg-green-100 text-green-800">Delivered</Badge>
+        return <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">Delivered</Badge>
       case 'shipped':
-        return <Badge className="bg-blue-100 text-blue-800">Shipped</Badge>
+        return <Badge className="bg-blue-500/15 text-blue-300 border border-blue-400/30">Shipped</Badge>
       case 'pending':
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
       default:
@@ -297,7 +297,7 @@ export default function OrdersExpensesClient({
                 .map(([month, data]) => (
                   <div
                     key={month}
-                    className="flex justify-between items-center p-4 bg-gray-50 rounded-lg"
+                    className="flex justify-between items-center p-4 bg-muted/40 rounded-lg"
                   >
                     <div>
                       <div className="font-medium">{month}</div>

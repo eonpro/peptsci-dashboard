@@ -20,7 +20,8 @@ export function PdpAddToCart({ product }: PdpAddToCartProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [qty, setQty] = useState(1)
 
-  const productId = product.id
+  // Same cart line key as ProductCard/BuyAgain (SKU first) so add paths merge.
+  const productId = product.sku || product.id
   const cartItem = items.find((item) => item.id === productId)
 
   const outOfStock = product.inStock === false

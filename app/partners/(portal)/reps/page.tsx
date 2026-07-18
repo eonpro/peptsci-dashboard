@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { UserPlus } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +14,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface RepRow {
   id: string
@@ -117,10 +132,10 @@ export default function PartnerRepsPage() {
 
       <form onSubmit={invite} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
         <UserPlus className="mb-2 h-4 w-4 text-slate-400" />
-        <input name="name" required placeholder="Full name *" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="email" type="email" required placeholder="Email *" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="phone" placeholder="Phone" className="w-32 rounded-md border px-3 py-2 text-sm" />
-        <input
+        <Input name="name" required placeholder="Full name *" aria-label="Full name" className="w-auto bg-white" />
+        <Input name="email" type="email" required placeholder="Email *" aria-label="Email" className="w-auto bg-white" />
+        <Input name="phone" placeholder="Phone" aria-label="Phone" className="w-32 bg-white" />
+        <Input
           name="ratePercent"
           type="number"
           step="0.01"
@@ -128,66 +143,74 @@ export default function PartnerRepsPage() {
           max="100"
           required
           placeholder="Rate %"
-          className="w-24 rounded-md border px-3 py-2 text-sm"
+          aria-label="Rate percent"
+          className="w-24 bg-white"
         />
-        <button
-          type="submit"
-          disabled={inviting}
-          className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
-        >
+        <Button type="submit" disabled={inviting} className="font-semibold">
           {inviting ? 'Inviting…' : 'Invite rep'}
-        </button>
+        </Button>
       </form>
 
       <div className="overflow-x-auto rounded-xl border bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3">Rep</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Rate</th>
-              <th className="px-4 py-3 text-right">Clinics</th>
-              <th className="px-4 py-3 text-right">Revenue</th>
-              <th className="px-4 py-3 text-right">Earned</th>
-              <th className="px-4 py-3 text-right">Unpaid</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading…</td>
-              </tr>
-            )}
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50">
+              <TableHead className="text-xs uppercase tracking-wide">Rep</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Rate</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Clinics</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Revenue</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Earned</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Unpaid</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading &&
+              [0, 1, 2].map((i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={8} className="py-3">
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))}
             {!loading && reps.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
-                  No reps yet — invite your first rep above.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={8}>
+                  <EmptyState
+                    icon={UserPlus}
+                    title="No reps yet"
+                    description="Invite your first rep above."
+                    className="py-6"
+                  />
+                </TableCell>
+              </TableRow>
             )}
             {reps.map((rep) => (
-              <tr key={rep.id} className="border-b last:border-0">
-                <td className="px-4 py-3">
+              <TableRow key={rep.id}>
+                <TableCell className="py-3">
                   <div className="font-medium">{rep.name}</div>
                   <div className="text-xs text-slate-400">{rep.email}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                </TableCell>
+                <TableCell className="py-3">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'font-medium',
                       rep.status === 'ACTIVE'
-                        ? 'bg-emerald-100 text-emerald-700'
+                        ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
                         : rep.status === 'PENDING'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-red-100 text-red-600'
-                    }`}
+                          ? 'border-amber-200 bg-amber-100 text-amber-700'
+                          : 'border-red-200 bg-red-100 text-red-600'
+                    )}
                   >
                     {rep.status === 'PENDING' ? 'Invite sent' : rep.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    className="text-[#213cef] hover:underline"
+                  </Badge>
+                </TableCell>
+                <TableCell className="py-3">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-sm font-normal"
                     aria-label={`Edit commission rate for ${rep.name}`}
                     onClick={() =>
                       setRateEdit({
@@ -198,28 +221,30 @@ export default function PartnerRepsPage() {
                     }
                   >
                     {rep.commissionRateBps / 100}%
-                  </button>
-                </td>
-                <td className="px-4 py-3 text-right">{rep.clinicCount}</td>
-                <td className="px-4 py-3 text-right">{usd(rep.revenueCents)}</td>
-                <td className="px-4 py-3 text-right">{usd(rep.earnedCents)}</td>
-                <td className="px-4 py-3 text-right text-amber-600">{usd(rep.unpaidCents)}</td>
-                <td className="px-4 py-3 text-right">
+                  </Button>
+                </TableCell>
+                <TableCell className="py-3 text-right">{rep.clinicCount}</TableCell>
+                <TableCell className="py-3 text-right">{usd(rep.revenueCents)}</TableCell>
+                <TableCell className="py-3 text-right">{usd(rep.earnedCents)}</TableCell>
+                <TableCell className="py-3 text-right text-amber-600">{usd(rep.unpaidCents)}</TableCell>
+                <TableCell className="py-3 text-right">
                   {rep.status !== 'PENDING' && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-sm font-normal text-slate-500 hover:bg-transparent hover:underline"
                       onClick={() =>
                         void update(rep.id, { status: rep.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })
                       }
-                      className="text-sm text-slate-500 hover:underline"
                     >
                       {rep.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
-                    </button>
+                    </Button>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <Dialog open={!!rateEdit} onOpenChange={(open) => !open && setRateEdit(null)}>
@@ -251,10 +276,10 @@ export default function PartnerRepsPage() {
             className="space-y-4"
           >
             <div className="flex items-center gap-2">
-              <label htmlFor="rep-rate" className="sr-only">
+              <Label htmlFor="rep-rate" className="sr-only">
                 Commission rate percent
-              </label>
-              <input
+              </Label>
+              <Input
                 id="rep-rate"
                 type="number"
                 step="0.01"
@@ -265,25 +290,17 @@ export default function PartnerRepsPage() {
                 onChange={(e) =>
                   setRateEdit((prev) => (prev ? { ...prev, value: e.target.value } : prev))
                 }
-                className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-28 bg-white"
               />
               <span className="text-sm text-slate-500">%</span>
             </div>
             <DialogFooter>
-              <button
-                type="button"
-                onClick={() => setRateEdit(null)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
+              <Button type="button" variant="outline" onClick={() => setRateEdit(null)}>
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={savingRate}
-                className="rounded-lg bg-[#213cef] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a30c4] disabled:opacity-60"
-              >
+              </Button>
+              <Button type="submit" disabled={savingRate} className="font-semibold">
                 {savingRate ? 'Saving…' : 'Save rate'}
-              </button>
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

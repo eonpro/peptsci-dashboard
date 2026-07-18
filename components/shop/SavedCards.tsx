@@ -10,6 +10,16 @@ import {
 import type { Appearance } from '@stripe/stripe-js'
 import { getStripePromise } from '@/lib/stripe-client'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { CreditCard, Plus, Trash2, Star, Loader2, Lock } from 'lucide-react'
 
 interface SavedMethod {
@@ -46,6 +56,8 @@ export function SavedCards() {
     connectedAccountId?: string
   } | null>(null)
   const [creatingSetup, setCreatingSetup] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState<SavedMethod | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -82,12 +94,24 @@ export function SavedCards() {
   }
 
   const remove = async (id: string) => {
-    await fetch('/api/shop/payment-methods', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentMethodId: id }),
-    })
-    load()
+    setRemovingId(id)
+    setError(null)
+    try {
+      const res = await fetch('/api/shop/payment-methods', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethodId: id }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || 'Could not remove card')
+      }
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove card')
+    } finally {
+      setRemovingId(null)
+    }
   }
 
   const onCardSaved = () => {
@@ -155,9 +179,15 @@ export function SavedCards() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-white/40 hover:text-red-400 hover:bg-red-500/10"
-                onClick={() => remove(card.id)}
+                onClick={() => setConfirmRemove(card)}
+                disabled={removingId === card.id}
+                aria-label={`Remove ${(card.cardBrand ?? 'card').toUpperCase()} ending in ${card.cardLast4}`}
               >
-                <Trash2 className="h-4 w-4" />
+                {removingId === card.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
               </Button>
             </div>
           ))}
@@ -191,6 +221,31 @@ export function SavedCards() {
         <Lock className="h-3.5 w-3.5" />
         <span>Cards are stored securely by Stripe; we never see your full card number.</span>
       </div>
+
+      <AlertDialog open={!!confirmRemove} onOpenChange={(open) => !open && setConfirmRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmRemove
+                ? `${(confirmRemove.cardBrand ?? 'Card').toUpperCase()} ending in ${confirmRemove.cardLast4} will be removed from your account. You can add it again anytime.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep card</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                if (confirmRemove) void remove(confirmRemove.id)
+                setConfirmRemove(null)
+              }}
+            >
+              Remove card
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

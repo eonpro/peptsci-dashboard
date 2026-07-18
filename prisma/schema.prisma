@@ -324,14 +324,18 @@ model EndCustomer {
 }
 
 model RetailOrder {
-  id              String            @id @default(cuid())
-  orderNumber     String            @unique // e.g. "SF-drclinic-00001"
-  storefront      Storefront        @relation(fields: [storefrontId], references: [id])
-  storefrontId    String
-  endCustomer     EndCustomer?      @relation(fields: [endCustomerId], references: [id])
-  endCustomerId   String?
-  guestEmail      String? // For guest checkout without EndCustomer account
-  status          RetailOrderStatus @default(PENDING)
+  id                    String            @id @default(cuid())
+  orderNumber           String            @unique // e.g. "SF-drclinic-00001"
+  storefront            Storefront        @relation(fields: [storefrontId], references: [id])
+  storefrontId          String
+  endCustomer           EndCustomer?      @relation(fields: [endCustomerId], references: [id])
+  endCustomerId         String?
+  guestEmail            String? // For guest checkout without EndCustomer account
+  status                RetailOrderStatus @default(PENDING)
+  // Retail card payment (Stripe PI with metadata.retailOrderId).
+  paymentStatus         PaymentStatus     @default(PENDING)
+  stripePaymentIntentId String?           @unique
+  paidAt                DateTime?
   subtotal        Decimal           @db.Decimal(12, 2)
   taxTotal        Decimal           @default(0) @db.Decimal(12, 2)
   shippingTotal   Decimal           @default(0) @db.Decimal(12, 2)
@@ -428,9 +432,75 @@ model ProductVariant {
   returnItems        ReturnItem[]
   reservations       InventoryReservation[]
   partnerOrgPricing  PartnerOrgPricing[]
+  coas               ProductCoa[]
 
   @@index([status])
   @@index([productId])
+}
+
+// -------------------------------------------------
+// Certificate of Analysis (supplier COA) — attached per variant
+// -------------------------------------------------
+
+// A supplier Certificate of Analysis for a specific product variant. Admins
+// upload the original supplier document (JPG/PDF, stored via lib/storage in the
+// same dual blob/base64 fashion as ClientDocument) and enter the structured
+// results by hand. Those structured values drive the styled COA page rendered
+// on the storefront; the uploaded file is retained as the source of record.
+// A variant may have several COAs (one per production lot / batch).
+model ProductCoa {
+  id        String         @id @default(cuid())
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId String
+
+  // Source document (dual storage backends — see lib/storage.ts)
+  fileUrl     String? // Vercel Blob URL (driver 'blob')
+  fileBase64  String? // inline base64 payload (driver 'inline')
+  contentType String? // e.g. image/jpeg, application/pdf
+  fileName    String?
+
+  // Identity / header
+  compoundName String // e.g. "GHK-Cu"
+  doseLabel    String? // e.g. "50 mg"
+  casNumber    String?
+  appearance   String? // e.g. "Lyophilized powder"
+  batchNumber  String?
+  taskNumber   String? // supplier task / report number
+  reportCode   String?
+  issuingLab   String? // lab that issued the certificate
+  signedBy     String?
+
+  // Parties
+  manufacturer   String?
+  testingLab     String?
+  clientOfRecord String?
+  distributor    String?
+
+  // Chain-of-custody dates
+  orderedOn  DateTime?
+  receivedOn DateTime?
+  analyzedOn DateTime?
+
+  // Purity (% w/w)
+  purityPercent   Float? // measured purity, e.g. 99.669
+  puritySpecMin   Float? @default(98) // spec floor (>= this %)
+  purityRejectMax Float? @default(2) // total-impurity allowance (%)
+
+  // Assay content (mg)
+  assayMeasuredMg   Float? // measured content, e.g. 50.69
+  assayLabelClaimMg Float? // label claim, e.g. 50
+
+  // Identity confirmation
+  identitySpec   String?
+  identityResult String?
+
+  notes     String? // internal/qualification notes
+  published Boolean @default(true) // visible on the storefront when true
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([variantId])
+  @@index([published])
 }
 
 // -------------------------------------------------

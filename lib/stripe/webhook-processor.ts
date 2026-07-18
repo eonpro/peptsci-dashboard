@@ -17,6 +17,7 @@ import { ingestStripePaymentIntent } from '@/lib/stripe/sales-ingest'
 import { releaseForOrder } from '@/lib/inventory/reservations'
 import { recordPayment } from '@/lib/invoicing/service'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
+import { reconcileRetailOrderFromPaymentIntent } from '@/lib/storefront-payments'
 
 export interface ProcessResult {
   success: boolean
@@ -39,6 +40,30 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
     case 'payment_intent.canceled':
     case 'payment_intent.processing': {
       const pi = event.data.object as Stripe.PaymentIntent
+
+      // Retail storefront payments carry metadata.retailOrderId (no orderId).
+      // Reconcile the RetailOrder directly — they must not fall through to the
+      // external-sale ingest (retail revenue is the clinic's, not PeptSci's
+      // B2B sales analytics).
+      if (!pi.metadata?.orderId && pi.metadata?.retailOrderId) {
+        const retail = await reconcileRetailOrderFromPaymentIntent(pi)
+        if (!retail.matched) {
+          return {
+            success: false,
+            retryable: true,
+            error: `No retail order matched for PaymentIntent ${pi.id}`,
+            details: { paymentIntentId: pi.id, retailOrderId: pi.metadata.retailOrderId },
+          }
+        }
+        return {
+          success: true,
+          details: {
+            paymentIntentId: pi.id,
+            retailOrderId: pi.metadata.retailOrderId,
+            paymentStatus: retail.paymentStatus,
+          },
+        }
+      }
 
       // Client invoice payments (portal "pay invoice") carry metadata.invoiceId
       // and no orderId. Record them against the invoice (idempotent on PI id)

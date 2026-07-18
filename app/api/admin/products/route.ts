@@ -44,6 +44,7 @@ export async function GET(_request: NextRequest) {
         inventoryOnHand: true,
         inventoryReserved: true,
         reorderLevel: true,
+        _count: { select: { coas: true } },
         product: {
           select: {
             name: true,
@@ -75,6 +76,7 @@ export async function GET(_request: NextRequest) {
         available: v.inventoryOnHand - v.inventoryReserved,
         reorderLevel: v.reorderLevel,
         imageUrl: v.product.media[0]?.url ?? null,
+        coaCount: v._count.coas,
       })),
     })
   } catch (error) {
