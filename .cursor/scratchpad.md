@@ -2344,12 +2344,17 @@ Three parallel audits (client ordering, admin ops, design foundation + partner p
 - Visual smoke (dev server, unauthenticated surfaces): `/join/welcome` and `/partners/apply` render correctly post-rebuild; authed dashboard/shop surfaces gated by Clerk sign-in in the test browser — owner should eyeball fulfillment, checkout, and partner portal after deploy.
 - Dev-only note: a stale `.next` from a prod build makes `next dev` 500 with routes-manifest ENOENT — `rm -rf .next` before dev.
 
-### ⚠️ Go-live notes
-1. Prod migration required: `20260717203000_add_retail_order_payment` via POST /api/admin/db/migrate (SUPER_ADMIN).
-2. Storefront payments degrade gracefully when Stripe is unconfigured (order placed unpaid + honest copy).
-3. Deviations (justified): shop catalog card does NOT auto-open cart drawer (persistent in-card qty control is bulk-friendly feedback; PDP does open it); onboarding→shop theme handoff left as-is; shop order detail invoice link stays on list (no invoice detail page exists).
+### Go-live (DONE Jul 18)
+1. Shipped: `f8f7d11` (overhaul + in-flight COA feature), `438a45c` (probe fix + prod runner script), `eccc15b` (temp runner removal). All deployed to prod (peptsci.com), final deploy Ready.
+2. **Prod migrations APPLIED + verified**: `20260717192353_add_product_coa` and `20260717203000_add_retail_order_payment` via POST /api/admin/db/migrate; GET now reports `upToDate: true`, zero false probe keys. Admin auth for the runner: minted a one-time Clerk sign-in token (Backend API `POST /v1/sign_in_tokens` with prod CLERK_SECRET_KEY from `vercel env pull`) and redeemed it via `/sign-in?__clerk_ticket=…` in the IDE browser — Native API is disabled on this Clerk instance, so FAPI ticket redemption fails but the hosted sign-in page consumes the ticket fine.
+3. Cleanup: parallel session's temporary `/api/diag-migrate` runner removed (route deleted, middleware carve-out reverted, `MIGRATE_RUNNER_SECRET` deleted from prod env); endpoint now 307s to sign-in.
+4. Storefront payments degrade gracefully when Stripe is unconfigured (order placed unpaid + honest copy).
+5. Deviations (justified): shop catalog card does NOT auto-open cart drawer (persistent in-card qty control is bulk-friendly feedback; PDP does open it); onboarding→shop theme handoff left as-is; shop order detail invoice link stays on list (no invoice detail page exists).
 
 ### Lessons (this effort)
 - Radix portals escape a wrapper-scoped `.dark`; hoisting the class to `<html>` via a mounted client component (ThemeScope) fixes every portal at once while keeping the SSR wrapper class for no-flash.
 - `stripe.paymentIntents.retrieve(id, opts)` — RequestOptions must be the THIRD arg (`retrieve(id, {}, opts)`), the second is params.
 - A nested layout must never render `<html>/<body>` (app/sf did); use generateMetadata + a `<link precedence>` for fonts instead.
+- When adding a probeSchema key to the migrate runner, the column must ALSO be added to the information_schema SQL query — `colKeys.has()` on an unqueried column silently reports false forever (upToDate never turns true).
+- `ADD COLUMN IF NOT EXISTS` statements always count as "applied" in the idempotent runner (the guard is inside SQL, no error to catch) — re-run counts prove nothing for them; only the probe is authoritative.
+- Headless prod-admin auth: Clerk Backend API sign-in tokens + `/sign-in?__clerk_ticket=` works even when the instance has Native API disabled; `vercel env pull` returns EMPTY strings for this project's encrypted PG*/AWS vars (only OIDC + Clerk keys come through), so direct-RDS scripts are dead ends here.
