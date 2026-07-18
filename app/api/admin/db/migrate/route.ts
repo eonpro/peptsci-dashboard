@@ -136,7 +136,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'ClientDocument' AND column_name = 'status')
         OR (table_name = 'Client' AND column_name = 'smsOptIn')
         OR (table_name = 'Order' AND column_name = 'refundedTotal')
-        OR (table_name = 'Client' AND column_name = 'partnerOrgId'))
+        OR (table_name = 'Client' AND column_name = 'partnerOrgId')
+        OR (table_name = 'RetailOrder' AND column_name = 'paymentStatus'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
