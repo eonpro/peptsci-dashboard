@@ -130,20 +130,30 @@ export function ProductVial({ product, className }: ProductVialProps) {
             {isBlend ? (
               (() => {
                 const [firstMain, firstMod] = splitNameModifier(compounds[0].name)
-                const [secondMain] = splitNameModifier(compounds[1].name)
+                const [secondMain, secondMod] = splitNameModifier(compounds[1].name)
+                // Long names shrink so the full word fits instead of clipping
+                const firstSize = firstMain.length > 8 ? 'text-[9.5cqw]' : 'text-[12cqw]'
+                const secondSize = secondMain.length > 8 ? 'text-[9.5cqw]' : 'text-[12cqw]'
                 return (
-                  <div className="leading-[1.05] font-bold tracking-tight">
-                    <div className={cn(CLIP, 'text-[12cqw] text-[#101123]')}>{firstMain}</div>
-                    {firstMod && (
-                      <div className={cn(CLIP, 'text-[6.5cqw] font-semibold text-[#101123]/80')}>
-                        {firstMod}
-                      </div>
-                    )}
-                    <div className={cn(CLIP, 'text-[12cqw]')}>
+                  <div className="leading-[1.15] font-bold tracking-tight">
+                    <div className={cn(CLIP, firstSize, 'text-[#101123]')}>
+                      {firstMain}
+                      {firstMod && (
+                        <span className="ml-[1.5cqw] align-middle text-[5cqw] font-semibold text-[#101123]/80">
+                          {firstMod}
+                        </span>
+                      )}
+                    </div>
+                    <div className={cn(CLIP, secondSize)}>
                       <span className="mr-[1.5cqw] text-[8cqw] font-semibold text-[#101123]">
                         and
                       </span>
                       <span className="text-brand-primary">{secondMain}</span>
+                      {secondMod && (
+                        <span className="ml-[1.5cqw] align-middle text-[5cqw] font-semibold text-[#101123]/80">
+                          {secondMod}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
