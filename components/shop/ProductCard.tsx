@@ -205,7 +205,6 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   // Total mg for the blend callout ("Total 10mg (Blend)")
   const totalMg =
     product.totalAmount ||
-    (product.milligrams ? `${product.milligrams}mg` : null) ||
     (() => {
       const mgs = compounds
         .map((c) => parseFloat(c.dose))
@@ -213,7 +212,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       return mgs.length === compounds.length && mgs.length > 0
         ? `${mgs.reduce((a, b) => a + b, 0)}mg`
         : null
-    })()
+    })() ||
+    product.dose ||
+    (product.milligrams ? `${product.milligrams}mg` : null)
 
   const purityDisplay = product.compounds?.[0]?.purity || '99%'
 
@@ -377,7 +378,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 )}
                 {product.molecularWeight && <p>MW: {product.molecularWeight}</p>}
                 <p>Purity: {purityDisplay}</p>
-                {doseDisplay && <p>Size: {doseDisplay}</p>}
+                {!isBlend && doseDisplay && <p>Size: {doseDisplay}</p>}
               </div>
 
               {isBlend && totalMg && (
@@ -390,16 +391,16 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         </div>
 
         {/* PRUO disclaimer - bottom-left of the artwork panel */}
-        <div className="absolute bottom-5 left-5 right-32 @[16rem]:right-36">
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 rounded-full border border-white/70 px-2 py-0.5 text-[10px] font-bold text-white">
+        <div className="absolute bottom-5 left-5 right-24 @[18rem]:right-28">
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 rounded-full border border-white/70 px-1.5 py-0.5 text-[9px] font-bold text-white leading-tight">
               PRUO
             </span>
-            <span className="text-[11px] @[16rem]:text-xs font-semibold text-white truncate">
+            <span className="text-[10px] @[16rem]:text-[11px] font-semibold text-white leading-snug">
               Physician Research Use Only
             </span>
           </div>
-          <p className="mt-1 text-[10px] @[16rem]:text-[11px] font-medium text-white/80">
+          <p className="mt-1 text-[9px] @[16rem]:text-[10px] font-medium text-white/80">
             Not for human or veterinary use.
           </p>
         </div>

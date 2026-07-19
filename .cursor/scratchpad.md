@@ -2358,3 +2358,16 @@ Three parallel audits (client ordering, admin ops, design foundation + partner p
 - When adding a probeSchema key to the migrate runner, the column must ALSO be added to the information_schema SQL query — `colKeys.has()` on an unqueried column silently reports false forever (upToDate never turns true).
 - `ADD COLUMN IF NOT EXISTS` statements always count as "applied" in the idempotent runner (the guard is inside SQL, no error to catch) — re-run counts prove nothing for them; only the probe is authoritative.
 - Headless prod-admin auth: Clerk Backend API sign-in tokens + `/sign-in?__clerk_ticket=` works even when the instance has Native API disabled; `vercel env pull` returns EMPTY strings for this project's encrypted PG*/AWS vars (only OIDC + Clerk keys come through), so direct-RDS scripts are dead ends here.
+
+## Clinic notification bell — patient chat follow-up (Jul 18 2026) [EXECUTOR]
+
+**Background:** patient-chat replies from PeptSci already wrote Notification rows for clinic users (`notifyUser`), but the client portal had no bell to surface them — only the per-patient badges on /shop/account. This closes that gap.
+
+**What shipped:**
+- Shop notification APIs mirroring the admin family, scoped via `resolveShopActor` (never `resolveAdminUserId`): `GET /api/shop/notifications`, `GET /api/shop/notifications/unread-count`, `POST /api/shop/notifications/mark-read`. Service layer unchanged (already userId-scoped).
+- `NotificationBell` now takes an optional `endpointBase` prop (default `/api/admin/notifications`, so AdminHeader is untouched); `ClientHeader` renders it with `/api/shop/notifications`. Chat replies deep-link to `/shop/account#patients`.
+
+**Verified:** tsc green; targeted `next lint` on the bell/header/routes clean. Full `next build` was flaky ONLY due to a concurrent session's in-flight edits (AdminHeader mid-edit syntax), not this work.
+
+### Lessons (this effort)
+- TWO agent sessions were active in this repo at once: the other session's `74c338d` commit swept up this session's uncommitted files (shop notification routes + bell changes) together with its nav work, and pushed to main. Check `git show --stat HEAD` before assuming your working-tree files are still uncommitted — and expect `next build` failures from the other session's half-saved files.

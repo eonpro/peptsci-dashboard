@@ -34,13 +34,16 @@ export function getCompoundParts(product: ShopProduct): VialCompound[] {
       .map((s) => s.trim())
       .filter(Boolean)
     if (names.length >= 2) {
+      // Per-part doses only when the dose string itself is split ("5mg/5mg");
+      // a single total dose is NOT copied onto each part.
       const doses = (product.dose || '').split(/\s*[/+]\s*/).map((s) => s.trim())
+      const hasPartDoses = doses.length === names.length
       return names.map((name, i) => {
         // "BPC-157 5mg" style names carry their own dose
         const inline = name.match(/(\d+(?:\.\d+)?\s*(?:mg|mcg|iu))/i)
         return {
           name: name.replace(/\s*\d+(?:\.\d+)?\s*(?:mg|mcg|iu)\s*$/i, '').trim(),
-          dose: inline?.[1] ?? doses[i] ?? doses[0] ?? '',
+          dose: inline?.[1] ?? (hasPartDoses ? doses[i] : ''),
         }
       })
     }
@@ -62,6 +65,9 @@ interface ProductVialProps {
 export function ProductVial({ product, className }: ProductVialProps) {
   const compounds = getCompoundParts(product)
   const isBlend = compounds.length >= 2
+  // Two-row dose box needs a dose per compound; otherwise show the total dose
+  const hasPartDoses = isBlend && compounds.every((c) => c.dose)
+  const totalDose = product.dose || (product.milligrams ? `${product.milligrams}mg` : '')
   const purity = product.compounds?.[0]?.purity || '99%HPLC'
   // Compact purity for the tiny label ("99%+HPLC" style)
   const purityShort = purity.replace(/\s+/g, '').toUpperCase()
@@ -133,7 +139,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[3cqw]">
-                {isBlend ? (
+                {hasPartDoses ? (
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[1.8cqw]">
                       <span className="truncate text-[8.5cqw] font-semibold text-white">
@@ -150,7 +156,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[2cqw]">
                       <span className="truncate text-[9cqw] font-semibold text-white">
-                        {compounds[0].dose || '—'}
+                        {(isBlend ? totalDose : compounds[0].dose || totalDose) || '—'}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.2cqw]">
@@ -162,7 +168,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
                 )}
               </div>
 
-              {isBlend && (
+              {hasPartDoses && (
                 <div className="flex items-center justify-center">
                   <span className="text-[4.5cqw] font-semibold tracking-tight text-[#101123] [writing-mode:vertical-rl] rotate-180">
                     {purityShort}
