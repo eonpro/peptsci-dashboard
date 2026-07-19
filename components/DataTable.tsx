@@ -92,8 +92,10 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
-        <table className="w-full">
+      {/* overflow-x-auto (not hidden): on phones the table scrolls
+          horizontally instead of silently clipping trailing columns. */}
+      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
+        <table className="w-full min-w-max">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
