@@ -8,7 +8,12 @@ import {
   successResponse,
 } from '@/lib/auth'
 import { logger } from '@/lib/logger'
-import { createBatch, listBatches, BatchValidationError } from '@/lib/inventory-batches'
+import { createBatch, listBatches, listBatchesPaged, BatchValidationError } from '@/lib/inventory-batches'
+import {
+  parseBatchScope,
+  parseBatchSort,
+  parsePageParams,
+} from '@/lib/inventory-workspace-core'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,7 +39,16 @@ const createSchema = z
     message: 'Provide a variantId or both a product name and dose',
   })
 
-/** GET /api/admin/inventory/batches — list batches. Admin only. */
+/**
+ * GET /api/admin/inventory/batches — list batches. Admin only.
+ *
+ * Supports the workspace's server-driven table: `status` accepts the stored
+ * statuses plus the derived ACTIVE / EXPIRING / EXPIRED scopes, `search`
+ * matches batch # / product / SKU, and `page`/`pageSize`/`sort`/`dir` drive
+ * offset pagination. When `page` or `pageSize` is present the response is
+ * `{ batches, total, page, pageSize }`; without them the legacy un-paged
+ * `{ batches }` shape is returned.
+ */
 export async function GET(request: NextRequest) {
   try {
     const { isAuthenticated, isAdmin } = await requireAdmin()
@@ -42,10 +56,27 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) return forbiddenResponse('Admin access required')
 
     const { searchParams } = new URL(request.url)
-    const status =
-      (searchParams.get('status') as 'RECEIVED' | 'DEPLETED' | 'VOIDED' | 'ALL') || 'ALL'
+    const status = parseBatchScope(searchParams.get('status'))
     const search = searchParams.get('search') || undefined
     const variantId = searchParams.get('variantId') || undefined
+
+    if (searchParams.has('page') || searchParams.has('pageSize')) {
+      const { page, pageSize } = parsePageParams(
+        searchParams.get('page'),
+        searchParams.get('pageSize')
+      )
+      const sort = parseBatchSort(searchParams.get('sort'), searchParams.get('dir'))
+      const result = await listBatchesPaged({
+        status,
+        search,
+        variantId,
+        page,
+        pageSize,
+        sort: sort.key,
+        dir: sort.dir,
+      })
+      return successResponse(result)
+    }
 
     const batches = await listBatches({ status, search, variantId })
     return successResponse({ batches })

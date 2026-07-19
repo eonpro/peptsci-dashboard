@@ -10,9 +10,15 @@ import {
 import { logger } from '@/lib/logger'
 import {
   listInventoryAdjustments,
+  listInventoryAdjustmentsPaged,
   createManualAdjustment,
   AdjustmentError,
 } from '@/lib/inventory-log'
+import {
+  parseAdjustmentReason,
+  parseDateParam,
+  parsePageParams,
+} from '@/lib/inventory-workspace-core'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +27,11 @@ export const dynamic = 'force-dynamic'
  * GET /api/admin/inventory/adjustments
  * Recent inventory movements (receipts, fulfillment draws, returns, voids,
  * manual/import adjustments) with the acting user. Admin only.
- * Optional `variantId` scopes the log to one product variant.
+ *
+ * Filters: `variantId`, `reason`, `search` (product / SKU / note / actor),
+ * `from` / `to` (ISO dates). When `page` or `pageSize` is present the response
+ * is `{ adjustments, total, page, pageSize }`; otherwise the legacy `take`
+ * shape (`{ adjustments }`) is preserved for existing consumers.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -30,9 +40,31 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) return forbiddenResponse('Admin access required')
 
     const { searchParams } = new URL(request.url)
-    const take = Math.min(500, Math.max(1, Number(searchParams.get('take')) || 200))
     const variantId = searchParams.get('variantId') || undefined
 
+    if (searchParams.has('page') || searchParams.has('pageSize')) {
+      const { page, pageSize } = parsePageParams(
+        searchParams.get('page'),
+        searchParams.get('pageSize')
+      )
+      const to = parseDateParam(searchParams.get('to'))
+      // A date-only `to` (YYYY-MM-DD) should include that whole day.
+      if (to && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('to') ?? '')) {
+        to.setUTCHours(23, 59, 59, 999)
+      }
+      const result = await listInventoryAdjustmentsPaged({
+        page,
+        pageSize,
+        variantId,
+        reason: parseAdjustmentReason(searchParams.get('reason')),
+        search: searchParams.get('search') || undefined,
+        from: parseDateParam(searchParams.get('from')),
+        to,
+      })
+      return successResponse(result)
+    }
+
+    const take = Math.min(500, Math.max(1, Number(searchParams.get('take')) || 200))
     const adjustments = await listInventoryAdjustments(take, variantId)
     return successResponse({ adjustments })
   } catch (error) {
