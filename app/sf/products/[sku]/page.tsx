@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getStorefrontBySlug, getStorefrontProducts } from '@/lib/storefront'
+import { hasPublishedCoa } from '@/lib/coa'
 import { StorefrontProductDetail } from '@/components/storefront/StorefrontProductDetail'
 
 export const dynamic = 'force-dynamic'
@@ -33,5 +34,17 @@ export default async function StorefrontProductPage({
     .filter((p) => p.id !== product.id && p.category === product.category && p.retailPrice !== null)
     .slice(0, 4)
 
-  return <StorefrontProductDetail product={product} related={related} branding={config.branding} />
+  const coaHref =
+    product.sku && (await hasPublishedCoa(product.sku))
+      ? `/products/${encodeURIComponent(product.sku)}/coa`
+      : undefined
+
+  return (
+    <StorefrontProductDetail
+      product={product}
+      related={related}
+      branding={config.branding}
+      coaHref={coaHref}
+    />
+  )
 }

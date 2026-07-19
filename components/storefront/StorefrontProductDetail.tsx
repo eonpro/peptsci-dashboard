@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ShoppingCart, Star, Minus, Plus, Check } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Star, Minus, Plus, Check, FileCheck2 } from 'lucide-react'
 import { useStorefront } from './StorefrontContext'
 import type { BrandingConfig, StorefrontProductItem } from '@/lib/types/storefront'
 
@@ -10,10 +10,13 @@ export function StorefrontProductDetail({
   product,
   related,
   branding,
+  coaHref,
 }: {
   product: StorefrontProductItem
   related: StorefrontProductItem[]
   branding: BrandingConfig
+  /** When set, renders a "Certificate of Analysis" link to this URL. */
+  coaHref?: string
 }) {
   const { addToCart } = useStorefront()
   const [quantity, setQuantity] = useState(1)
@@ -152,6 +155,27 @@ export function StorefrontProductDetail({
               )}
             </button>
           </div>
+
+          {/* Certificate of Analysis */}
+          {coaHref && (
+            <Link
+              href={coaHref}
+              className="mt-6 flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-shadow hover:shadow-md"
+            >
+              <span
+                className="flex h-10 w-10 items-center justify-center rounded-lg"
+                style={{ backgroundColor: `${branding.colors.accent}1a`, color: branding.colors.accent }}
+              >
+                <FileCheck2 className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">Certificate of Analysis</span>
+                <span className="block text-xs text-gray-500">
+                  View the supplier COA — purity, assay, and identity results
+                </span>
+              </span>
+            </Link>
+          )}
 
           {/* SKU */}
           {product.sku && (
