@@ -38,6 +38,9 @@ const isPublicRoute = createRouteMatcher([
   '/join(.*)',
   // Partner read-only API authenticates via hashed API keys inside the route.
   '/api/partner/v1(.*)',
+  // TEMPORARY COA bulk seeder — authenticates via MIGRATE_RUNNER_SECRET header
+  // inside the route (fails closed without it). DELETE AFTER USE.
+  '/api/diag-seed-coa',
 ])
 
 // Admin-only routes
