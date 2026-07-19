@@ -66,11 +66,23 @@ const isAdminRoute = createRouteMatcher([
 const isClientRoute = createRouteMatcher(['/shop(.*)'])
 
 // Partner-portal routes (affiliate sales orgs / reps). The public apply page
-// is excluded via isPublicRoute, which is checked first.
-const isPartnerRoute = createRouteMatcher(['/partners(.*)', '/api/partners(.*)'])
+// is excluded via isPublicRoute, which is checked first. NOTE: '/partners(.*)'
+// would also match '/partners-admin' (the ADMIN section) and bounce admins to
+// /dashboard — match '/partners' exactly plus '/partners/…' segments only.
+const isPartnerRoute = createRouteMatcher([
+  '/partners',
+  '/partners/(.*)',
+  '/api/partners',
+  '/api/partners/(.*)',
+])
 
 // Routes that need pending approval check
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/shop(.*)', '/partners(.*)'])
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/shop(.*)',
+  '/partners',
+  '/partners/(.*)',
+])
 
 /** Landing route by role (PARTNER → portal, admins → dashboard, else shop). */
 function homeForRole(role: string): string {
