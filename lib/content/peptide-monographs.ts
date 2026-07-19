@@ -576,6 +576,265 @@ export const PEPTIDE_MONOGRAPHS: Record<string, PeptideMonograph> = {
     references: [pubmed('BPC-157'), pubmed('thymosin beta 4')],
     disclaimer: RUO_DISCLAIMER,
   },
+
+  aicar: {
+    overview: [
+      'AICAR (5-aminoimidazole-4-carboxamide ribonucleotide) is a small molecule studied in metabolic and exercise-physiology research as an activator of AMP-activated protein kinase (AMPK).',
+      'Most evidence is preclinical. It is not an approved medicine and is prohibited in competitive sport.',
+    ],
+    mechanismOfAction: [
+      'AMPK activation: mimics a rise in cellular AMP, activating a key energy-sensing pathway in research models.',
+      'Metabolic signaling: studied for downstream effects on glucose uptake and fatty-acid oxidation.',
+    ],
+    observations: [
+      { title: 'Metabolic Research', detail: 'Animal studies examine effects on endurance and substrate metabolism.' },
+      { title: 'Cellular Energy', detail: 'Research explores AMPK-mediated adaptations to energy stress.' },
+    ],
+    references: [pubmed('AICAR AMPK')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  alprostadil: {
+    overview: [
+      'Alprostadil is a synthetic form of prostaglandin E1. FDA-approved products exist for specific indications (including erectile dysfunction and certain neonatal cardiac conditions) under clinician care.',
+      'Use must follow approved product labeling and a prescribing provider. This profile is educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Vasodilation: prostaglandin E1 activity relaxes vascular smooth muscle and increases local blood flow.',
+      'Smooth-muscle signaling: acts via prostaglandin receptor pathways.',
+    ],
+    observations: [
+      { title: 'Vascular Research', detail: 'Clinical use relates to localized vasodilation in labeled indications.' },
+    ],
+    references: [dailymed('alprostadil'), pubmed('alprostadil')],
+    disclaimer: RX_DISCLAIMER,
+  },
+
+  cagrilintide: {
+    overview: [
+      'Cagrilintide is an investigational long-acting amylin analog studied in obesity and metabolic clinical trials, often in combination with GLP-1 receptor agonists.',
+      'It is investigational and not an approved medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Amylin receptor agonism: activates amylin/calcitonin receptor pathways implicated in satiety.',
+      'Appetite & gastric emptying: studied for effects that complement incretin-based mechanisms.',
+    ],
+    observations: [
+      { title: 'Clinical Trial Research', detail: 'Investigational trials examine weight and metabolic endpoints, including combination regimens.' },
+    ],
+    references: [pubmed('cagrilintide')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  cerebrolysin: {
+    overview: [
+      'Cerebrolysin is a peptide preparation derived from porcine brain tissue, studied in neurological research and used clinically in some countries for specific indications.',
+      'U.S. approval status differs; treat this profile as educational reference only unless under a licensed provider.',
+    ],
+    mechanismOfAction: [
+      'Neurotrophic-like activity: research describes effects resembling endogenous neurotrophic factors.',
+      'Neuroprotection: preclinical studies examine neuronal survival and plasticity endpoints.',
+    ],
+    observations: [
+      { title: 'Neurological Research', detail: 'Studied in cognitive and neurorecovery contexts in regional clinical use.' },
+    ],
+    references: [pubmed('cerebrolysin')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  hgh: {
+    overview: [
+      'hGH (recombinant human growth hormone, somatropin) is an FDA-approved prescription hormone for specific endocrine indications under clinician care.',
+      'Dosing must follow the prescription and product labeling. This profile does not replace medical advice.',
+    ],
+    mechanismOfAction: [
+      'GH receptor agonism: binds growth-hormone receptors, driving IGF-1 production.',
+      'Metabolic & growth signaling: influences protein, lipid, and glucose metabolism.',
+    ],
+    observations: [
+      { title: 'Endocrine Research', detail: 'Clinical use addresses growth-hormone deficiency and other labeled indications.' },
+    ],
+    references: [dailymed('somatropin'), pubmed('recombinant human growth hormone')],
+    disclaimer: RX_DISCLAIMER,
+  },
+
+  'igf-1lr3': {
+    overview: [
+      'IGF-1 LR3 (Long R3 insulin-like growth factor-1) is a modified analog of IGF-1 with an extended half-life, used in laboratory research on growth and metabolic signaling.',
+      'It is not an approved human medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'IGF-1 receptor agonism: activates IGF-1 signaling with reduced binding-protein affinity, prolonging activity in study models.',
+      'Anabolic signaling: research examines effects on cell growth and protein synthesis.',
+    ],
+    observations: [
+      { title: 'Growth Research', detail: 'Preclinical studies examine IGF-1-mediated growth and metabolic endpoints.' },
+    ],
+    references: [pubmed('IGF-1 LR3')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  kpv: {
+    overview: [
+      'KPV is a tripeptide (lysine-proline-valine) corresponding to the C-terminal fragment of alpha-melanocyte-stimulating hormone (alpha-MSH), studied for anti-inflammatory properties.',
+      'Evidence is largely preclinical. It is not an approved medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Anti-inflammatory signaling: research describes modulation of pro-inflammatory pathways (e.g., NF-kB) in cell models.',
+      'Melanocortin-related activity: derived from alpha-MSH, studied in mucosal and gut inflammation research.',
+    ],
+    observations: [
+      { title: 'Inflammation Research', detail: 'Preclinical studies examine anti-inflammatory effects, including in gut models.' },
+    ],
+    references: [pubmed('KPV peptide anti-inflammatory')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  mazdutide: {
+    overview: [
+      'Mazdutide is an investigational dual GLP-1 and glucagon receptor agonist studied in obesity and metabolic clinical trials.',
+      'It is investigational and not an approved medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Dual receptor agonism: activates GLP-1 and glucagon receptors in clinical investigation.',
+      'Metabolic effects: studied for combined effects on glycemic control and energy expenditure.',
+    ],
+    observations: [
+      { title: 'Clinical Trial Research', detail: 'Investigational trials examine weight and metabolic endpoints.' },
+    ],
+    references: [pubmed('mazdutide')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  oxytocin: {
+    overview: [
+      'Oxytocin is an endogenous nonapeptide hormone. FDA-approved injectable products exist for specific obstetric indications under clinician care.',
+      'Use must follow approved product labeling and a prescribing provider. This profile is educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Oxytocin receptor agonism: activates receptors in smooth muscle and the central nervous system.',
+      'Neuroendocrine signaling: research examines roles in social and stress-related pathways.',
+    ],
+    observations: [
+      { title: 'Neuroendocrine Research', detail: 'Studied for central roles in social behavior and bonding in research settings.' },
+    ],
+    references: [dailymed('oxytocin'), pubmed('oxytocin')],
+    disclaimer: RX_DISCLAIMER,
+  },
+
+  'slu-pp-332': {
+    overview: [
+      'SLU-PP-332 is a synthetic estrogen-related receptor (ERR) agonist studied preclinically as an "exercise mimetic" affecting metabolic pathways.',
+      'Evidence is early preclinical. It is not an approved medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'ERR agonism: activates estrogen-related receptors implicated in mitochondrial and metabolic gene programs.',
+      'Metabolic adaptation: research examines effects resembling aspects of exercise in animal models.',
+    ],
+    observations: [
+      { title: 'Metabolic Research', detail: 'Preclinical studies examine endurance and energy-metabolism endpoints.' },
+    ],
+    references: [pubmed('SLU-PP-332')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  'snap-8': {
+    overview: [
+      'SNAP-8 (acetyl octapeptide-3) is a synthetic peptide used primarily in topical cosmetic research related to expression-line appearance.',
+      'It is a cosmetic-ingredient peptide, not an approved medicine. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Neurotransmission modulation: research proposes interference with SNARE-complex signaling at the neuromuscular junction in topical models.',
+    ],
+    observations: [
+      { title: 'Cosmetic Research', detail: 'Studied topically for effects on the appearance of expression lines.' },
+    ],
+    references: [pubmed('acetyl octapeptide-3')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  'ss-31': {
+    overview: [
+      'SS-31 (elamipretide) is a mitochondria-targeting tetrapeptide investigated in research on mitochondrial function and related conditions.',
+      'It is investigational in the U.S. and not broadly approved. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Cardiolipin binding: associates with the inner mitochondrial membrane lipid cardiolipin in research models.',
+      'Mitochondrial support: studied for effects on bioenergetics and reactive oxygen species.',
+    ],
+    observations: [
+      { title: 'Mitochondrial Research', detail: 'Investigated in models of mitochondrial dysfunction and related endpoints.' },
+    ],
+    references: [pubmed('elamipretide'), pubmed('SS-31 peptide')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  thymalin: {
+    overview: [
+      'Thymalin is a thymic peptide preparation studied for immunomodulatory effects, used clinically in some regions for specific indications.',
+      'U.S. approval status differs; treat this profile as educational reference only unless under a licensed provider.',
+    ],
+    mechanismOfAction: [
+      'Immune modulation: research describes effects on T-cell-related immune regulation.',
+      'Thymic signaling: associated with thymus-derived peptide activity in study models.',
+    ],
+    observations: [
+      { title: 'Immune Research', detail: 'Studied as an immunomodulatory thymic preparation in regional clinical use.' },
+    ],
+    references: [pubmed('thymalin')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  glow: {
+    overview: [
+      '"Glow" refers to a research blend that commonly combines GHK-Cu with the repair-oriented peptides BPC-157 and TB-500, studied individually in skin and tissue-repair contexts.',
+      'Combination data is largely anecdotal; controlled human evidence for the blend is limited. It is not an approved medicine.',
+    ],
+    mechanismOfAction: [
+      'GHK-Cu: research reports support for collagen and extracellular-matrix remodeling in skin models.',
+      'BPC-157: studied for angiogenic and cytoprotective effects supporting tissue repair.',
+      'TB-500: influences actin regulation and cell migration relevant to repair in study models.',
+    ],
+    observations: [
+      { title: 'Skin & Recovery Research', detail: 'Component peptides are studied in dermal and soft-tissue repair models.' },
+    ],
+    references: [pubmed('GHK-Cu'), pubmed('BPC-157'), pubmed('thymosin beta 4')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  klow: {
+    overview: [
+      '"KLOW" refers to a research blend that commonly combines GHK-Cu, BPC-157, TB-500, and the tripeptide KPV, all studied individually in repair and anti-inflammatory contexts.',
+      'Combination data is largely anecdotal; controlled human evidence for the blend is limited. It is not an approved medicine.',
+    ],
+    mechanismOfAction: [
+      'GHK-Cu: studied for support of collagen and tissue remodeling.',
+      'BPC-157 / TB-500: studied for angiogenesis, cytoprotection, and cell migration in repair models.',
+      'KPV: alpha-MSH-derived tripeptide studied for anti-inflammatory signaling.',
+    ],
+    observations: [
+      { title: 'Repair & Inflammation Research', detail: 'Component peptides are studied in tissue-repair and inflammation models.' },
+    ],
+    references: [pubmed('GHK-Cu'), pubmed('BPC-157'), pubmed('KPV peptide')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  'cjc-1295-ipamorelin-blend': {
+    overview: [
+      'This research blend pairs the GHRH analog CJC-1295 with the selective ghrelin-receptor agonist Ipamorelin, two peptides frequently studied together on the premise of complementary growth-hormone-release pathways.',
+      'Neither component is an approved medicine for performance or anti-aging use. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'CJC-1295 (GHRH analog): binds pituitary GHRH receptors to promote growth-hormone secretion.',
+      'Ipamorelin (GHRP): activates the ghrelin receptor to promote GH release with a relatively selective profile.',
+      'Combined rationale: paired in research to study additive stimulation of endogenous GH.',
+    ],
+    observations: [
+      { title: 'Growth Hormone Research', detail: 'The pairing is studied for additive effects on pulsatile GH release in research literature.' },
+    ],
+    references: [pubmed('CJC-1295'), pubmed('ipamorelin')],
+    disclaimer: RUO_DISCLAIMER,
+  },
 }
 
 /** Normalize a product/peptide name into a lookup key. */
@@ -637,6 +896,26 @@ const ALIASES: Record<string, string> = {
   pregnyl: 'hcg',
   'bpc-157-tb-500': 'bpc-157-tb-500-blend',
   'bpc-tb-blend': 'bpc-157-tb-500-blend',
+  // Salt/acetate forms and spelling variants seen in the live catalog.
+  'cjc-1295-with-dac': 'cjc-1295',
+  'cjc-1295-dac-form': 'cjc-1295',
+  'cjc-1295-no-dac-ipamorelin': 'cjc-1295-ipamorelin-blend',
+  'cjc-1295-ipamorelin': 'cjc-1295-ipamorelin-blend',
+  epithalon: 'epitalon',
+  foxo4: 'foxo4-dri',
+  'ghrp-2-acetate': 'ghrp-2',
+  'ghrp-6-acetate': 'ghrp-6',
+  'hexarelin-acetate': 'hexarelin',
+  igf1lr3: 'igf-1lr3',
+  'igf-1-lr3': 'igf-1lr3',
+  'lysine-proline-valine': 'kpv',
+  'mt-2': 'melanotan-ii',
+  'mt-2-melanotan-ii-acetate': 'melanotan-ii',
+  'melanotan-ii-acetate': 'melanotan-ii',
+  'oxytocin-acetate': 'oxytocin',
+  'sermorelin-acetate': 'sermorelin',
+  somatropin: 'hgh',
+  'human-growth-hormone': 'hgh',
 }
 
 /**
