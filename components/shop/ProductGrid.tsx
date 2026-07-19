@@ -155,7 +155,7 @@ export function ProductGrid({
               placeholder="Search peptides, SKUs…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 rounded-xl border-white/10 bg-white/5 pl-11 pr-10 text-base text-white placeholder:text-white/40"
+              className="h-11 rounded-full border-white/10 bg-white/5 pl-11 pr-10 text-base text-white placeholder:text-white/40"
             />
             {searchQuery && (
               <Button
@@ -171,7 +171,7 @@ export function ProductGrid({
           </div>
 
           {/* In-stock toggle */}
-          <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 text-sm text-white/70">
+          <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-sm text-white/70">
             <Switch checked={stockOnly} onCheckedChange={setStockOnly} aria-label="In stock only" />
             In stock
           </label>
@@ -180,7 +180,7 @@ export function ProductGrid({
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
             <SelectTrigger
               aria-label="Sort products"
-              className="h-11 w-[150px] shrink-0 rounded-xl border-white/10 bg-white/5 text-sm text-white md:w-[190px]"
+              className="h-11 w-[150px] shrink-0 rounded-full border-white/10 bg-white/5 px-4 text-sm text-white md:w-[190px]"
             >
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -198,14 +198,14 @@ export function ProductGrid({
           </Select>
 
           {/* View toggle (desktop) */}
-          <div className="hidden shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 md:flex">
+          <div className="hidden shrink-0 items-center rounded-full border border-white/10 bg-white/5 p-1 md:flex">
             <Button
               variant="ghost"
               size="icon"
               aria-label="Grid view"
               aria-pressed={viewMode === 'grid'}
               className={cn(
-                'h-9 w-9 rounded-lg',
+                'h-9 w-9 rounded-full',
                 viewMode === 'grid'
                   ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
                   : 'text-white/60 hover:bg-white/10 hover:text-white'
@@ -220,7 +220,7 @@ export function ProductGrid({
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
               className={cn(
-                'h-9 w-9 rounded-lg',
+                'h-9 w-9 rounded-full',
                 viewMode === 'list'
                   ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
                   : 'text-white/60 hover:bg-white/10 hover:text-white'

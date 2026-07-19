@@ -4,10 +4,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 
-interface CatalogHeroBannerProps {
-  productCount: number
-}
-
 const STATS = [
   { label: 'Third-party tested', sub: 'COA on every lot' },
   { label: 'Fast fulfillment', sub: 'Free 2-day shipping $500+' },
@@ -19,7 +15,7 @@ const STATS = [
  * glow), oversized light-weight headline, pill CTAs, and a stat row along the
  * bottom edge.
  */
-export function CatalogHeroBanner({ productCount }: CatalogHeroBannerProps) {
+export function CatalogHeroBanner() {
   return (
     <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#04051f]">
       {/* Photography */}
@@ -40,7 +36,7 @@ export function CatalogHeroBanner({ productCount }: CatalogHeroBannerProps) {
         <div>
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-white/70">
             <Check className="h-3.5 w-3.5 text-emerald-400" />
-            COA-verified · {productCount} research compounds
+            COA-verified catalog
           </span>
 
           <h1 className="mt-4 max-w-xl text-4xl font-light leading-[1.05] tracking-tight text-white md:text-6xl">
@@ -48,9 +44,10 @@ export function CatalogHeroBanner({ productCount }: CatalogHeroBannerProps) {
             <br />
             done right.
           </h1>
-          <p className="mt-4 max-w-md text-sm text-white/60 md:text-base">
-            High-purity lyophilized compounds, third-party tested. Your practice pricing is
-            applied at checkout.
+          <p className="mt-4 max-w-2xl text-sm text-white/60 md:text-base">
+            High-purity lyophilized compounds, third-party tested.
+            <br className="hidden sm:block" />
+            <span className="whitespace-nowrap">Your practice pricing is applied at checkout.</span>
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -76,8 +73,9 @@ export function CatalogHeroBanner({ productCount }: CatalogHeroBannerProps) {
           </div>
         </div>
 
-        {/* Bottom stat row */}
-        <div className="mt-10 grid grid-cols-1 gap-4 border-t border-white/10 pt-5 sm:grid-cols-3">
+        {/* Bottom stat row — clustered left like the reference, not spread
+            across the full banner width */}
+        <div className="mt-10 flex flex-wrap gap-x-14 gap-y-4 border-t border-white/10 pt-5">
           {STATS.map((s) => (
             <div key={s.label}>
               <p className="text-sm font-semibold text-white">{s.label}</p>

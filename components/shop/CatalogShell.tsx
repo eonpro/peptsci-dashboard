@@ -26,7 +26,7 @@ export function CatalogShell({ products }: CatalogShellProps) {
   return (
     <div className="space-y-7">
       {/* Cinematic hero banner */}
-      <CatalogHeroBanner productCount={products.length} />
+      <CatalogHeroBanner />
 
       {/* Toolbar + full-width grid (grid owns search/chips/sort/stock) */}
       <ProductGrid
