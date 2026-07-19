@@ -41,6 +41,12 @@ function norm(s: string | null | undefined): string {
   return (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+/** Parse the numeric magnitude (mg/iu/etc.) from a dose string. */
+function doseMag(s: string | null | undefined): number | null {
+  const m = (s ?? '').match(/([\d.]+)/)
+  return m ? parseFloat(m[1]) : null
+}
+
 interface SeedItem {
   taskNumber: string
   reportCode?: string
@@ -152,9 +158,12 @@ export async function POST(request: NextRequest) {
             where: { product: { name: { equals: item.productName, mode: 'insensitive' } } },
             select: { id: true, productId: true, dose: true },
           })
+          // Match by numeric dose magnitude (catalog stores "5.0mg", COA "5 mg").
           variant =
+            candidates.find(
+              (c) => item.doseMg != null && doseMag(c.dose) === item.doseMg
+            ) ??
             candidates.find((c) => norm(c.dose) === norm(item.doseLabel)) ??
-            candidates.find((c) => norm(c.dose).includes(norm(String(item.doseMg)))) ??
             null
         }
 
