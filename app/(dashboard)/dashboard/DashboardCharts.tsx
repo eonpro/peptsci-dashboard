@@ -19,7 +19,7 @@ import {
 import type { TooltipProps } from 'recharts'
 
 interface ChartProps {
-  type: 'line' | 'bar' | 'pie'
+  type: 'line' | 'bar' | 'pie' | 'sparkline'
   data: Array<Record<string, string | number>>
   dataKey?: string
   xKey?: string
@@ -105,6 +105,37 @@ export default function DashboardCharts({
 }: ChartProps) {
   // Dark theme tick color
   const tickColor = 'rgba(148, 163, 184, 0.8)' // slate-400 with opacity
+
+  // Axis-free area chart for embedding inside hero/stat cards.
+  if (type === 'sparkline') {
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="sparklineGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#8b9dff" stopOpacity={0.45} />
+              <stop offset="100%" stopColor="#8b9dff" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <XAxis dataKey={xKey} hide />
+          <YAxis hide />
+          <Tooltip
+            content={<ModernTooltip />}
+            cursor={{ stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }}
+          />
+          <Area
+            type="monotone"
+            dataKey={dataKey}
+            stroke="#aab8ff"
+            strokeWidth={2.5}
+            fill="url(#sparklineGradient)"
+            dot={false}
+            activeDot={{ r: 4, strokeWidth: 0, fill: '#ffffff' }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    )
+  }
 
   if (type === 'line') {
     const lastPoint = data.length ? data[data.length - 1] : null

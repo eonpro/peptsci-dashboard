@@ -49,11 +49,11 @@ const TONE_ACTIVE: Record<QueueDef['tone'], string> = {
 }
 
 /**
- * "What needs me right now" strip: live operational counts, each card
- * deep-linking to the surface where the work gets done. Counts refresh on a
- * 60s poll while the tab is visible.
+ * "What needs me right now": live operational counts, each card deep-linking
+ * to the surface where the work gets done. Counts refresh on a 60s poll while
+ * the tab is visible. `variant="rail"` renders a vertical list for sidebars.
  */
-export function OpsQueues() {
+export function OpsQueues({ variant = 'grid' }: { variant?: 'grid' | 'rail' }) {
   const [ops, setOps] = useState<OpsSummary | null>(null)
 
   useEffect(() => {
@@ -74,6 +74,42 @@ export function OpsQueues() {
       clearInterval(interval)
     }
   }, [])
+
+  if (variant === 'rail') {
+    return (
+      <div className="space-y-2">
+        {QUEUES.map(({ key, label, href, icon: Icon, tone }) => {
+          const count = ops?.[key]
+          const active = typeof count === 'number' && count > 0
+          return (
+            <Link
+              key={key}
+              href={href}
+              className={cn(
+                'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors',
+                active
+                  ? TONE_ACTIVE[tone]
+                  : 'border-white/10 bg-white/[0.02] text-white/40 hover:bg-white/5'
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate text-sm font-medium">{label}</span>
+              </span>
+              <span
+                className={cn(
+                  'flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold',
+                  active ? 'bg-white/10' : 'bg-white/5'
+                )}
+              >
+                {ops ? count : '–'}
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
