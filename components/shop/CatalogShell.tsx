@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import type { ShopProduct } from '@/lib/types/shop'
 import { getShopCategoryBuckets } from '@/lib/shop-categories'
+import { CatalogHeroBanner } from './CatalogHeroBanner'
 import { BuyAgainStrip } from './BuyAgainStrip'
 import { ProductGrid } from './ProductGrid'
-import { FlaskConical, Truck, BadgePercent } from 'lucide-react'
 
 interface CatalogShellProps {
   products: ShopProduct[]
@@ -26,26 +26,8 @@ export function CatalogShell({ products }: CatalogShellProps) {
 
   return (
     <div className="space-y-7">
-      {/* Slim page head — part of the page, not a boxed banner */}
-      <div className="flex flex-wrap items-end justify-between gap-4 pt-1">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Catalog</h1>
-          <p className="mt-1 text-sm text-white/50">
-            {products.length} research compounds, third-party verified.
-          </p>
-        </div>
-        <div className="hidden items-center gap-5 text-xs font-medium text-white/55 md:flex">
-          <span className="flex items-center gap-1.5">
-            <FlaskConical className="h-3.5 w-3.5 text-brand-primary" /> COA on every lot
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Truck className="h-3.5 w-3.5 text-brand-primary" /> Free 2-day shipping $500+
-          </span>
-          <span className="flex items-center gap-1.5">
-            <BadgePercent className="h-3.5 w-3.5 text-brand-primary" /> Account pricing applied
-          </span>
-        </div>
-      </div>
+      {/* Cinematic hero banner */}
+      <CatalogHeroBanner productCount={products.length} />
 
       {/* One-tap reorders (hidden for first-time buyers) */}
       <BuyAgainStrip />
