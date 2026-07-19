@@ -233,7 +233,7 @@ export default function PackagePhotosPage() {
     new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
           <Camera className="h-6 w-6" /> Package Photos

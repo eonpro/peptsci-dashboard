@@ -98,7 +98,7 @@ export default function WebhookEventsPage() {
   const failedCount = counts.ERROR ?? 0
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-white">

@@ -171,7 +171,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
   const attachable = allClients.filter((c) => !attributedIds.has(c.id))
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/partners-admin" className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
