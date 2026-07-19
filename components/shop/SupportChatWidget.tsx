@@ -88,7 +88,7 @@ export function SupportChatWidget() {
         aria-label={open ? 'Close support chat' : 'Open support chat'}
         aria-expanded={open}
         className={cn(
-          'fixed z-50 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-black shadow-[0_10px_35px_-10px_rgba(0,0,0,0.8)] transition-transform hover:scale-105',
+          'fixed z-50 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-brand-primary shadow-[0_10px_35px_-10px_rgba(33,60,239,0.9)] transition-transform hover:scale-105',
           'bottom-20 right-4 md:bottom-6 md:right-6'
         )}
       >
@@ -96,7 +96,7 @@ export function SupportChatWidget() {
           <X className="h-5 w-5 text-white" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src="/shop/peptsci-icon.png" alt="" className="h-8 w-8 object-contain" />
+          <img src="/shop/peptsci-icon-white.png" alt="" className="h-7 w-7 object-contain" />
         )}
       </button>
 
