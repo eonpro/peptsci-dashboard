@@ -39,6 +39,9 @@ interface ProcessResponse {
   success?: boolean
   paymentStatus?: string
   requiresAction?: boolean
+  /** Order fully covered by referral store credit — no card was charged. */
+  paidWithCredit?: boolean
+  creditApplied?: number
 }
 
 interface Props {
@@ -90,6 +93,11 @@ export function CheckoutPaymentSection({
   const [error, setError] = useState<string | null>(null)
   const [placing, setPlacing] = useState(false)
   const [billing, setBilling] = useState<BillingSummary | null>(null)
+  // Referral store credit: available balance + whether the buyer opted in.
+  // Amounts here are display-only estimates — the server clamps the real
+  // application to the live balance when the order is created.
+  const [creditBalanceCents, setCreditBalanceCents] = useState(0)
+  const [applyCredit, setApplyCredit] = useState(false)
 
   // New-card PaymentIntent (created lazily when the new-card option is active).
   const [pi, setPi] = useState<{
@@ -115,8 +123,9 @@ export function CheckoutPaymentSection({
         shipTo,
         shipSpeed,
         patientId: patientId ?? null,
+        applyCredit,
       }),
-    [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId]
+    [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId, applyCredit]
   )
   // Last signature we attempted a creation for — prevents retry loops when a
   // creation fails and guards against redundant recreations.
@@ -153,6 +162,28 @@ export function CheckoutPaymentSection({
       active = false
     }
   }, [])
+
+  // Referral credit balance (display only — the server clamps on submit).
+  useEffect(() => {
+    let active = true
+    fetch('/api/shop/referrals')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (active && typeof data?.balanceCents === 'number') {
+          setCreditBalanceCents(data.balanceCents)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Local estimate of the credit that will apply (server-clamped for real).
+  const totalCents = Math.round(total * 100)
+  const estCreditCents = applyCredit ? Math.min(creditBalanceCents, totalCents) : 0
+  const estDueCents = totalCents - estCreditCents
+  const fullyCovered = applyCredit && estDueCents === 0
 
   const termsDays = billing?.paymentTermsDays ?? 0
   const availableCredit =
@@ -202,9 +233,24 @@ export function CheckoutPaymentSection({
       const res = await fetch('/api/shop/checkout/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId }),
+        body: JSON.stringify({
+          items,
+          shippingAddress,
+          notes,
+          saveCard,
+          shipTo,
+          shipSpeed,
+          patientId,
+          applyCredit,
+        }),
       })
       const data: ProcessResponse & { message?: string } = await res.json()
+      // The server may decide credit covers the whole order (balance moved
+      // since our estimate) — the order is already placed in that case.
+      if (res.ok && data.paidWithCredit && data.orderId) {
+        onSuccess(data.orderId)
+        return
+      }
       if (!res.ok || !data.clientSecret || !data.publishableKey || !data.orderId) {
         throw new Error(data.message || 'Could not start payment')
       }
@@ -221,21 +267,72 @@ export function CheckoutPaymentSection({
     } finally {
       setCreatingPi(false)
     }
-  }, [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId, checkoutSignature])
+  }, [items, shippingAddress, notes, saveCard, shipTo, shipSpeed, patientId, applyCredit, onSuccess, checkoutSignature])
 
   // Create the PaymentIntent when the new-card option becomes active, and
   // recreate it whenever the cart, shipping, save-card choice, or ship-to
   // details change after an intent exists (otherwise Stripe would charge the
   // stale amount). The signature check prevents redundant recreations/loops.
+  // Fully-credit-covered orders NEVER auto-create: placing them commits the
+  // order immediately, so that path requires an explicit button click.
   useEffect(() => {
-    if (selected !== 'new' || creatingPi) return
+    if (selected !== 'new' || creatingPi || fullyCovered) return
     const stale = pi
       ? pi.signature !== checkoutSignature
       : requestedSignatureRef.current !== checkoutSignature
     if (stale) {
       void createNewCardIntent()
     }
-  }, [selected, checkoutSignature, pi, creatingPi, createNewCardIntent])
+  }, [selected, checkoutSignature, pi, creatingPi, fullyCovered, createNewCardIntent])
+
+  /** Explicit click path for orders fully covered by store credit. */
+  const placeCreditOrder = useCallback(async () => {
+    if (placingRef.current) return
+    placingRef.current = true
+    setPlacing(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/shop/checkout/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          shippingAddress,
+          notes,
+          shipTo,
+          shipSpeed,
+          patientId,
+          applyCredit: true,
+        }),
+      })
+      const data: ProcessResponse & { message?: string } = await res.json()
+      if (res.ok && data.paidWithCredit && data.orderId) {
+        onSuccess(data.orderId)
+        return
+      }
+      // Balance shrank since the estimate — a card is needed after all. Fall
+      // back to the Elements flow with the server's (partial-credit) intent.
+      if (res.ok && data.clientSecret && data.publishableKey && data.orderId) {
+        setApplyCredit(true)
+        setPi({
+          clientSecret: data.clientSecret,
+          publishableKey: data.publishableKey,
+          orderId: data.orderId,
+          connectedAccountId: data.connectedAccountId,
+          signature: checkoutSignature,
+          amount: data.amount,
+        })
+        setError('Your credit no longer covers the full order — the remaining balance is due by card below.')
+        return
+      }
+      throw new Error(data.message || 'Could not place the order')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not place the order')
+    } finally {
+      placingRef.current = false
+      setPlacing(false)
+    }
+  }, [items, shippingAddress, notes, shipTo, shipSpeed, patientId, onSuccess, checkoutSignature])
 
   const paySavedCard = useCallback(async () => {
     if (placingRef.current) return
@@ -254,9 +351,16 @@ export function CheckoutPaymentSection({
           shipTo,
           shipSpeed,
           patientId,
+          applyCredit,
         }),
       })
       const data: ProcessResponse & { message?: string } = await res.json()
+
+      // Credit covered the whole order — no card was charged.
+      if (res.ok && data.paidWithCredit && data.orderId) {
+        onSuccess(data.orderId)
+        return
+      }
 
       if (data.requiresAction && data.clientSecret && data.publishableKey) {
         const stripe = await getStripePromise(data.publishableKey, data.connectedAccountId)
@@ -288,7 +392,7 @@ export function CheckoutPaymentSection({
       placingRef.current = false
       setPlacing(false)
     }
-  }, [items, shippingAddress, notes, selected, onSuccess, shipTo, shipSpeed, patientId])
+  }, [items, shippingAddress, notes, selected, onSuccess, shipTo, shipSpeed, patientId, applyCredit])
 
   const stripePromise = useMemo(
     () => (pi?.publishableKey ? getStripePromise(pi.publishableKey, pi.connectedAccountId) : null),
@@ -312,6 +416,57 @@ export function CheckoutPaymentSection({
           </a>{' '}
           to restore terms, or pay this order by card.
         </div>
+      )}
+
+      {/* Referral store credit (card payments only — not combinable with terms) */}
+      {creditBalanceCents > 0 && selected !== 'terms' && (
+        <div
+          className={`rounded-xl border p-4 transition-colors ${
+            applyCredit ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-white/10 bg-white/5'
+          }`}
+        >
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={applyCredit}
+              onChange={(e) => setApplyCredit(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5"
+            />
+            <span className="flex-1 text-sm">
+              <span className="block font-medium text-white">
+                Apply store credit — {formatPrice(creditBalanceCents / 100)} available
+              </span>
+              <span className="block text-xs text-white/50">
+                Earned from your clinic referrals. Applied like cash to this order.
+              </span>
+              {applyCredit && (
+                <span className="mt-1.5 block text-xs text-emerald-300">
+                  −{formatPrice(estCreditCents / 100)} credit ·{' '}
+                  {estDueCents === 0
+                    ? 'nothing due — no card needed'
+                    : `${formatPrice(estDueCents / 100)} due by card`}
+                </span>
+              )}
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Fully-covered-by-credit place-order button */}
+      {fullyCovered && selected !== 'terms' && (
+        <Button
+          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold"
+          onClick={placeCreditOrder}
+          disabled={placing}
+        >
+          {placing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Placing order…
+            </>
+          ) : (
+            <>Place Order — {formatPrice(0)} due (store credit)</>
+          )}
+        </Button>
       )}
 
       {/* Bill to account (net terms) — admin-granted accounts only */}
@@ -414,8 +569,8 @@ export function CheckoutPaymentSection({
         </Button>
       )}
 
-      {/* Saved-card pay button */}
-      {selected !== 'new' && selected !== 'terms' && (
+      {/* Saved-card pay button (hidden when credit covers the whole order) */}
+      {selected !== 'new' && selected !== 'terms' && !fullyCovered && (
         <Button
           className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold"
           onClick={paySavedCard}
@@ -426,13 +581,13 @@ export function CheckoutPaymentSection({
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
             </>
           ) : (
-            <>Pay {formatPrice(total)}</>
+            <>Pay {formatPrice(applyCredit ? estDueCents / 100 : total)}</>
           )}
         </Button>
       )}
 
       {/* New-card Stripe Payment Element */}
-      {selected === 'new' && (
+      {selected === 'new' && !fullyCovered && (
         <div className="space-y-4">
           {creatingPi || !pi || !stripePromise ? (
             <div className="flex items-center justify-center py-10 text-white/50">

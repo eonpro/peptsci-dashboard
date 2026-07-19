@@ -59,6 +59,10 @@ export interface ShopProduct {
   molecularFormula?: string | null
   molecularWeight?: string | null
   pubchemCid?: string | null
+
+  // True when a published Certificate of Analysis exists for this variant
+  // (enriched server-side on the shop page).
+  hasCoa?: boolean
 }
 
 export interface ProductImage {

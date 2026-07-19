@@ -6,7 +6,7 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Package, ClipboardList, User, Menu, LayoutDashboard } from 'lucide-react'
+import { ShoppingCart, Package, ClipboardList, User, Menu, LayoutDashboard, Gift } from 'lucide-react'
 import { useCart } from './CartContext'
 import { CartDrawer } from './CartDrawer'
 import { useState } from 'react'
@@ -39,6 +39,7 @@ function AuthUserButton() {
 const navigation = [
   { name: 'Catalog', href: '/shop', icon: Package },
   { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
+  { name: 'Refer & Earn', href: '/shop/referrals', icon: Gift },
   { name: 'Account', href: '/shop/account', icon: User },
 ]
 

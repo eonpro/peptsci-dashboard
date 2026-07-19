@@ -22,10 +22,15 @@ import {
   InsufficientStockError,
   releaseForOrder,
   releaseStaleDraftReservations,
+  reserveForOrder,
   reserveForOrderEnforced,
 } from '@/lib/inventory/reservations'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
 import { resolveShopActor } from '@/lib/shop-actor'
+import { recordCreditRedemptionForOrder } from '@/lib/referrals/credit'
+import { syncSalesRecordFromOrder } from '@/lib/sales'
+import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
+import { notifyAdmins } from '@/lib/notifications/service'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +68,9 @@ const bodySchema = z.object({
   // nullish, not optional: the checkout page always sends the field and it is
   // null when shipping to the practice.
   patientId: z.string().nullish(),
+  // Apply the clinic's referral store credit to this order. The amount is
+  // clamped server-side to the real available balance — never trusted.
+  applyCredit: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -155,6 +163,9 @@ export async function POST(request: NextRequest) {
       shipTo,
       shipSpeed,
       patientId,
+      // "Apply my credit" = use as much as covers this order; the draft
+      // transaction clamps to the real available balance.
+      requestedCreditCents: parsed.data.applyCredit ? toCents(cart.totals.total) : 0,
     })
 
     // Hard stock enforcement: reserve atomically BEFORE payment so two
@@ -186,7 +197,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const amount = toCents(cart.totals.total)
+    // ── Fully-covered-by-credit path: no card, no Stripe. Submit + capture
+    // directly; the redemption ledger row and stock reservation commit here.
+    const chargeTotal = Number(order.total)
+    const creditApplied = Number(order.creditApplied)
+    if (creditApplied > 0 && chargeTotal <= 0) {
+      await prisma.order.updateMany({
+        where: { id: order.id, status: 'DRAFT' },
+        data: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          paymentStatus: 'CAPTURED',
+          paidAt: new Date(),
+        },
+      })
+      await recordCreditRedemptionForOrder(order.id)
+      await reserveForOrder(order.id).catch(() => {})
+      await syncSalesRecordFromOrder(order.id)
+      void sendOrderConfirmationForOrder(order.id, { paymentLabel: 'Paid with store credit' })
+      notifyAdmins({
+        category: 'ORDER',
+        priority: 'HIGH',
+        title: `New order #${order.orderNumber} — paid with store credit`,
+        message: `Order #${order.orderNumber} was fully covered by referral credit ($${creditApplied.toFixed(2)}).`,
+        actionUrl: '/fulfillment',
+        sourceType: 'order:placed',
+        sourceId: order.id,
+        clientId: actor.clientId,
+      }).catch(() => {})
+      logger.info('[CHECKOUT] Order fully paid with store credit', {
+        orderId: order.id,
+        creditApplied,
+      })
+      return successResponse({
+        success: true,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        paymentStatus: 'CAPTURED',
+        creditApplied,
+        paidWithCredit: true,
+      })
+    }
+
+    // The card is charged the order total, which is already net of any
+    // applied referral credit (frozen on the draft inside the clamp).
+    const amount = toCents(chargeTotal)
     const appFee = applicationFeeAmount(amount)
     const baseParams: Stripe.PaymentIntentCreateParams = {
       amount,

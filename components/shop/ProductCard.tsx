@@ -7,8 +7,9 @@ import type { ShopProduct } from '@/lib/types/shop'
 import { Button } from '@/components/ui/button'
 import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Check, Minus, Plus } from 'lucide-react'
+import { ShoppingCart, Check, Minus, Plus, FileText } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
+import { CoaDialog } from './CoaDialog'
 
 interface ProductCardProps {
   product: ShopProduct
@@ -43,6 +44,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const { addItem, items, updateQuantity, openCart } = useCart()
   const [isAdding, setIsAdding] = useState(false)
   const [qty, setQty] = useState(1)
+  const [coaOpen, setCoaOpen] = useState(false)
 
   // Cart lines are keyed by SKU (falling back to id) so every add path —
   // catalog card, PDP, and Buy Again — merges into the same line.
@@ -294,7 +296,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   // Scientific-style grid card (matches PeptSci reference artwork)
   return (
-    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[560px] flex flex-col">
+    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[500px] flex flex-col">
       {/* Reference artwork panel */}
       <div className="relative flex-1 overflow-hidden">
         {/* Hairline inner border (reference style) */}
@@ -409,9 +411,20 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
             product={product}
-            className="h-[158px] @[16rem]:h-[187px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-[168px] @[16rem]:h-[196px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
+
+        {/* View COA link — sits above the PRUO block, opens the popup */}
+        {product.hasCoa && (
+          <button
+            type="button"
+            onClick={() => setCoaOpen(true)}
+            className="absolute bottom-[68px] left-5 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          >
+            <FileText className="h-3 w-3" /> View COA
+          </button>
+        )}
       </div>
 
       {/* Price and Cart Section */}
@@ -473,6 +486,15 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             {cartItem?.quantity}
           </div>
         </div>
+      )}
+
+      {product.hasCoa && (
+        <CoaDialog
+          sku={product.sku || product.id}
+          productName={product.name}
+          open={coaOpen}
+          onOpenChange={setCoaOpen}
+        />
       )}
     </div>
   )

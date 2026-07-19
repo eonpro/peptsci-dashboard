@@ -3,6 +3,7 @@ import { getProductCatalog } from '@/lib/catalog'
 import { CatalogShell } from '@/components/shop/CatalogShell'
 import { getUserMetadata } from '@/lib/roles'
 import { applyClientPricing } from '@/lib/shop-pricing'
+import { getSkusWithPublishedCoa } from '@/lib/coa'
 
 // Client-specific pricing requires per-request auth context.
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,11 @@ export default async function ShopPage() {
   // Overlay the viewing client's custom pricing (falls back to SRP).
   const { clientId } = await getUserMetadata()
   const products = await applyClientPricing(catalog, clientId)
+
+  // Enrich with COA availability in one grouped query so cards can show the
+  // "View COA" link without a per-card check.
+  const coaSkus = await getSkusWithPublishedCoa(products.map((p) => p.sku).filter(Boolean))
+  const productsWithCoa = products.map((p) => ({ ...p, hasCoa: coaSkus.has(p.sku) }))
 
   return (
     <div className="space-y-8">
@@ -35,7 +41,7 @@ export default async function ShopPage() {
           </div>
         }
       >
-        <CatalogShell products={products} />
+        <CatalogShell products={productsWithCoa} />
       </Suspense>
     </div>
   )

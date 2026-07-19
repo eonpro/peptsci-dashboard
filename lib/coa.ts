@@ -283,6 +283,27 @@ export async function getPublishedCoasBySku(
   }
 }
 
+/**
+ * Set of SKUs (from the given list) that have at least one published COA.
+ * One grouped query — used to enrich the whole catalog in a single round trip.
+ */
+export async function getSkusWithPublishedCoa(skus: string[]): Promise<Set<string>> {
+  const result = new Set<string>()
+  if (!prisma || skus.length === 0) return result
+  try {
+    const rows = await prisma.productCoa.findMany({
+      where: { published: true, variant: { sku: { in: skus } } },
+      select: { variant: { select: { sku: true } } },
+    })
+    for (const r of rows) {
+      if (r.variant?.sku) result.add(r.variant.sku)
+    }
+  } catch (error) {
+    logger.warn('Error batch-checking COAs', { error: String(error) })
+  }
+  return result
+}
+
 /** Whether a variant (by SKU) has any published COA — cheap existence check. */
 export async function hasPublishedCoa(sku: string): Promise<boolean> {
   if (!prisma || !sku) return false
