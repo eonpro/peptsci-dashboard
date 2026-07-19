@@ -58,9 +58,11 @@ export function CatalogHeroBanner() {
             done right.
           </h1>
           <p className="mt-4 max-w-2xl text-sm text-white/60 md:text-base">
-            High-purity lyophilized compounds, third-party tested.
+            High-purity lyophilized compounds, third-party tested.{' '}
             <br className="hidden sm:block" />
-            <span className="whitespace-nowrap">Your practice pricing is applied at checkout.</span>
+            <span className="sm:whitespace-nowrap">
+              Your practice pricing is applied at checkout.
+            </span>
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -86,12 +88,14 @@ export function CatalogHeroBanner() {
           </div>
         </div>
 
-        {/* Bottom stat row — clustered left with hairline dividers between
-            features, like the reference */}
-        <div className="mt-10 flex flex-wrap items-center gap-y-4 border-t border-white/10 pt-5">
+        {/* Bottom stat row — a clean vertical stack on phones; clustered left
+            with hairline dividers on sm+ like the reference */}
+        <div className="mt-10 grid grid-cols-1 gap-4 border-t border-white/10 pt-5 sm:flex sm:flex-wrap sm:items-center sm:gap-y-4">
           {STATS.map((s, i) => (
             <div key={s.label} className="flex items-center">
-              {i > 0 && <span aria-hidden="true" className="mx-7 h-9 w-px bg-white/25" />}
+              {i > 0 && (
+                <span aria-hidden="true" className="mx-7 hidden h-9 w-px bg-white/25 sm:block" />
+              )}
               <div>
                 <p className="text-sm font-semibold text-white">{s.label}</p>
                 <p className="mt-0.5 text-xs text-white/50">{s.sub}</p>
