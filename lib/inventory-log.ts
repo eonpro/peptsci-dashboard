@@ -59,9 +59,13 @@ export interface AdjustmentLogRow {
 }
 
 /** Recent inventory movements (newest first) for the Activity log. */
-export async function listInventoryAdjustments(take = 200): Promise<AdjustmentLogRow[]> {
+export async function listInventoryAdjustments(
+  take = 200,
+  variantId?: string
+): Promise<AdjustmentLogRow[]> {
   if (!prisma) return []
   const rows = await prisma.inventoryAdjustment.findMany({
+    where: variantId ? { variantId } : undefined,
     orderBy: { createdAt: 'desc' },
     take,
     select: {
@@ -90,4 +94,99 @@ export async function listInventoryAdjustments(take = 200): Promise<AdjustmentLo
     sku: r.variant.sku,
     by: (r.createdBy ? displayName(r.createdBy) : null) || r.createdByName || 'System',
   }))
+}
+
+export class AdjustmentError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'NOT_FOUND' | 'INSUFFICIENT_STOCK' | 'INVALID' = 'INVALID'
+  ) {
+    super(message)
+    this.name = 'AdjustmentError'
+  }
+}
+
+export interface ManualAdjustmentInput {
+  variantId: string
+  /** Signed quantity change; negative removes stock. */
+  delta: number
+  reason: 'MANUAL_ADJUSTMENT' | 'DAMAGE' | 'AUDIT' | 'RETURN'
+  note?: string | null
+}
+
+/**
+ * Record a manual stock correction (count fix, damage write-off, audit
+ * true-up, return restock). Atomic: the decrement path uses a conditional
+ * update (`inventoryOnHand >= |delta|`) so concurrent draws can never push
+ * stock negative — if the guard misses, the whole transaction aborts.
+ */
+export async function createManualAdjustment(
+  input: ManualAdjustmentInput,
+  actor: { clerkUserId?: string | null; label?: string | null }
+) {
+  if (!prisma) throw new AdjustmentError('Database is not configured')
+  const delta = Math.trunc(input.delta)
+  if (!Number.isFinite(delta) || delta === 0) {
+    throw new AdjustmentError('Adjustment quantity must be a non-zero integer')
+  }
+
+  const client = prisma
+  return client.$transaction(async (tx) => {
+    const variant = await tx.productVariant.findUnique({
+      where: { id: input.variantId },
+      select: { id: true, inventoryOnHand: true },
+    })
+    if (!variant) throw new AdjustmentError('Product variant not found', 'NOT_FOUND')
+
+    if (delta < 0) {
+      const updated = await tx.productVariant.updateMany({
+        where: { id: input.variantId, inventoryOnHand: { gte: -delta } },
+        data: { inventoryOnHand: { increment: delta } },
+      })
+      if (updated.count === 0) {
+        throw new AdjustmentError(
+          `Cannot remove ${-delta}: only ${variant.inventoryOnHand} on hand`,
+          'INSUFFICIENT_STOCK'
+        )
+      }
+    } else {
+      await tx.productVariant.update({
+        where: { id: input.variantId },
+        data: { inventoryOnHand: { increment: delta } },
+      })
+    }
+
+    const { userId, name } = await resolveInventoryActor(tx, actor.clerkUserId, actor.label)
+    return tx.inventoryAdjustment.create({
+      data: {
+        variantId: input.variantId,
+        delta,
+        reason: input.reason,
+        note: input.note?.trim() || null,
+        createdById: userId,
+        createdByName: name,
+      },
+    })
+  })
+}
+
+/**
+ * Update a variant's reorder threshold (the level at which it appears in the
+ * Low Stock view and the low-stock cron alert).
+ */
+export async function setReorderLevel(variantId: string, reorderLevel: number) {
+  if (!prisma) throw new AdjustmentError('Database is not configured')
+  const level = Math.trunc(reorderLevel)
+  if (!Number.isFinite(level) || level < 0) {
+    throw new AdjustmentError('Reorder level must be a non-negative integer')
+  }
+  try {
+    return await prisma.productVariant.update({
+      where: { id: variantId },
+      data: { reorderLevel: level },
+      select: { id: true, reorderLevel: true },
+    })
+  } catch {
+    throw new AdjustmentError('Product variant not found', 'NOT_FOUND')
+  }
 }

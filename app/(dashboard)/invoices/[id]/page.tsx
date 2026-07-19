@@ -145,7 +145,7 @@ export default function InvoiceDetailPage() {
   const isDraft = invoice.status === 'DRAFT'
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Link href="/invoices" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white">
         <ArrowLeft className="h-4 w-4" /> Back to invoices
       </Link>

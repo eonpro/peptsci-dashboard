@@ -118,7 +118,7 @@ export default function StorefrontDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="container mx-auto space-y-6 p-6 animate-pulse">
         <div className="h-8 bg-white/10 rounded w-1/3" />
         <div className="h-64 bg-white/5 rounded" />
       </div>
@@ -131,7 +131,7 @@ export default function StorefrontDetailPage() {
   const StatusIcon = statusCfg.icon
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/storefronts">

@@ -194,7 +194,7 @@ export default function ClientDetailPage() {
   }
 
   return (
-    <div className="container mx-auto space-y-6 p-6 max-w-4xl">
+    <div className="container mx-auto space-y-6 p-6">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"

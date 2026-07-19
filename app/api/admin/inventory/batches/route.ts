@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) return forbiddenResponse('Admin access required')
 
     const { searchParams } = new URL(request.url)
-    const status = (searchParams.get('status') as 'RECEIVED' | 'DEPLETED' | 'VOIDED' | 'ALL') || 'ALL'
+    const status =
+      (searchParams.get('status') as 'RECEIVED' | 'DEPLETED' | 'VOIDED' | 'ALL') || 'ALL'
     const search = searchParams.get('search') || undefined
     const variantId = searchParams.get('variantId') || undefined
 
@@ -67,7 +68,11 @@ export async function POST(request: NextRequest) {
 
     const parsed = createSchema.safeParse(await request.json())
     if (!parsed.success) {
-      return errorResponse(parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR')
+      return errorResponse(
+        parsed.error.errors.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR'
+      )
     }
 
     const batch = await createBatch(parsed.data, {

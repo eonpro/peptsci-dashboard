@@ -3,10 +3,7 @@ import { z } from 'zod'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getBatch, recordLabelPrintEvent } from '@/lib/inventory-batches'
-import {
-  generatePeptSciLabelSheetPdf,
-  PEPTSCI_LABEL_SHEET_MAX,
-} from '@/lib/labels/peptsciLabelPdf'
+import { generatePeptSciLabelSheetPdf, PEPTSCI_LABEL_SHEET_MAX } from '@/lib/labels/peptsciLabelPdf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +27,11 @@ export async function POST(request: NextRequest) {
 
     const parsed = bodySchema.safeParse(await request.json())
     if (!parsed.success) {
-      return errorResponse(parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR')
+      return errorResponse(
+        parsed.error.errors.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR'
+      )
     }
 
     const batch = await getBatch(parsed.data.batchId)
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     const quantity = parsed.data.proofMode
       ? 1
-      : parsed.data.quantity ?? Math.min(PEPTSCI_LABEL_SHEET_MAX, batch.qtyReceived || 1)
+      : (parsed.data.quantity ?? Math.min(PEPTSCI_LABEL_SHEET_MAX, batch.qtyReceived || 1))
 
     const pdf = await generatePeptSciLabelSheetPdf({
       productName: batch.productName,
@@ -64,7 +65,11 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    logger.error('Error generating labels', {}, error instanceof Error ? error : new Error(String(error)))
+    logger.error(
+      'Error generating labels',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
     return errorResponse('Failed to generate labels')
   }
 }

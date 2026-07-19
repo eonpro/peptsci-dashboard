@@ -143,7 +143,7 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
   }
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="container mx-auto space-y-4 p-6">
         <Link href="/returns" className="inline-flex items-center text-sm text-white/60 hover:text-white">
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to returns
         </Link>
@@ -158,7 +158,7 @@ export default function ReturnDetailPage({ params }: { params: Promise<{ id: str
     data.items.some((i) => i.condition === 'GOOD' && !i.restocked && i.variantId)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Link href="/returns" className="inline-flex items-center text-sm text-white/60 hover:text-white">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to returns
       </Link>
