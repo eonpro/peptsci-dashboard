@@ -7,7 +7,9 @@ import {
   ClipboardCheck,
   Link2,
   Rocket,
+  SlidersHorizontal,
   Users,
+  Wallet,
 } from 'lucide-react'
 import { ApplyForm } from './ApplyForm'
 
@@ -28,13 +30,13 @@ const TRUST_POINTS = [
 const PERKS = [
   {
     icon: BadgeDollarSign,
-    title: 'Commission on every sale',
-    body: 'Earn a share of every order placed by clinics you refer — tracked automatically, down to the cent.',
+    title: 'Revenue on autopilot',
+    body: 'Earn on every order placed by clinics you refer — recurring, not one-time, tracked automatically down to the cent.',
   },
   {
     icon: Link2,
     title: 'Custom referral links',
-    body: 'Create and label unlimited referral links for campaigns, events, or individual reps.',
+    body: 'Create and label unlimited referral links for campaigns, events, or individual reps — every click and signup counted.',
   },
   {
     icon: Users,
@@ -44,7 +46,17 @@ const PERKS = [
   {
     icon: BarChart3,
     title: 'Real-time numbers',
-    body: 'Revenue, commissions, payouts, and goals — live in your partner portal, exportable to CSV.',
+    body: 'Revenue, commissions, payouts, and goals — live in your partner portal, exportable to CSV or over our partner API.',
+  },
+  {
+    icon: Wallet,
+    title: 'Effortless payouts',
+    body: 'Approved commissions are paid on a regular schedule, with every payout logged against your ledger — no invoices, no spreadsheets.',
+  },
+  {
+    icon: SlidersHorizontal,
+    title: 'Flexible reward structures',
+    body: 'Classic revenue-share commission, or margin-model pricing where you set clinic prices above your floor and keep the spread.',
   },
 ]
 
@@ -103,27 +115,77 @@ export default function PartnerApplyPage() {
       </header>
 
       <main className="relative">
-        {/* Hero + form */}
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pt-20">
-          <section>
-            <p className="inline-flex items-center gap-2 rounded-full border border-brand-primary/40 bg-brand-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-indigo-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
-              Partner program
-            </p>
-            <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
-              Grow with PeptSci.{' '}
-              <span className="bg-gradient-to-r from-indigo-300 via-blue-400 to-brand-primary bg-clip-text text-transparent">
-                Earn on every clinic
-              </span>{' '}
-              you bring.
-            </h1>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/70">
-              Sales organizations and independent reps use the PeptSci partner program to refer
-              clinics, manage pricing, and get paid — with transparent, automatic commission
-              tracking.
-            </p>
+        {/* Full-width hero banner (image right, matching the shop hero) */}
+        <div className="mx-auto max-w-6xl px-6 pt-10">
+          <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#04061c]">
+            {/* Banner art: partner network rising left→right; fades into the copy side */}
+            <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/partners-hero.png"
+                alt=""
+                aria-hidden
+                className="h-full w-full object-cover object-right opacity-90"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#04061c] via-[#04061c]/70 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#04061c] via-transparent to-transparent" />
+            </div>
 
-            <ul className="mt-8 space-y-3">
+            <div className="relative px-8 pb-8 pt-12 sm:px-12 sm:pt-16 lg:max-w-[58%]">
+              <p className="inline-flex items-center gap-2 rounded-full border border-brand-primary/40 bg-brand-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-indigo-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
+                Partner program
+              </p>
+              <h1 className="mt-6 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
+                Grow your revenue{' '}
+                <span className="bg-gradient-to-r from-indigo-300 via-blue-400 to-brand-primary bg-clip-text text-transparent">
+                  with partnerships.
+                </span>
+              </h1>
+              <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/70">
+                The PeptSci partner program for sales organizations, distributors, and independent
+                reps: refer clinics, control pricing, and earn on every order they place —
+                automatically, transparently, forever.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a
+                  href="#apply"
+                  className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-white/90"
+                >
+                  Apply to the program
+                </a>
+                <Link
+                  href="/sign-in"
+                  className="rounded-xl border border-white/25 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Partner sign in
+                </Link>
+              </div>
+
+              {/* Trust strip (shop-hero style divided stats) */}
+              <div className="mt-12 grid gap-6 border-t border-white/10 pt-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/10">
+                {[
+                  ['Automatic tracking', 'Every attributed order, to the cent'],
+                  ['Effortless payouts', 'Approved commissions, on schedule'],
+                  ['Live partner portal', 'Revenue, clinics, and payouts in real time'],
+                ].map(([title, body]) => (
+                  <div key={title} className="sm:px-6 sm:first:pl-0 sm:last:pr-0">
+                    <p className="text-sm font-semibold text-white">{title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-white/50">{body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Perks + form */}
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+          <section>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Everything you need to build a book of business
+            </h2>
+            <ul className="mt-6 space-y-3">
               {TRUST_POINTS.map((point) => (
                 <li key={point} className="flex items-start gap-3 text-sm text-white/80">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand-primary" />
