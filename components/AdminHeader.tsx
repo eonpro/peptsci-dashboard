@@ -88,34 +88,87 @@ function AuthUserButton() {
   )
 }
 
-const navigation = [
+interface NavLink {
+  name: string
+  href: string
+  icon: typeof LayoutDashboard
+  /** One-line hint shown in the dropdown panel. */
+  desc?: string
+}
+
+interface NavGroupDef {
+  name: string
+  icon: typeof LayoutDashboard
+  links: NavLink[]
+}
+
+/**
+ * Navigation IA: two direct destinations (the daily surfaces) + four intent
+ * groups. Replaces the old 15-tab overflow-scroll row — every surface is at
+ * most two clicks away and the bar never scrolls horizontally.
+ */
+const directLinks: NavLink[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Customers', href: '/customers', icon: Users },
-  { name: 'Products', href: '/products', icon: Boxes },
-  { name: 'Inventory', href: '/inventory', icon: Package },
-  { name: 'Pricing', href: '/pricing', icon: DollarSign },
-  { name: 'Competitors', href: '/competitors', icon: TrendingUp },
-  { name: 'Orders/Expenses', href: '/orders-expenses', icon: Receipt },
   { name: 'Fulfillment', href: '/fulfillment', icon: Truck },
-  { name: 'Returns', href: '/returns', icon: RotateCcw },
-  { name: 'Invoices', href: '/invoices', icon: ReceiptText },
-  { name: 'P&L', href: '/profit-loss', icon: Calculator },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
-  { name: 'PO Generator', href: '/po-generator', icon: FileText },
-  { name: 'Storefronts', href: '/storefronts', icon: Store },
-  { name: 'Partners', href: '/partners-admin', icon: Handshake },
 ]
 
-// Management surfaces (create/edit records). Grouped in a "Manage" dropdown so
-// Clients and Users are reachable without hunting through Settings.
-const manageLinks = [
-  { name: 'Clients', href: '/clients', icon: Building2 },
-  { name: 'Users', href: '/users', icon: UserCog },
-  { name: 'Products', href: '/products', icon: Boxes },
-  { name: 'Pricing', href: '/pricing', icon: DollarSign },
-  { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag },
-  { name: 'Package Photos', href: '/package-photos', icon: Camera },
+const navGroups: NavGroupDef[] = [
+  {
+    name: 'Sales',
+    icon: TrendingUp,
+    links: [
+      { name: 'Customers', href: '/customers', icon: Users, desc: 'Revenue rollup by customer' },
+      { name: 'Orders & Expenses', href: '/orders-expenses', icon: Receipt, desc: 'Distributor orders and spend' },
+      { name: 'P&L', href: '/profit-loss', icon: Calculator, desc: 'Profit and loss statement' },
+      { name: 'Reports', href: '/reports', icon: BarChart3, desc: 'Analytics and CSV exports' },
+      { name: 'Competitors', href: '/competitors', icon: TrendingUp, desc: 'Market price tracking' },
+    ],
+  },
+  {
+    name: 'Catalog',
+    icon: Boxes,
+    links: [
+      { name: 'Products', href: '/products', icon: Boxes, desc: 'Catalog, SKUs, and COAs' },
+      { name: 'Inventory', href: '/inventory', icon: Package, desc: 'Stock, batches, activity log' },
+      { name: 'Pricing', href: '/pricing', icon: DollarSign, desc: 'Cost and SRP price sheet' },
+      { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag, desc: 'Per-clinic custom prices' },
+      { name: 'PO Generator', href: '/po-generator', icon: FileText, desc: 'Purchase order PDFs' },
+    ],
+  },
+  {
+    name: 'Billing',
+    icon: ReceiptText,
+    links: [
+      { name: 'Invoices', href: '/invoices', icon: ReceiptText, desc: 'Billing, payments, aging' },
+      { name: 'Returns', href: '/returns', icon: RotateCcw, desc: 'RMAs, inspection, restock' },
+    ],
+  },
+  {
+    name: 'Manage',
+    icon: Settings,
+    links: [
+      { name: 'Clients', href: '/clients', icon: Building2, desc: 'Practice accounts and approvals' },
+      { name: 'Users', href: '/users', icon: UserCog, desc: 'Logins, roles, invitations' },
+      { name: 'Partners', href: '/partners-admin', icon: Handshake, desc: 'Sales orgs and commissions' },
+      { name: 'Storefronts', href: '/storefronts', icon: Store, desc: 'White-label clinic stores' },
+      { name: 'Package Photos', href: '/package-photos', icon: Camera, desc: 'Contents photos by order' },
+    ],
+  },
 ]
+
+const isPathActive = (pathname: string, href: string) =>
+  pathname === href || pathname.startsWith(`${href}/`)
+
+/**
+ * Pricing is a prefix of Client Pricing — resolve the MOST specific match so
+ * only one item ever highlights.
+ */
+const isLinkActive = (pathname: string, link: NavLink, siblings: NavLink[]) => {
+  if (!isPathActive(pathname, link.href)) return false
+  return !siblings.some(
+    (s) => s.href !== link.href && s.href.startsWith(link.href) && isPathActive(pathname, s.href)
+  )
+}
 
 export function AdminHeader() {
   const pathname = usePathname()
@@ -167,21 +220,20 @@ export function AdminHeader() {
           />
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden min-w-0 flex-1 lg:flex items-center gap-1 text-sm overflow-x-auto scrollbar-hide">
-          {navigation.map((item) => {
+        {/* Desktop Navigation: 2 direct links + 4 intent groups */}
+        <nav className="hidden min-w-0 flex-1 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-sm lg:flex lg:max-w-fit">
+          {directLinks.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-
+            const isActive = isPathActive(pathname, item.href)
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex shrink-0 items-center space-x-2 whitespace-nowrap px-3 py-2 rounded-md transition-all duration-200',
+                  'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 transition-all duration-200',
                   isActive
-                    ? 'text-white bg-brand-primary'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                    ? 'bg-brand-primary text-white shadow-[0_4px_16px_-4px_rgba(33,60,239,0.7)]'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -190,48 +242,72 @@ export function AdminHeader() {
             )
           })}
 
-          {/* Manage dropdown: create/edit surfaces (Clients, Users, catalog, pricing) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-md transition-all duration-200 outline-none',
-                  manageLinks.some(
-                    (l) => pathname === l.href || pathname.startsWith(`${l.href}/`)
-                  )
-                    ? 'text-white bg-brand-primary'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                )}
-              >
-                <Settings className="h-4 w-4" />
-                <span>Manage</span>
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="w-56 bg-brand-onyx border-[#0a0e3a] text-white"
-            >
-              <DropdownMenuLabel className="text-white/60">Management</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-white/10" />
-              {manageLinks.map((item) => {
-                const Icon = item.icon
-                return (
-                  <DropdownMenuItem
-                    key={item.href}
-                    asChild
-                    className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+          {navGroups.map((group) => {
+            const GroupIcon = group.icon
+            const groupActive = group.links.some((l) => isPathActive(pathname, l.href))
+            return (
+              <DropdownMenu key={group.name}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'group flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 outline-none transition-all duration-200 data-[state=open]:bg-white/10 data-[state=open]:text-white',
+                      groupActive
+                        ? 'bg-brand-primary text-white shadow-[0_4px_16px_-4px_rgba(33,60,239,0.7)]'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white'
+                    )}
                   >
-                    <Link href={item.href}>
-                      <Icon className="mr-2 h-4 w-4" />
-                      {item.name}
-                    </Link>
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    <GroupIcon className="h-4 w-4" />
+                    <span>{group.name}</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  sideOffset={10}
+                  className="w-72 rounded-2xl border-white/10 bg-brand-onyx/95 p-2 text-white shadow-2xl shadow-black/50 backdrop-blur-xl"
+                >
+                  {group.links.map((item) => {
+                    const Icon = item.icon
+                    const active = isLinkActive(pathname, item, group.links)
+                    return (
+                      <DropdownMenuItem
+                        key={item.href}
+                        asChild
+                        className="cursor-pointer rounded-xl px-2 py-2 hover:bg-white/10 focus:bg-white/10 focus:text-white"
+                      >
+                        <Link href={item.href} className="flex items-start gap-3">
+                          <span
+                            className={cn(
+                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                              active
+                                ? 'bg-brand-primary text-white'
+                                : 'bg-white/5 text-white/60'
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span
+                              className={cn(
+                                'block text-sm font-medium',
+                                active ? 'text-white' : 'text-white/90'
+                              )}
+                            >
+                              {item.name}
+                            </span>
+                            {item.desc && (
+                              <span className="block text-xs text-white/45">{item.desc}</span>
+                            )}
+                          </span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          })}
         </nav>
 
         {/* Right side actions */}
@@ -363,13 +439,12 @@ export function AdminHeader() {
             </Button>
           </div>
 
-          {/* Mobile navigation links */}
-          <nav className="flex-1 overflow-y-auto p-4">
+          {/* Mobile navigation: same grouped IA as desktop */}
+          <nav className="flex-1 overflow-y-auto p-4 pb-24">
             <ul className="space-y-1">
-              {navigation.map((item) => {
+              {directLinks.map((item) => {
                 const Icon = item.icon
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-
+                const isActive = isPathActive(pathname, item.href)
                 return (
                   <li key={item.href}>
                     <Link
@@ -390,36 +465,36 @@ export function AdminHeader() {
               })}
             </ul>
 
-            {/* Management links (create/edit surfaces) */}
-            <div className="mt-6">
-              <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
-                Manage
-              </p>
-              <ul className="space-y-1">
-                {manageLinks.map((item) => {
-                  const Icon = item.icon
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={cn(
-                          'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200',
-                          isActive
-                            ? 'text-white bg-brand-primary'
-                            : 'text-white/70 hover:text-white hover:bg-white/10'
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                        <span>{item.name}</span>
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
+            {navGroups.map((group) => (
+              <div key={group.name} className="mt-6">
+                <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+                  {group.name}
+                </p>
+                <ul className="space-y-1">
+                  {group.links.map((item) => {
+                    const Icon = item.icon
+                    const active = isLinkActive(pathname, item, group.links)
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={cn(
+                            'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200',
+                            active
+                              ? 'text-white bg-brand-primary'
+                              : 'text-white/70 hover:text-white hover:bg-white/10'
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span>{item.name}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
           </nav>
 
           {/* Mobile menu footer */}
