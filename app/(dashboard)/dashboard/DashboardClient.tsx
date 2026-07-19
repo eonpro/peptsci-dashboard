@@ -332,19 +332,6 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
               format={usd}
             />
           </ChartCard>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-white">Recent Orders</h3>
-              <Link
-                href="/fulfillment"
-                className="inline-flex items-center gap-1 text-sm text-white/60 transition-colors hover:text-white"
-              >
-                Open fulfillment <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <GroupedRecentOrdersTable data={recentOrders} />
-          </div>
         </div>
 
         {/* Right rail: action queues + best customers */}
@@ -401,6 +388,21 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
             </ol>
           </div>
         </aside>
+      </div>
+
+      {/* Recent Orders — full width: the table has 8+ columns and needs the
+          whole page to breathe (it was cramped inside the main column). */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-white">Recent Orders</h3>
+          <Link
+            href="/fulfillment"
+            className="inline-flex items-center gap-1 text-sm text-white/60 transition-colors hover:text-white"
+          >
+            Open fulfillment <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <GroupedRecentOrdersTable data={recentOrders} />
       </div>
     </div>
   )
