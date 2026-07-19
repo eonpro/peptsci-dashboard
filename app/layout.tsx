@@ -24,7 +24,12 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://use.typekit.net" />
         <link rel="stylesheet" href="https://use.typekit.net/rbf3ldc.css" />
       </head>
-      <body className={cn('min-h-screen bg-brand-bg antialiased font-sofia')}>
+      {/* bg-background (not the hardcoded bg-brand-bg) so the canvas color
+          follows the theme: ThemeScope hoists `.dark` to <html>, making the
+          browser canvas dark on shop/dashboard pages. Otherwise window
+          resizes and overscroll expose a light-beige band around the dark
+          UI. :root --background === brand-bg, so light pages are unchanged. */}
+      <body className={cn('min-h-screen bg-background antialiased font-sofia')}>
         <Providers publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
           {children}
         </Providers>
