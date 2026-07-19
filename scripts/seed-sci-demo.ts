@@ -7,6 +7,7 @@
 process.loadEnvFile('.env.local')
 
 import { assertLocalOrExplicitOverride } from '../lib/db-url'
+import { getMonographForName } from '../lib/content/peptide-monographs'
 
 async function main() {
   assertLocalOrExplicitOverride('seed-sci-demo')
@@ -80,10 +81,18 @@ async function main() {
 
   for (const p of data) {
     const { variants, ...productData } = p
+    // Attach authored monograph content + a default purity so the local shop
+    // preview shows the full product detail page.
+    const monograph = getMonographForName(p.name)
+    const productDataWithContent = {
+      ...productData,
+      purity: '99%',
+      ...(monograph ? { monograph } : {}),
+    }
     const existing = await prisma.product.findFirst({ where: { name: p.name } })
     const product = existing
-      ? await prisma.product.update({ where: { id: existing.id }, data: productData })
-      : await prisma.product.create({ data: productData })
+      ? await prisma.product.update({ where: { id: existing.id }, data: productDataWithContent })
+      : await prisma.product.create({ data: productDataWithContent })
 
     const imageUrl = imageByName[p.name]
     if (imageUrl) {
