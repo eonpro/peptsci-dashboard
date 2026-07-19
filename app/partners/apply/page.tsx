@@ -92,7 +92,7 @@ export default function PartnerApplyPage() {
       />
 
       <header className="relative border-b border-white/10 bg-brand-onyx/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex container items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center" aria-label="PeptSci home">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={LOGO_SRC} alt="PeptSci" className="h-8 w-auto md:h-9" />
@@ -116,7 +116,7 @@ export default function PartnerApplyPage() {
 
       <main className="relative">
         {/* Full-width hero banner (image right, matching the shop hero) */}
-        <div className="mx-auto max-w-6xl px-6 pt-10">
+        <div className="mx-auto container px-6 pt-10">
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#04061c]">
             {/* Banner art: partner network rising left→right; fades into the copy side */}
             <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]">
@@ -142,7 +142,7 @@ export default function PartnerApplyPage() {
                   with partnerships.
                 </span>
               </h1>
-              <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/70">
+              <p className="mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">
                 The PeptSci partner program for sales organizations, distributors, and independent
                 reps: refer clinics, control pricing, and earn on every order they place —
                 automatically, transparently, forever.
@@ -180,7 +180,7 @@ export default function PartnerApplyPage() {
         </div>
 
         {/* Perks + form */}
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+        <div className="mx-auto grid container gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <section>
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Everything you need to build a book of business
@@ -231,7 +231,7 @@ export default function PartnerApplyPage() {
 
         {/* How it works */}
         <div className="relative border-t border-white/10 bg-white/[0.03]">
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto container px-6 py-16">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">How it works</h2>
               <p className="mt-3 text-white/60">
@@ -256,7 +256,7 @@ export default function PartnerApplyPage() {
         </div>
 
         {/* Final CTA */}
-        <div className="mx-auto max-w-6xl px-6 py-16">
+        <div className="mx-auto container px-6 py-16">
           <div className="relative overflow-hidden rounded-3xl border border-brand-primary/30 bg-gradient-to-br from-brand-primary/20 via-transparent to-transparent p-8 text-center sm:p-12">
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Ready to build your book of business?
@@ -275,7 +275,7 @@ export default function PartnerApplyPage() {
       </main>
 
       <footer className="relative border-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
+        <div className="mx-auto flex container flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO_SRC} alt="PeptSci" className="h-6 w-auto opacity-70" />
           <p className="text-xs text-white/50">

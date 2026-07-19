@@ -9,6 +9,7 @@ import { prisma } from './prisma'
 import { stockEnforcementEnabled } from './stock-enforcement'
 import { logger } from './logger'
 import type { ShopProduct, ProductImage } from './types/shop'
+import { parseMonograph } from './types/monograph'
 
 /** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
 export const CATALOG_TAG = 'catalog'
@@ -24,6 +25,7 @@ interface VariantWithProduct {
   inventoryOnHand: number
   inventoryReserved: number
   status: string
+  productId: string
   product: {
     name: string
     description: string | null
@@ -32,6 +34,8 @@ interface VariantWithProduct {
     molecularFormula: string | null
     molecularWeight: number | null
     pubchemCid: string | null
+    monograph: unknown
+    purity: string | null
     media: { id: string; url: string; altText: string | null; isPrimary: boolean }[]
   }
 }
@@ -71,6 +75,8 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     molecularWeight:
       v.product.molecularWeight != null ? `${v.product.molecularWeight} g/mol` : null,
     pubchemCid: v.product.pubchemCid,
+    monograph: parseMonograph(v.product.monograph),
+    purity: v.product.purity,
     images: toImages(v.product.media),
     inventoryOnHand: enforceStock ? available : undefined,
     inStock: enforceStock ? available > 0 : true,
@@ -88,6 +94,8 @@ const variantInclude = {
       molecularFormula: true,
       molecularWeight: true,
       pubchemCid: true,
+      monograph: true,
+      purity: true,
       media: {
         select: { id: true, url: true, altText: true, isPrimary: true },
         orderBy: { isPrimary: 'desc' as const },
@@ -105,6 +113,7 @@ const variantSelect = {
   inventoryOnHand: true,
   inventoryReserved: true,
   status: true,
+  productId: true,
   ...variantInclude,
 }
 
@@ -148,7 +157,25 @@ export async function getShopProductBySku(sku: string): Promise<ShopProduct | nu
     // Match the catalog listing: discontinued/inactive SKUs are not shoppable
     // even via a direct product URL (checkout would reject them anyway).
     if (!variant || variant.status !== 'ACTIVE') return null
-    return toShopProduct(variant as unknown as VariantWithProduct)
+    const typed = variant as unknown as VariantWithProduct
+    const product = toShopProduct(typed)
+
+    // "Available in: 5mg, 10mg" — the sellable doses of the same compound.
+    const siblings = await prisma.productVariant.findMany({
+      where: { productId: typed.productId, status: 'ACTIVE' },
+      select: { dose: true, unitSize: true },
+      orderBy: { dose: 'asc' },
+    })
+    const doses = Array.from(
+      new Set(
+        siblings
+          .map((s) => (s.dose || s.unitSize || '').trim())
+          .filter((d) => d.length > 0)
+      )
+    )
+    product.availableDoses = doses
+
+    return product
   } catch (error) {
     logger.warn('Error fetching shop product by SKU', { sku, error: String(error) })
     return null

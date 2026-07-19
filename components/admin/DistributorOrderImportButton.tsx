@@ -18,7 +18,9 @@ export function DistributorOrderImportButton() {
         <>
           One row per line item, grouped by <span className="text-white/80">orderId</span>.
           Order-level fields (date, vendor, status, shipping, paypalFee) are read from each group.
-          Re-importing an orderId replaces its line items.
+          Re-importing an orderId replaces its line items. Spreadsheet ledger exports (Date of
+          Order, Total Order Amount, Products, Product dose, Amount, Cost per item, Totals) are
+          also detected automatically — Shipping and Paypal Fee rows are folded into each order.
         </>
       }
       headers={DISTRIBUTOR_IMPORT_HEADERS}

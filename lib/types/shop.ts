@@ -1,3 +1,5 @@
+import type { PeptideMonograph } from './monograph'
+
 /**
  * Unified product type for the shop.
  * Works with both Airtable and Google Sheets data sources.
@@ -59,6 +61,11 @@ export interface ShopProduct {
   molecularFormula?: string | null
   molecularWeight?: string | null
   pubchemCid?: string | null
+
+  // Editorial monograph content shown on the product detail page.
+  monograph?: PeptideMonograph | null
+  purity?: string | null // e.g. "99%"; PDP falls back to a default when absent
+  availableDoses?: string[] // sibling variant doses of the same compound
 
   // True when a published Certificate of Analysis exists for this variant
   // (enriched server-side on the shop page).

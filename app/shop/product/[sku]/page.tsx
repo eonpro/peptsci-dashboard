@@ -6,6 +6,7 @@ import {
 } from '@/lib/catalog'
 import { ProductDetailCard, type ProductDetailData } from '@/components/shop/ProductDetailCard'
 import { ProductCard } from '@/components/shop/ProductCard'
+import { ProductVial } from '@/components/shop/ProductVial'
 import { PdpAddToCart } from '@/components/shop/PdpAddToCart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -119,16 +120,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Product card (detailed) */}
         {detailedData ? (
-          <ProductDetailCard product={detailedData} className="h-fit" />
+          <ProductDetailCard product={detailedData} vialProduct={product} className="h-fit" />
         ) : (
           /* Fallback to basic card display */
-          <div className="rounded-3xl bg-linear-to-br from-brand-onyx via-[#0a0e3a] to-brand-onyx border border-white/10 p-8">
-            <h1 className="text-3xl font-bold text-white mb-2">{product.name}</h1>
-            <p className="text-xl text-white/60 mb-4">{product.dose}</p>
-            {product.description && <p className="text-white/70 mb-6">{product.description}</p>}
-            <div className="text-sm text-white/50 space-y-1">
-              <p>SKU: {product.sku}</p>
-              <p>Category: {product.category || 'Uncategorized'}</p>
+          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-brand-onyx via-[#0a0e3a] to-brand-onyx border border-white/10 p-8">
+            <div className="pr-28 md:pr-36">
+              <h1 className="text-3xl font-bold text-white mb-2">{product.name}</h1>
+              <p className="text-xl text-white/60 mb-4">{product.dose}</p>
+              {product.description && <p className="text-white/70 mb-6">{product.description}</p>}
+              <div className="text-sm text-white/50 space-y-1">
+                <p>SKU: {product.sku}</p>
+                <p>Category: {product.category || 'Uncategorized'}</p>
+              </div>
+            </div>
+            <div className="pointer-events-none absolute bottom-4 right-4 md:bottom-6 md:right-6">
+              <ProductVial
+                product={product}
+                className="h-[200px] drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]"
+              />
             </div>
           </div>
         )}

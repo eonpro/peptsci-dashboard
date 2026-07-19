@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { ProductVial } from './ProductVial'
+import type { ShopProduct } from '@/lib/types/shop'
 
 // Types for detailed product information
 export interface CompoundInfo {
@@ -28,6 +30,8 @@ export interface ProductDetailData {
 
 interface ProductDetailCardProps {
   product: ProductDetailData
+  /** Full shop product used to composite the labeled vial render. */
+  vialProduct?: ShopProduct
   className?: string
 }
 
@@ -58,7 +62,7 @@ const PEPTSCI_LOGO_URL =
 // Fixed card height to ensure consistent sizing regardless of peptide count
 const CARD_MIN_HEIGHT = '480px'
 
-export function ProductDetailCard({ product, className }: ProductDetailCardProps) {
+export function ProductDetailCard({ product, vialProduct, className }: ProductDetailCardProps) {
   return (
     <div
       className={cn(
@@ -92,8 +96,8 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
           )}
         </div>
 
-        {/* Compounds list - grow to fill space */}
-        <div className="space-y-6 grow">
+        {/* Compounds list - grow to fill space (right padding clears the vial) */}
+        <div className={cn('space-y-6 grow', vialProduct && 'pr-28 md:pr-36')}>
           {product.compounds.map((compound, index) => (
             <div key={index} className="space-y-2">
               {/* Compound name and amount - WHITE font */}
@@ -137,7 +141,7 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
         </div>
 
         {/* Bottom section - always at bottom */}
-        <div className="mt-auto pt-6">
+        <div className={cn('mt-auto pt-6', vialProduct && 'pr-28 md:pr-36')}>
           {/* Total amount */}
           {product.totalAmount && (
             <p className="text-2xl md:text-3xl font-bold text-brand-primary mb-4">{product.totalAmount}</p>
@@ -157,6 +161,16 @@ export function ProductDetailCard({ product, className }: ProductDetailCardProps
           </div>
         </div>
       </div>
+
+      {/* Labeled vial render - anchored bottom-right, matches catalog cards */}
+      {vialProduct && (
+        <div className="pointer-events-none absolute bottom-4 right-4 md:bottom-6 md:right-6">
+          <ProductVial
+            product={vialProduct}
+            className="h-[220px] md:h-[280px] drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]"
+          />
+        </div>
+      )}
     </div>
   )
 }

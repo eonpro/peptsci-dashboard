@@ -5,6 +5,10 @@
  * shipping, paypalFee, tracking) are read from the first row of each group.
  *
  * Required per row: orderId, product, quantity.
+ *
+ * A spreadsheet "ledger" export is also auto-detected and supported (see
+ * parseLedgerRows): a date row starts each order, product lines follow with
+ * blank dates, and Shipping / Paypal Fee / subtotal rows are interleaved.
  */
 
 import { parseCsv } from './product-import'
@@ -116,6 +120,223 @@ const HEADER_ALIASES: Record<string, Field> = {
 // Locale-aware ("1,234.56" and "1.234,56" both parse): see lib/csv-coerce.ts.
 const toNumber = parseLocaleNumber
 
+// ---------------------------------------------------------------------------
+// Ledger-format support: spreadsheet exports where a date row starts each
+// order, product lines follow with blank dates, and Shipping / Paypal Fee /
+// subtotal rows are interleaved. Example header:
+//   Date of Order, Total Order Amount, Products, Product dose, Amount,
+//   Cost per item, Totals
+// ---------------------------------------------------------------------------
+
+type LedgerField = 'orderDate' | 'total' | 'product' | 'dose' | 'quantity' | 'unitCost' | 'lineTotal'
+
+const LEDGER_ALIASES: Record<string, LedgerField> = {
+  'date of order': 'orderDate',
+  'order date': 'orderDate',
+  date: 'orderDate',
+  'total order amount': 'total',
+  'order total': 'total',
+  'total order': 'total',
+  products: 'product',
+  product: 'product',
+  'product name': 'product',
+  medication: 'product',
+  medications: 'product',
+  item: 'product',
+  'product dose': 'dose',
+  dose: 'dose',
+  strength: 'dose',
+  amount: 'quantity',
+  quantity: 'quantity',
+  // Common spreadsheet typo, seen in real exports.
+  quanity: 'quantity',
+  qty: 'quantity',
+  units: 'quantity',
+  'cost per item': 'unitCost',
+  'unit cost': 'unitCost',
+  price: 'unitCost',
+  cost: 'unitCost',
+  totals: 'lineTotal',
+  'line total': 'lineTotal',
+  total: 'lineTotal',
+}
+
+// Words that appear in the product column but are not products.
+const LEDGER_SHIPPING = /^(shipping|freight|delivery)\b/i
+const LEDGER_FEE = /paypal|processing fee|^fee(s)?$/i
+const LEDGER_SUBHEADER = new Set(['medication', 'medications', 'product', 'products', 'item', 'items'])
+
+function mapLedgerHeader(cells: string[]): Partial<Record<LedgerField, number>> | null {
+  const map: Partial<Record<LedgerField, number>> = {}
+  cells.forEach((raw, idx) => {
+    const field = LEDGER_ALIASES[raw.trim().toLowerCase()]
+    if (field && map[field] === undefined) map[field] = idx
+  })
+  const ok =
+    map.orderDate !== undefined &&
+    map.product !== undefined &&
+    (map.lineTotal !== undefined || map.unitCost !== undefined)
+  return ok ? map : null
+}
+
+/** Normalize "8/16/25" / "2025-08-16" into a stable id fragment. */
+function ledgerDateKey(raw: string): string {
+  const mdY = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
+  if (mdY) {
+    const [, m, d, y] = mdY
+    const year = y.length === 2 ? `20${y}` : y
+    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (iso) {
+    const [, y, m, d] = iso
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return raw.replace(/[^0-9A-Za-z]+/g, '-')
+}
+
+function parseLedgerRows(
+  matrix: string[][],
+  headerRowIdx: number,
+  col: Partial<Record<LedgerField, number>>
+): DistributorParseResult {
+  interface LedgerOrder {
+    orderId: string
+    orderDate: string
+    total?: number
+    shipping?: number
+    paypalFee?: number
+    lines: { rowNumber: number; product: string; dose?: string; quantity: number; unitCost: number; lineTotal: number }[]
+  }
+
+  const errors: RowError[] = []
+  const orders: LedgerOrder[] = []
+  const idCounts = new Map<string, number>()
+  let current: LedgerOrder | null = null
+
+  const cell = (cols: string[], field: LedgerField): string => {
+    const idx = col[field]
+    if (idx === undefined) return ''
+    return (cols[idx] ?? '').trim()
+  }
+
+  for (let r = headerRowIdx + 1; r < matrix.length; r++) {
+    const rowNumber = r + 1
+    const cols = matrix[r]
+    const date = cell(cols, 'orderDate')
+    const product = cell(cols, 'product')
+    const orderTotal = toNumber(cell(cols, 'total'))
+    const quantity = toNumber(cell(cols, 'quantity'))
+    const unitCost = toNumber(cell(cols, 'unitCost'))
+    const lineTotal = toNumber(cell(cols, 'lineTotal'))
+
+    // Repeated header rows inside the sheet ("Medication, Dose, Quanity, ...").
+    if (mapLedgerHeader(cols) && !date) continue
+
+    if (date) {
+      const key = ledgerDateKey(date)
+      const seen = (idCounts.get(key) ?? 0) + 1
+      idCounts.set(key, seen)
+      current = {
+        orderId: seen === 1 ? `PO-${key}` : `PO-${key}-${seen}`,
+        orderDate: date,
+        total: orderTotal !== undefined && !Number.isNaN(orderTotal) ? orderTotal : undefined,
+        lines: [],
+      }
+      orders.push(current)
+    }
+
+    if (!product) continue // blank spacer rows and subtotal-only rows
+
+    const lowered = product.toLowerCase()
+    if (LEDGER_SUBHEADER.has(lowered)) continue
+
+    if (!current) {
+      errors.push({ rowNumber, message: `Line "${product}" appears before any order date row` })
+      continue
+    }
+
+    const value =
+      lineTotal !== undefined && !Number.isNaN(lineTotal)
+        ? lineTotal
+        : unitCost !== undefined && !Number.isNaN(unitCost)
+          ? unitCost
+          : undefined
+
+    if (LEDGER_SHIPPING.test(product)) {
+      if (value !== undefined) current.shipping = (current.shipping ?? 0) + value
+      continue
+    }
+    if (LEDGER_FEE.test(product)) {
+      // Fee rows carry the fee amount in the Totals column (the per-item cell
+      // holds the rate, e.g. 0.05).
+      if (lineTotal !== undefined && !Number.isNaN(lineTotal)) {
+        current.paypalFee = (current.paypalFee ?? 0) + lineTotal
+      }
+      continue
+    }
+
+    const unit = unitCost !== undefined && !Number.isNaN(unitCost) ? unitCost : 0
+    let qty = quantity !== undefined && !Number.isNaN(quantity) ? quantity : undefined
+    const line =
+      lineTotal !== undefined && !Number.isNaN(lineTotal)
+        ? lineTotal
+        : qty !== undefined
+          ? qty * unit
+          : 0
+    if (qty === undefined) qty = unit > 0 && line > 0 ? Math.round((line / unit) * 100) / 100 : 1
+
+    current.lines.push({
+      rowNumber,
+      product,
+      dose: cell(cols, 'dose') || undefined,
+      quantity: qty,
+      unitCost: unit,
+      lineTotal: line,
+    })
+  }
+
+  // Flatten into line rows: order-level fields ride on the first line of each
+  // order (groupDistributorOrders takes the first non-empty occurrence).
+  const rows: DistributorLineRow[] = []
+  for (const order of orders) {
+    if (order.lines.length === 0) continue
+    order.lines.forEach((l, i) => {
+      rows.push({
+        rowNumber: l.rowNumber,
+        orderId: order.orderId,
+        orderDate: i === 0 ? order.orderDate : undefined,
+        shipping: i === 0 ? order.shipping : undefined,
+        paypalFee: i === 0 ? order.paypalFee : undefined,
+        total: i === 0 ? order.total : undefined,
+        product: l.product,
+        dose: l.dose,
+        quantity: l.quantity,
+        unitCost: l.unitCost,
+        lineTotal: l.lineTotal,
+      })
+    })
+  }
+
+  if (rows.length === 0 && errors.length === 0) {
+    errors.push({ rowNumber: headerRowIdx + 2, message: 'No order lines found in file' })
+  }
+
+  return { rows, errors }
+}
+
+/** Find a ledger-style header row within the first few rows of the sheet. */
+function detectLedgerHeader(
+  matrix: string[][]
+): { rowIdx: number; col: Partial<Record<LedgerField, number>> } | null {
+  const limit = Math.min(matrix.length, 10)
+  for (let r = 0; r < limit; r++) {
+    const col = mapLedgerHeader(matrix[r])
+    if (col) return { rowIdx: r, col }
+  }
+  return null
+}
+
 export function parseDistributorOrderCsv(input: string): DistributorParseResult {
   const matrix = parseCsv(input)
   const errors: RowError[] = []
@@ -134,12 +355,17 @@ export function parseDistributorOrderCsv(input: string): DistributorParseResult 
 
   const missing = (['orderId', 'product'] as const).filter((f) => colIndex[f] === undefined)
   if (missing.length > 0) {
+    // Not the flat format — check for the spreadsheet ledger layout before
+    // giving up (date row starts each order, product lines follow).
+    const ledger = detectLedgerHeader(matrix)
+    if (ledger) return parseLedgerRows(matrix, ledger.rowIdx, ledger.col)
+
     return {
       rows,
       errors: [
         {
           rowNumber: 1,
-          message: `Missing required column(s): ${missing.join(', ')}. Expected headers like: ${DISTRIBUTOR_IMPORT_HEADERS.join(', ')}`,
+          message: `Missing required column(s): ${missing.join(', ')}. Expected headers like: ${DISTRIBUTOR_IMPORT_HEADERS.join(', ')} — or a ledger sheet with headers like: Date of Order, Total Order Amount, Products, Product dose, Amount, Cost per item, Totals`,
         },
       ],
     }

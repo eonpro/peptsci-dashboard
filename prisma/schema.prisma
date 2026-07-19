@@ -447,6 +447,11 @@ model Product {
   heavyAtomCount            Int?
   intendedUse               String?
   safetySummary             String? // PubChem Laboratory Chemical Safety Summary (LCSS)
+  // Editorial monograph content shown on the product detail page. Structured
+  // JSON: { overview: string[], mechanismOfAction: string[],
+  // observations: { title, detail }[], references: { label, url? }[], disclaimer? }
+  monograph                 Json?
+  purity                    String? // e.g. "99%"; rendered on the PDP specifications strip
   createdAt                 DateTime         @default(now())
   updatedAt                 DateTime         @updatedAt
   variants                  ProductVariant[]
