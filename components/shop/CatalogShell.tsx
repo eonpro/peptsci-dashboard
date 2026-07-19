@@ -4,7 +4,6 @@ import { useState } from 'react'
 import type { ShopProduct } from '@/lib/types/shop'
 import { getShopCategoryBuckets } from '@/lib/shop-categories'
 import { CatalogHeroBanner } from './CatalogHeroBanner'
-import { BuyAgainStrip } from './BuyAgainStrip'
 import { ProductGrid } from './ProductGrid'
 
 interface CatalogShellProps {
@@ -28,9 +27,6 @@ export function CatalogShell({ products }: CatalogShellProps) {
     <div className="space-y-7">
       {/* Cinematic hero banner */}
       <CatalogHeroBanner productCount={products.length} />
-
-      {/* One-tap reorders (hidden for first-time buyers) */}
-      <BuyAgainStrip />
 
       {/* Toolbar + full-width grid (grid owns search/chips/sort/stock) */}
       <ProductGrid
