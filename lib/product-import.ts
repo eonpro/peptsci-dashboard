@@ -37,6 +37,13 @@ export interface ProductImportRow {
   heavyAtomCount?: number
   intendedUse?: string
   safetySummary?: string
+  // Editorial monograph content (stored on the parent Product). Multi-line
+  // cells; parsed into the structured JSON shape by the import route.
+  purity?: string
+  overview?: string
+  mechanismOfAction?: string
+  observations?: string
+  references?: string
   /** Product photo URL (https://... or a site-relative /path). */
   imageUrl?: string
 }
@@ -79,6 +86,11 @@ export const PRODUCT_IMPORT_HEADERS = [
   'heavyAtomCount',
   'intendedUse',
   'safetySummary',
+  'purity',
+  'overview',
+  'mechanismOfAction',
+  'observations',
+  'references',
   'imageUrl',
 ] as const
 
@@ -173,6 +185,16 @@ const HEADER_ALIASES: Record<string, keyof ProductImportRow | 'name'> = {
   lcss: 'safetySummary',
   'pubchem laboratory chemical safety summary (lcss)': 'safetySummary',
   'pubchem lcss': 'safetySummary',
+  purity: 'purity',
+  overview: 'overview',
+  mechanismofaction: 'mechanismOfAction',
+  'mechanism of action': 'mechanismOfAction',
+  moa: 'mechanismOfAction',
+  observations: 'observations',
+  'observations / benefits': 'observations',
+  benefits: 'observations',
+  references: 'references',
+  'clinical references': 'references',
   imageurl: 'imageUrl',
   'image url': 'imageUrl',
   image: 'imageUrl',
@@ -396,6 +418,11 @@ export function parseProductCsv(input: string): ParseResult {
       heavyAtomCount: lenientInt(cell(cols, 'heavyAtomCount')),
       intendedUse: cell(cols, 'intendedUse') || undefined,
       safetySummary: cell(cols, 'safetySummary') || undefined,
+      purity: cell(cols, 'purity') || undefined,
+      overview: cell(cols, 'overview') || undefined,
+      mechanismOfAction: cell(cols, 'mechanismOfAction') || undefined,
+      observations: cell(cols, 'observations') || undefined,
+      references: cell(cols, 'references') || undefined,
       imageUrl: lenientUrl(cell(cols, 'imageUrl')),
     })
   }
@@ -433,6 +460,11 @@ export function productImportTemplate(): string {
     '361',
     'Research use only',
     'See PubChem LCSS',
+    '99%',
+    'Tesamorelin is a synthetic analog of growth hormone-releasing hormone (GHRH) studied in research settings.',
+    'GHRH receptor activity: stimulates pituitary release of endogenous growth hormone in study models.',
+    'Metabolic Research | Investigated for effects on visceral adipose tissue in clinical research.',
+    'DailyMed - tesamorelin | https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=tesamorelin',
     'https://example.com/images/tesamorelin-vial.jpg',
   ].join(',')
   return `${header}\n${example}\n`

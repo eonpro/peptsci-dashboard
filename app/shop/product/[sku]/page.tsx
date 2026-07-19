@@ -7,6 +7,7 @@ import {
 import { ProductDetailCard, type ProductDetailData } from '@/components/shop/ProductDetailCard'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { ProductVial } from '@/components/shop/ProductVial'
+import { ProductMonograph } from '@/components/shop/ProductMonograph'
 import { PdpAddToCart } from '@/components/shop/PdpAddToCart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -230,6 +231,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           )}
         </div>
       </div>
+
+      {/* Monograph: Overview, Mechanism of Action, Observations, References */}
+      {product.monograph && <ProductMonograph monograph={product.monograph} product={product} />}
 
       {/* Related products */}
       {relatedProducts.length > 0 && (

@@ -47,6 +47,8 @@ import {
 } from '@/lib/product-import'
 import ProductFormDialog, { type ProductFormValues } from './ProductFormDialog'
 import CoaManagerDialog, { type CoaVariantRef } from '@/components/coa/CoaManagerDialog'
+import { parseMonograph } from '@/lib/types/monograph'
+import { monographToForm } from '@/lib/monograph-format'
 
 interface VariantRow {
   id: string
@@ -62,6 +64,8 @@ interface VariantRow {
   reorderLevel: number
   imageUrl: string | null
   coaCount?: number
+  purity?: string | null
+  monograph?: unknown
 }
 
 interface ImportSummary {
@@ -197,6 +201,7 @@ export default function ProductsPage() {
   }
 
   function openEdit(v: VariantRow) {
+    const mono = monographToForm(parseMonograph(v.monograph))
     setEditing({
       id: v.id,
       name: v.productName,
@@ -209,6 +214,11 @@ export default function ProductsPage() {
       supplierSku: v.supplierSku || '',
       inventoryOnHand: String(v.inventoryOnHand),
       reorderLevel: String(v.reorderLevel),
+      purity: v.purity || '',
+      overview: mono.overview,
+      mechanismOfAction: mono.mechanismOfAction,
+      observations: mono.observations,
+      references: mono.references,
     })
     setFormOpen(true)
   }
@@ -500,7 +510,8 @@ export default function ProductsPage() {
               unitCost, srp, dose, category, supplierName, supplierSku, inventoryOnHand,
               reorderLevel, imageUrl (product photo), plus scientific data (description, CAS number, molecular
               formula/weight, PubChem CID, peptide length, AKA, monoisotopic mass, complexity,
-              XLogP, bond/atom counts, intended use, safety summary). Common header spellings
+              XLogP, bond/atom counts, intended use, safety summary), plus monograph content
+              (purity, overview, mechanism of action, observations, references). Common header spellings
               like &quot;Peptide Name&quot;, &quot;Milligrams&quot;, &quot;Cost/Unit&quot;, and
               &quot;Current Inventory&quot; are recognized automatically. Rows are matched to
               existing variants by <span className="text-white/80">SKU</span> (updated if found,

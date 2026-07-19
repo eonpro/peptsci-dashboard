@@ -7,11 +7,28 @@ import {
   errorResponse,
   successResponse,
 } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const observationSchema = z.object({
+  title: z.string(),
+  detail: z.string(),
+})
+const referenceSchema = z.object({
+  label: z.string(),
+  url: z.string().optional(),
+})
+const monographSchema = z.object({
+  overview: z.array(z.string()).default([]),
+  mechanismOfAction: z.array(z.string()).default([]),
+  observations: z.array(observationSchema).default([]),
+  references: z.array(referenceSchema).default([]),
+  disclaimer: z.string().optional(),
+})
 
 const patchSchema = z
   .object({
@@ -24,6 +41,10 @@ const patchSchema = z
     supplierName: z.string().trim().optional(),
     supplierSku: z.string().trim().optional(),
     reorderLevel: z.number().int().min(0).optional(),
+    // Editorial monograph content (stored on the parent Product). `null`
+    // clears it; an object replaces it.
+    purity: z.string().trim().nullable().optional(),
+    monograph: monographSchema.nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No fields to update' })
 
@@ -85,12 +106,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     })
 
-    if (body.name !== undefined || body.category !== undefined) {
+    if (
+      body.name !== undefined ||
+      body.category !== undefined ||
+      body.purity !== undefined ||
+      body.monograph !== undefined
+    ) {
       await prisma.product.update({
         where: { id: variant.productId },
         data: {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.category !== undefined ? { category: body.category || null } : {}),
+          ...(body.purity !== undefined ? { purity: body.purity || null } : {}),
+          ...(body.monograph !== undefined
+            ? { monograph: body.monograph === null ? Prisma.DbNull : body.monograph }
+            : {}),
         },
       })
     }

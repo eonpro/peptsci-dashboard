@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -13,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-react'
+import { formToMonograph } from '@/lib/monograph-format'
 
 export interface ProductFormValues {
   id?: string
@@ -26,6 +28,13 @@ export interface ProductFormValues {
   supplierSku: string
   inventoryOnHand: string
   reorderLevel: string
+  // Editorial monograph (parent Product). Stored/edited as plain text; the
+  // dialog serializes it into the structured JSON shape on save.
+  purity: string
+  overview: string
+  mechanismOfAction: string
+  observations: string
+  references: string
 }
 
 const EMPTY: ProductFormValues = {
@@ -39,6 +48,11 @@ const EMPTY: ProductFormValues = {
   supplierSku: '',
   inventoryOnHand: '',
   reorderLevel: '',
+  purity: '',
+  overview: '',
+  mechanismOfAction: '',
+  observations: '',
+  references: '',
 }
 
 const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
@@ -117,6 +131,13 @@ export default function ProductFormDialog({
         supplierName: values.supplierName.trim(),
         supplierSku: values.supplierSku.trim(),
         ...(reorderLevel !== undefined ? { reorderLevel: Math.trunc(reorderLevel) } : {}),
+        purity: values.purity.trim() || null,
+        monograph: formToMonograph({
+          overview: values.overview,
+          mechanismOfAction: values.mechanismOfAction,
+          observations: values.observations,
+          references: values.references,
+        }),
       }
       const res = isEdit
         ? await fetch(`/api/admin/products/${initial!.id}`, {
@@ -279,6 +300,73 @@ export default function ProductFormDialog({
               stays audited.
             </p>
           )}
+
+          {/* Monograph — shown on the product detail page */}
+          <div className="mt-2 space-y-4 rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Monograph</h3>
+              <p className="text-white/40 text-xs">
+                Editorial content shown on the product detail page. Keep it neutral and
+                research-use-only. Leave blank to hide a section.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Purity</Label>
+                <Input
+                  className={inputClass}
+                  placeholder="99%"
+                  value={values.purity}
+                  onChange={(e) => set('purity', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Overview (one paragraph per line)</Label>
+              <Textarea
+                className={inputClass}
+                rows={3}
+                placeholder="LL-37 is an endogenous human cathelicidin-derived peptide studied for..."
+                value={values.overview}
+                onChange={(e) => set('overview', e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Mechanism of Action (one bullet per line)</Label>
+              <Textarea
+                className={inputClass}
+                rows={3}
+                placeholder={'Membrane Interaction: shown in vitro to disrupt microbial membranes...\nImmunomodulation: research suggests it may influence innate immune signaling...'}
+                value={values.mechanismOfAction}
+                onChange={(e) => set('mechanismOfAction', e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Observations (one per line — &quot;Title | detail&quot;)</Label>
+              <Textarea
+                className={inputClass}
+                rows={3}
+                placeholder={'Wound-Healing Research | Early-phase studies report support for granulation tissue formation.\nAntimicrobial Activity | In vitro testing shows broad activity against Gram-positive and Gram-negative organisms.'}
+                value={values.observations}
+                onChange={(e) => set('observations', e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className={labelClass}>References (one per line — &quot;label | url&quot;)</Label>
+              <Textarea
+                className={inputClass}
+                rows={3}
+                placeholder={'Grönberg A, et al. (2014). Wound Repair Regen. | https://pubmed.ncbi.nlm.nih.gov/25041627/'}
+                value={values.references}
+                onChange={(e) => set('references', e.target.value)}
+              />
+            </div>
+          </div>
 
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">

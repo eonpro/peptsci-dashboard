@@ -118,17 +118,18 @@ export default function PartnerApplyPage() {
         {/* Full-width hero banner (image right, matching the shop hero) */}
         <div className="mx-auto container px-6 pt-10">
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#04061c]">
-            {/* Banner art: partner network rising left→right; fades into the copy side */}
-            <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]">
+            {/* Banner art: interlocked partner rings. The image's left half is
+                the same navy as the card, so it runs full-bleed and needs only
+                a light fade behind the copy. */}
+            <div className="absolute inset-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/partners-hero.png"
                 alt=""
                 aria-hidden
-                className="h-full w-full object-cover object-right opacity-90"
+                className="h-full w-full object-cover object-right"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#04061c] via-[#04061c]/70 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#04061c] via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#04061c] via-[#04061c]/55 to-transparent lg:via-40%" />
             </div>
 
             <div className="relative px-8 pb-8 pt-12 sm:px-12 sm:pt-16 lg:max-w-[58%]">

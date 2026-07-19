@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getShopProductBySku } from '@/lib/catalog'
 import { getPublishedCoasBySku } from '@/lib/coa'
@@ -22,12 +22,22 @@ export default async function ProductCoaPage({ params }: CoaPageProps) {
 
   return (
     <div className="space-y-8">
-      <Link href={`/shop/product/${encodeURIComponent(sku)}`}>
-        <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Product
-        </Button>
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href={`/shop/product/${encodeURIComponent(sku)}`}>
+          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Product
+          </Button>
+        </Link>
+        {coas.length > 0 && (
+          <a href={`/shop/product/${encodeURIComponent(sku)}/coa/print`} target="_blank" rel="noopener noreferrer">
+            <Button className="bg-brand-primary hover:bg-[#1a30c0] text-white">
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </Button>
+          </a>
+        )}
+      </div>
 
       <div>
         <h1 className="text-2xl font-bold text-white">Certificate of Analysis</h1>

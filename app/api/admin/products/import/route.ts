@@ -7,9 +7,11 @@ import {
   errorResponse,
   successResponse,
 } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { parseProductCsv, type ProductImportRow, type RowError } from '@/lib/product-import'
+import { formToMonograph } from '@/lib/monograph-format'
 import { resolveInventoryActor, type InventoryActor } from '@/lib/inventory-log'
 
 export const runtime = 'nodejs'
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     // Product-level fields sourced from the CSV. Only keys present in the row
     // are written, so re-imports never blank out existing values.
     const productDataFromRow = (row: ProductImportRow) => {
-      const data: Record<string, string | number> = {}
+      const data: Record<string, string | number | Prisma.InputJsonValue> = {}
       if (row.category) data.category = row.category
       if (row.description) data.description = row.description
       if (row.casNumber) data.casNumber = row.casNumber
@@ -111,6 +113,16 @@ export async function POST(request: NextRequest) {
       if (row.heavyAtomCount !== undefined) data.heavyAtomCount = row.heavyAtomCount
       if (row.intendedUse) data.intendedUse = row.intendedUse
       if (row.safetySummary) data.safetySummary = row.safetySummary
+      if (row.purity) data.purity = row.purity
+      const monograph = formToMonograph({
+        overview: row.overview,
+        mechanismOfAction: row.mechanismOfAction,
+        observations: row.observations,
+        references: row.references,
+      })
+      // Only overwrite when the CSV actually carries monograph content, so a
+      // partial re-import never blanks an existing monograph.
+      if (monograph) data.monograph = monograph as unknown as Prisma.InputJsonValue
       return data
     }
 

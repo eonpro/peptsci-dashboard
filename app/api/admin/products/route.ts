@@ -7,6 +7,7 @@ import {
   errorResponse,
   successResponse,
 } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveInventoryActor } from '@/lib/inventory-log'
@@ -49,6 +50,8 @@ export async function GET(_request: NextRequest) {
           select: {
             name: true,
             category: true,
+            purity: true,
+            monograph: true,
             media: {
               where: { isPrimary: true },
               select: { url: true },
@@ -77,6 +80,8 @@ export async function GET(_request: NextRequest) {
         reorderLevel: v.reorderLevel,
         imageUrl: v.product.media[0]?.url ?? null,
         coaCount: v._count.coas,
+        purity: v.product.purity ?? null,
+        monograph: v.product.monograph ?? null,
       })),
     })
   } catch (error) {
@@ -89,6 +94,14 @@ export async function GET(_request: NextRequest) {
   }
 }
 
+const monographSchema = z.object({
+  overview: z.array(z.string()).default([]),
+  mechanismOfAction: z.array(z.string()).default([]),
+  observations: z.array(z.object({ title: z.string(), detail: z.string() })).default([]),
+  references: z.array(z.object({ label: z.string(), url: z.string().optional() })).default([]),
+  disclaimer: z.string().optional(),
+})
+
 const createSchema = z.object({
   name: z.string().trim().min(1, 'name is required'),
   sku: z.string().trim().min(1, 'sku is required'),
@@ -100,6 +113,8 @@ const createSchema = z.object({
   supplierSku: z.string().trim().optional(),
   inventoryOnHand: z.number().int().min(0).default(0),
   reorderLevel: z.number().int().min(0).default(0),
+  purity: z.string().trim().nullable().optional(),
+  monograph: monographSchema.nullable().optional(),
 })
 
 /**
@@ -138,6 +153,12 @@ export async function POST(request: NextRequest) {
       return errorResponse(`A product with SKU "${row.sku}" already exists`, 409, 'DUPLICATE_SKU')
     }
 
+    const monographData =
+      row.monograph !== undefined
+        ? { monograph: row.monograph === null ? Prisma.DbNull : row.monograph }
+        : {}
+    const purityData = row.purity !== undefined ? { purity: row.purity || null } : {}
+
     let productId: string
     const existingProduct = await prisma.product.findFirst({
       where: { name: { equals: row.name, mode: 'insensitive' } },
@@ -145,15 +166,20 @@ export async function POST(request: NextRequest) {
     })
     if (existingProduct) {
       productId = existingProduct.id
-      if (row.category) {
+      const productUpdate = {
+        ...(row.category ? { category: row.category } : {}),
+        ...monographData,
+        ...purityData,
+      }
+      if (Object.keys(productUpdate).length > 0) {
         await prisma.product.update({
           where: { id: existingProduct.id },
-          data: { category: row.category },
+          data: productUpdate,
         })
       }
     } else {
       const created = await prisma.product.create({
-        data: { name: row.name, category: row.category ?? null },
+        data: { name: row.name, category: row.category ?? null, ...monographData, ...purityData },
         select: { id: true },
       })
       productId = created.id

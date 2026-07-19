@@ -392,8 +392,19 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           )}
         </div>
 
-        {/* PRUO disclaimer - bottom-left of the artwork panel */}
-        <div className="absolute bottom-5 left-5 right-24 @[18rem]:right-28">
+        {/* PRUO disclaimer + COA link - bottom-left of the artwork panel.
+            The COA button lives in this flow (not absolutely offset) so it
+            always sits neatly above the PRUO block regardless of card copy. */}
+        <div className="absolute bottom-5 left-5 right-24 @[18rem]:right-28 z-10">
+          {product.hasCoa && (
+            <button
+              type="button"
+              onClick={() => setCoaOpen(true)}
+              className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
+            >
+              <FileText className="h-3 w-3" /> View COA
+            </button>
+          )}
           <div className="flex items-start gap-2">
             <span className="shrink-0 rounded-full border border-white/70 px-1.5 py-0.5 text-[9px] font-bold text-white leading-tight">
               PRUO
@@ -414,17 +425,6 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             className="h-[168px] @[16rem]:h-[196px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
-
-        {/* View COA link — sits above the PRUO block, opens the popup */}
-        {product.hasCoa && (
-          <button
-            type="button"
-            onClick={() => setCoaOpen(true)}
-            className="absolute bottom-[68px] left-5 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-          >
-            <FileText className="h-3 w-3" /> View COA
-          </button>
-        )}
       </div>
 
       {/* Price and Cart Section */}
