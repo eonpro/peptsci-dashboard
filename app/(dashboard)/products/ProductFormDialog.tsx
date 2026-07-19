@@ -22,6 +22,7 @@ export interface ProductFormValues {
   sku: string
   dose: string
   category: string
+  aka: string
   unitCost: string
   srp: string
   supplierName: string
@@ -42,6 +43,7 @@ const EMPTY: ProductFormValues = {
   sku: '',
   dose: '',
   category: '',
+  aka: '',
   unitCost: '',
   srp: '',
   supplierName: '',
@@ -126,6 +128,7 @@ export default function ProductFormDialog({
         sku: values.sku.trim(),
         dose: values.dose.trim(),
         category: values.category.trim(),
+        aka: values.aka.trim() || null,
         ...(unitCost !== undefined ? { unitCost } : {}),
         ...(srp !== undefined ? { srp } : {}),
         supplierName: values.supplierName.trim(),
@@ -223,6 +226,16 @@ export default function ProductFormDialog({
                 onChange={(e) => set('category', e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Also known as (subtitle under the product name)</Label>
+            <Input
+              className={inputClass}
+              placeholder="Lysine-Proline-Valine"
+              value={values.aka}
+              onChange={(e) => set('aka', e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
