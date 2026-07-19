@@ -35,7 +35,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!batch) return errorResponse('Batch not found', 404, 'NOT_FOUND')
     return successResponse({ batch })
   } catch (error) {
-    logger.error('Error fetching batch', {}, error instanceof Error ? error : new Error(String(error)))
+    logger.error(
+      'Error fetching batch',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
     return errorResponse('Failed to fetch batch')
   }
 }
@@ -50,7 +54,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params
     const parsed = updateSchema.safeParse(await request.json())
     if (!parsed.success) {
-      return errorResponse(parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR')
+      return errorResponse(
+        parsed.error.errors.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR'
+      )
     }
     const batch = await updateBatch(id, parsed.data, { clerkUserId: userId, label: userId })
     return successResponse({ batch })
@@ -58,13 +66,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (error instanceof BatchValidationError) {
       return errorResponse(error.message, 400, 'VALIDATION_ERROR')
     }
-    logger.error('Error updating batch', {}, error instanceof Error ? error : new Error(String(error)))
+    logger.error(
+      'Error updating batch',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
     return errorResponse('Failed to update batch')
   }
 }
 
 /** DELETE /api/admin/inventory/batches/[id] — void the batch (reverses on-hand). */
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
@@ -80,7 +95,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (error instanceof BatchValidationError) {
       return errorResponse(error.message, 404, 'NOT_FOUND')
     }
-    logger.error('Error voiding batch', {}, error instanceof Error ? error : new Error(String(error)))
+    logger.error(
+      'Error voiding batch',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
     return errorResponse('Failed to void batch')
   }
 }

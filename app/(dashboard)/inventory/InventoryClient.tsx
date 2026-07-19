@@ -1,88 +1,86 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+/**
+ * Inventory workspace
+ * ===================
+ * Orchestrates the four views (Batches / By Product / Low Stock / Activity),
+ * the global search, clickable KPI cards, CSV export, and the two detail
+ * sheets (batch + product). Data is seeded server-side (page.tsx) and
+ * refreshed after every mutation.
+ */
+
+import { useState, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { KPI } from '@/components/KPI'
 import {
-  Package,
-  Boxes,
   AlertTriangle,
+  Boxes,
   CalendarClock,
-  RefreshCw,
+  Download,
+  Package,
+  PackageX,
   Plus,
-  Printer,
-  FileText,
-  Trash2,
+  RefreshCw,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
+import {
+  type AdjustmentRow,
+  type BatchRow,
+  type CatalogStockRow,
+  type ProductRollupRow,
+  REASON_LABELS,
+  budTone,
+  daysUntil,
+  downloadCsv,
+  fmtDate,
+  isLowStock,
+  matchesSearch,
+} from './inventory-shared'
+import { BatchesTable, ProductsTable, ActivityTable } from './InventoryViews'
+import BatchDetailSheet from './BatchDetailSheet'
+import ProductDetailSheet from './ProductDetailSheet'
+
+export type { BatchRow, CatalogStockRow } from './inventory-shared'
 
 // Loaded on demand when the rep opens "Receive inventory" — keeps the modal's
 // product picker + form out of the inventory page's initial bundle.
 const ReceiveInventoryModal = dynamic(() => import('./ReceiveInventoryModal'), { ssr: false })
 
-export interface BatchRow {
-  id: string
-  batchNumber: string
-  productName: string
-  dose: string
-  vialSize: string | null
-  purity: string
-  bud: string
-  receivedOn: string
-  qtyReceived: number
-  qtyDamaged: number
-  qtyOnHand: number
-  status: 'RECEIVED' | 'DEPLETED' | 'VOIDED'
-  yearColor: string | null
-  variant?: { sku: string | null }
-}
+type View = 'batches' | 'products' | 'low' | 'log'
+type BatchFilter = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'DEPLETED' | 'VOIDED' | 'ALL'
 
-export interface CatalogStockRow {
-  variantId: string
-  sku: string | null
-  productName: string
-  dose: string | null
-  onHand: number
-  reserved: number
-  reorderLevel: number
-}
+const BATCH_FILTERS: Array<{ key: BatchFilter; label: string }> = [
+  { key: 'ACTIVE', label: 'Active' },
+  { key: 'EXPIRING', label: 'Expiring ≤90d' },
+  { key: 'EXPIRED', label: 'Expired' },
+  { key: 'DEPLETED', label: 'Depleted' },
+  { key: 'VOIDED', label: 'Voided' },
+  { key: 'ALL', label: 'All' },
+]
 
-interface AdjustmentRow {
-  id: string
-  createdAt: string
-  delta: number
-  reason: string
-  note: string | null
-  productName: string
-  dose: string | null
-  sku: string | null
-  by: string
-}
-
-const REASON_LABELS: Record<string, string> = {
-  RECEIPT: 'Received',
-  ORDER_FULFILLMENT: 'Order fulfillment',
-  RETURN: 'Return restock',
-  MANUAL_ADJUSTMENT: 'Manual adjustment',
-  DAMAGE: 'Damage',
-  AUDIT: 'Audit',
-}
-
-const SHEET_MAX = 36
-
-function daysUntil(iso: string): number {
-  const d = new Date(iso).getTime()
-  return Math.round((d - Date.now()) / 86_400_000)
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
+function applyBatchFilter(rows: BatchRow[], filter: BatchFilter): BatchRow[] {
+  switch (filter) {
+    case 'ACTIVE':
+      return rows.filter((b) => b.status === 'RECEIVED')
+    case 'EXPIRING':
+      return rows.filter(
+        (b) => b.status === 'RECEIVED' && budTone(b.bud) === 'soon' && b.qtyOnHand > 0
+      )
+    case 'EXPIRED':
+      return rows.filter(
+        (b) => budTone(b.bud) === 'expired' && b.qtyOnHand > 0 && b.status !== 'VOIDED'
+      )
+    case 'DEPLETED':
+      return rows.filter((b) => b.status === 'DEPLETED')
+    case 'VOIDED':
+      return rows.filter((b) => b.status === 'VOIDED')
+    default:
+      return rows
+  }
 }
 
 export default function InventoryClient({
@@ -97,9 +95,12 @@ export default function InventoryClient({
   const [catalog, setCatalog] = useState<CatalogStockRow[]>(initialCatalog)
   const [log, setLog] = useState<AdjustmentRow[] | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [view, setView] = useState<'batches' | 'products' | 'log'>('batches')
+  const [view, setView] = useState<View>('batches')
+  const [batchFilter, setBatchFilter] = useState<BatchFilter>('ACTIVE')
+  const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [openBatchId, setOpenBatchId] = useState<string | null>(null)
+  const [openProduct, setOpenProduct] = useState<ProductRollupRow | null>(null)
 
   const loadLog = useCallback(async () => {
     try {
@@ -109,13 +110,12 @@ export default function InventoryClient({
       if (!res.ok) throw new Error('Failed to load activity log')
       const data = await res.json()
       setLog(data.adjustments ?? [])
-    } catch (err) {
-      console.error('Error loading activity log', err)
+    } catch {
       setLog([])
+      toast.error('Failed to load the activity log')
     }
   }, [])
 
-  // `force` bypasses the browser cache for an explicit manual refresh.
   const loadData = useCallback(
     async (force = false) => {
       try {
@@ -153,8 +153,7 @@ export default function InventoryClient({
           )
         }
         if (log !== null) await loadLog()
-      } catch (err) {
-        console.error('Error loading inventory', err)
+      } catch {
         toast.error('Failed to refresh inventory — try again')
       } finally {
         setRefreshing(false)
@@ -163,83 +162,25 @@ export default function InventoryClient({
     [log, loadLog]
   )
 
+  const refresh = useCallback(() => {
+    void loadData(true)
+  }, [loadData])
+
   async function handleRefresh() {
     setRefreshing(true)
     await loadData(true)
   }
 
-  function openLog() {
-    setView('log')
-    if (log === null) loadLog()
-  }
-
-  async function downloadLabels(
-    batch: BatchRow,
-    opts: { proofMode?: boolean; quantity?: number }
-  ) {
-    setBusyId(batch.id)
-    try {
-      const res = await fetch('/api/admin/inventory/labels/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: batch.id, ...opts }),
-      })
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}))
-        throw new Error(payload.message || 'Failed to generate labels')
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `peptsci-labels-${batch.batchNumber}${opts.proofMode ? '-proof' : ''}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to generate labels')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function voidBatch(batch: BatchRow) {
-    const reason = window.prompt(`Void batch ${batch.batchNumber}? Enter a reason:`, '')
-    if (reason === null) return
-    setBusyId(batch.id)
-    try {
-      const res = await fetch(
-        `/api/admin/inventory/batches/${batch.id}?reason=${encodeURIComponent(reason || 'Voided')}`,
-        { method: 'DELETE' }
-      )
-      if (!res.ok) throw new Error('Failed to void batch')
-      await loadData(true)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to void batch')
-    } finally {
-      setBusyId(null)
-    }
+  function switchView(next: View) {
+    setView(next)
+    if (next === 'log' && log === null) void loadLog()
   }
 
   const active = useMemo(() => batches.filter((b) => b.status !== 'VOIDED'), [batches])
 
-  const metrics = useMemo(() => {
-    // On-hand counts the whole catalog (imports/manual stock included), not
-    // just batch-tracked receipts.
-    const totalOnHand = catalog.reduce((s, v) => s + v.onHand, 0)
-    const products = new Set(active.map((b) => `${b.productName}|${b.dose}`))
-    const expiringSoon = active.filter((b) => {
-      const d = daysUntil(b.bud)
-      return d >= 0 && d <= 90 && b.qtyOnHand > 0
-    })
-    const expired = active.filter((b) => daysUntil(b.bud) < 0 && b.qtyOnHand > 0)
-    return { totalOnHand, products: products.size, batches: active.length, expiringSoon, expired }
-  }, [active, catalog])
-
   // Every catalog product appears here — 0 on hand until stock is received —
   // with batch aggregates merged in where they exist.
-  const productRollup = useMemo(() => {
+  const productRollup = useMemo<ProductRollupRow[]>(() => {
     const batchAgg = new Map<string, { batches: number; soonestBud: string | null }>()
     for (const b of active) {
       const key = b.variant?.sku ? `sku:${b.variant.sku}` : `nd:${b.productName}|${b.dose}`
@@ -250,306 +191,315 @@ export default function InventoryClient({
       }
       batchAgg.set(key, cur)
     }
-    return catalog
-      .map((v) => {
-        const agg =
-          (v.sku ? batchAgg.get(`sku:${v.sku}`) : undefined) ??
-          batchAgg.get(`nd:${v.productName}|${v.dose ?? ''}`) ?? { batches: 0, soonestBud: null }
-        return {
-          variantId: v.variantId,
-          productName: v.productName,
-          dose: v.dose ?? '—',
-          sku: v.sku,
-          onHand: v.onHand,
-          reorderLevel: v.reorderLevel,
-          batches: agg.batches,
-          soonestBud: agg.soonestBud,
-        }
-      })
-      .sort((a, b) => a.productName.localeCompare(b.productName))
+    return catalog.map((v) => {
+      const agg = (v.sku ? batchAgg.get(`sku:${v.sku}`) : undefined) ??
+        batchAgg.get(`nd:${v.productName}|${v.dose ?? ''}`) ?? { batches: 0, soonestBud: null }
+      return {
+        variantId: v.variantId,
+        productName: v.productName,
+        dose: v.dose ?? '—',
+        sku: v.sku,
+        onHand: v.onHand,
+        reserved: v.reserved,
+        available: Math.max(0, v.onHand - v.reserved),
+        reorderLevel: v.reorderLevel,
+        batches: agg.batches,
+        soonestBud: agg.soonestBud,
+      }
+    })
   }, [active, catalog])
 
+  const lowStockRows = useMemo(() => productRollup.filter(isLowStock), [productRollup])
+
+  const metrics = useMemo(() => {
+    const totalOnHand = catalog.reduce((s, v) => s + v.onHand, 0)
+    const totalReserved = catalog.reduce((s, v) => s + v.reserved, 0)
+    const received = active.filter((b) => b.status === 'RECEIVED')
+    const expiringSoon = received.filter((b) => {
+      const d = daysUntil(b.bud)
+      return d >= 0 && d <= 90 && b.qtyOnHand > 0
+    })
+    const expired = active.filter((b) => daysUntil(b.bud) < 0 && b.qtyOnHand > 0)
+    return {
+      totalOnHand,
+      available: Math.max(0, totalOnHand - totalReserved),
+      batches: received.length,
+      lowStock: lowStockRows.length,
+      expiringSoon: expiringSoon.length,
+      expired: expired.length,
+    }
+  }, [active, catalog, lowStockRows])
+
+  // ── Filtered rows for the current view ──────────────────────────────────
+  const visibleBatches = useMemo(
+    () =>
+      applyBatchFilter(batches, batchFilter).filter((b) =>
+        matchesSearch([b.batchNumber, b.productName, b.dose, b.variant?.sku], search)
+      ),
+    [batches, batchFilter, search]
+  )
+
+  const visibleProducts = useMemo(
+    () => productRollup.filter((p) => matchesSearch([p.productName, p.dose, p.sku], search)),
+    [productRollup, search]
+  )
+
+  const visibleLow = useMemo(
+    () => lowStockRows.filter((p) => matchesSearch([p.productName, p.dose, p.sku], search)),
+    [lowStockRows, search]
+  )
+
+  const visibleLog = useMemo(
+    () =>
+      (log ?? []).filter((a) =>
+        matchesSearch([a.productName, a.dose, a.sku, a.note, a.by, REASON_LABELS[a.reason]], search)
+      ),
+    [log, search]
+  )
+
+  function exportCsv() {
+    const stamp = new Date().toISOString().slice(0, 10)
+    if (view === 'batches') {
+      downloadCsv(
+        `inventory-batches-${stamp}.csv`,
+        [
+          'Batch #',
+          'Product',
+          'Dose',
+          'SKU',
+          'BUD',
+          'Received',
+          'Qty Received',
+          'Damaged',
+          'On Hand',
+          'Status',
+        ],
+        visibleBatches.map((b) => [
+          b.batchNumber,
+          b.productName,
+          b.dose,
+          b.variant?.sku ?? '',
+          fmtDate(b.bud),
+          fmtDate(b.receivedOn),
+          b.qtyReceived,
+          b.qtyDamaged,
+          b.qtyOnHand,
+          b.status,
+        ])
+      )
+    } else if (view === 'log') {
+      downloadCsv(
+        `inventory-activity-${stamp}.csv`,
+        ['When', 'Product', 'Dose', 'SKU', 'Change', 'Reason', 'Note', 'By'],
+        visibleLog.map((a) => [
+          new Date(a.createdAt).toLocaleString('en-US'),
+          a.productName,
+          a.dose ?? '',
+          a.sku ?? '',
+          a.delta,
+          REASON_LABELS[a.reason] ?? a.reason,
+          a.note ?? '',
+          a.by,
+        ])
+      )
+    } else {
+      const rows = view === 'low' ? visibleLow : visibleProducts
+      downloadCsv(
+        `inventory-products-${stamp}.csv`,
+        [
+          'Product',
+          'Dose',
+          'SKU',
+          'On Hand',
+          'Reserved',
+          'Available',
+          'Reorder At',
+          'Batches',
+          'Soonest BUD',
+        ],
+        rows.map((p) => [
+          p.productName,
+          p.dose,
+          p.sku ?? '',
+          p.onHand,
+          p.reserved,
+          p.available,
+          p.reorderLevel,
+          p.batches,
+          p.soonestBud ? fmtDate(p.soonestBud) : '',
+        ])
+      )
+    }
+    toast.success('CSV downloaded')
+  }
+
+  // Keep the product sheet in sync after a mutation (adjust / reorder change).
+  const openProductSynced = useMemo(() => {
+    if (!openProduct) return null
+    return productRollup.find((p) => p.variantId === openProduct.variantId) ?? openProduct
+  }, [openProduct, productRollup])
+
   return (
-    <div className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-4 md:p-6">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Inventory</h2>
-          <p className="text-muted-foreground mt-2">
-            Batch-tracked stock. Record receipts, set BUD, and print labels.
+          <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Inventory</h2>
+          <p className="text-muted-foreground mt-1 text-sm md:mt-2 md:text-base">
+            Batch-tracked stock — receipts, BUD, labels, reservations, and the full audit trail.
           </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            <RefreshCw className={`h-4 w-4 md:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden md:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </Button>
+          <Button onClick={exportCsv} variant="outline" size="sm">
+            <Download className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Export CSV</span>
           </Button>
           <Button size="sm" onClick={() => setModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Receive Inventory
+            <Plus className="mr-1.5 h-4 w-4" />
+            Receive
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPI
-          title="Vials On Hand"
-          value={metrics.totalOnHand.toLocaleString()}
-          description="Across all products"
-          icon={<Boxes />}
-        />
-        <KPI
-          title="Active Batches"
-          value={metrics.batches.toLocaleString()}
-          description={`${metrics.products} distinct products`}
-          icon={<Package />}
-        />
-        <KPI
-          title="Expiring ≤ 90 days"
-          value={metrics.expiringSoon.length.toLocaleString()}
-          description="Batches nearing BUD"
-          icon={<CalendarClock />}
-        />
-        <KPI
-          title="Expired"
-          value={metrics.expired.length.toLocaleString()}
-          description="Past BUD with stock"
-          icon={<AlertTriangle />}
-        />
+      {/* KPI cards — clickable, they jump to the relevant filtered view */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        <button className="w-full text-left" onClick={() => switchView('products')}>
+          <KPI
+            title="Vials On Hand"
+            value={metrics.totalOnHand.toLocaleString()}
+            description="Across all products"
+            icon={<Boxes />}
+          />
+        </button>
+        <button className="w-full text-left" onClick={() => switchView('products')}>
+          <KPI
+            title="Available"
+            value={metrics.available.toLocaleString()}
+            description="On hand minus reserved"
+            icon={<Package />}
+          />
+        </button>
+        <button
+          className="w-full text-left"
+          onClick={() => {
+            switchView('batches')
+            setBatchFilter('ACTIVE')
+          }}
+        >
+          <KPI
+            title="Active Batches"
+            value={metrics.batches.toLocaleString()}
+            description="With stock or receiving"
+            icon={<Boxes />}
+          />
+        </button>
+        <button className="w-full text-left" onClick={() => switchView('low')}>
+          <KPI
+            title="Low Stock"
+            value={metrics.lowStock.toLocaleString()}
+            description="At or below reorder level"
+            icon={<PackageX />}
+          />
+        </button>
+        <button
+          className="w-full text-left"
+          onClick={() => {
+            switchView('batches')
+            setBatchFilter('EXPIRING')
+          }}
+        >
+          <KPI
+            title="Expiring ≤ 90d"
+            value={metrics.expiringSoon.toLocaleString()}
+            description="Batches nearing BUD"
+            icon={<CalendarClock />}
+          />
+        </button>
+        <button
+          className="w-full text-left"
+          onClick={() => {
+            switchView('batches')
+            setBatchFilter('EXPIRED')
+          }}
+        >
+          <KPI
+            title="Expired"
+            value={metrics.expired.toLocaleString()}
+            description="Past BUD with stock"
+            icon={<AlertTriangle />}
+          />
+        </button>
       </div>
 
-      <div className="flex gap-2">
-        <Button
-          variant={view === 'batches' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setView('batches')}
-        >
-          Batches
-        </Button>
-        <Button
-          variant={view === 'products' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setView('products')}
-        >
-          By Product
-        </Button>
-        <Button variant={view === 'log' ? 'default' : 'outline'} size="sm" onClick={openLog}>
-          Activity Log
-        </Button>
+      {/* View tabs + search */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <Tabs value={view} onValueChange={(v) => switchView(v as View)}>
+          <TabsList>
+            <TabsTrigger value="batches">Batches</TabsTrigger>
+            <TabsTrigger value="products">By Product</TabsTrigger>
+            <TabsTrigger value="low">
+              Low Stock
+              {metrics.lowStock > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {metrics.lowStock}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="log">Activity</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative md:w-72">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search product, SKU, batch #…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      {view === 'batches' ? (
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">Batch #</th>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Dose</th>
-                <th className="px-4 py-3">BUD</th>
-                <th className="px-4 py-3 text-right">On Hand</th>
-                <th className="px-4 py-3 text-right">Received</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Labels</th>
-              </tr>
-            </thead>
-            <tbody>
-              {batches.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
-                    No batches yet. Click <span className="font-medium">Receive Inventory</span> to
-                    add one.
-                  </td>
-                </tr>
-              )}
-              {batches.map((b) => {
-                const d = daysUntil(b.bud)
-                const expired = d < 0
-                const soon = d >= 0 && d <= 90
-                return (
-                  <tr key={b.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold">{b.batchNumber}</td>
-                    <td className="px-4 py-3">{b.productName}</td>
-                    <td className="px-4 py-3">{b.dose}</td>
-                    <td className="px-4 py-3">
-                      <span className={expired ? 'text-red-600' : soon ? 'text-amber-600' : ''}>
-                        {fmtDate(b.bud)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">{b.qtyOnHand}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">{b.qtyReceived}</td>
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant={
-                          b.status === 'VOIDED'
-                            ? 'destructive'
-                            : b.status === 'DEPLETED'
-                              ? 'secondary'
-                              : 'default'
-                        }
-                      >
-                        {b.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title={`Print label sheet (${SHEET_MAX} per page)`}
-                          disabled={busyId === b.id || b.status === 'VOIDED'}
-                          onClick={() => {
-                            const def = String(SHEET_MAX)
-                            const entry = window.prompt(
-                              `How many labels to print for ${b.batchNumber}?\n(${SHEET_MAX} fills a full sheet)`,
-                              def
-                            )
-                            if (entry === null) return
-                            const qty = Math.min(
-                              SHEET_MAX,
-                              Math.max(1, Math.trunc(Number(entry) || SHEET_MAX))
-                            )
-                            downloadLabels(b, { quantity: qty })
-                          }}
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Proof (single label)"
-                          disabled={busyId === b.id}
-                          onClick={() => downloadLabels(b, { proofMode: true })}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Void batch"
-                          disabled={busyId === b.id || b.status === 'VOIDED'}
-                          onClick={() => voidBatch(b)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : view === 'products' ? (
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">SKU</th>
-                <th className="px-4 py-3">Dose</th>
-                <th className="px-4 py-3 text-right">On Hand</th>
-                <th className="px-4 py-3 text-right">Reorder At</th>
-                <th className="px-4 py-3 text-right">Batches</th>
-                <th className="px-4 py-3">Soonest BUD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {productRollup.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
-                    No products in the catalog yet.
-                  </td>
-                </tr>
-              )}
-              {productRollup.map((p) => (
-                <tr key={p.variantId} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{p.productName}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.sku || '—'}</td>
-                  <td className="px-4 py-3">{p.dose}</td>
-                  <td
-                    className={`px-4 py-3 text-right font-semibold ${
-                      p.onHand === 0
-                        ? 'text-gray-400'
-                        : p.onHand <= p.reorderLevel
-                          ? 'text-amber-600'
-                          : ''
-                    }`}
-                  >
-                    {p.onHand}
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-500">{p.reorderLevel}</td>
-                  <td className="px-4 py-3 text-right">{p.batches}</td>
-                  <td className="px-4 py-3">{p.soonestBud ? fmtDate(p.soonestBud) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">SKU</th>
-                <th className="px-4 py-3 text-right">Change</th>
-                <th className="px-4 py-3">Reason</th>
-                <th className="px-4 py-3">Note</th>
-                <th className="px-4 py-3">By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {log === null && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
-                    Loading activity…
-                  </td>
-                </tr>
-              )}
-              {log !== null && log.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
-                    No inventory movements recorded yet.
-                  </td>
-                </tr>
-              )}
-              {(log ?? []).map((a) => (
-                <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-500">
-                    {new Date(a.createdAt).toLocaleString('en-US', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      year: '2-digit',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    {a.productName}
-                    {a.dose ? <span className="text-gray-500"> · {a.dose}</span> : null}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{a.sku || '—'}</td>
-                  <td
-                    className={`px-4 py-3 text-right font-semibold ${
-                      a.delta > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {a.delta > 0 ? `+${a.delta}` : a.delta}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={a.delta > 0 ? 'default' : 'secondary'}>
-                      {REASON_LABELS[a.reason] ?? a.reason}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{a.note || '—'}</td>
-                  <td className="px-4 py-3">{a.by}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Batch status filter chips */}
+      {view === 'batches' && (
+        <div className="-mt-2 flex flex-wrap gap-1.5">
+          {BATCH_FILTERS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setBatchFilter(key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                batchFilter === key
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
+
+      {/* Active view */}
+      {view === 'batches' && <BatchesTable rows={visibleBatches} onOpen={setOpenBatchId} />}
+      {view === 'products' && <ProductsTable rows={visibleProducts} onOpen={setOpenProduct} />}
+      {view === 'low' && <ProductsTable rows={visibleLow} onOpen={setOpenProduct} />}
+      {view === 'log' && <ActivityTable rows={visibleLog} loading={log === null} />}
+
+      {/* Detail sheets */}
+      <BatchDetailSheet
+        batchId={openBatchId}
+        onOpenChange={(open) => !open && setOpenBatchId(null)}
+        onChanged={refresh}
+      />
+      <ProductDetailSheet
+        row={openProductSynced}
+        onOpenChange={(open) => !open && setOpenProduct(null)}
+        onChanged={refresh}
+        onOpenBatch={(id) => setOpenBatchId(id)}
+      />
 
       <ReceiveInventoryModal
         open={modalOpen}

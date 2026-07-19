@@ -94,7 +94,8 @@ export default function ReceiveInventoryModal({
     if (!dose.trim()) return setError('Dose (mg) is required')
     if (!bud) return setError('BUD is required')
     const qty = Number(qtyReceived)
-    if (!Number.isInteger(qty) || qty <= 0) return setError('Amount must be a positive whole number')
+    if (!Number.isInteger(qty) || qty <= 0)
+      return setError('Amount must be a positive whole number')
 
     setSubmitting(true)
     try {
