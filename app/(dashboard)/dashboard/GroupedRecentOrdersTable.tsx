@@ -165,9 +165,10 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
         />
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
-        <table className="w-full">
+      {/* Table — horizontally scrollable on mobile so the 8 columns are never
+          clipped (min width keeps them legible; full width on desktop). */}
+      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
+        <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b border-gray-100 dark:border-white/10 bg-linear-to-r from-gray-50 to-gray-100/50 dark:from-[#0a0e3a] dark:to-brand-onyx">
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-white/70 uppercase tracking-wider w-8"></th>
