@@ -204,7 +204,10 @@ export default function ReceiveInventoryModal({
                 </p>
               </div>
             ) : (
-              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              // modal: inside a Radix Dialog the body is pointer-events:none; a
+              // non-modal popover portals outside the dialog and can't be
+              // clicked or typed into.
+              <Popover open={pickerOpen} onOpenChange={setPickerOpen} modal>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -230,7 +233,7 @@ export default function ReceiveInventoryModal({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Search product, dose, SKU…" />
                     <CommandList>
