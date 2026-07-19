@@ -31,6 +31,19 @@ export function CatalogHeroBanner() {
       <div className="absolute inset-0 bg-linear-to-r from-[#04051f] via-[#04051f]/80 to-transparent" />
       <div className="absolute inset-0 bg-linear-to-t from-[#04051f]/90 via-transparent to-transparent" />
 
+      {/* Living light: the glow behind the vial breathes and a soft warm
+          highlight sways across the liquid, so the still photo reads alive.
+          Positions track the vial (image is object-right). Decorative only;
+          the global reduced-motion rule freezes both. */}
+      <div
+        aria-hidden="true"
+        className="animate-glow-breathe pointer-events-none absolute right-[6%] top-[18%] hidden h-[64%] w-[26%] rounded-full bg-[radial-gradient(circle,rgba(255,158,64,0.35),transparent_65%)] blur-2xl md:block"
+      />
+      <div
+        aria-hidden="true"
+        className="animate-liquid-sway pointer-events-none absolute right-[11%] top-[42%] hidden h-[34%] w-[13%] rounded-[45%] bg-[radial-gradient(ellipse_at_center,rgba(255,190,110,0.5),rgba(255,140,50,0.12)_60%,transparent_75%)] mix-blend-soft-light blur-md md:block"
+      />
+
       <div className="relative flex min-h-[420px] flex-col justify-between p-6 md:min-h-[480px] md:p-10">
         {/* Eyebrow */}
         <div>
@@ -78,7 +91,7 @@ export function CatalogHeroBanner() {
         <div className="mt-10 flex flex-wrap items-center gap-y-4 border-t border-white/10 pt-5">
           {STATS.map((s, i) => (
             <div key={s.label} className="flex items-center">
-              {i > 0 && <span aria-hidden="true" className="mx-7 h-9 w-px bg-white/50" />}
+              {i > 0 && <span aria-hidden="true" className="mx-7 h-9 w-px bg-white/25" />}
               <div>
                 <p className="text-sm font-semibold text-white">{s.label}</p>
                 <p className="mt-0.5 text-xs text-white/50">{s.sub}</p>
