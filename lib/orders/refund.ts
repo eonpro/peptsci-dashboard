@@ -15,6 +15,7 @@ import { connectRequestOptions } from '@/lib/stripe/connect'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { releaseForOrder } from '@/lib/inventory/reservations'
 import { reverseCommissionForOrder } from '@/lib/partners/accrual'
+import { reverseReferralCreditForOrder } from '@/lib/referrals/credit'
 
 export class OrderRefundError extends Error {
   constructor(
@@ -147,6 +148,10 @@ export async function issueOrderRefund(
 
   // Claw back partner commission proportionally (never blocks the refund).
   await reverseCommissionForOrder(order.id)
+
+  // Referral credit: claw back the referrer's earn proportionally and restore
+  // the buyer's redeemed credit on full refunds (never blocks the refund).
+  await reverseReferralCreditForOrder(order.id)
 
   logger.info('[REFUND] Refund issued', {
     orderId: order.id,

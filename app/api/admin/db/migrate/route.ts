@@ -107,6 +107,9 @@ interface SchemaProbe {
   userRolePartnerValue: boolean
   retailOrderPaymentStatusColumn: boolean
   productCoaTable: boolean
+  clientCreditEntryTable: boolean
+  clientReferralCodeColumn: boolean
+  orderCreditAppliedColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -119,7 +122,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'SalesRecord', 'CompetitorPrice', 'DistributorOrder', 'DistributorOrderLine',
         'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation',
         'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
-        'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa'
+        'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa',
+        'ClientCreditEntry'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -137,7 +141,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'smsOptIn')
         OR (table_name = 'Order' AND column_name = 'refundedTotal')
         OR (table_name = 'Client' AND column_name = 'partnerOrgId')
-        OR (table_name = 'RetailOrder' AND column_name = 'paymentStatus'))
+        OR (table_name = 'RetailOrder' AND column_name = 'paymentStatus')
+        OR (table_name = 'Client' AND column_name = 'referralCode')
+        OR (table_name = 'Order' AND column_name = 'creditApplied'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -191,6 +197,9 @@ async function probeSchema(): Promise<SchemaProbe> {
     ),
     retailOrderPaymentStatusColumn: colKeys.has('RetailOrder.paymentStatus'),
     productCoaTable: tableNames.has('ProductCoa'),
+    clientCreditEntryTable: tableNames.has('ClientCreditEntry'),
+    clientReferralCodeColumn: colKeys.has('Client.referralCode'),
+    orderCreditAppliedColumn: colKeys.has('Order.creditApplied'),
   }
 }
 

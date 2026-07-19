@@ -16,6 +16,7 @@ import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { syncSalesRecordFromOrder } from '../sales'
 import { accrueCommissionForOrder } from '../partners/accrual'
+import { earnReferralCreditForOrder } from '../referrals/credit'
 import {
   computeInvoiceTotals,
   deriveDueDate,
@@ -413,6 +414,8 @@ async function settleOrdersForPaidInvoice(invoiceId: string): Promise<void> {
       await syncSalesRecordFromOrder(orderId)
       // Net-terms orders accrue affiliate commission when the invoice is paid.
       await accrueCommissionForOrder(orderId)
+      // Referrer earns clinic-referral credit when the invoice is paid.
+      await earnReferralCreditForOrder(orderId)
     }
   }
 }

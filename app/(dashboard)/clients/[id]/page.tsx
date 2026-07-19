@@ -17,6 +17,7 @@ import InviteUserDialog from '../../users/InviteUserDialog'
 import DeleteClientButton from '../DeleteClientButton'
 import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
+import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import {
   ArrowLeft,
   Building2,
@@ -532,6 +533,8 @@ export default function ClientDetailPage() {
       {/* Saved patients + clinic <-> PeptSci message threads */}
       <div id="patients">
         <ClientPatientsCard clientId={id} />
+
+        <ClientCreditCard clientId={id} />
       </div>
 
       {/* Linked users */}

@@ -36,6 +36,8 @@ const isPublicRoute = createRouteMatcher([
   '/partners/apply(.*)',
   '/api/partners/apply',
   '/join(.*)',
+  // Clinic-to-clinic referral links (store-credit program).
+  '/refer(.*)',
   // Partner read-only API authenticates via hashed API keys inside the route.
   '/api/partner/v1(.*)',
 ])

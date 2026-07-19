@@ -150,6 +150,10 @@ function cartLineFingerprint(lines: ResolvedCart['lines']): string {
 /** How long a DRAFT/PENDING order stays reusable for de-duping resubmits. */
 const REUSABLE_DRAFT_WINDOW_MS = 30 * 60 * 1000
 
+/** Stripe rejects charges under $0.50 — credit either covers ALL of the total
+ * or must leave at least this much on the card. */
+const STRIPE_MIN_CHARGE_CENTS = 50
+
 export async function createDraftOrder(params: {
   clientId: string
   createdById: string
@@ -159,6 +163,13 @@ export async function createDraftOrder(params: {
   shipTo?: ShipTo
   shipSpeed?: ShipSpeed
   patientId?: string | null
+  /**
+   * Referral store credit the buyer asked to apply (integer cents). Clamped
+   * server-side inside the per-client lock to the REAL available balance
+   * (ledger sum minus credit already held by other open drafts), so parallel
+   * checkouts can never double-spend the same credit.
+   */
+  requestedCreditCents?: number
 }) {
   if (!prisma) throw new Error('Database not connected')
 
@@ -172,6 +183,7 @@ export async function createDraftOrder(params: {
   const shipTo = params.shipTo ?? 'PRACTICE'
   const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
   const patientId = params.patientId ?? null
+  const requestedCreditCents = Math.max(0, Math.floor(params.requestedCreditCents ?? 0))
   const fingerprint = cartLineFingerprint(cart.lines)
 
   // The find-or-create below runs inside a transaction holding a per-client
@@ -182,6 +194,9 @@ export async function createDraftOrder(params: {
   const { order, reused } = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('draft-order'), hashtext(${params.clientId}))`
 
+    // Reuse only drafts with matching credit semantics (both with or both
+    // without credit): the credit amount is frozen on the draft, so a shopper
+    // who toggled the credit box between submits must get a fresh draft.
     const candidates = await tx.order.findMany({
       where: {
         clientId: params.clientId,
@@ -190,7 +205,7 @@ export async function createDraftOrder(params: {
         shipTo,
         shipSpeed,
         patientId,
-        total: cart.totals.total,
+        creditApplied: requestedCreditCents > 0 ? { gt: 0 } : { equals: 0 },
         createdAt: { gte: new Date(Date.now() - REUSABLE_DRAFT_WINDOW_MS) },
       },
       orderBy: { createdAt: 'desc' },
@@ -221,6 +236,41 @@ export async function createDraftOrder(params: {
       return { order: refreshed, reused: true }
     }
 
+    // ── Referral-credit clamp (inside the lock, race-safe) ──
+    const totalCents = Math.round(cart.totals.total * 100)
+    let appliedCreditCents = 0
+    if (requestedCreditCents > 0) {
+      const [ledger, holds] = await Promise.all([
+        tx.clientCreditEntry.aggregate({
+          where: { clientId: params.clientId },
+          _sum: { amountCents: true },
+        }),
+        // Credit already committed to other open (payable) drafts in the
+        // reuse window — those may still capture, so their credit is held.
+        tx.order.aggregate({
+          where: {
+            clientId: params.clientId,
+            status: 'DRAFT',
+            paymentStatus: 'PENDING',
+            creditApplied: { gt: 0 },
+            createdAt: { gte: new Date(Date.now() - REUSABLE_DRAFT_WINDOW_MS) },
+          },
+          _sum: { creditApplied: true },
+        }),
+      ])
+      const balance = ledger._sum.amountCents ?? 0
+      const held = Math.round(Number(holds._sum.creditApplied ?? 0) * 100)
+      const available = Math.max(0, balance - held)
+      appliedCreditCents = Math.min(requestedCreditCents, available, totalCents)
+      // Stripe can't charge less than $0.50: leave the minimum on the card
+      // unless credit covers the ENTIRE total.
+      const remainder = totalCents - appliedCreditCents
+      if (remainder > 0 && remainder < STRIPE_MIN_CHARGE_CENTS) {
+        appliedCreditCents = Math.max(0, totalCents - STRIPE_MIN_CHARGE_CENTS)
+      }
+    }
+    const effectiveTotal = round2((totalCents - appliedCreditCents) / 100)
+
     const created = await tx.order.create({
       data: {
         clientId: params.clientId,
@@ -230,7 +280,8 @@ export async function createDraftOrder(params: {
         subtotal: cart.totals.subtotal,
         taxTotal: cart.totals.taxTotal,
         shippingTotal: cart.totals.shippingTotal,
-        total: cart.totals.total,
+        total: effectiveTotal,
+        creditApplied: round2(appliedCreditCents / 100),
         currency: 'USD',
         notes: params.notes,
         shippingAddress: params.shippingAddress ?? Prisma.JsonNull,

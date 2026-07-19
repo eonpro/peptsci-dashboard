@@ -67,6 +67,14 @@ model Client {
   partnerRepId          String?
   referralLink          ReferralLink?           @relation(fields: [referralLinkId], references: [id], onDelete: SetNull)
   referralLinkId        String?
+  // Clinic-to-clinic referral program: this clinic's shareable code
+  // (/refer/<code>, generated lazily) and which clinic referred THEM. The
+  // referrer earns store credit on every captured purchase this clinic makes
+  // (lib/referrals/credit.ts). Independent of partner attribution.
+  referralCode          String?                 @unique
+  referredBy            Client?                 @relation("ClinicReferrals", fields: [referredByClientId], references: [id], onDelete: SetNull)
+  referredByClientId    String?
+  referredClinics       Client[]                @relation("ClinicReferrals")
   // Net-terms billing. When set, the client may check out "bill to account"
   // (order is invoiced on these terms instead of paying by card). NULL = card
   // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
@@ -93,9 +101,52 @@ model Client {
   partnerTransactions   PartnerTransaction[]
   partnerClinicMeta     PartnerClinicMeta[]
   partnerClinicActivity PartnerClinicActivity[]
+  creditEntries         ClientCreditEntry[]     @relation("CreditOwner")
+  creditEntriesAsSource ClientCreditEntry[]     @relation("CreditSource")
 
   @@index([partnerOrgId])
   @@index([partnerRepId])
+  @@index([referredByClientId])
+}
+
+// -------------------------------------------------
+// Clinic referral store credit. A clinic that refers another clinic earns
+// CLINIC_REFERRAL_RATE_BPS (default 5%) of every captured purchase the
+// referred clinic makes, as store credit redeemable at checkout.
+//
+// Signed integer-cents ledger: EARNED/ADJUSTMENT rows are positive,
+// REVERSED (refund clawback) and REDEEMED rows are negative. Balance is the
+// plain SUM. `reference` is unique for idempotency ("earn:order:<id>",
+// "redeem:order:<id>", "unredeem:order:<id>"; reversal rows carry the
+// cumulative position). SetNull relations keep history when sources go away.
+// -------------------------------------------------
+
+model ClientCreditEntry {
+  id             String           @id @default(cuid())
+  client         Client           @relation("CreditOwner", fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String
+  amountCents    Int // signed: positive = credit in, negative = credit out
+  kind           ClientCreditKind
+  // The referred clinic whose purchase generated this entry (EARNED/REVERSED).
+  sourceClient   Client?          @relation("CreditSource", fields: [sourceClientId], references: [id], onDelete: SetNull)
+  sourceClientId String?
+  order          Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId        String?
+  reference      String?          @unique
+  note           String?
+  createdBy      String? // Clerk id for manual ADJUSTMENT rows
+  createdAt      DateTime         @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([orderId])
+}
+
+enum ClientCreditKind {
+  EARNED // 5% of a referred clinic's captured purchase
+  REVERSED // proportional clawback when that purchase is refunded
+  REDEEMED // credit applied to this clinic's own order at checkout
+  UNREDEEMED // credit restored when an order that used credit is refunded
+  ADJUSTMENT // manual admin grant/correction
 }
 
 // Saved ship-to recipient for a practice ("ship to patient" at checkout).
@@ -336,19 +387,19 @@ model RetailOrder {
   paymentStatus         PaymentStatus     @default(PENDING)
   stripePaymentIntentId String?           @unique
   paidAt                DateTime?
-  subtotal        Decimal           @db.Decimal(12, 2)
-  taxTotal        Decimal           @default(0) @db.Decimal(12, 2)
-  shippingTotal   Decimal           @default(0) @db.Decimal(12, 2)
-  total           Decimal           @db.Decimal(12, 2)
-  currency        String            @default("USD")
-  shippingAddress Json?
-  billingAddress  Json?
-  notes           String?
-  peptsciOrder    Order?            @relation(fields: [peptsciOrderId], references: [id])
-  peptsciOrderId  String?           @unique // Link to auto-generated PeptSci order
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  items           RetailOrderItem[]
+  subtotal              Decimal           @db.Decimal(12, 2)
+  taxTotal              Decimal           @default(0) @db.Decimal(12, 2)
+  shippingTotal         Decimal           @default(0) @db.Decimal(12, 2)
+  total                 Decimal           @db.Decimal(12, 2)
+  currency              String            @default("USD")
+  shippingAddress       Json?
+  billingAddress        Json?
+  notes                 String?
+  peptsciOrder          Order?            @relation(fields: [peptsciOrderId], references: [id])
+  peptsciOrderId        String?           @unique // Link to auto-generated PeptSci order
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  items                 RetailOrderItem[]
 
   @@index([storefrontId])
   @@index([endCustomerId])
@@ -495,7 +546,7 @@ model ProductCoa {
   identityResult String?
 
   notes     String? // internal/qualification notes
-  published Boolean @default(true) // visible on the storefront when true
+  published Boolean  @default(true) // visible on the storefront when true
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -641,6 +692,10 @@ model Order {
   // refundedTotal >= total the order's paymentStatus becomes REFUNDED.
   refundedTotal         Decimal                @default(0) @db.Decimal(12, 2)
   refundedAt            DateTime?
+  // Referral store credit applied at checkout (dollars). The card is charged
+  // `total`, which is already net of this credit; the REDEEMED ledger row is
+  // written at capture. Full-credit orders (total 0) skip Stripe entirely.
+  creditApplied         Decimal                @default(0) @db.Decimal(12, 2)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   submittedAt           DateTime?
@@ -661,6 +716,7 @@ model Order {
   reservations          InventoryReservation[]
   fulfillment           OrderFulfillment?
   invoiceLineItems      InvoiceLineItem[]
+  creditEntries         ClientCreditEntry[]
 
   @@index([clientId])
   @@index([stripePaymentIntentId])

@@ -14,6 +14,29 @@ import {
   attributionFromLink,
   type ReferralAttribution,
 } from '@/lib/partners/referral'
+import { CLINIC_REF_COOKIE } from '@/lib/referrals/credit'
+
+/**
+ * Resolve clinic-to-clinic referral attribution from the /refer/<code>
+ * cookie. Best-effort; self-referrals are impossible (the new client doesn't
+ * exist yet) and non-approved referrers don't attribute.
+ */
+async function resolveClinicReferrerId(): Promise<string | null> {
+  if (!prisma) return null
+  try {
+    const jar = await cookies()
+    const code = jar.get(CLINIC_REF_COOKIE)?.value
+    if (!code || !isValidReferralCode(code)) return null
+    const referrer = await prisma.client.findUnique({
+      where: { referralCode: code.toLowerCase() },
+      select: { id: true, onboardingStatus: true },
+    })
+    if (!referrer || referrer.onboardingStatus !== 'APPROVED') return null
+    return referrer.id
+  } catch {
+    return null
+  }
+}
 
 /**
  * Resolve partner attribution from the referral cookie set by /join/<code>.
@@ -110,6 +133,7 @@ export async function POST(request: NextRequest) {
 
     const shippingAddress = resolveShippingAddress(data)
     const attribution = await resolveReferralAttribution()
+    const clinicReferrerId = await resolveClinicReferrerId()
 
     let client
     try {
@@ -122,6 +146,7 @@ export async function POST(request: NextRequest) {
                 referralLinkId: attribution.referralLinkId,
               }
             : {}),
+          ...(clinicReferrerId ? { referredByClientId: clinicReferrerId } : {}),
           organizationName: data.organizationName,
           npiNumber: data.npiNumber,
           providerName: data.providerName,
@@ -182,6 +207,13 @@ export async function POST(request: NextRequest) {
         error: e instanceof Error ? e.message : String(e),
       })
     )
+
+    if (clinicReferrerId) {
+      logger.info('[ONBOARDING] Client referred by clinic', {
+        clientId: client.id,
+        referrerClientId: clinicReferrerId,
+      })
+    }
 
     // Referral attribution succeeded — bump the link's signup counter (best-effort).
     if (attribution) {

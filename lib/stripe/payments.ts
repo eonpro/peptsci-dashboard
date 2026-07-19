@@ -18,6 +18,10 @@ import { toCents } from '@/lib/stripe'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { accrueCommissionForOrder } from '@/lib/partners/accrual'
+import {
+  earnReferralCreditForOrder,
+  recordCreditRedemptionForOrder,
+} from '@/lib/referrals/credit'
 
 /**
  * Monotonic "progress" rank for a payment status. Used to prevent an
@@ -198,6 +202,11 @@ export async function reconcileOrderFromPaymentIntent(
     // Affiliate commission accrual for partner-attributed clinics. Idempotent
     // (unique per order) and never allowed to break the payment flow.
     await accrueCommissionForOrder(order.id)
+    // Clinic referral program: referrer earns 5% credit on this purchase, and
+    // any store credit the buyer applied is now committed. Both idempotent and
+    // never allowed to break the payment flow.
+    await earnReferralCreditForOrder(order.id)
+    await recordCreditRedemptionForOrder(order.id)
     // Reserve stock against the now-committed order. Idempotent and never
     // allowed to break the payment flow.
     await reserveForOrder(order.id).catch((e) =>
