@@ -241,7 +241,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 <span className="text-white/40 text-xs">• {product.category}</span>
               )}
             </div>
-            <h3 className="font-bold text-white text-lg leading-tight truncate">
+            <h3 className="font-semibold tracking-tight text-white text-lg leading-tight truncate">
               <Link
                 href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
                 className="hover:text-blue-300 transition-colors"
@@ -322,7 +322,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             <div className="space-y-3">
               {product.compounds.slice(0, 2).map((c, i) => (
                 <div key={i}>
-                  <h3 className="font-bold text-white text-base @[16rem]:text-lg leading-tight">
+                  <h3 className="font-semibold tracking-tight text-white text-base @[16rem]:text-lg leading-tight">
                     {i === 0 ? (
                       <Link
                         href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
@@ -336,12 +336,12 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                       </>
                     )}
                   </h3>
-                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug">
+                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug tracking-tight">
                     {c.casNumber && <>CAS #: {c.casNumber}</>}
                     {c.casNumber && c.molecularFormula && <span className="text-white/30"> | </span>}
                     {c.molecularFormula && formatMolecularFormula(c.molecularFormula)}
                   </p>
-                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug">
+                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug tracking-tight">
                     {c.molecularWeight && <>MW: {c.molecularWeight}</>}
                     {c.molecularWeight && c.purity && <span className="text-white/30"> | </span>}
                     {c.purity && <>{c.purity} Purity</>}
@@ -349,7 +349,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </div>
               ))}
               {totalMg && (
-                <p className="text-[#4d6bff] font-bold text-base @[16rem]:text-lg pt-1">
+                <p className="text-[#4d6bff] font-semibold tracking-tight text-base @[16rem]:text-lg pt-1">
                   Total {totalMg} (Blend)
                 </p>
               )}
@@ -357,7 +357,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           ) : (
             /* Single-compound layout */
             <>
-              <h3 className="font-bold text-white text-xl @[16rem]:text-2xl leading-tight">
+              <h3 className="font-semibold tracking-tight text-white text-xl @[16rem]:text-2xl leading-tight">
                 <Link
                   href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
                   className="hover:text-blue-300 transition-colors"
@@ -366,12 +366,12 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </Link>
               </h3>
               {product.category && (
-                <p className="mt-0.5 text-[#4d6bff] text-xs @[16rem]:text-sm font-semibold uppercase tracking-wide line-clamp-2">
+                <p className="mt-0.5 text-[#4d6bff] text-[10px] @[16rem]:text-[11px] font-medium uppercase tracking-tight line-clamp-2">
                   {product.category}
                 </p>
               )}
 
-              <div className="mt-3 space-y-1 text-sm @[16rem]:text-base text-white/90 pr-16 @[20rem]:pr-20">
+              <div className="mt-3 space-y-1 text-sm @[16rem]:text-base tracking-tight text-white/90 pr-16 @[20rem]:pr-20">
                 {product.casNumber && <p>CAS #: {product.casNumber}</p>}
                 {product.molecularFormula && (
                   <p>Formula: {formatMolecularFormula(product.molecularFormula)}</p>
@@ -382,7 +382,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               </div>
 
               {isBlend && totalMg && (
-                <p className="mt-3 text-[#4d6bff] font-bold text-base @[16rem]:text-lg">
+                <p className="mt-3 text-[#4d6bff] font-semibold tracking-tight text-base @[16rem]:text-lg">
                   Total {totalMg} (Blend)
                 </p>
               )}
