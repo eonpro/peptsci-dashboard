@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
 import { cn } from '@/lib/utils'
 import { ShoppingCart, Check, Minus, Plus } from 'lucide-react'
+import { ProductVial, getCompoundParts } from './ProductVial'
 
 interface ProductCardProps {
   product: ShopProduct
@@ -192,36 +193,42 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       </div>
     )
 
-  // Determine if this is a blend (contains multiple peptides)
-  const isBlend =
-    product.name.toLowerCase().includes('blend') ||
-    product.name.toLowerCase().includes('/') ||
-    product.name.toLowerCase().includes('+')
+  // Compound breakdown drives both the card copy and the generated vial label
+  const compounds = getCompoundParts(product)
+  const isBlend = compounds.length >= 2
 
   // Parse dose from product - try multiple sources
   const doseDisplay = product.dose 
     || (product.milligrams ? `${product.milligrams}mg` : '')
     || `${product.name.match(/\d+mg/)?.[0] || ''}`
 
-  // Primary product photo (vial shot) from ProductMedia
-  const photo = product.images.find((img) => img.isPrimary) ?? product.images[0]
+  // Total mg for the blend callout ("Total 10mg (Blend)")
+  const totalMg =
+    product.totalAmount ||
+    (product.milligrams ? `${product.milligrams}mg` : null) ||
+    (() => {
+      const mgs = compounds
+        .map((c) => parseFloat(c.dose))
+        .filter((n) => !Number.isNaN(n))
+      return mgs.length === compounds.length && mgs.length > 0
+        ? `${mgs.reduce((a, b) => a + b, 0)}mg`
+        : null
+    })()
+
+  const purityDisplay = product.compounds?.[0]?.purity || '99%'
 
   // Mobile-optimized list view
   if (viewMode === 'list') {
     return (
       <div className="bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98]">
         <div className="flex items-center gap-4">
-          {/* Vial thumbnail */}
-          {photo && (
-            <div className="h-16 w-14 shrink-0 flex items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.url}
-                alt={photo.altText || product.name}
-                className="h-full w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
-              />
-            </div>
-          )}
+          {/* Vial thumbnail (generated label) */}
+          <div className="h-16 w-14 shrink-0 flex items-center justify-center">
+            <ProductVial
+              product={product}
+              className="h-full drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+            />
+          </div>
 
           {/* Compact info */}
           <div className="flex-1 min-w-0">
@@ -284,101 +291,125 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     )
   }
 
-  // Scientific-style grid card (matches reference image)
+  // Scientific-style grid card (matches PeptSci reference artwork)
   return (
-    <div className="@container group relative bg-linear-to-br from-[#0a0e3a] via-[#0d1242] to-brand-onyx border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[460px] flex flex-col">
-      {/* Header with logo and type badge */}
-      <div className="flex items-start justify-between gap-2 p-4 pb-2">
-        <Image
-          src={PEPTSCI_LOGO_URL}
-          alt="PeptSci Research"
-          width={120}
-          height={40}
-          className="h-7 w-auto @[16rem]:h-8"
-        />
-        <span
-          className={cn(
-            'shrink-0 text-xs @[16rem]:text-sm font-semibold px-2.5 @[16rem]:px-3 py-1 rounded-full',
-            isBlend ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-          )}
-        >
-          {isBlend ? 'Blend' : 'Single'}
-        </span>
-      </div>
+    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[520px] flex flex-col">
+      {/* Reference artwork panel */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Hairline inner border (reference style) */}
+        <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-blue-400/30" />
 
-      {/* Main content */}
-      <div className="relative flex-1 px-4 py-2 overflow-hidden">
-        {/* Product name */}
-        <h3 className="font-bold text-white text-lg @[16rem]:text-xl leading-tight mb-1">
-          <Link
-            href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
-            className="hover:text-blue-300 transition-colors"
-          >
-            {product.name}
-          </Link>
-        </h3>
-
-        {/* Dose */}
-        <p className="text-white/70 text-base @[16rem]:text-lg mb-3">{doseDisplay}</p>
-
-        {/* Scientific details - right padding reserves room for the vial shot */}
-        <div className="space-y-1.5 text-xs @[16rem]:text-sm pr-20 @[20rem]:pr-24">
-          {product.casNumber && (
-            <p className="text-white/60">
-              <span className="text-white/40">CAS #:</span>{' '}
-              <span className="text-white/80">{product.casNumber}</span>
-            </p>
-          )}
-          {product.molecularFormula && (
-            <p className="text-white/60">
-              <span className="text-white/40">Formula:</span>{' '}
-              <span className="text-white/80">{formatMolecularFormula(product.molecularFormula)}</span>
-            </p>
-          )}
-          {product.molecularWeight && (
-            <p className="text-white/60">
-              <span className="text-white/40">MW:</span>{' '}
-              <span className="text-white/80">{product.molecularWeight}</span>
-            </p>
-          )}
-          {/* Purity — only when the catalog actually provides it */}
-          {product.compounds?.[0]?.purity && (
-            <p className="text-white/60">
-              <span className="text-white/40">Purity:</span>{' '}
-              <span className="text-green-400 font-medium">{product.compounds[0].purity}</span>
-            </p>
+        {/* Header: logo + Blend marker */}
+        <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-1">
+          <Image
+            src={PEPTSCI_LOGO_URL}
+            alt="PeptSci Research"
+            width={120}
+            height={40}
+            className="h-8 w-auto @[16rem]:h-9"
+          />
+          {isBlend && (
+            <span className="shrink-0 pr-1 text-base @[16rem]:text-lg font-bold text-[#4d6bff]">
+              Blend
+            </span>
           )}
         </div>
 
-        {/* Category badge */}
-        {product.category && (
-          <div className="mt-3 pr-20 @[20rem]:pr-24">
-            <span className="inline-block text-xs font-medium px-2 py-1 rounded-full bg-white/5 text-white/50 border border-white/10 max-w-full truncate align-bottom">
-              {product.category}
+        <div className="px-5 pt-2">
+          {isBlend && product.compounds && product.compounds.length >= 2 ? (
+            /* Blend layout: per-compound spec blocks */
+            <div className="space-y-3">
+              {product.compounds.slice(0, 2).map((c, i) => (
+                <div key={i}>
+                  <h3 className="font-bold text-white text-base @[16rem]:text-lg leading-tight">
+                    {i === 0 ? (
+                      <Link
+                        href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                        className="hover:text-blue-300 transition-colors"
+                      >
+                        {c.name} {c.amount}
+                      </Link>
+                    ) : (
+                      <>
+                        {c.name} {c.amount}
+                      </>
+                    )}
+                  </h3>
+                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug">
+                    {c.casNumber && <>CAS #: {c.casNumber}</>}
+                    {c.casNumber && c.molecularFormula && <span className="text-white/30"> | </span>}
+                    {c.molecularFormula && formatMolecularFormula(c.molecularFormula)}
+                  </p>
+                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug">
+                    {c.molecularWeight && <>MW: {c.molecularWeight}</>}
+                    {c.molecularWeight && c.purity && <span className="text-white/30"> | </span>}
+                    {c.purity && <>{c.purity} Purity</>}
+                  </p>
+                </div>
+              ))}
+              {totalMg && (
+                <p className="text-[#4d6bff] font-bold text-base @[16rem]:text-lg pt-1">
+                  Total {totalMg} (Blend)
+                </p>
+              )}
+            </div>
+          ) : (
+            /* Single-compound layout */
+            <>
+              <h3 className="font-bold text-white text-xl @[16rem]:text-2xl leading-tight">
+                <Link
+                  href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                  className="hover:text-blue-300 transition-colors"
+                >
+                  {isBlend ? product.name : compounds[0]?.name || product.name}
+                </Link>
+              </h3>
+              {product.category && (
+                <p className="mt-0.5 text-[#4d6bff] text-xs @[16rem]:text-sm font-semibold uppercase tracking-wide">
+                  {product.category}
+                </p>
+              )}
+
+              <div className="mt-3 space-y-1 text-sm @[16rem]:text-base text-white/90 pr-16 @[20rem]:pr-20">
+                {product.casNumber && <p>CAS #: {product.casNumber}</p>}
+                {product.molecularFormula && (
+                  <p>Formula: {formatMolecularFormula(product.molecularFormula)}</p>
+                )}
+                {product.molecularWeight && <p>MW: {product.molecularWeight}</p>}
+                <p>Purity: {purityDisplay}</p>
+                {doseDisplay && <p>Size: {doseDisplay}</p>}
+              </div>
+
+              {isBlend && totalMg && (
+                <p className="mt-3 text-[#4d6bff] font-bold text-base @[16rem]:text-lg">
+                  Total {totalMg} (Blend)
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* PRUO disclaimer - bottom-left of the artwork panel */}
+        <div className="absolute bottom-5 left-5 right-32 @[16rem]:right-36">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-full border border-white/70 px-2 py-0.5 text-[10px] font-bold text-white">
+              PRUO
+            </span>
+            <span className="text-[11px] @[16rem]:text-xs font-semibold text-white truncate">
+              Physician Research Use Only
             </span>
           </div>
-        )}
+          <p className="mt-1 text-[10px] @[16rem]:text-[11px] font-medium text-white/80">
+            Not for human or veterinary use.
+          </p>
+        </div>
 
-        {/* Vial photo - transparent product shot overlapping bottom-right (reference style) */}
-        {photo && (
-          <div className="absolute bottom-0 right-3 h-32 @[16rem]:h-40 flex items-end pointer-events-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.url}
-              alt={photo.altText || product.name}
-              className="max-h-full w-auto object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] transition-transform duration-300 group-hover:scale-105"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Footer - PRUO disclaimer */}
-      <div className="px-4 py-2 border-t border-white/5">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="shrink-0 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
-            PRUO
-          </span>
-          <span className="text-white/40 truncate">Physician Research Use Only</span>
+        {/* Vial with generated label - overlapping bottom-right (reference style) */}
+        <div className="absolute -bottom-2 -right-1 pointer-events-none">
+          <ProductVial
+            product={product}
+            className="h-44 @[16rem]:h-52 drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
+          />
         </div>
       </div>
 

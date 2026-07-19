@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useCart } from './CartContext'
 import { useRole } from '@/hooks/useRole'
+import { NotificationBell } from '@/components/NotificationBell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,6 +118,9 @@ export function ClientHeader() {
               <HelpCircle className="h-5 w-5" />
             </a>
           </Button>
+
+          {/* Notifications (order updates, PeptSci messages) */}
+          <NotificationBell endpointBase="/api/shop/notifications" />
 
           {/* Cart button - visible on both mobile and desktop */}
           <Button

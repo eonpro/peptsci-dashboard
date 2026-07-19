@@ -55,7 +55,15 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
 
-export function NotificationBell() {
+export function NotificationBell({
+  endpointBase = '/api/admin/notifications',
+}: {
+  /**
+   * API family backing the bell. Admin header uses the default; the client
+   * portal passes '/api/shop/notifications' (same shapes, user-scoped).
+   */
+  endpointBase?: string
+} = {}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(0)
@@ -66,20 +74,20 @@ export function NotificationBell() {
 
   const fetchUnread = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/notifications/unread-count', { cache: 'no-store' })
+      const res = await fetch(`${endpointBase}/unread-count`, { cache: 'no-store' })
       if (!res.ok) return
       const data = (await res.json()) as { count?: number }
       setUnread(data.count ?? 0)
     } catch {
       // Silent: badge polling should never surface errors.
     }
-  }, [])
+  }, [endpointBase])
 
   const fetchList = useCallback(async () => {
     setLoading(true)
     setListError(false)
     try {
-      const res = await fetch('/api/admin/notifications?pageSize=15', { cache: 'no-store' })
+      const res = await fetch(`${endpointBase}?pageSize=15`, { cache: 'no-store' })
       if (!res.ok) {
         setListError(true)
         return
@@ -92,7 +100,7 @@ export function NotificationBell() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [endpointBase])
 
   // Poll the unread badge.
   useEffect(() => {
@@ -112,7 +120,7 @@ export function NotificationBell() {
     setUnread(0)
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true })))
     try {
-      await fetch('/api/admin/notifications/mark-read', {
+      await fetch(`${endpointBase}/mark-read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ all: true }),
@@ -120,14 +128,14 @@ export function NotificationBell() {
     } catch {
       void fetchUnread()
     }
-  }, [fetchUnread])
+  }, [endpointBase, fetchUnread])
 
   const onItemClick = useCallback(
     async (n: NotificationItem) => {
       if (!n.isRead) {
         setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)))
         setUnread((u) => Math.max(0, u - 1))
-        void fetch('/api/admin/notifications/mark-read', {
+        void fetch(`${endpointBase}/mark-read`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [n.id] }),
@@ -138,7 +146,7 @@ export function NotificationBell() {
         router.push(n.actionUrl)
       }
     },
-    [router]
+    [endpointBase, router]
   )
 
   return (

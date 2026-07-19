@@ -198,7 +198,10 @@ export function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-brand-onyx border-b border-[#0a0e3a]">
-      <div className="flex h-14 items-center px-4 md:px-6">
+      {/* Same wrapper chain as the page body (layout p-4/md:p-6 → container
+          p-6), so the logo and avatar align with the card edges below. */}
+      <div className="px-4 md:px-6">
+        <div className="container mx-auto flex h-14 items-center px-6">
         {/* Mobile menu button */}
         <Button
           variant="ghost"
@@ -408,6 +411,7 @@ export function AdminHeader() {
               </Button>
             </Link>
           </AuthWrapper>
+        </div>
         </div>
       </div>
 
