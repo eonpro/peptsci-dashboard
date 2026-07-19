@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { getProductCatalog } from '@/lib/catalog'
 import { CatalogShell } from '@/components/shop/CatalogShell'
-import { getCategories } from '@/lib/types/shop'
 import { getUserMetadata } from '@/lib/roles'
 import { applyClientPricing } from '@/lib/shop-pricing'
 
@@ -15,9 +14,6 @@ export default async function ShopPage() {
   // Overlay the viewing client's custom pricing (falls back to SRP).
   const { clientId } = await getUserMetadata()
   const products = await applyClientPricing(catalog, clientId)
-
-  // Get unique categories from products
-  const categories = getCategories(products)
 
   return (
     <div className="space-y-8">
@@ -39,7 +35,7 @@ export default async function ShopPage() {
           </div>
         }
       >
-        <CatalogShell products={products} categories={categories} />
+        <CatalogShell products={products} />
       </Suspense>
     </div>
   )

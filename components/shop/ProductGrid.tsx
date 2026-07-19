@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import type { ShopProduct } from '@/lib/types/shop'
-import { filterProducts, getCategories } from '@/lib/types/shop'
+import { filterProducts } from '@/lib/types/shop'
+import { bucketForProduct, getShopCategoryBuckets } from '@/lib/shop-categories'
 import { ProductCard } from './ProductCard'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -70,8 +71,9 @@ export function ProductGrid({
     else setInternalCategory(value)
   }
 
-  // Get unique categories
-  const categories = useMemo(() => getCategories(products), [products])
+  // Merchandising buckets (Weight Loss, Growth Hormone, …) — not the raw
+  // scientific classifications from the catalog.
+  const categories = useMemo(() => getShopCategoryBuckets(products), [products])
 
   // Focus the search input when arriving via /shop#search (mobile bottom-nav
   // "Search" tab) — also handles in-page hash re-clicks.
@@ -88,11 +90,15 @@ export function ProductGrid({
     return () => window.removeEventListener('hashchange', focusFromHash)
   }, [])
 
-  // Filter and sort products using unified filter function
+  // Filter and sort. Category filtering compares merchandising BUCKETS, so
+  // the chips stay a small curated set regardless of raw catalog categories.
   const filteredProducts = useMemo(() => {
-    return filterProducts(products, {
+    const base =
+      selectedCategory === 'all'
+        ? products
+        : products.filter((p) => bucketForProduct(p.category, p.name) === selectedCategory)
+    return filterProducts(base, {
       search: searchQuery,
-      category: selectedCategory,
       sortBy,
       minPrice: priceRange && priceRange[0] > 0 ? priceRange[0] : undefined,
       // The slider tops out at "$1,000+", so 1000 means unbounded.

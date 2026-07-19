@@ -21,8 +21,11 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         {/* Hoist .dark to <html> so portaled Radix content inherits the theme. */}
         <ThemeScope theme="dark" />
         <ClientHeader />
-        {/* Main content with bottom padding for mobile nav */}
-        <main className="flex-1 container mx-auto px-4 py-6 pb-24 md:pb-8 md:py-8">{children}</main>
+        {/* Main content: fluid width that tracks the browser window (soft cap
+            only on very large monitors), bottom padding clears mobile nav. */}
+        <main className="mx-auto w-full max-w-screen-2xl flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">
+          {children}
+        </main>
         {/* Footer hidden on mobile, shown on desktop */}
         <div className="hidden md:block">
           <ClientFooter />

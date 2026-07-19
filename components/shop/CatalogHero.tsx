@@ -60,7 +60,7 @@ export function CatalogHero({
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search by peptide, SKU, or category…"
               aria-label="Search the catalog"
-              className="h-13 w-full rounded-2xl border border-white/20 bg-white/10 pl-12 pr-10 text-base text-white placeholder:text-white/45 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-md outline-none transition-colors focus:border-white/50 focus:bg-white/15 h-12 md:h-14"
+              className="h-12 w-full rounded-2xl border border-white/20 bg-black/25 pl-12 pr-10 text-base text-white placeholder:text-white/45 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-md outline-none transition-colors focus:border-white/50 focus:bg-black/35 md:h-14"
             />
             {search && (
               <button
