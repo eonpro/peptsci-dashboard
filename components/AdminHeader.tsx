@@ -223,8 +223,9 @@ export function AdminHeader() {
           />
         </Link>
 
-        {/* Desktop Navigation: 2 direct links + 4 intent groups */}
-        <nav className="hidden min-w-0 flex-1 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-sm lg:flex lg:max-w-fit">
+        {/* Desktop Navigation: 2 direct links + 4 intent groups. shrink-0 —
+            the pills must never compress and spill under the search bar. */}
+        <nav className="hidden shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-sm lg:flex">
           {directLinks.map((item) => {
             const Icon = item.icon
             const isActive = isPathActive(pathname, item.href)
@@ -316,25 +317,27 @@ export function AdminHeader() {
         {/* Right side: search stretches to fill the gap so the icon cluster
             lands flush with the page's right edge. */}
         <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 lg:ml-6">
-          {/* Search bar (grows to fill available width) */}
+          {/* Wide search bar — only when there's real room for it (xl+);
+              narrower widths get the icon button instead of overlapping. */}
           <Button
             variant="ghost"
             size="sm"
-            className="hidden h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 text-white/50 hover:bg-white/10 hover:text-white md:flex md:max-w-xl"
+            className="hidden h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 text-white/50 hover:bg-white/10 hover:text-white xl:flex xl:max-w-xl"
             onClick={openSearch}
           >
             <Search className="h-4 w-4 shrink-0" />
             <span className="truncate text-sm">Search orders, clients, invoices…</span>
-            <kbd className="ml-auto hidden h-5 shrink-0 select-none items-center gap-1 rounded border border-white/20 bg-white/10 px-1.5 font-mono text-[10px] text-white/60 lg:inline-flex">
+            <kbd className="ml-auto hidden h-5 shrink-0 select-none items-center gap-1 rounded border border-white/20 bg-white/10 px-1.5 font-mono text-[10px] text-white/60 xl:inline-flex">
               ⌘K
             </kbd>
           </Button>
 
-          {/* Mobile search */}
+          {/* Compact search (mobile through lg) */}
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden text-white/70 hover:text-white hover:bg-white/10"
+            aria-label="Search"
+            className="xl:hidden text-white/70 hover:text-white hover:bg-white/10"
             onClick={openSearch}
           >
             <Search className="h-5 w-5" />
