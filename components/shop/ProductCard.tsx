@@ -409,7 +409,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
             product={product}
-            className="h-44 @[16rem]:h-52 drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-[158px] @[16rem]:h-[187px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
       </div>
