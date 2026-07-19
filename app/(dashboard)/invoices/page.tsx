@@ -62,6 +62,15 @@ export default function InvoicesPage() {
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>('ALL')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  // Deep-linkable status tab (e.g. /invoices?status=OVERDUE from the
+  // dashboard ops queue). Effect-based to avoid an SSR hydration mismatch.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('status')?.toUpperCase()
+    if (fromUrl && STATUS_TABS.includes(fromUrl as (typeof STATUS_TABS)[number])) {
+      setStatus(fromUrl as (typeof STATUS_TABS)[number])
+    }
+  }, [])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [meta, setMeta] = useState<{ total: number; totalPages: number }>({

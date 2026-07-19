@@ -146,15 +146,18 @@ export default function FulfillmentPage() {
     loadQueue()
   }, [loadQueue])
 
-  // Deep-links like /fulfillment?search=1234 (e.g. from a return's order link)
-  // pre-fill the search and widen to the All tab so the order is findable
-  // regardless of its shipped state.
+  // Deep-links: ?search=1234 (from a return's order link) pre-fills search and
+  // widens to All; ?tab=stripe (from the dashboard ops queue) opens the
+  // From Stripe conversion queue directly.
   useEffect(() => {
-    const initial = new URLSearchParams(window.location.search).get('search')
+    const params = new URLSearchParams(window.location.search)
+    const initial = params.get('search')
     if (initial) {
       setSearch(initial)
       setShipped('all')
     }
+    const tab = params.get('tab')
+    if (tab === 'stripe') setShipped('stripe')
   }, [])
 
   const load = useCallback(() => {

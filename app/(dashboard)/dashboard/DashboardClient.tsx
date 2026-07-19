@@ -5,14 +5,16 @@ import dynamic from 'next/dynamic'
 import { getTotals, groupByProduct, groupByCustomer, getMonthOverMonthSales } from '@/lib/kpis'
 import { KPI } from '@/components/KPI'
 import { ChartCard } from '@/components/ChartCard'
-import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw } from 'lucide-react'
+import { DollarSign, ShoppingCart, Users, TrendingUp, RefreshCw, Database, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SalesImportButton } from '@/components/admin/SalesImportButton'
 import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
 import { OrdersBackfillButton } from '@/components/admin/OrdersBackfillButton'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
 import { PendingApprovals } from './PendingApprovals'
+import { OpsQueues } from './OpsQueues'
 
 // recharts is heavy (~100kB+). Load it only on the client, after the KPIs and
 // shell have painted, so it never blocks first render of the dashboard.
@@ -42,6 +44,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   // as strings, which would crash the `.getTime()` sort on first paint.
   const [sales, setSales] = useState<Sale[]>(() => withDates(initialSales))
   const [refreshing, setRefreshing] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
 
   async function loadData(): Promise<boolean> {
     try {
@@ -103,6 +106,15 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   const customerMetrics = useMemo(() => groupByCustomer(sales), [sales])
   const monthOverMonthData = useMemo(() => getMonthOverMonthSales(sales), [sales])
 
+  // MTD pace vs the whole of last month — a rough but honest "are we ahead"
+  // signal for the MTD card.
+  const mtdChange = useMemo(() => {
+    if (monthOverMonthData.length < 2) return undefined
+    const prev = monthOverMonthData[monthOverMonthData.length - 2]?.sales ?? 0
+    if (prev <= 0) return undefined
+    return Math.round(((kpis.mtdSales - prev) / prev) * 100)
+  }, [monthOverMonthData, kpis.mtdSales])
+
   const recentOrders = useMemo(
     () =>
       sales
@@ -119,12 +131,31 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
+          <p className="mt-0.5 text-sm text-white/50">
+            {format(new Date(), 'EEEE, MMMM d')} · live view, refreshes every minute
+          </p>
+        </div>
         <div className="flex items-center gap-2">
-          <SalesImportButton />
-          <OrdersBackfillButton />
-          <StripeBackfillButton />
+          {/* Data maintenance tools collapse behind one toggle so the daily
+              header stays focused on the single action that matters: Refresh.
+              (A plain disclosure, not a menu — the tool buttons own their
+              dialogs and must stay mounted while a dialog is open.) */}
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={toolsOpen}
+            onClick={() => setToolsOpen((v) => !v)}
+            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <Database className="mr-2 h-4 w-4" />
+            Data tools
+            <ChevronDown
+              className={cn('ml-1.5 h-3.5 w-3.5 transition-transform', toolsOpen && 'rotate-180')}
+            />
+          </Button>
           <Button
             onClick={handleRefresh}
             variant="outline"
@@ -138,8 +169,22 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
         </div>
       </div>
 
+      {toolsOpen && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-[#0a0e3a]/50 p-3">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-white/40">
+            Imports & backfills
+          </span>
+          <SalesImportButton />
+          <OrdersBackfillButton />
+          <StripeBackfillButton />
+        </div>
+      )}
+
       {/* New accounts awaiting approval (hidden when none) */}
       <PendingApprovals />
+
+      {/* Action queues: live counts of everything needing an operator */}
+      <OpsQueues />
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -158,8 +203,14 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`}
+          change={mtdChange}
+          changeLabel="vs last month"
           description={
-            kpis.mtdSales > 0 ? 'Month-to-date revenue' : `No sales in ${currentMonth} yet`
+            kpis.mtdSales > 0
+              ? mtdChange === undefined
+                ? 'Month-to-date revenue'
+                : undefined
+              : `No sales in ${currentMonth} yet`
           }
           icon={<TrendingUp />}
         />
