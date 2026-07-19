@@ -294,7 +294,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   // Scientific-style grid card (matches PeptSci reference artwork)
   return (
-    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[520px] flex flex-col">
+    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[560px] flex flex-col">
       {/* Reference artwork panel */}
       <div className="relative flex-1 overflow-hidden">
         {/* Hairline inner border (reference style) */}
@@ -366,7 +366,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </Link>
               </h3>
               {product.category && (
-                <p className="mt-0.5 text-[#4d6bff] text-xs @[16rem]:text-sm font-semibold uppercase tracking-wide">
+                <p className="mt-0.5 text-[#4d6bff] text-xs @[16rem]:text-sm font-semibold uppercase tracking-wide line-clamp-2">
                   {product.category}
                 </p>
               )}
@@ -405,8 +405,8 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           </p>
         </div>
 
-        {/* Vial with generated label - overlapping bottom-right (reference style) */}
-        <div className="absolute -bottom-2 -right-1 pointer-events-none">
+        {/* Vial with generated label - fully visible, anchored bottom-right */}
+        <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
             product={product}
             className="h-44 @[16rem]:h-52 drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"

@@ -57,6 +57,22 @@ export function getCompoundParts(product: ShopProduct): VialCompound[] {
   ]
 }
 
+/**
+ * Pull a trailing modifier off a peptide name so it can render on its own
+ * line under the main name: "CJC-1295 (no DAC)" → ["CJC-1295", "no DAC"],
+ * "CJC-1295 Without DAC" → ["CJC-1295", "Without DAC"].
+ */
+function splitNameModifier(name: string): [string, string | null] {
+  const paren = name.match(/^(.*?)\s*\(([^)]{1,20})\)\s*$/)
+  if (paren) return [paren[1].trim(), paren[2].trim()]
+  const suffix = name.match(/^(.*?)\s+((?:with|without|no)\s+\S+)$/i)
+  if (suffix) return [suffix[1].trim(), suffix[2].trim()]
+  return [name, null]
+}
+
+// Hard clip for label text — it's artwork, so cut the word, never show "…"
+const CLIP = 'overflow-hidden whitespace-nowrap text-clip'
+
 interface ProductVialProps {
   product: ShopProduct
   className?: string
@@ -112,22 +128,47 @@ export function ProductVial({ product, className }: ProductVialProps) {
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-[4cqw]">
             {/* Product name */}
             {isBlend ? (
-              <div className="leading-[1.05] font-bold tracking-tight">
-                <div className="truncate text-[12cqw] text-[#101123]">{compounds[0].name}</div>
-                <div className="truncate text-[12cqw]">
-                  <span className="mr-[1.5cqw] text-[8cqw] font-semibold text-[#101123]">and</span>
-                  <span className="text-brand-primary">{compounds[1].name}</span>
-                </div>
-              </div>
+              (() => {
+                const [firstMain, firstMod] = splitNameModifier(compounds[0].name)
+                const [secondMain] = splitNameModifier(compounds[1].name)
+                return (
+                  <div className="leading-[1.05] font-bold tracking-tight">
+                    <div className={cn(CLIP, 'text-[12cqw] text-[#101123]')}>{firstMain}</div>
+                    {firstMod && (
+                      <div className={cn(CLIP, 'text-[6.5cqw] font-semibold text-[#101123]/80')}>
+                        {firstMod}
+                      </div>
+                    )}
+                    <div className={cn(CLIP, 'text-[12cqw]')}>
+                      <span className="mr-[1.5cqw] text-[8cqw] font-semibold text-[#101123]">
+                        and
+                      </span>
+                      <span className="text-brand-primary">{secondMain}</span>
+                    </div>
+                  </div>
+                )
+              })()
             ) : (
-              <div
-                className={cn(
-                  'truncate leading-none font-bold tracking-tight text-[#101123]',
-                  compounds[0].name.length > 10 ? 'text-[11cqw]' : 'text-[15cqw]'
-                )}
-              >
-                {compounds[0].name}
-              </div>
+              (() => {
+                const [main, mod] = splitNameModifier(compounds[0].name)
+                return (
+                  <div className="leading-none font-bold tracking-tight text-[#101123]">
+                    <div className={cn(CLIP, main.length > 10 ? 'text-[11cqw]' : 'text-[15cqw]')}>
+                      {main}
+                    </div>
+                    {mod && (
+                      <div
+                        className={cn(
+                          CLIP,
+                          'mt-[1.5cqw] text-[7cqw] font-semibold text-[#101123]/80'
+                        )}
+                      >
+                        {mod}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()
             )}
 
             {/* RUO | dose box | purity */}
@@ -142,12 +183,12 @@ export function ProductVial({ product, className }: ProductVialProps) {
                 {hasPartDoses ? (
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[1.8cqw]">
-                      <span className="truncate text-[8.5cqw] font-semibold text-white">
+                      <span className={cn(CLIP, 'text-[8.5cqw] font-semibold text-white')}>
                         {compounds[0].dose}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.8cqw]">
-                      <span className="truncate text-[8.5cqw] font-semibold text-white">
+                      <span className={cn(CLIP, 'text-[8.5cqw] font-semibold text-white')}>
                         {compounds[1].dose}
                       </span>
                     </div>
@@ -155,12 +196,12 @@ export function ProductVial({ product, className }: ProductVialProps) {
                 ) : (
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[2cqw]">
-                      <span className="truncate text-[9cqw] font-semibold text-white">
+                      <span className={cn(CLIP, 'text-[9cqw] font-semibold text-white')}>
                         {(isBlend ? totalDose : compounds[0].dose || totalDose) || '—'}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.2cqw]">
-                      <span className="truncate text-[6.5cqw] font-semibold text-white">
+                      <span className={cn(CLIP, 'text-[6.5cqw] font-semibold text-white')}>
                         {purityShort}
                       </span>
                     </div>
