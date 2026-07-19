@@ -34,6 +34,7 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     category: z.string().trim().optional(),
+    aka: z.string().trim().nullable().optional(),
     sku: z.string().trim().min(1).optional(),
     dose: z.string().trim().optional(),
     unitCost: z.number().min(0).optional(),
@@ -109,6 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (
       body.name !== undefined ||
       body.category !== undefined ||
+      body.aka !== undefined ||
       body.purity !== undefined ||
       body.monograph !== undefined
     ) {
@@ -117,6 +119,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         data: {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.category !== undefined ? { category: body.category || null } : {}),
+          ...(body.aka !== undefined ? { aka: body.aka || null } : {}),
           ...(body.purity !== undefined ? { purity: body.purity || null } : {}),
           ...(body.monograph !== undefined
             ? { monograph: body.monograph === null ? Prisma.DbNull : body.monograph }

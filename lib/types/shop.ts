@@ -66,6 +66,7 @@ export interface ShopProduct {
   monograph?: PeptideMonograph | null
   purity?: string | null // e.g. "99%"; PDP falls back to a default when absent
   availableDoses?: string[] // sibling variant doses of the same compound
+  aka?: string | null // "also known as" — rendered as a smaller subtitle under the name
 
   // True when a published Certificate of Analysis exists for this variant
   // (enriched server-side on the shop page).

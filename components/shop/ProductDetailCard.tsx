@@ -24,6 +24,7 @@ export interface ProductDetailData {
   totalAmount?: string // e.g., "Total 10mg (Blend)"
   imageUrl?: string
   category?: string
+  aka?: string // "also known as" subtitle under the name (single-compound products)
   isPRUO?: boolean // Physician Research Use Only
   disclaimer?: string
 }
@@ -104,6 +105,11 @@ export function ProductDetailCard({ product, vialProduct, className }: ProductDe
               <h2 className="text-2xl md:text-3xl font-bold text-white">
                 {compound.name} {compound.amount}
               </h2>
+
+              {/* "Also known as" subtitle (single-compound products only) */}
+              {index === 0 && product.aka && product.compounds.length === 1 && (
+                <p className="text-sm md:text-base text-white/50">{product.aka}</p>
+              )}
 
               {/* Scientific details - each on its own line */}
               <div className="text-white/80 text-sm md:text-base space-y-1">

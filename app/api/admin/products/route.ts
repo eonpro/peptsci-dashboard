@@ -50,6 +50,7 @@ export async function GET(_request: NextRequest) {
           select: {
             name: true,
             category: true,
+            aka: true,
             purity: true,
             monograph: true,
             media: {
@@ -80,6 +81,7 @@ export async function GET(_request: NextRequest) {
         reorderLevel: v.reorderLevel,
         imageUrl: v.product.media[0]?.url ?? null,
         coaCount: v._count.coas,
+        aka: v.product.aka ?? null,
         purity: v.product.purity ?? null,
         monograph: v.product.monograph ?? null,
       })),
@@ -107,6 +109,7 @@ const createSchema = z.object({
   sku: z.string().trim().min(1, 'sku is required'),
   dose: z.string().trim().optional(),
   category: z.string().trim().optional(),
+  aka: z.string().trim().nullable().optional(),
   unitCost: z.number().min(0, 'unitCost must be >= 0').default(0),
   srp: z.number().min(0, 'srp must be >= 0').default(0),
   supplierName: z.string().trim().optional(),
@@ -158,6 +161,7 @@ export async function POST(request: NextRequest) {
         ? { monograph: row.monograph === null ? Prisma.DbNull : row.monograph }
         : {}
     const purityData = row.purity !== undefined ? { purity: row.purity || null } : {}
+    const akaData = row.aka !== undefined ? { aka: row.aka || null } : {}
 
     let productId: string
     const existingProduct = await prisma.product.findFirst({
@@ -168,6 +172,7 @@ export async function POST(request: NextRequest) {
       productId = existingProduct.id
       const productUpdate = {
         ...(row.category ? { category: row.category } : {}),
+        ...akaData,
         ...monographData,
         ...purityData,
       }
@@ -179,7 +184,13 @@ export async function POST(request: NextRequest) {
       }
     } else {
       const created = await prisma.product.create({
-        data: { name: row.name, category: row.category ?? null, ...monographData, ...purityData },
+        data: {
+          name: row.name,
+          category: row.category ?? null,
+          ...akaData,
+          ...monographData,
+          ...purityData,
+        },
         select: { id: true },
       })
       productId = created.id

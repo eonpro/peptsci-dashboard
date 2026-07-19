@@ -36,6 +36,7 @@ interface VariantWithProduct {
     pubchemCid: string | null
     monograph: unknown
     purity: string | null
+    aka: string | null
     media: { id: string; url: string; altText: string | null; isPrimary: boolean }[]
   }
 }
@@ -77,6 +78,7 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     pubchemCid: v.product.pubchemCid,
     monograph: parseMonograph(v.product.monograph),
     purity: v.product.purity,
+    aka: v.product.aka,
     images: toImages(v.product.media),
     inventoryOnHand: enforceStock ? available : undefined,
     inStock: enforceStock ? available > 0 : true,
@@ -96,6 +98,7 @@ const variantInclude = {
       pubchemCid: true,
       monograph: true,
       purity: true,
+      aka: true,
       media: {
         select: { id: true, url: true, altText: true, isPrimary: true },
         orderBy: { isPrimary: 'desc' as const },

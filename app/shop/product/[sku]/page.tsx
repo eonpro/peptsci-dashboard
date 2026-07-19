@@ -58,6 +58,7 @@ function buildDetailData(product: ShopProduct): ProductDetailData | null {
     totalAmount: product.totalAmount,
     imageUrl: product.images.find((img) => img.isPrimary)?.url ?? product.images[0]?.url,
     category: product.category ?? undefined,
+    aka: product.aka ?? undefined,
     isPRUO: product.isPRUO ?? true,
     disclaimer: product.disclaimer ?? 'Not for human or veterinary use.',
   }
@@ -126,7 +127,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
           /* Fallback to basic card display */
           <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-brand-onyx via-[#0a0e3a] to-brand-onyx border border-white/10 p-8">
             <div className="pr-28 md:pr-36">
-              <h1 className="text-3xl font-bold text-white mb-2">{product.name}</h1>
+              <h1 className="text-3xl font-bold text-white mb-1">{product.name}</h1>
+              {product.aka && (
+                <p className="text-base text-white/50 mb-2">{product.aka}</p>
+              )}
               <p className="text-xl text-white/60 mb-4">{product.dose}</p>
               {product.description && <p className="text-white/70 mb-6">{product.description}</p>}
               <div className="text-sm text-white/50 space-y-1">

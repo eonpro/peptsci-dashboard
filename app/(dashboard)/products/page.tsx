@@ -64,6 +64,7 @@ interface VariantRow {
   reorderLevel: number
   imageUrl: string | null
   coaCount?: number
+  aka?: string | null
   purity?: string | null
   monograph?: unknown
 }
@@ -208,6 +209,7 @@ export default function ProductsPage() {
       sku: v.sku || '',
       dose: v.dose || '',
       category: v.category || '',
+      aka: v.aka || '',
       unitCost: v.unitCost.toFixed(2),
       srp: v.srp.toFixed(2),
       supplierName: v.supplierName || '',
