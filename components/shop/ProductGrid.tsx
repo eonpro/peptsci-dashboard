@@ -7,6 +7,7 @@ import { bucketForProduct, getShopCategoryBuckets } from '@/lib/shop-categories'
 import { ProductCard } from './ProductCard'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -14,35 +15,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Grid, List, SlidersHorizontal, X } from 'lucide-react'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetFooter,
-} from '@/components/ui/sheet'
-import { Badge } from '@/components/ui/badge'
+import { Search, Grid, List, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // Re-export ShopProduct for convenience
 export type { ShopProduct } from '@/lib/types/shop'
 
 interface ProductGridProps {
   products: ShopProduct[]
-  /** Controlled search (when the hero/shell owns filter state). */
+  /** Controlled search (when the shell owns filter state). */
   search?: string
   onSearchChange?: (value: string) => void
-  /** Controlled category (when the desktop sidebar owns filter state). */
+  /** Controlled category bucket. */
   category?: string
   onCategoryChange?: (category: string) => void
-  /** Price range filter from the sidebar; [0, 1000] means "no limit". */
-  priceRange?: [number, number]
+  /** Curated bucket list (defaults to buckets derived from products). */
+  categories?: string[]
   inStockOnly?: boolean
+  onInStockOnlyChange?: (value: boolean) => void
 }
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'
 type ViewMode = 'grid' | 'list'
+
+const SORT_LABELS: Record<SortOption, string> = {
+  'name-asc': 'Name (A–Z)',
+  'name-desc': 'Name (Z–A)',
+  'price-asc': 'Price: Low to High',
+  'price-desc': 'Price: High to Low',
+}
 
 export function ProductGrid({
   products,
@@ -50,30 +51,36 @@ export function ProductGrid({
   onSearchChange,
   category,
   onCategoryChange,
-  priceRange,
+  categories: categoriesProp,
   inStockOnly,
+  onInStockOnlyChange,
 }: ProductGridProps) {
   const [internalSearch, setInternalSearch] = useState('')
+  const [internalCategory, setInternalCategory] = useState<string>('all')
+  const [internalStock, setInternalStock] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('name-asc')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [internalCategory, setInternalCategory] = useState<string>('all')
-  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const searchQuery = search ?? internalSearch
-  const setSearchQuery = (value: string) => {
-    if (onSearchChange) onSearchChange(value)
-    else setInternalSearch(value)
-  }
-
+  const setSearchQuery = onSearchChange ?? setInternalSearch
   const selectedCategory = category ?? internalCategory
-  const setSelectedCategory = (value: string) => {
-    if (onCategoryChange) onCategoryChange(value)
-    else setInternalCategory(value)
-  }
+  const setSelectedCategory = onCategoryChange ?? setInternalCategory
+  const stockOnly = inStockOnly ?? internalStock
+  const setStockOnly = onInStockOnlyChange ?? setInternalStock
 
-  // Merchandising buckets (Weight Loss, Growth Hormone, …) — not the raw
-  // scientific classifications from the catalog.
-  const categories = useMemo(() => getShopCategoryBuckets(products), [products])
+  // Merchandising buckets + per-bucket product counts for the chips.
+  const categories = useMemo(
+    () => categoriesProp ?? getShopCategoryBuckets(products),
+    [categoriesProp, products]
+  )
+  const bucketCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of products) {
+      const b = bucketForProduct(p.category, p.name)
+      counts.set(b, (counts.get(b) ?? 0) + 1)
+    }
+    return counts
+  }, [products])
 
   // Focus the search input when arriving via /shop#search (mobile bottom-nav
   // "Search" tab) — also handles in-page hash re-clicks.
@@ -90,8 +97,7 @@ export function ProductGrid({
     return () => window.removeEventListener('hashchange', focusFromHash)
   }, [])
 
-  // Filter and sort. Category filtering compares merchandising BUCKETS, so
-  // the chips stay a small curated set regardless of raw catalog categories.
+  // Category compares merchandising BUCKETS, everything else via filterProducts.
   const filteredProducts = useMemo(() => {
     const base =
       selectedCategory === 'all'
@@ -100,39 +106,63 @@ export function ProductGrid({
     return filterProducts(base, {
       search: searchQuery,
       sortBy,
-      minPrice: priceRange && priceRange[0] > 0 ? priceRange[0] : undefined,
-      // The slider tops out at "$1,000+", so 1000 means unbounded.
-      maxPrice: priceRange && priceRange[1] < 1000 ? priceRange[1] : undefined,
-      inStockOnly: inStockOnly || undefined,
+      inStockOnly: stockOnly || undefined,
     })
-  }, [products, searchQuery, sortBy, selectedCategory, priceRange, inStockOnly])
+  }, [products, searchQuery, sortBy, selectedCategory, stockOnly])
 
-  const hasActiveFilters = selectedCategory !== 'all' || searchQuery !== ''
-  const activeFilterCount = (selectedCategory !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)
+  const chip = (value: string, label: string, count?: number) => {
+    const active = selectedCategory === value
+    return (
+      <button
+        key={value}
+        type="button"
+        onClick={() => setSelectedCategory(active && value !== 'all' ? 'all' : value)}
+        aria-pressed={active}
+        className={cn(
+          'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors',
+          active
+            ? 'bg-brand-primary text-white shadow-[0_4px_16px_-4px_rgba(33,60,239,0.7)]'
+            : 'bg-white/5 text-white/65 hover:bg-white/10 hover:text-white'
+        )}
+      >
+        {label}
+        {typeof count === 'number' && (
+          <span
+            className={cn(
+              'rounded-full px-1.5 text-[11px] font-semibold leading-4',
+              active ? 'bg-white/20 text-white' : 'bg-white/10 text-white/50'
+            )}
+          >
+            {count}
+          </span>
+        )}
+      </button>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Mobile-first search bar - sticky on mobile */}
-      <div className="sticky top-14 md:top-0 z-40 -mx-4 px-4 py-3 bg-brand-onyx/95 backdrop-blur-xl md:relative md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none">
-        <div className="flex items-center gap-2">
-          {/* Search - larger touch target */}
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
+    <div className="space-y-5">
+      {/* Sticky toolbar: search / stock / sort / view, then category chips */}
+      <div className="sticky top-14 z-40 -mx-4 space-y-3 border-b border-white/10 bg-brand-onyx/95 px-4 py-3 backdrop-blur-xl md:top-16 md:-mx-8 md:px-8">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {/* Search */}
+          <div className="relative min-w-0 flex-1 basis-64">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
             <Input
               ref={searchInputRef}
               id="catalog-search"
               type="search"
-              placeholder="Search peptides..."
+              placeholder="Search peptides, SKUs…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-12 pl-12 pr-10 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40 rounded-xl text-base"
+              className="h-11 rounded-xl border-white/10 bg-white/5 pl-11 pr-10 text-base text-white placeholder:text-white/40"
             />
             {searchQuery && (
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-white/40 hover:text-white"
+                className="absolute right-1.5 top-1/2 h-8 w-8 -translate-y-1/2 text-white/40 hover:text-white"
                 onClick={() => setSearchQuery('')}
               >
                 <X className="h-4 w-4" />
@@ -140,258 +170,102 @@ export function ProductGrid({
             )}
           </div>
 
-          {/* Filter button with badge */}
-          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={`Filter and sort${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
-                className="h-12 w-12 border-white/20 bg-white/5 text-white hover:bg-white/10 rounded-xl relative"
-              >
-                <SlidersHorizontal className="h-5 w-5" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-brand-primary text-white text-[10px] font-bold">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="bottom"
-              className="h-[85vh] rounded-t-3xl bg-brand-onyx border-t border-white/10 p-0"
-            >
-              <div className="flex flex-col h-full">
-                <SheetHeader className="p-4 border-b border-white/10">
-                  <div className="flex items-center justify-between">
-                    <SheetTitle className="text-white text-lg">Filter & Sort</SheetTitle>
-                    {hasActiveFilters && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-brand-primary hover:text-brand-primary/80"
-                        onClick={() => {
-                          setSearchQuery('')
-                          setSelectedCategory('all')
-                        }}
-                      >
-                        Clear all
-                      </Button>
-                    )}
-                  </div>
-                </SheetHeader>
+          {/* In-stock toggle */}
+          <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 text-sm text-white/70">
+            <Switch checked={stockOnly} onCheckedChange={setStockOnly} aria-label="In stock only" />
+            In stock
+          </label>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                  {/* Sort options */}
-                  <div>
-                    <h3 className="text-white font-semibold mb-3">Sort by</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { value: 'name-asc', label: 'Name (A-Z)' },
-                        { value: 'name-desc', label: 'Name (Z-A)' },
-                        { value: 'price-asc', label: 'Price: Low to High' },
-                        { value: 'price-desc', label: 'Price: High to Low' },
-                      ].map((option) => (
-                        <Button
-                          key={option.value}
-                          variant={sortBy === option.value ? 'default' : 'outline'}
-                          className={`h-12 rounded-xl justify-start ${
-                            sortBy === option.value
-                              ? 'bg-brand-primary text-white'
-                              : 'border-white/20 text-white/70 hover:bg-white/10'
-                          }`}
-                          onClick={() => setSortBy(option.value as SortOption)}
-                        >
-                          {option.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Category filter */}
-                  <div>
-                    <h3 className="text-white font-semibold mb-3">Category</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                        className={`h-10 rounded-full px-4 ${
-                          selectedCategory === 'all'
-                            ? 'bg-brand-primary text-white'
-                            : 'border-white/20 text-white/70 hover:bg-white/10'
-                        }`}
-                        onClick={() => setSelectedCategory('all')}
-                      >
-                        All
-                      </Button>
-                      {categories.map((cat) => (
-                        <Button
-                          key={cat}
-                          variant={selectedCategory === cat ? 'default' : 'outline'}
-                          className={`h-10 rounded-full px-4 ${
-                            selectedCategory === cat
-                              ? 'bg-brand-primary text-white'
-                              : 'border-white/20 text-white/70 hover:bg-white/10'
-                          }`}
-                          onClick={() => setSelectedCategory(cat)}
-                        >
-                          {cat}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* View mode */}
-                  <div>
-                    <h3 className="text-white font-semibold mb-3">View</h3>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={viewMode === 'grid' ? 'default' : 'outline'}
-                        className={`flex-1 h-12 rounded-xl ${
-                          viewMode === 'grid'
-                            ? 'bg-brand-primary text-white'
-                            : 'border-white/20 text-white/70 hover:bg-white/10'
-                        }`}
-                        onClick={() => setViewMode('grid')}
-                      >
-                        <Grid className="mr-2 h-5 w-5" />
-                        Grid
-                      </Button>
-                      <Button
-                        variant={viewMode === 'list' ? 'default' : 'outline'}
-                        className={`flex-1 h-12 rounded-xl ${
-                          viewMode === 'list'
-                            ? 'bg-brand-primary text-white'
-                            : 'border-white/20 text-white/70 hover:bg-white/10'
-                        }`}
-                        onClick={() => setViewMode('list')}
-                      >
-                        <List className="mr-2 h-5 w-5" />
-                        List
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <SheetFooter className="p-4 border-t border-white/10">
-                  <Button
-                    className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold"
-                    onClick={() => setFiltersOpen(false)}
-                  >
-                    Show {filteredProducts.length} Results
-                  </Button>
-                </SheetFooter>
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* View toggle - desktop only */}
-          <div className="hidden md:flex items-center border border-white/20 rounded-xl p-1 bg-white/5">
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="icon"
-              className={`h-10 w-10 rounded-lg ${viewMode === 'grid' ? 'bg-brand-primary text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-              onClick={() => setViewMode('grid')}
-            >
-              <Grid className="h-5 w-5" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="icon"
-              className={`h-10 w-10 rounded-lg ${viewMode === 'list' ? 'bg-brand-primary text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-              onClick={() => setViewMode('list')}
-            >
-              <List className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Desktop sort */}
+          {/* Sort */}
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="hidden md:flex w-[180px] h-12 bg-[#0a0e3a] border-white/10 text-white rounded-xl">
+            <SelectTrigger
+              aria-label="Sort products"
+              className="h-11 w-[150px] shrink-0 rounded-xl border-white/10 bg-white/5 text-sm text-white md:w-[190px]"
+            >
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
-            <SelectContent className="bg-brand-onyx border-white/10">
-              <SelectItem
-                value="name-asc"
-                className="text-white focus:bg-white/10 focus:text-white"
-              >
-                Name (A-Z)
-              </SelectItem>
-              <SelectItem
-                value="name-desc"
-                className="text-white focus:bg-white/10 focus:text-white"
-              >
-                Name (Z-A)
-              </SelectItem>
-              <SelectItem
-                value="price-asc"
-                className="text-white focus:bg-white/10 focus:text-white"
-              >
-                Price (Low-High)
-              </SelectItem>
-              <SelectItem
-                value="price-desc"
-                className="text-white focus:bg-white/10 focus:text-white"
-              >
-                Price (High-Low)
-              </SelectItem>
+            <SelectContent className="border-white/10 bg-brand-onyx text-white">
+              {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
+                <SelectItem
+                  key={opt}
+                  value={opt}
+                  className="text-white focus:bg-white/10 focus:text-white"
+                >
+                  {SORT_LABELS[opt]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+
+          {/* View toggle (desktop) */}
+          <div className="hidden shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 md:flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Grid view"
+              aria-pressed={viewMode === 'grid'}
+              className={cn(
+                'h-9 w-9 rounded-lg',
+                viewMode === 'grid'
+                  ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+              )}
+              onClick={() => setViewMode('grid')}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
+              className={cn(
+                'h-9 w-9 rounded-lg',
+                viewMode === 'list'
+                  ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+              )}
+              onClick={() => setViewMode('list')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        {/* Active filters chips - mobile */}
-        {hasActiveFilters && (
-          <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
-            {selectedCategory !== 'all' && (
-              <Badge
-                variant="secondary"
-                className="bg-brand-primary/20 text-brand-primary border-brand-primary/30 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
-              >
-                {selectedCategory}
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  aria-label={`Clear category filter ${selectedCategory}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-            {searchQuery && (
-              <Badge
-                variant="secondary"
-                className="bg-white/10 text-white/80 border-white/20 px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5"
-              >
-                &quot;{searchQuery}&quot;
-                <button onClick={() => setSearchQuery('')} aria-label="Clear search">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-          </div>
-        )}
+        {/* Category chips with counts */}
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 scrollbar-hide md:-mx-8 md:px-8">
+          {chip('all', 'All', products.length)}
+          {categories.map((cat) => chip(cat, cat, bucketCounts.get(cat)))}
+        </div>
       </div>
 
       {/* Results count */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/50">
-          {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
-        </p>
-      </div>
+      <p className="text-sm text-white/50" aria-live="polite">
+        {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
+        {selectedCategory !== 'all' && (
+          <>
+            {' '}
+            in <span className="font-medium text-white/80">{selectedCategory}</span>
+          </>
+        )}
+      </p>
 
       {/* Product grid/list */}
       {filteredProducts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-white/10 p-6 mb-4">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-4 rounded-full bg-white/10 p-6">
             <Search className="h-10 w-10 text-white/40" />
           </div>
           <h3 className="text-xl font-semibold text-white">No products found</h3>
-          <p className="mt-2 text-white/50 max-w-[280px]">
-            Try adjusting your search or filters to find what you&apos;re looking for.
+          <p className="mt-2 max-w-[300px] text-white/50">
+            Try a different search{selectedCategory !== 'all' ? ' or category' : ''}.
           </p>
           <Button
-            className="mt-6 h-12 px-6 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
+            className="mt-6 h-12 rounded-xl bg-brand-primary px-6 text-white hover:bg-[#1a30c0]"
             onClick={() => {
               setSearchQuery('')
               setSelectedCategory('all')
+              setStockOnly(false)
             }}
           >
             Clear all filters
@@ -401,7 +275,7 @@ export function ProductGrid({
         <div
           className={
             viewMode === 'grid'
-              ? 'grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+              ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'
               : 'space-y-3'
           }
         >
