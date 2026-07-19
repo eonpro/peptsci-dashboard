@@ -8,6 +8,7 @@ import { ProductDetailCard, type ProductDetailData } from '@/components/shop/Pro
 import { ProductCard } from '@/components/shop/ProductCard'
 import { ProductVial } from '@/components/shop/ProductVial'
 import { ProductMonograph } from '@/components/shop/ProductMonograph'
+import { getBlendComposition } from '@/lib/content/blend-compositions'
 import { PdpAddToCart } from '@/components/shop/PdpAddToCart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -27,8 +28,20 @@ export const dynamic = 'force-dynamic'
  * page falls back to a basic info panel.
  */
 function buildDetailData(product: ShopProduct): ProductDetailData | null {
-  const compounds =
-    product.compounds && product.compounds.length > 0
+  // Multi-peptide blends have no single CAS/MW; show each component's own
+  // verified chemistry instead.
+  const blend = getBlendComposition(product.name)
+
+  const compounds = blend
+    ? blend.map((c) => ({
+        name: c.name,
+        amount: '',
+        casNumber: c.casNumber,
+        molecularFormula: c.molecularFormula,
+        molecularWeight: c.molecularWeight,
+        purity: c.purity,
+      }))
+    : product.compounds && product.compounds.length > 0
       ? product.compounds
       : product.casNumber || product.molecularFormula || product.molecularWeight
         ? [
@@ -45,6 +58,7 @@ function buildDetailData(product: ShopProduct): ProductDetailData | null {
   if (!compounds) return null
 
   const isBlend =
+    !!blend ||
     product.productType === 'Blend' ||
     product.name.toLowerCase().includes('blend') ||
     product.name.includes('/') ||
