@@ -1,97 +1,121 @@
 'use client'
 
-import { Badge } from '@/components/ui/badge'
-import { FlaskConical, Truck, Shield, HeadphonesIcon } from 'lucide-react'
+import { Search, FlaskConical, Truck, BadgePercent, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface CatalogHeroProps {
   productCount: number
+  /** Controlled search bound to the catalog grid. */
+  search: string
+  onSearchChange: (value: string) => void
+  categories: string[]
+  selectedCategory: string
+  onCategoryChange: (category: string) => void
 }
 
-const features = [
-  {
-    icon: FlaskConical,
-    title: '99%+ Purity',
-    description: 'Third-party tested',
-  },
-  {
-    icon: Truck,
-    title: 'Fast Shipping',
-    description: '2-3 business days',
-  },
-  {
-    icon: Shield,
-    title: 'Secure Orders',
-    description: 'Encrypted checkout',
-  },
-  {
-    icon: HeadphonesIcon,
-    title: 'Expert Support',
-    description: 'Dedicated team',
-  },
+const TRUST = [
+  { icon: FlaskConical, label: 'COA on every lot' },
+  { icon: Truck, label: 'Free 2-day shipping $500+' },
+  { icon: BadgePercent, label: 'Your account pricing applied' },
 ]
 
-export function CatalogHero({ productCount }: CatalogHeroProps) {
+/**
+ * Flagship catalog hero: search-first with live category chips wired straight
+ * into the grid, plus a compact trust bar. Replaces the old static marketing
+ * banner — everything here acts on the catalog below.
+ */
+export function CatalogHero({
+  productCount,
+  search,
+  onSearchChange,
+  categories,
+  selectedCategory,
+  onCategoryChange,
+}: CatalogHeroProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-linear-to-br from-brand-primary via-[#1a30c0] to-[#0a0e3a] p-5 md:p-8 lg:p-12 border border-white/10">
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-              <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100" height="100" fill="url(#grid)" />
-        </svg>
-      </div>
+    <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-brand-primary via-[#1a30c0] to-[#0a0e3a] md:rounded-3xl">
+      {/* Glow accents */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_45%)]" />
+      <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
 
-      {/* Content */}
-      <div className="relative">
-        <Badge
-          variant="secondary"
-          className="mb-3 md:mb-4 bg-white/20 text-white border-0 text-xs md:text-sm"
-        >
-          {productCount} Products Available
-        </Badge>
+      <div className="relative px-5 py-7 md:px-10 md:py-10">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-white/60">
+            Physician catalog · {productCount} products
+          </p>
+          <h1 className="mt-2 text-3xl font-bold leading-tight text-white md:text-4xl">
+            Research peptides, verified.
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-white/70 md:text-base">
+            High-purity lyophilized compounds with third-party certificates of analysis —
+            priced for your practice.
+          </p>
 
-        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 md:mb-4 leading-tight">
-          Premium Research Peptides
-          <span className="block text-white/90 text-lg sm:text-xl md:text-2xl lg:text-3xl mt-1">
-            For Professional Use Only
-          </span>
-        </h1>
+          {/* Hero search — drives the grid directly */}
+          <div className="relative mx-auto mt-6 max-w-xl">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/50" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search by peptide, SKU, or category…"
+              aria-label="Search the catalog"
+              className="h-13 w-full rounded-2xl border border-white/20 bg-white/10 pl-12 pr-10 text-base text-white placeholder:text-white/45 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-md outline-none transition-colors focus:border-white/50 focus:bg-white/15 h-12 md:h-14"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => onSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-        <p className="text-sm md:text-base lg:text-lg text-white/80 max-w-2xl mb-5 md:mb-8 leading-relaxed">
-          Browse our curated selection of high-purity lyophilized research peptides. All products
-          are third-party tested with certificates of analysis available.
-        </p>
-
-        {/* Feature badges - 2x2 grid on mobile, 4 columns on desktop */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
-          {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="flex items-center gap-2 md:gap-3 rounded-xl bg-white/10 backdrop-blur-xs px-3 md:px-4 py-2.5 md:py-3 border border-white/10"
+          {/* Category chips — live filters */}
+          <div className="mt-4 flex items-center justify-center gap-2 overflow-x-auto pb-1 scrollbar-hide md:flex-wrap">
+            <button
+              type="button"
+              onClick={() => onCategoryChange('all')}
+              className={cn(
+                'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                selectedCategory === 'all'
+                  ? 'bg-white text-brand-onyx'
+                  : 'bg-white/10 text-white/75 hover:bg-white/20 hover:text-white'
+              )}
             >
-              <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-lg bg-white/20 shrink-0">
-                <feature.icon className="h-4 w-4 md:h-5 md:w-5 text-white" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-white text-xs md:text-sm truncate">
-                  {feature.title}
-                </p>
-                <p className="text-[10px] md:text-xs text-white/70 truncate">
-                  {feature.description}
-                </p>
-              </div>
-            </div>
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => onCategoryChange(selectedCategory === cat ? 'all' : cat)}
+                className={cn(
+                  'shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                  selectedCategory === cat
+                    ? 'bg-white text-brand-onyx'
+                    : 'bg-white/10 text-white/75 hover:bg-white/20 hover:text-white'
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Trust bar */}
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-white/10 pt-5">
+          {TRUST.map(({ icon: Icon, label }) => (
+            <span key={label} className="flex items-center gap-2 text-xs font-medium text-white/70 md:text-sm">
+              <Icon className="h-4 w-4 text-white/50" />
+              {label}
+            </span>
           ))}
         </div>
       </div>
-
-      {/* Decorative elements - smaller on mobile */}
-      <div className="absolute -top-10 -right-10 md:-top-20 md:-right-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-brand-primary/30 blur-3xl" />
-      <div className="absolute -bottom-10 -left-10 md:-bottom-20 md:-left-20 h-32 w-32 md:h-64 md:w-64 rounded-full bg-brand-primary/30 blur-3xl" />
-    </div>
+    </section>
   )
 }

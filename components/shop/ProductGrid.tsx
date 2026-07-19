@@ -29,6 +29,9 @@ export type { ShopProduct } from '@/lib/types/shop'
 
 interface ProductGridProps {
   products: ShopProduct[]
+  /** Controlled search (when the hero/shell owns filter state). */
+  search?: string
+  onSearchChange?: (value: string) => void
   /** Controlled category (when the desktop sidebar owns filter state). */
   category?: string
   onCategoryChange?: (category: string) => void
@@ -42,16 +45,24 @@ type ViewMode = 'grid' | 'list'
 
 export function ProductGrid({
   products,
+  search,
+  onSearchChange,
   category,
   onCategoryChange,
   priceRange,
   inStockOnly,
 }: ProductGridProps) {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [internalSearch, setInternalSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('name-asc')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [internalCategory, setInternalCategory] = useState<string>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
+
+  const searchQuery = search ?? internalSearch
+  const setSearchQuery = (value: string) => {
+    if (onSearchChange) onSearchChange(value)
+    else setInternalSearch(value)
+  }
 
   const selectedCategory = category ?? internalCategory
   const setSelectedCategory = (value: string) => {
