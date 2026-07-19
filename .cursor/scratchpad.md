@@ -1,3 +1,30 @@
+# Inventory Workspace Overhaul — Tier 1 (Jul 18, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+Plan: `~/.cursor/plans/inventory_workspace_overhaul_7dd7373b.plan.md`. Rebuilt `/inventory` into a server-driven workspace: pagination/search/sort pushed to the APIs, new Reservations tab, batch edit, variant-picker receive flow, lazy analytics (recharts), and stock enforcement readiness. Verified: `tsc --noEmit` clean, 320/320 unit tests (17 new in `inventoryWorkspace.test.ts`), `next lint` (pre-existing warnings only, none in touched files), `next build` green, data-layer smoke (`scripts/smoke-inventory-workspace.ts`) green against local DB.
+
+## Project Status Board
+- [x] **API: batches paged** — `listBatchesPaged()` (lib/inventory-batches.ts): offset pagination, sort (bud/qtyOnHand/receivedOn/createdAt), derived scopes EXPIRING (RECEIVED + qty>0 + bud in [today, +90d]) / EXPIRED (not VOIDED + qty>0 + bud < today) now resolved IN the Prisma query so they match the KPI counts; search extended to variant SKU. GET /api/admin/inventory/batches returns `{batches,total,page,pageSize}` when `page|pageSize` present, legacy `{batches}` otherwise.
+- [x] **API: activity paged** — `listInventoryAdjustmentsPaged()` (lib/inventory-log.ts): reason + from/to date-range filters, search across product/SKU/note/actor, pagination. Route keeps legacy `take` shape for old consumers (ProductDetailSheet).
+- [x] **API: summary** — new GET /api/admin/inventory/summary (lib/inventory-summary.ts): all six KPIs + reservation counts via aggregates, per-day inbound/outbound movement series (zero-filled, `buildMovementSeries`), reason totals, top-10 products by on-hand, next-20 expiring batches.
+- [x] **API: reservations enriched** — `listActiveReservationsPaged()` adds order number/status + customer (Client.organizationName), `totalUnits` aggregate, search, pagination. Read-only by design (lifecycle owned by checkout/fulfillment).
+- [x] **API: catalog** — new GET /api/admin/inventory/catalog; `listCatalogStock()` now computes batch count + soonest BUD per variant server-side (groupBy) so the client no longer needs the full batch dump for the By Product rollup.
+- [x] **UI: workspace rebuild** — InventoryClient: 5 tabs (Batches/By Product/Low Stock/Reserved/Activity), URL-synced state (`?tab&filter&q&page`), debounced server search, `Pagination` on Batches/Reservations/Activity, server-controlled batch sort, Activity reason+date filters, CSV export now fetches the FULL filtered set (pageSize 500) instead of the visible page, enforcement status pill in header. RSC seed preserved (page.tsx seeds batches page 1 + catalog + summary; seeded-query ref skips the duplicate first fetch).
+- [x] **UI: batch edit** — BatchDetailSheet Edit dialog exposing the existing PATCH (purity, vial size, label accent, notes); counts/BUD/batch # remain immutable.
+- [x] **UI: receive flow** — ReceiveInventoryModal: Command combobox over catalog variants (product+dose+SKU → submits `variantId`, killing typo-duplicate variants); explicit "New product" toggle (amber warning) for the name+dose upsert path; catalog seeded via prop (no fetch on open).
+- [x] **UI: analytics** — InventoryCharts (lazy next/dynamic, recharts): daily in/out movement bars + reason breakdown, 30/90d window toggle (refetches summary), soonest-expiring list, stock-by-product horizontal bars (onHand + reserved).
+- [x] **Enforcement** — `CHECKOUT_ENFORCE_STOCK="true"` set in `.env.local` (and `env.local` working copy); readiness checker `scripts/check-stock-enforcement-readiness.ts` (read-only: totals + zero-stock variants that sold in 30d) reports **READY** on local DB (9/9 variants stocked, 245 units). **Prod flip NOT done** — `vercel env pull` redacts sensitive values so the readiness check can't run against prod RDS from here; run the readiness query against prod first, then `npx vercel env add CHECKOUT_ENFORCE_STOCK production` (value `true`) + redeploy.
+
+## Executor's Feedback or Assistance Requests
+- **Owner action for prod enforcement**: verify prod stock counts (readiness script vs prod DB, or the summary endpoint / Inventory KPIs in the live app), then add `CHECKOUT_ENFORCE_STOCK=true` in Vercel prod env and redeploy. Flipping it with unpopulated counts blocks every checkout (Jul 13 incident).
+- No new migrations; no schema changes. New env var only (optional, default off).
+
+## Lessons
+- `vercel env pull` writes sensitive-type env values as empty strings — you cannot smoke-test prod DB state locally that way; use the admin runtime routes (like the migrate runner) or run read-only checks from an authenticated browser session.
+- Derived list filters that exist only client-side (expiring/expired) silently diverge from KPI counts once tables paginate server-side; push the same date-window predicates into the query (`expiringWindow()` shared by list + summary) so both count the same rows.
+- next/dynamic with a module-level `seededQuery` ref is enough to keep the RSC-seeded first paint while making every subsequent filter/sort/page change server-driven — no double fetch on mount.
+
+---
+
 # Platform Bug Fix Sprint (Jul 13, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
 
 Five-track audit (checkout/payments, fulfillment/inventory, billing, auth/approval, pricing/sales) surfaced ~45 functionality bugs; all four fix phases implemented per `~/.cursor/plans/platform_bug_fix_plan_a7daf0dc.plan.md`. Verified: `tsc --noEmit` clean, 278/278 unit tests (6 new), `next lint` (pre-existing warnings only), `next build` green.

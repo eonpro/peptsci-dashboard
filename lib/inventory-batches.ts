@@ -33,6 +33,12 @@ import {
   type BatchActor,
   type CreateBatchInput,
 } from './inventory-batches-core'
+import {
+  expiringWindow,
+  type BatchScope,
+  type BatchSortKey,
+  type SortDir,
+} from './inventory-workspace-core'
 import { resolveInventoryActor } from './inventory-log'
 
 // Re-export the pure helpers so callers can import everything from one module.
@@ -238,30 +244,104 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
 }
 
 export interface ListBatchesFilters {
-  status?: 'RECEIVED' | 'DEPLETED' | 'VOIDED' | 'ALL'
+  status?: BatchScope
   variantId?: string
   search?: string
   take?: number
 }
 
-/** List batches (newest first) with the variant's product name attached. */
-export async function listBatches(filters: ListBatchesFilters = {}) {
-  const client = db()
-  const where: Prisma.InventoryBatchWhereInput = {}
-  if (filters.status && filters.status !== 'ALL') where.status = filters.status
+/**
+ * Translate a workspace scope into a Prisma filter. EXPIRING / EXPIRED are
+ * derived from BUD + remaining stock so the same definitions the UI showed
+ * client-side are now enforced in the query (and match the KPI counts).
+ */
+function batchScopeWhere(scope: BatchScope): Prisma.InventoryBatchWhereInput {
+  const { start, end } = expiringWindow()
+  switch (scope) {
+    case 'ACTIVE':
+    case 'RECEIVED':
+      return { status: 'RECEIVED' }
+    case 'EXPIRING':
+      return { status: 'RECEIVED', qtyOnHand: { gt: 0 }, bud: { gte: start, lte: end } }
+    case 'EXPIRED':
+      return { status: { not: 'VOIDED' }, qtyOnHand: { gt: 0 }, bud: { lt: start } }
+    case 'DEPLETED':
+      return { status: 'DEPLETED' }
+    case 'VOIDED':
+      return { status: 'VOIDED' }
+    default:
+      return {}
+  }
+}
+
+function batchListWhere(filters: {
+  status?: BatchScope
+  variantId?: string
+  search?: string
+}): Prisma.InventoryBatchWhereInput {
+  const where: Prisma.InventoryBatchWhereInput = batchScopeWhere(filters.status ?? 'ALL')
   if (filters.variantId) where.variantId = filters.variantId
   if (filters.search) {
     where.OR = [
       { batchNumber: { contains: filters.search, mode: 'insensitive' } },
       { productName: { contains: filters.search, mode: 'insensitive' } },
+      { variant: { sku: { contains: filters.search, mode: 'insensitive' } } },
     ]
   }
+  return where
+}
+
+/** List batches (newest first) with the variant's product name attached. */
+export async function listBatches(filters: ListBatchesFilters = {}) {
+  const client = db()
   return client.inventoryBatch.findMany({
-    where,
+    where: batchListWhere(filters),
     orderBy: { createdAt: 'desc' },
     take: filters.take ?? 200,
     include: { variant: { select: { sku: true } } },
   })
+}
+
+export interface ListBatchesPagedFilters {
+  status?: BatchScope
+  variantId?: string
+  search?: string
+  page?: number
+  pageSize?: number
+  sort?: BatchSortKey
+  dir?: SortDir
+}
+
+export interface PagedBatches {
+  batches: Awaited<ReturnType<typeof listBatches>>
+  total: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * Server-driven batch list for the Inventory workspace: scope (including the
+ * derived EXPIRING / EXPIRED filters), search, sort, and offset pagination in
+ * one query pair. `total` counts all rows matching the filter, not the page.
+ */
+export async function listBatchesPaged(filters: ListBatchesPagedFilters = {}): Promise<PagedBatches> {
+  const client = db()
+  const where = batchListWhere(filters)
+  const page = Math.max(1, filters.page ?? 1)
+  const pageSize = Math.min(500, Math.max(1, filters.pageSize ?? 25))
+  const sortKey = filters.sort ?? 'createdAt'
+  const dir = filters.dir ?? 'desc'
+  const [batches, total] = await Promise.all([
+    client.inventoryBatch.findMany({
+      where,
+      orderBy: [{ [sortKey]: dir }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { variant: { select: { sku: true } } },
+    }),
+    client.inventoryBatch.count({ where }),
+  ])
+  return { batches, total, page, pageSize }
 }
 
 /** Fetch a single batch with its full audit timeline. */

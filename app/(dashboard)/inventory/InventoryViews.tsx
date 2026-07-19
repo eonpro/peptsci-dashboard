@@ -1,19 +1,28 @@
 'use client'
 
 /**
- * Table views for the Inventory workspace: Batches, Products, Activity.
- * Each renders a desktop table (md+) and a mobile card list, with clickable
- * rows that open the corresponding detail sheet.
+ * Table views for the Inventory workspace: Batches, Products, Reservations,
+ * Activity. Each renders a desktop table (md+) and a mobile card list, with
+ * clickable rows that open the corresponding detail sheet.
+ *
+ * Batches and Activity are server-paginated — their sort state is controlled
+ * by the parent and forwarded to the API. Products / Low Stock operate on the
+ * full (small) catalog client-side.
  */
 
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, Inbox, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   type AdjustmentRow,
   type BatchRow,
+  type BatchSortKey,
   type ProductRollupRow,
+  type ReservationRow,
+  type SortDir,
   REASON_LABELS,
+  ageLabel,
   budLabel,
   budTone,
   fmtDate,
@@ -30,6 +39,15 @@ function EmptyRows({ message }: { message: string }) {
   )
 }
 
+function LoadingRows() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card py-14 text-center">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/60" />
+      <p className="text-sm text-muted-foreground">Loading…</p>
+    </div>
+  )
+}
+
 function SortHeader({
   label,
   dir,
@@ -37,7 +55,7 @@ function SortHeader({
   align = 'left',
 }: {
   label: string
-  dir: 'asc' | 'desc' | null
+  dir: SortDir | null
   onClick: () => void
   align?: 'left' | 'right'
 }) {
@@ -79,34 +97,32 @@ function BudCell({ bud }: { bud: string }) {
   )
 }
 
-// ── Batches ──────────────────────────────────────────────────────────────────
+// ── Batches (server-sorted) ──────────────────────────────────────────────────
 
-export function BatchesTable({ rows, onOpen }: { rows: BatchRow[]; onOpen: (id: string) => void }) {
-  const [sort, setSort] = useState<{ key: 'bud' | 'onHand' | 'received'; dir: 'asc' | 'desc' }>({
-    key: 'received',
-    dir: 'desc',
-  })
-
-  const sorted = useMemo(() => {
-    const list = [...rows]
-    const mul = sort.dir === 'asc' ? 1 : -1
-    list.sort((a, b) => {
-      if (sort.key === 'bud') return (new Date(a.bud).getTime() - new Date(b.bud).getTime()) * mul
-      if (sort.key === 'onHand') return (a.qtyOnHand - b.qtyOnHand) * mul
-      return (new Date(a.receivedOn).getTime() - new Date(b.receivedOn).getTime()) * mul
-    })
-    return list
-  }, [rows, sort])
-
-  const toggle = (key: typeof sort.key) =>
-    setSort((s) => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }))
-
+export function BatchesTable({
+  rows,
+  loading,
+  sortKey,
+  sortDir,
+  onSort,
+  onOpen,
+}: {
+  rows: BatchRow[]
+  loading: boolean
+  sortKey: BatchSortKey
+  sortDir: SortDir
+  onSort: (key: BatchSortKey) => void
+  onOpen: (id: string) => void
+}) {
+  if (loading && rows.length === 0) return <LoadingRows />
   if (rows.length === 0) {
     return <EmptyRows message="No batches match. Adjust filters or receive inventory." />
   }
 
+  const dirFor = (key: BatchSortKey) => (sortKey === key ? sortDir : null)
+
   return (
-    <>
+    <div className={loading ? 'pointer-events-none opacity-60 transition-opacity' : ''}>
       {/* Desktop */}
       <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
         <table className="w-full text-sm">
@@ -115,32 +131,28 @@ export function BatchesTable({ rows, onOpen }: { rows: BatchRow[]; onOpen: (id: 
               <th className="px-4 py-3">Batch #</th>
               <th className="px-4 py-3">Product</th>
               <th className="px-4 py-3">
-                <SortHeader
-                  label="BUD"
-                  dir={sort.key === 'bud' ? sort.dir : null}
-                  onClick={() => toggle('bud')}
-                />
+                <SortHeader label="BUD" dir={dirFor('bud')} onClick={() => onSort('bud')} />
               </th>
               <th className="px-4 py-3 text-right">
                 <SortHeader
                   label="On hand"
-                  dir={sort.key === 'onHand' ? sort.dir : null}
-                  onClick={() => toggle('onHand')}
+                  dir={dirFor('qtyOnHand')}
+                  onClick={() => onSort('qtyOnHand')}
                   align="right"
                 />
               </th>
               <th className="px-4 py-3">
                 <SortHeader
                   label="Received"
-                  dir={sort.key === 'received' ? sort.dir : null}
-                  onClick={() => toggle('received')}
+                  dir={dirFor('receivedOn')}
+                  onClick={() => onSort('receivedOn')}
                 />
               </th>
               <th className="px-4 py-3">Status</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((b) => (
+            {rows.map((b) => (
               <tr
                 key={b.id}
                 onClick={() => onOpen(b.id)}
@@ -171,7 +183,7 @@ export function BatchesTable({ rows, onOpen }: { rows: BatchRow[]; onOpen: (id: 
 
       {/* Mobile cards */}
       <ul className="space-y-2 md:hidden">
-        {sorted.map((b) => (
+        {rows.map((b) => (
           <li key={b.id}>
             <button
               onClick={() => onOpen(b.id)}
@@ -194,11 +206,11 @@ export function BatchesTable({ rows, onOpen }: { rows: BatchRow[]; onOpen: (id: 
           </li>
         ))}
       </ul>
-    </>
+    </div>
   )
 }
 
-// ── Products ─────────────────────────────────────────────────────────────────
+// ── Products (client-sorted, small catalog) ──────────────────────────────────
 
 export function ProductsTable({
   rows,
@@ -207,7 +219,7 @@ export function ProductsTable({
   rows: ProductRollupRow[]
   onOpen: (row: ProductRollupRow) => void
 }) {
-  const [sort, setSort] = useState<{ key: 'name' | 'available'; dir: 'asc' | 'desc' }>({
+  const [sort, setSort] = useState<{ key: 'name' | 'available'; dir: SortDir }>({
     key: 'name',
     dir: 'asc',
   })
@@ -341,18 +353,119 @@ export function ProductsTable({
   )
 }
 
+// ── Reservations ─────────────────────────────────────────────────────────────
+
+const orderStatusVariant = (status: string) =>
+  status === 'CANCELLED' ? 'destructive' : status === 'DRAFT' ? 'secondary' : 'default'
+
+export function ReservationsTable({
+  rows,
+  loading,
+}: {
+  rows: ReservationRow[]
+  loading: boolean
+}) {
+  if (loading && rows.length === 0) return <LoadingRows />
+  if (rows.length === 0) {
+    return (
+      <EmptyRows message="No active reservations — stock is only held while orders are open." />
+    )
+  }
+
+  return (
+    <div className={loading ? 'pointer-events-none opacity-60 transition-opacity' : ''}>
+      <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
+        <table className="w-full text-sm">
+          <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">SKU</th>
+              <th className="px-4 py-3 text-right">Qty held</th>
+              <th className="px-4 py-3">Order status</th>
+              <th className="px-4 py-3 text-right">Held for</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50">
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/fulfillment?search=${r.orderNumber}`}
+                    className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    #{r.orderNumber}
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </td>
+                <td className="max-w-[220px] truncate px-4 py-3">{r.customer || '—'}</td>
+                <td className="px-4 py-3">
+                  {r.productName}
+                  {r.dose ? <span className="text-muted-foreground"> · {r.dose}</span> : null}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                  {r.sku || '—'}
+                </td>
+                <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">
+                  {r.quantity}
+                </td>
+                <td className="px-4 py-3">
+                  <Badge variant={orderStatusVariant(r.orderStatus)}>{r.orderStatus}</Badge>
+                </td>
+                <td className="px-4 py-3 text-right text-muted-foreground">
+                  {ageLabel(r.createdAt)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="space-y-2 md:hidden">
+        {rows.map((r) => (
+          <li key={r.id} className="rounded-lg border bg-card p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Link
+                href={`/fulfillment?search=${r.orderNumber}`}
+                className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400"
+              >
+                #{r.orderNumber}
+              </Link>
+              <Badge variant={orderStatusVariant(r.orderStatus)}>{r.orderStatus}</Badge>
+            </div>
+            <p className="mt-1 text-sm">
+              {r.productName}
+              {r.dose ? <span className="text-muted-foreground"> · {r.dose}</span> : null}
+            </p>
+            <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">{r.customer || '—'}</span>
+              <span>
+                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                  {r.quantity}
+                </span>{' '}
+                held · {ageLabel(r.createdAt)}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // ── Activity log ─────────────────────────────────────────────────────────────
 
 export function ActivityTable({ rows, loading }: { rows: AdjustmentRow[]; loading: boolean }) {
-  if (loading) {
-    return <EmptyRows message="Loading activity…" />
+  if (loading && rows.length === 0) {
+    return <LoadingRows />
   }
   if (rows.length === 0) {
     return <EmptyRows message="No inventory movements recorded yet." />
   }
 
   return (
-    <>
+    <div className={loading ? 'pointer-events-none opacity-60 transition-opacity' : ''}>
       <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
@@ -419,6 +532,6 @@ export function ActivityTable({ rows, loading }: { rows: AdjustmentRow[]; loadin
           </li>
         ))}
       </ul>
-    </>
+    </div>
   )
 }

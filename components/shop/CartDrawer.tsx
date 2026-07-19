@@ -30,7 +30,10 @@ export function CartDrawer() {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
       {/* Full screen on mobile, side drawer on desktop */}
-      <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg bg-brand-onyx border-l border-white/10 text-white data-[state=open]:duration-300">
+      <SheetContent
+        hideCloseButton
+        className="flex w-full flex-col p-0 sm:max-w-lg bg-brand-onyx border-l border-white/10 text-white data-[state=open]:duration-300"
+      >
         {/* Custom header for better mobile UX */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-brand-onyx">
           <SheetTitle className="flex items-center gap-3 text-white">

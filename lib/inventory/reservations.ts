@@ -316,3 +316,99 @@ export async function listActiveReservations(variantId?: string) {
     },
   })
 }
+
+export interface ReservationListRow {
+  id: string
+  orderId: string
+  orderNumber: number
+  orderStatus: string
+  customer: string | null
+  quantity: number
+  status: string
+  createdAt: string
+  productName: string
+  dose: string | null
+  sku: string | null
+  variantId: string
+}
+
+export interface ListReservationsPagedFilters {
+  variantId?: string
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface PagedReservations {
+  reservations: ReservationListRow[]
+  total: number
+  totalUnits: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * Active reservations enriched for the workspace Reservations tab: order
+ * number/status, customer (practice) name, and offset pagination. `search`
+ * matches product name / SKU / customer. Read-only — the reservation
+ * lifecycle is owned by checkout and fulfillment.
+ */
+export async function listActiveReservationsPaged(
+  filters: ListReservationsPagedFilters = {}
+): Promise<PagedReservations> {
+  const client = db()
+  const where: Prisma.InventoryReservationWhereInput = { status: 'ACTIVE' }
+  if (filters.variantId) where.variantId = filters.variantId
+  if (filters.search) {
+    const q = filters.search
+    where.OR = [
+      { variant: { sku: { contains: q, mode: 'insensitive' } } },
+      { variant: { product: { name: { contains: q, mode: 'insensitive' } } } },
+      { order: { client: { organizationName: { contains: q, mode: 'insensitive' } } } },
+    ]
+  }
+
+  const page = Math.max(1, filters.page ?? 1)
+  const pageSize = Math.min(500, Math.max(1, filters.pageSize ?? 25))
+  const [rows, total, unitsAgg] = await Promise.all([
+    client.inventoryReservation.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        order: {
+          select: {
+            orderNumber: true,
+            status: true,
+            client: { select: { organizationName: true, contactName: true } },
+          },
+        },
+        variant: { select: { sku: true, dose: true, product: { select: { name: true } } } },
+      },
+    }),
+    client.inventoryReservation.count({ where }),
+    client.inventoryReservation.aggregate({ where, _sum: { quantity: true } }),
+  ])
+
+  return {
+    reservations: rows.map((r) => ({
+      id: r.id,
+      orderId: r.orderId,
+      orderNumber: r.order.orderNumber,
+      orderStatus: r.order.status,
+      customer: r.order.client?.organizationName || r.order.client?.contactName || null,
+      quantity: r.quantity,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
+      productName: r.variant.product.name,
+      dose: r.variant.dose,
+      sku: r.variant.sku,
+      variantId: r.variantId,
+    })),
+    total,
+    totalUnits: unitsAgg._sum.quantity ?? 0,
+    page,
+    pageSize,
+  }
+}

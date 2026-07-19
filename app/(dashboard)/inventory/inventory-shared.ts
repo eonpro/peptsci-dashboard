@@ -29,6 +29,8 @@ export interface CatalogStockRow {
   onHand: number
   reserved: number
   reorderLevel: number
+  batches: number
+  soonestBud: string | null
 }
 
 export interface AdjustmentRow {
@@ -64,6 +66,59 @@ export interface ProductRollupRow {
   batches: number
   soonestBud: string | null
 }
+
+export interface ReservationRow {
+  id: string
+  orderId: string
+  orderNumber: number
+  orderStatus: string
+  customer: string | null
+  quantity: number
+  createdAt: string
+  productName: string
+  dose: string | null
+  sku: string | null
+  variantId: string
+}
+
+/** Summary payload from GET /api/admin/inventory/summary. */
+export interface InventorySummaryPayload {
+  kpis: {
+    onHand: number
+    reserved: number
+    available: number
+    activeBatches: number
+    lowStock: number
+    expiringSoon: number
+    expired: number
+    activeReservations: number
+    reservedUnits: number
+  }
+  movement: Array<{ date: string; inbound: number; outbound: number; net: number }>
+  reasonTotals: Array<{ reason: string; inbound: number; outbound: number }>
+  topProducts: Array<{
+    variantId: string
+    productName: string
+    dose: string | null
+    sku: string | null
+    onHand: number
+    reserved: number
+    available: number
+  }>
+  expiringBatches: Array<{
+    id: string
+    batchNumber: string
+    productName: string
+    dose: string
+    bud: string
+    qtyOnHand: number
+  }>
+  windowDays: number
+}
+
+export type BatchScope = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'DEPLETED' | 'VOIDED' | 'ALL'
+export type BatchSortKey = 'bud' | 'qtyOnHand' | 'receivedOn' | 'createdAt'
+export type SortDir = 'asc' | 'desc'
 
 export const REASON_LABELS: Record<string, string> = {
   RECEIPT: 'Received',
@@ -121,6 +176,17 @@ export function budLabel(iso: string): string {
   if (d < 0) return `expired ${Math.abs(d)}d ago`
   if (d === 0) return 'expires today'
   return `${d}d left`
+}
+
+/** How long ago something happened, compact ("2h", "3d", "5w"). */
+export function ageLabel(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const hours = Math.floor(ms / 3_600_000)
+  if (hours < 1) return '<1h'
+  if (hours < 48) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 14) return `${days}d`
+  return `${Math.floor(days / 7)}w`
 }
 
 export function isLowStock(row: { available: number; reorderLevel: number }): boolean {

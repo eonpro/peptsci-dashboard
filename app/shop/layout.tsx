@@ -4,6 +4,7 @@ import { ClientFooter } from '@/components/shop/ClientFooter'
 import { CartProvider } from '@/components/shop/CartContext'
 import { CartDrawer } from '@/components/shop/CartDrawer'
 import { MobileBottomNav } from '@/components/shop/MobileBottomNav'
+import { SupportChatWidget } from '@/components/shop/SupportChatWidget'
 import { ThemeScope } from '@/components/ThemeScope'
 
 export const metadata: Metadata = {
@@ -34,6 +35,8 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         {/* Mobile bottom navigation */}
         <MobileBottomNav />
         <CartDrawer />
+        {/* Floating concierge chat (Superpower-style) */}
+        <SupportChatWidget />
       </div>
     </CartProvider>
   )

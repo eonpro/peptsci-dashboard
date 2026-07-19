@@ -1,7 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarClock, FileText, History, Loader2, Package, Printer, Trash2 } from 'lucide-react'
+import {
+  CalendarClock,
+  FileText,
+  History,
+  Loader2,
+  Package,
+  Pencil,
+  Printer,
+  Trash2,
+} from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -65,6 +74,13 @@ export default function BatchDetailSheet({
   const [voidOpen, setVoidOpen] = useState(false)
   const [voidReason, setVoidReason] = useState('')
 
+  // Edit dialog (label-cosmetic fields; counts/BUD/batch # are immutable)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editPurity, setEditPurity] = useState('')
+  const [editVialSize, setEditVialSize] = useState('')
+  const [editColor, setEditColor] = useState('#2b2c84')
+  const [editNotes, setEditNotes] = useState('')
+
   const load = useCallback(async () => {
     if (!batchId) return
     setLoading(true)
@@ -115,6 +131,44 @@ export default function BatchDetailSheet({
       onChanged()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to generate labels')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function openEdit() {
+    if (!detail) return
+    setEditPurity(detail.purity)
+    setEditVialSize(detail.vialSize ?? '')
+    setEditColor(detail.yearColor ?? '#2b2c84')
+    setEditNotes(detail.notes ?? '')
+    setEditOpen(true)
+  }
+
+  async function saveEdit() {
+    if (!detail) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/inventory/batches/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purity: editPurity.trim() || null,
+          vialSize: editVialSize.trim() || null,
+          yearColor: /^#[0-9a-fA-F]{6}$/.test(editColor.trim()) ? editColor.trim() : null,
+          notes: editNotes.trim() || null,
+        }),
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload.message || 'Failed to update batch')
+      }
+      toast.success('Batch details updated')
+      setEditOpen(false)
+      await load()
+      onChanged()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update batch')
     } finally {
       setBusy(false)
     }
@@ -263,6 +317,14 @@ export default function BatchDetailSheet({
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={busy || detail.status === 'VOIDED'}
+                  onClick={openEdit}
+                >
+                  <Pencil className="mr-1.5 h-4 w-4" /> Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 dark:hover:text-red-300"
                   disabled={busy || detail.status === 'VOIDED'}
                   onClick={() => setVoidOpen(true)}
@@ -349,6 +411,74 @@ export default function BatchDetailSheet({
                       <Printer className="mr-1.5 h-4 w-4" />
                     )}
                     Download PDF
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit dialog — label-cosmetic fields only */}
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Edit batch {detail.batchNumber}</DialogTitle>
+                  <DialogDescription>
+                    Label and informational fields. Quantities, BUD, and the batch number are
+                    fixed at intake — use Adjust stock or Void for count changes.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-purity">Purity (label)</Label>
+                    <Input
+                      id="edit-purity"
+                      value={editPurity}
+                      onChange={(e) => setEditPurity(e.target.value)}
+                      placeholder="99%HPLC"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-vial">Vial size</Label>
+                    <Input
+                      id="edit-vial"
+                      value={editVialSize}
+                      onChange={(e) => setEditVialSize(e.target.value)}
+                      placeholder="e.g. 3mL"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-color">Label accent</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="edit-color"
+                        type="color"
+                        value={/^#[0-9a-fA-F]{6}$/.test(editColor) ? editColor : '#2b2c84'}
+                        onChange={(e) => setEditColor(e.target.value)}
+                        className="h-9 w-12 cursor-pointer rounded border border-input"
+                      />
+                      <Input
+                        value={editColor}
+                        onChange={(e) => setEditColor(e.target.value)}
+                        className="w-28"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="edit-notes">Notes</Label>
+                    <Textarea
+                      id="edit-notes"
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Intake notes, supplier lot reference…"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEditOpen(false)} disabled={busy}>
+                    Cancel
+                  </Button>
+                  <Button disabled={busy} onClick={saveEdit}>
+                    {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    Save changes
                   </Button>
                 </DialogFooter>
               </DialogContent>

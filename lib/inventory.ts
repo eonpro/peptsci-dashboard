@@ -34,28 +34,48 @@ export interface CatalogStockRow {
   onHand: number
   reserved: number
   reorderLevel: number
+  /** RECEIVED (active) batches attached to this variant. */
+  batches: number
+  /** Soonest BUD among RECEIVED batches that still hold stock (ISO), else null. */
+  soonestBud: string | null
 }
 
 /**
  * Every ACTIVE catalog variant with its stock counters — the Inventory page's
  * "By Product" view. Products appear here at 0 on hand as soon as they exist
- * in the catalog, before any batch is received.
+ * in the catalog, before any batch is received. Batch aggregates (count +
+ * soonest BUD) are computed server-side so the view doesn't need the full
+ * batch list on the client.
  */
 export async function listCatalogStock(): Promise<CatalogStockRow[]> {
   if (!prisma) return []
-  const variants = await prisma.productVariant.findMany({
-    where: { status: 'ACTIVE' },
-    select: {
-      id: true,
-      sku: true,
-      dose: true,
-      inventoryOnHand: true,
-      inventoryReserved: true,
-      reorderLevel: true,
-      product: { select: { name: true } },
-    },
-    orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
-  })
+  const [variants, batchCounts, soonestBuds] = await Promise.all([
+    prisma.productVariant.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        sku: true,
+        dose: true,
+        inventoryOnHand: true,
+        inventoryReserved: true,
+        reorderLevel: true,
+        product: { select: { name: true } },
+      },
+      orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
+    }),
+    prisma.inventoryBatch.groupBy({
+      by: ['variantId'],
+      where: { status: 'RECEIVED' },
+      _count: { _all: true },
+    }),
+    prisma.inventoryBatch.groupBy({
+      by: ['variantId'],
+      where: { status: 'RECEIVED', qtyOnHand: { gt: 0 } },
+      _min: { bud: true },
+    }),
+  ])
+  const countByVariant = new Map(batchCounts.map((b) => [b.variantId, b._count._all]))
+  const budByVariant = new Map(soonestBuds.map((b) => [b.variantId, b._min.bud]))
   return variants.map((v) => ({
     variantId: v.id,
     sku: v.sku,
@@ -64,6 +84,8 @@ export async function listCatalogStock(): Promise<CatalogStockRow[]> {
     onHand: v.inventoryOnHand,
     reserved: v.inventoryReserved,
     reorderLevel: v.reorderLevel,
+    batches: countByVariant.get(v.id) ?? 0,
+    soonestBud: budByVariant.get(v.id)?.toISOString() ?? null,
   }))
 }
 

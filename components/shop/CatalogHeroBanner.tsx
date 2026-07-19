@@ -73,13 +73,16 @@ export function CatalogHeroBanner() {
           </div>
         </div>
 
-        {/* Bottom stat row — clustered left like the reference, not spread
-            across the full banner width */}
-        <div className="mt-10 flex flex-wrap gap-x-14 gap-y-4 border-t border-white/10 pt-5">
-          {STATS.map((s) => (
-            <div key={s.label}>
-              <p className="text-sm font-semibold text-white">{s.label}</p>
-              <p className="mt-0.5 text-xs text-white/50">{s.sub}</p>
+        {/* Bottom stat row — clustered left with hairline dividers between
+            features, like the reference */}
+        <div className="mt-10 flex flex-wrap items-center gap-y-4 border-t border-white/10 pt-5">
+          {STATS.map((s, i) => (
+            <div key={s.label} className="flex items-center">
+              {i > 0 && <span aria-hidden="true" className="mx-7 h-9 w-px bg-white/50" />}
+              <div>
+                <p className="text-sm font-semibold text-white">{s.label}</p>
+                <p className="mt-0.5 text-xs text-white/50">{s.sub}</p>
+              </div>
             </div>
           ))}
         </div>

@@ -58,6 +58,35 @@ export interface AdjustmentLogRow {
   by: string
 }
 
+const ADJUSTMENT_SELECT = {
+  id: true,
+  createdAt: true,
+  delta: true,
+  reason: true,
+  note: true,
+  createdByName: true,
+  createdBy: {
+    select: { firstName: true, lastName: true, email: true, clerkUserId: true },
+  },
+  variant: {
+    select: { sku: true, dose: true, product: { select: { name: true } } },
+  },
+} satisfies Prisma.InventoryAdjustmentSelect
+
+function toLogRow(r: Prisma.InventoryAdjustmentGetPayload<{ select: typeof ADJUSTMENT_SELECT }>): AdjustmentLogRow {
+  return {
+    id: r.id,
+    createdAt: r.createdAt.toISOString(),
+    delta: r.delta,
+    reason: r.reason,
+    note: r.note,
+    productName: r.variant.product.name,
+    dose: r.variant.dose,
+    sku: r.variant.sku,
+    by: (r.createdBy ? displayName(r.createdBy) : null) || r.createdByName || 'System',
+  }
+}
+
 /** Recent inventory movements (newest first) for the Activity log. */
 export async function listInventoryAdjustments(
   take = 200,
@@ -68,32 +97,70 @@ export async function listInventoryAdjustments(
     where: variantId ? { variantId } : undefined,
     orderBy: { createdAt: 'desc' },
     take,
-    select: {
-      id: true,
-      createdAt: true,
-      delta: true,
-      reason: true,
-      note: true,
-      createdByName: true,
-      createdBy: {
-        select: { firstName: true, lastName: true, email: true, clerkUserId: true },
-      },
-      variant: {
-        select: { sku: true, dose: true, product: { select: { name: true } } },
-      },
-    },
+    select: ADJUSTMENT_SELECT,
   })
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt.toISOString(),
-    delta: r.delta,
-    reason: r.reason,
-    note: r.note,
-    productName: r.variant.product.name,
-    dose: r.variant.dose,
-    sku: r.variant.sku,
-    by: (r.createdBy ? displayName(r.createdBy) : null) || r.createdByName || 'System',
-  }))
+  return rows.map(toLogRow)
+}
+
+export interface ListAdjustmentsPagedFilters {
+  page?: number
+  pageSize?: number
+  variantId?: string
+  reason?: string
+  search?: string
+  from?: Date
+  to?: Date
+}
+
+export interface PagedAdjustments {
+  adjustments: AdjustmentLogRow[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * Server-driven Activity log: reason + date-range filters, free-text search
+ * across product name / SKU / note / actor, and offset pagination. `total`
+ * counts every row matching the filter so the client can render page controls.
+ */
+export async function listInventoryAdjustmentsPaged(
+  filters: ListAdjustmentsPagedFilters = {}
+): Promise<PagedAdjustments> {
+  if (!prisma) return { adjustments: [], total: 0, page: 1, pageSize: filters.pageSize ?? 25 }
+
+  const where: Prisma.InventoryAdjustmentWhereInput = {}
+  if (filters.variantId) where.variantId = filters.variantId
+  if (filters.reason) where.reason = filters.reason as Prisma.InventoryAdjustmentWhereInput['reason']
+  if (filters.from || filters.to) {
+    where.createdAt = {
+      ...(filters.from ? { gte: filters.from } : {}),
+      ...(filters.to ? { lte: filters.to } : {}),
+    }
+  }
+  if (filters.search) {
+    const q = filters.search
+    where.OR = [
+      { note: { contains: q, mode: 'insensitive' } },
+      { createdByName: { contains: q, mode: 'insensitive' } },
+      { variant: { sku: { contains: q, mode: 'insensitive' } } },
+      { variant: { product: { name: { contains: q, mode: 'insensitive' } } } },
+    ]
+  }
+
+  const page = Math.max(1, filters.page ?? 1)
+  const pageSize = Math.min(500, Math.max(1, filters.pageSize ?? 25))
+  const [rows, total] = await Promise.all([
+    prisma.inventoryAdjustment.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: ADJUSTMENT_SELECT,
+    }),
+    prisma.inventoryAdjustment.count({ where }),
+  ])
+  return { adjustments: rows.map(toLogRow), total, page, pageSize }
 }
 
 export class AdjustmentError extends Error {
