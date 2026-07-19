@@ -110,6 +110,8 @@ interface SchemaProbe {
   clientCreditEntryTable: boolean
   clientReferralCodeColumn: boolean
   orderCreditAppliedColumn: boolean
+  productMonographColumn: boolean
+  productPurityColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -143,7 +145,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'partnerOrgId')
         OR (table_name = 'RetailOrder' AND column_name = 'paymentStatus')
         OR (table_name = 'Client' AND column_name = 'referralCode')
-        OR (table_name = 'Order' AND column_name = 'creditApplied'))
+        OR (table_name = 'Order' AND column_name = 'creditApplied')
+        OR (table_name = 'Product' AND column_name = 'monograph')
+        OR (table_name = 'Product' AND column_name = 'purity'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -200,6 +204,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     clientCreditEntryTable: tableNames.has('ClientCreditEntry'),
     clientReferralCodeColumn: colKeys.has('Client.referralCode'),
     orderCreditAppliedColumn: colKeys.has('Order.creditApplied'),
+    productMonographColumn: colKeys.has('Product.monograph'),
+    productPurityColumn: colKeys.has('Product.purity'),
   }
 }
 
