@@ -30,22 +30,27 @@ interface QueueDef {
   href: string
   icon: LucideIcon
   /** Tone when the count is > 0. Zero always renders quiet. */
-  tone: 'amber' | 'red' | 'sky'
+  tone: 'sky' | 'violet' | 'red' | 'orange' | 'amber' | 'teal'
 }
 
+// Each queue gets its own hue so the rail reads at a glance:
+// shipping=sky, Stripe=violet, money-at-risk=red/orange, stock=amber, returns=teal.
 const QUEUES: QueueDef[] = [
-  { key: 'needsFulfillment', label: 'Awaiting shipment', href: '/fulfillment', icon: Truck, tone: 'amber' },
-  { key: 'stripeQueue', label: 'Stripe to convert', href: '/fulfillment?tab=stripe', icon: Zap, tone: 'amber' },
+  { key: 'needsFulfillment', label: 'Awaiting shipment', href: '/fulfillment', icon: Truck, tone: 'sky' },
+  { key: 'stripeQueue', label: 'Stripe to convert', href: '/fulfillment?tab=stripe', icon: Zap, tone: 'violet' },
   { key: 'unpaidOrders', label: 'Unpaid orders', href: '/fulfillment', icon: CreditCard, tone: 'red' },
-  { key: 'overdueInvoices', label: 'Overdue invoices', href: '/invoices?status=OVERDUE', icon: ReceiptText, tone: 'red' },
+  { key: 'overdueInvoices', label: 'Overdue invoices', href: '/invoices?status=OVERDUE', icon: ReceiptText, tone: 'orange' },
   { key: 'lowStock', label: 'Low stock', href: '/inventory', icon: Boxes, tone: 'amber' },
-  { key: 'openReturns', label: 'Open returns', href: '/returns', icon: RotateCcw, tone: 'sky' },
+  { key: 'openReturns', label: 'Open returns', href: '/returns', icon: RotateCcw, tone: 'teal' },
 ]
 
 const TONE_ACTIVE: Record<QueueDef['tone'], string> = {
-  amber: 'border-amber-400/40 bg-amber-400/10 text-amber-300',
-  red: 'border-red-400/40 bg-red-400/10 text-red-300',
   sky: 'border-sky-400/40 bg-sky-400/10 text-sky-300',
+  violet: 'border-violet-400/40 bg-violet-400/10 text-violet-300',
+  red: 'border-red-400/40 bg-red-400/10 text-red-300',
+  orange: 'border-orange-400/40 bg-orange-400/10 text-orange-300',
+  amber: 'border-amber-400/40 bg-amber-400/10 text-amber-300',
+  teal: 'border-teal-400/40 bg-teal-400/10 text-teal-300',
 }
 
 /**
