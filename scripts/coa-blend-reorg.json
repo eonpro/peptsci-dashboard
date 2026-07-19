@@ -1,0 +1,31 @@
+{
+  "blends": [
+    {
+      "productName": "Glow",
+      "category": "Peptide Blends",
+      "variantSku": "GLOW",
+      "variantDose": null,
+      "coaTasks": ["100552", "100551", "100553"]
+    },
+    {
+      "productName": "Klow",
+      "category": "Peptide Blends",
+      "variantSku": "KLOW",
+      "variantDose": null,
+      "coaTasks": ["100554", "100556", "100557"]
+    }
+  ],
+  "attachExisting": [
+    { "variantSku": "CP10", "coaTasks": ["100595", "100596"] }
+  ],
+  "deleteVariantSkus": [
+    "GLOW-BPC-10",
+    "GLOW-GHK-50",
+    "GLOW-TB-10",
+    "KLOW-TB-10",
+    "KLOW-BPC-10",
+    "KLOW-KPV-10",
+    "CP-CJC-5",
+    "CP-IPA-5"
+  ]
+}

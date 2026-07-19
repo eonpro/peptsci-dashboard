@@ -40,6 +40,8 @@ const isPublicRoute = createRouteMatcher([
   '/refer(.*)',
   // Partner read-only API authenticates via hashed API keys inside the route.
   '/api/partner/v1(.*)',
+  // TEMPORARY blend reorg — authenticates via MIGRATE_RUNNER_SECRET. DELETE AFTER USE.
+  '/api/diag-fix-blends',
 ])
 
 // Admin-only routes
