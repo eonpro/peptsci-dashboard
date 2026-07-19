@@ -45,7 +45,7 @@ export default function StorefrontManagePage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="space-y-6">
         <div className="h-8 bg-white/10 rounded w-1/3 animate-pulse" />
         <div className="grid grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -58,7 +58,7 @@ export default function StorefrontManagePage() {
 
   if (error || !sf) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
+      <div className="py-6">
         <Card>
           <CardContent className="flex flex-col items-center py-16">
             <AlertCircle className="h-12 w-12 text-white/30 mb-4" />
@@ -109,7 +109,7 @@ export default function StorefrontManagePage() {
   ]
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{sf.name}</h1>

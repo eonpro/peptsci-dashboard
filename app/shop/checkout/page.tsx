@@ -270,7 +270,7 @@ export default function CheckoutPage() {
   ]
 
   return (
-    <div className="max-w-6xl mx-auto pb-32 md:pb-8">
+    <div className="pb-32 md:pb-8">
       <div className="flex items-center gap-4 mb-6">
         <Link
           href="/shop"

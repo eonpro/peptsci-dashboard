@@ -88,7 +88,7 @@ export default function ShopInvoicesPage() {
   )
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-brand-primary/20 flex items-center justify-center">
           <Receipt className="h-6 w-6 text-brand-primary" />

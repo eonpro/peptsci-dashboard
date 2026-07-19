@@ -148,7 +148,7 @@ export default function OrderDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto py-20 text-center text-white/60">
+      <div className="py-20 text-center text-white/60">
         <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin" />
         Loading order…
       </div>
@@ -157,7 +157,7 @@ export default function OrderDetailPage() {
 
   if (error || !order) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Link href="/shop/orders" className="inline-flex items-center text-sm text-white/60 hover:text-white">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Orders
         </Link>
@@ -181,7 +181,7 @@ export default function OrderDetailPage() {
   ].filter(Boolean) as { date: string; label: string; desc: string }[]
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <Link href="/shop/orders" className="inline-flex items-center text-sm text-white/60 hover:text-white">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Orders
       </Link>

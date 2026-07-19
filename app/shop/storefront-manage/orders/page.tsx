@@ -44,11 +44,11 @@ export default function StorefrontOrdersPage() {
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto p-6"><div className="h-64 bg-white/5 rounded animate-pulse" /></div>
+    return <div><div className="h-64 bg-white/5 rounded animate-pulse" /></div>
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/shop/storefront-manage">
           <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
