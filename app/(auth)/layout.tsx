@@ -1,16 +1,26 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
 import { Lock, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+import { ThemeScope } from '@/components/ThemeScope'
 
 export const metadata: Metadata = {
   title: 'PEPTSCI - Sign In',
   description: 'Sign in to access the PEPTSCI platform',
 }
 
+// Tint mobile browser chrome (status bar / URL bar) onyx to match the page.
+export const viewport: Viewport = {
+  themeColor: '#050722',
+}
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+    <div className="dark relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+      {/* Hoist .dark to <html> so the body canvas (bg-background) turns onyx —
+          otherwise mobile overscroll exposes the light-beige :root background
+          above/below the dark page. */}
+      <ThemeScope theme="dark" />
       {/* Ambient gradient glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />

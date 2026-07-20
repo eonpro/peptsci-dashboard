@@ -1,11 +1,18 @@
+import type { Viewport } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import { AlertCircle, ChevronDown, FileCheck2, ShieldCheck, Truck } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+import { ThemeScope } from '@/components/ThemeScope'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
 import { defaultRouteForRole } from '@/lib/access'
+
+// Tint mobile browser chrome (status bar / URL bar) onyx to match the page.
+export const viewport: Viewport = {
+  themeColor: '#050722',
+}
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -45,7 +52,11 @@ export default async function RootPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+    <div className="dark relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+      {/* Hoist .dark to <html> so the body canvas (bg-background) turns onyx —
+          otherwise mobile overscroll exposes the light-beige :root background
+          above/below the dark page. */}
+      <ThemeScope theme="dark" />
       {/* First-visit brand splash (heartbeat → blue flood → reveal) */}
       <script dangerouslySetInnerHTML={{ __html: SPLASH_SCRIPT }} />
       <div id="brand-splash" aria-hidden="true">
