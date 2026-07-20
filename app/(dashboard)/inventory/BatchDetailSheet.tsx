@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { apiError } from '@/lib/api-error'
 import { toast } from 'sonner'
 import {
   type BatchRow,
@@ -88,11 +89,11 @@ export default function BatchDetailSheet({
       const res = await fetch(`/api/admin/inventory/batches/${batchId}?t=${Date.now()}`, {
         cache: 'no-store',
       })
-      if (!res.ok) throw new Error('Failed to load batch')
+      if (!res.ok) throw await apiError(res, 'Could not load batch details')
       const data = await res.json()
       setDetail(data.batch)
-    } catch {
-      toast.error('Could not load batch details')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not load batch details')
       onOpenChange(false)
     } finally {
       setLoading(false)
@@ -182,7 +183,7 @@ export default function BatchDetailSheet({
         `/api/admin/inventory/batches/${detail.id}?reason=${encodeURIComponent(voidReason || 'Voided')}`,
         { method: 'DELETE' }
       )
-      if (!res.ok) throw new Error('Failed to void batch')
+      if (!res.ok) throw await apiError(res, 'Failed to void batch')
       toast.success(`Batch ${detail.batchNumber} voided`)
       setVoidOpen(false)
       setVoidReason('')

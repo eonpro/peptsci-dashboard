@@ -6,6 +6,7 @@ import { errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { sendAffiliateApplicationReceivedEmail } from '@/lib/email'
+import { applicationReference } from '@/lib/application-reference'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,12 +76,14 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const reference = applicationReference('partner', org.id, org.createdAt)
+
     // Fire-and-forget: notification/email failures must never fail the application.
     notifyAdmins({
       category: 'CLIENT',
       priority: 'HIGH',
       title: 'New partner application',
-      message: `${orgName} applied to the affiliate partner program.`,
+      message: `${orgName} applied to the affiliate partner program (ref ${reference}).`,
       actionUrl: `/partners-admin/${org.id}`,
       sourceType: 'partner:application',
       sourceId: org.id,
@@ -90,10 +93,12 @@ export async function POST(request: NextRequest) {
         error: e instanceof Error ? e.message : String(e),
       })
     )
-    sendAffiliateApplicationReceivedEmail({ to: email, contactName, orgName }).catch(() => {})
+    sendAffiliateApplicationReceivedEmail({ to: email, contactName, orgName, reference }).catch(
+      () => {}
+    )
 
-    logger.info('[PARTNER APPLY] Application received', { orgId: org.id, orgName })
-    return successResponse({ success: true }, 201)
+    logger.info('[PARTNER APPLY] Application received', { orgId: org.id, orgName, reference })
+    return successResponse({ success: true, reference }, 201)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Application failed'
     logger.error('[PARTNER APPLY] error', { message })

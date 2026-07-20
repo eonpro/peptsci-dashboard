@@ -11,6 +11,7 @@ import EditPriceDialog from './EditPriceDialog'
 import { LayoutGrid, List, RefreshCw, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { apiError } from '@/lib/api-error'
 
 /** Normalize the /api/prices payload (ProductPrice shape) to PriceSheet. */
 function normalizePrices(data: unknown): PriceSheet[] {
@@ -37,17 +38,18 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
 
   // `force` bypasses the browser cache for an explicit manual refresh; the
   // background poll reuses the cache.
-  async function fetchPrices(force = false): Promise<boolean> {
+  /** Returns null on success, or the (server-provided) error message. */
+  async function fetchPrices(force = false): Promise<string | null> {
     try {
       const response = await fetch(force ? `/api/prices?t=${Date.now()}` : '/api/prices', {
         cache: force ? 'no-store' : 'default',
       })
-      if (!response.ok) throw new Error('Failed to fetch prices')
+      if (!response.ok) throw await apiError(response, 'Failed to fetch prices')
       setPrices(normalizePrices(await response.json()))
-      return true
+      return null
     } catch (error) {
       console.error('Error fetching prices:', error)
-      return false
+      return error instanceof Error ? error.message : 'Failed to fetch prices'
     } finally {
       setRefreshing(false)
     }
@@ -64,9 +66,9 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    const ok = await fetchPrices(true)
-    if (ok) toast.success('Pricing refreshed')
-    else toast.error('Could not refresh pricing. Please try again.')
+    const err = await fetchPrices(true)
+    if (!err) toast.success('Pricing refreshed')
+    else toast.error(err)
   }
 
   // Group prices by product for display

@@ -15,6 +15,7 @@ import {
   type ReferralAttribution,
 } from '@/lib/partners/referral'
 import { CLINIC_REF_COOKIE } from '@/lib/referrals/credit'
+import { applicationReference } from '@/lib/application-reference'
 
 /**
  * Resolve clinic-to-clinic referral attribution from the /refer/<code>
@@ -190,13 +191,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const reference = applicationReference('clinic', client.id, client.createdAt)
+
     // Alert ops that a new practice is waiting for approval. Fire-and-forget:
     // a notification failure must never fail the onboarding submission.
     notifyAdmins({
       category: 'CLIENT',
       priority: 'HIGH',
       title: 'New account pending approval',
-      message: `${client.organizationName} completed onboarding and is awaiting approval.`,
+      message: `${client.organizationName} completed onboarding and is awaiting approval (ref ${reference}).`,
       actionUrl: `/clients/${client.id}`,
       sourceType: 'client:onboarding-submitted',
       sourceId: client.id,
@@ -230,8 +233,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    logger.info('[ONBOARDING] Client created', { userId, clientId: client.id })
-    return successResponse({ success: true, profile: serializeClientProfile(client) }, 201)
+    logger.info('[ONBOARDING] Client created', { userId, clientId: client.id, reference })
+    return successResponse(
+      { success: true, reference, profile: serializeClientProfile(client) },
+      201
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Onboarding failed'
     logger.error('[ONBOARDING] error', { message }, error instanceof Error ? error : new Error(message))

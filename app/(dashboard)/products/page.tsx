@@ -49,6 +49,7 @@ import ProductFormDialog, { type ProductFormValues } from './ProductFormDialog'
 import CoaManagerDialog, { type CoaVariantRef } from '@/components/coa/CoaManagerDialog'
 import { parseMonograph } from '@/lib/types/monograph'
 import { monographToForm } from '@/lib/monograph-format'
+import { apiError } from '@/lib/api-error'
 
 interface VariantRow {
   id: string
@@ -107,7 +108,7 @@ export default function ProductsPage() {
     setError(null)
     try {
       const res = await fetch('/api/admin/products')
-      if (!res.ok) throw new Error('Failed to load products')
+      if (!res.ok) throw await apiError(res, 'Failed to load products')
       const data = await res.json()
       setVariants(Array.isArray(data?.variants) ? data.variants : [])
     } catch (e) {

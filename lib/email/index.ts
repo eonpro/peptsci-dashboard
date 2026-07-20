@@ -68,6 +68,7 @@ export async function sendAffiliateApplicationReceivedEmail(opts: {
   to: string | string[]
   contactName?: string | null
   orgName: string
+  reference?: string
 }): Promise<SendEmailResult> {
   const { subject, html, text } = affiliateApplicationReceivedEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })

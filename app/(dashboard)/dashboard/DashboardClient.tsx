@@ -20,6 +20,7 @@ import { OrdersBackfillButton } from '@/components/admin/OrdersBackfillButton'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { apiError } from '@/lib/api-error'
 import GroupedRecentOrdersTable from './GroupedRecentOrdersTable'
 import { PendingApprovals } from './PendingApprovals'
 import { OpsQueues } from './OpsQueues'
@@ -54,21 +55,22 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   const [refreshing, setRefreshing] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
 
-  async function loadData(): Promise<boolean> {
+  /** Returns null on success, or the (server-provided) error message. */
+  async function loadData(): Promise<string | null> {
     try {
       // The server caches parsed data briefly, so we no longer cache-bust on
       // every load. The manual Refresh button and the periodic refresh below
       // still pick up new data within the cache window.
       const response = await fetch('/api/sales')
       if (!response.ok) {
-        throw new Error('Failed to fetch sales')
+        throw await apiError(response, 'Failed to fetch sales')
       }
       const data: ApiSale[] = await response.json()
       setSales(withDates(data))
-      return true
+      return null
     } catch (error) {
       console.error('Error fetching sales:', error)
-      return false
+      return error instanceof Error ? error.message : 'Failed to fetch sales'
     } finally {
       setRefreshing(false)
     }
@@ -100,9 +102,9 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    const ok = await loadData()
-    if (ok) toast.success('Sales data refreshed')
-    else toast.error('Could not refresh sales data. Please try again.')
+    const err = await loadData()
+    if (!err) toast.success('Sales data refreshed')
+    else toast.error(err)
   }
 
   const currentMonth = useMemo(() => format(new Date(), 'MMMM'), [])

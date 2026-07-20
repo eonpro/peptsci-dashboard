@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { apiError } from '@/lib/api-error'
 import {
   Select,
   SelectContent,
@@ -65,7 +66,7 @@ export default function StorefrontsPage() {
     try {
       const res = await fetch('/api/admin/storefronts')
       if (res.ok) setStorefronts(await res.json())
-      else toast.error('Failed to load storefronts')
+      else toast.error((await apiError(res, 'Failed to load storefronts')).message)
     } catch {
       toast.error('Failed to load storefronts')
     } finally {

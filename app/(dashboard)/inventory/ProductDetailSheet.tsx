@@ -31,6 +31,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { apiError } from '@/lib/api-error'
 import { toast } from 'sonner'
 import {
   type AdjustmentRow,
@@ -92,10 +93,12 @@ export default function ProductDetailSheet({
           cache: 'no-store',
         }),
       ])
-      if (batchRes.ok) setBatches((await batchRes.json()).batches ?? [])
-      if (adjRes.ok) setMovements((await adjRes.json()).adjustments ?? [])
-    } catch {
-      toast.error('Could not load product stock details')
+      if (!batchRes.ok) throw await apiError(batchRes, 'Could not load product batches')
+      if (!adjRes.ok) throw await apiError(adjRes, 'Could not load product movements')
+      setBatches((await batchRes.json()).batches ?? [])
+      setMovements((await adjRes.json()).adjustments ?? [])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not load product stock details')
     }
   }, [variantId])
 

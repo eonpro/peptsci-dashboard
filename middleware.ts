@@ -32,6 +32,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/cron(.*)',
   // Public self-service shipment tracking (no PII; see app/tracking).
   '/tracking(.*)',
+  // Application confirmation page (reference number display; no PII).
+  '/thank-you(.*)',
   // Affiliate program: public application form + referral-link redirect.
   '/partners/apply(.*)',
   '/api/partners/apply',

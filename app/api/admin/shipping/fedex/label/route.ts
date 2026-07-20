@@ -46,6 +46,12 @@ const createSchema = z.object({
   labelFormat: z.enum(['PDF', 'ZPLII', 'PNG']).default('PDF'),
   /** Explicit admin acknowledgement to ship an unpaid, un-invoiced order. */
   overrideUnpaidShip: z.boolean().default(false),
+  /**
+   * Explicit admin acknowledgement to ship despite insufficient batch stock
+   * (e.g. physical goods exist but batches were never received in the system).
+   * Consumes whatever batch stock IS allocatable and audit-logs the shortfall.
+   */
+  overrideInsufficientStock: z.boolean().default(false),
 })
 
 function classifyFedExError(error: unknown): { status: number; message: string } {
@@ -228,6 +234,7 @@ export async function POST(request: NextRequest) {
     // (requireFull draws all-or-nothing). If anything fails, the FedEx
     // shipment is cancelled so no orphan label exists at the carrier.
     let label
+    let consumeShortfall = 0
     try {
       label = await prisma.$transaction(async (tx) => {
         const created = await tx.shipmentLabel.create({
@@ -277,16 +284,19 @@ export async function POST(request: NextRequest) {
           })
 
           // Idempotent — if the order was already consumed via the labels-PDF
-          // path this is a no-op, so we never double-draw.
-          await consumeOrderInventoryTx(
+          // path this is a no-op, so we never double-draw. With the
+          // insufficient-stock override, requireFull is relaxed: whatever IS
+          // allocatable gets drawn and the shortfall is recorded below.
+          const consumeResult = await consumeOrderInventoryTx(
             tx,
             order.id,
             {
               clerkUserId: userId && userId !== 'dev-user' ? userId : null,
               label: userId ?? null,
             },
-            { requireFull: true }
+            { requireFull: !data.overrideInsufficientStock }
           )
+          consumeShortfall = consumeResult.shortfall
         }
 
         return created
@@ -310,6 +320,30 @@ export async function POST(request: NextRequest) {
         )
       }
       throw txErr
+    }
+
+    // The override actually shipped short — leave an audit trail so the
+    // inventory team can true-up the missing batch receipts later.
+    if (data.overrideInsufficientStock && consumeShortfall > 0 && order) {
+      logger.warn('[FedEx label] insufficient-stock override used', {
+        orderId: order.id,
+        shortfall: consumeShortfall,
+        userId: userId ?? null,
+      })
+      if (dbUserId) {
+        await prisma.auditLog
+          .create({
+            data: {
+              userId: dbUserId,
+              entity: 'Order',
+              entityId: order.id,
+              action: 'insufficient_stock_override',
+              orderId: order.id,
+              metadata: { shortfall: consumeShortfall, trackingNumber: result.trackingNumber },
+            },
+          })
+          .catch(() => {})
+      }
     }
 
     if (dbUserId) {

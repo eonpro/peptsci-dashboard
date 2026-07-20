@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SearchResult } from '@/lib/search'
+import { apiError } from '@/lib/api-error'
 
 interface SearchCommandProps {
   open: boolean
@@ -77,14 +78,14 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
           setError('Please sign in to search')
           return
         }
-        throw new Error('Search failed')
+        throw await apiError(response, 'Search failed. Please try again.')
       }
 
       const data = await response.json()
       setResults(data.results || [])
     } catch (err) {
       console.error('Search error:', err)
-      setError('Failed to search. Please try again.')
+      setError(err instanceof Error ? err.message : 'Failed to search. Please try again.')
       setResults([])
     } finally {
       setLoading(false)

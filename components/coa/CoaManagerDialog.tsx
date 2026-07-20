@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { CoaCertificate } from '@/components/coa/CoaCertificate'
 import type { CoaData } from '@/lib/coa'
+import { apiError } from '@/lib/api-error'
 
 export interface CoaVariantRef {
   id: string
@@ -220,7 +221,7 @@ export default function CoaManagerDialog({
     setError(null)
     try {
       const res = await fetch(`/api/admin/products/${variant.id}/coa`)
-      if (!res.ok) throw new Error('Failed to load certificates')
+      if (!res.ok) throw await apiError(res, 'Failed to load certificates')
       const data = await res.json()
       setCoas(Array.isArray(data?.coas) ? data.coas : [])
     } catch (e) {

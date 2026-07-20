@@ -24,6 +24,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { DistributorOrder } from '@/lib/orders'
 import { DistributorOrderImportButton } from '@/components/admin/DistributorOrderImportButton'
+import { apiError } from '@/lib/api-error'
 
 /** date-fns `format` needs a Date; the refresh path returns ISO strings. */
 function toDate(value: Date | string | null): Date | null {
@@ -43,17 +44,18 @@ export default function OrdersExpensesClient({
   const [refreshing, setRefreshing] = useState(false)
 
   // `force` bypasses the browser cache for an explicit manual refresh.
-  async function fetchOrders(force = false): Promise<boolean> {
+  /** Returns null on success, or the (server-provided) error message. */
+  async function fetchOrders(force = false): Promise<string | null> {
     try {
       const response = await fetch(force ? `/api/orders?t=${Date.now()}` : '/api/orders', {
         cache: force ? 'no-store' : 'default',
       })
-      if (!response.ok) throw new Error('Failed to fetch orders')
+      if (!response.ok) throw await apiError(response, 'Failed to fetch orders')
       setOrders(await response.json())
-      return true
+      return null
     } catch (error) {
       console.error('Error fetching orders:', error)
-      return false
+      return error instanceof Error ? error.message : 'Failed to fetch orders'
     } finally {
       setRefreshing(false)
     }
@@ -61,9 +63,9 @@ export default function OrdersExpensesClient({
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    const ok = await fetchOrders(true)
-    if (ok) toast.success('Orders refreshed')
-    else toast.error('Could not refresh orders. Please try again.')
+    const err = await fetchOrders(true)
+    if (!err) toast.success('Orders refreshed')
+    else toast.error(err)
   }
 
   // Calculate totals

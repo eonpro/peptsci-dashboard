@@ -38,6 +38,11 @@ export function ApplyForm() {
         setError(data.message || 'Could not submit your application. Please try again.')
         return
       }
+      // Confirmation page with the unique application number.
+      if (data.reference) {
+        window.location.assign(`/thank-you?form=partner&ref=${encodeURIComponent(data.reference)}`)
+        return
+      }
       setDone(true)
     } catch {
       setError('Could not submit your application. Please try again.')

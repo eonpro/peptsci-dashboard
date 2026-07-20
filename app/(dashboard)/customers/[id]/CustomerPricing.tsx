@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { apiError } from '@/lib/api-error'
 import { DollarSign, Plus, Trash2, Percent, Tag, Loader2, AlertCircle } from 'lucide-react'
 
 interface CustomerPricingProps {
@@ -82,7 +83,7 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
 
   const loadPricing = useCallback(async (clientId: string) => {
     const res = await fetch(`/api/admin/client-pricing?clientId=${encodeURIComponent(clientId)}`)
-    if (!res.ok) throw new Error('Failed to load custom pricing')
+    if (!res.ok) throw await apiError(res, 'Failed to load custom pricing')
     const data = await res.json()
     setCustomPrices(Array.isArray(data) ? data : (data.prices ?? []))
   }, [])
@@ -100,7 +101,8 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
           fetch('/api/admin/clients'),
           fetch('/api/admin/products'),
         ])
-        if (!cRes.ok || !vRes.ok) throw new Error('Failed to load pricing data')
+        if (!cRes.ok) throw await apiError(cRes, 'Failed to load clients')
+        if (!vRes.ok) throw await apiError(vRes, 'Failed to load products')
         const cData = await cRes.json()
         const vData = await vRes.json()
         if (!active) return

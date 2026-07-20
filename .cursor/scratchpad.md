@@ -1,3 +1,29 @@
+# FedEx Label 409 (INSUFFICIENT_BATCH_STOCK) Override (Jul 19, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+Ops reported "FedEx integration errors" (409) creating labels. Root cause: NOT FedEx — the Jul 13 hard batch-stock gate (`consumeOrderInventoryTx(requireFull: true)` inside the label transaction) fails any order whose variant has no allocatable batch (`RECEIVED`, qty>0, BUD ≥ today) in prod. Prod batch receipts were never fully populated (same class as the Jul 13 `CHECKOUT_ENFORCE_STOCK` incident), so legitimate shipments were blocked with no escape hatch.
+
+## Project Status Board
+- [x] **API override** — `overrideInsufficientStock` on POST /api/admin/shipping/fedex/label: relaxes `requireFull` so allocatable stock is drawn and the shortfall ships; when exercised, logs warn + AuditLog `insufficient_stock_override` ({shortfall, trackingNumber}) for inventory true-up. Default off — the 409 gate is unchanged.
+- [x] **UI** — FedExLabelModal: on 409 `INSUFFICIENT_BATCH_STOCK`, shows "Ship anyway (stock shortfall — will be audit-logged)" retry button (mirrors the unpaid-ship override pattern). `handleSubmit` now takes an overrides object.
+- [x] **Diagnostic** — `scripts/diagnose-order-stock.ts <orderNumber>`: read-only, reproduces the exact allocation check; lists each batch and why it's excluded (status/qty/BUD), per-variant shortfall. Runs against whatever DB the env file points at (prod PG* values are redacted in `vercel env pull` — run locally or via admin session).
+- [x] Verified: `tsc --noEmit` clean, eslint clean on touched files.
+
+## Owner actions
+- Real fix for prod: receive/true-up `InventoryBatch` rows for the variants actually being sold (Order #67's Glutathione 1500 15mg has no allocatable batch). The override is for shipping while that backfill happens.
+- Deploy to main to unblock ops.
+
+## Follow-up (same day): surface real API errors in the UI
+- [x] **lib/api-error.ts** — `apiError(res, fallback)` + `ApiError {status, code}`: extracts the server's `message`/`error` from `errorResponse()` bodies (skips boilerplate like "Bad Request"/"An error occurred"), falls back only when the body carries nothing. 5 unit tests (`lib/__tests__/apiError.test.ts`).
+- [x] **Call-site sweep** — replaced every `if (!res.ok) throw new Error('generic')` / bare-catch-with-fixed-toast in the dashboard with `apiError` + `err.message` surfacing: users (load/approve/suspend/revoke — approve 409 PRACTICE_NOT_APPROVED now visible), clients, products, pricing (main + client-pricing + CustomerPricing), dashboard sales refresh, orders-expenses refresh, inventory (batches/log/reservations/catalog/exports, BatchDetailSheet load+void, ProductDetailSheet), storefronts list, fulfillment bulk-pick (first failure message in toast), SearchCommand, CoaManagerDialog.
+- [x] Left alone: sites already doing `data.message || data.error || fallback` (~50), and catch blocks that only handle true network failures (sf checkout/account, PatientsManager, PatientChat, partners-admin).
+- [x] Verified: `tsc --noEmit` clean, 329/329 tests, eslint clean on touched files (3 pre-existing warnings elsewhere).
+
+## Lessons
+- A hard operational gate (409) added without an audit-logged override reads as "the integration is broken" to ops when prod data doesn't meet the gate's assumptions; ship the gate and its escape hatch together.
+- `errorResponse()` 4xx messages are deliberately user-facing; any client `throw new Error('generic')` on `!res.ok` throws that contract away. Route new fetch error paths through `lib/api-error.ts`.
+
+---
+
 # Inventory Workspace Overhaul — Tier 1 (Jul 18, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
 
 Plan: `~/.cursor/plans/inventory_workspace_overhaul_7dd7373b.plan.md`. Rebuilt `/inventory` into a server-driven workspace: pagination/search/sort pushed to the APIs, new Reservations tab, batch edit, variant-picker receive flow, lazy analytics (recharts), and stock enforcement readiness. Verified: `tsc --noEmit` clean, 320/320 unit tests (17 new in `inventoryWorkspace.test.ts`), `next lint` (pre-existing warnings only, none in touched files), `next build` green, data-layer smoke (`scripts/smoke-inventory-workspace.ts`) green against local DB.

@@ -137,7 +137,13 @@ export default function OnboardingPage() {
       }
       // Refresh the Clerk session so middleware sees the new clientId.
       await user?.reload().catch(() => {})
-      router.push('/pending-approval')
+      // Confirmation page with the unique application number (falls back to
+      // the pending screen for idempotent resubmits, which have no reference).
+      if (data.reference) {
+        router.push(`/thank-you?form=clinic&ref=${encodeURIComponent(data.reference)}`)
+      } else {
+        router.push('/pending-approval')
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {

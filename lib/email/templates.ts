@@ -588,8 +588,12 @@ Need help? ${SUPPORT_EMAIL}
 export function affiliateApplicationReceivedEmail(opts: {
   contactName?: string | null
   orgName: string
+  reference?: string
 }): EmailContent {
-  const subject = 'We received your PeptSci partner application'
+  const subject = opts.reference
+    ? `We received your PeptSci partner application (${opts.reference})`
+    : 'We received your PeptSci partner application'
+  const refBlock = opts.reference ? detailPanel([['Application #', opts.reference]]) : ''
   const html = layout({
     heading: 'Application received',
     body:
@@ -597,12 +601,13 @@ export function affiliateApplicationReceivedEmail(opts: {
       para(
         `Thanks for applying to the PeptSci partner program on behalf of <strong>${escapeHtml(opts.orgName)}</strong>. Our team reviews every application and will follow up shortly — usually within 1&ndash;2 business days.`
       ) +
+      refBlock +
       para('Once approved, you&rsquo;ll receive an invitation to set up your partner portal login.'),
   })
   const text = `${greeting(opts.contactName)}
 
 Thanks for applying to the PeptSci partner program on behalf of ${opts.orgName}. Our team reviews every application and will follow up shortly — usually within 1-2 business days.
-
+${opts.reference ? `\nApplication #: ${opts.reference}\n` : ''}
 Once approved, you'll receive an invitation to set up your partner portal login.
 
 Questions? ${SUPPORT_EMAIL}

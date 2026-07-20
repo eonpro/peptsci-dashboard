@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
+import { apiError } from '@/lib/api-error'
 
 // The FedEx label modal (and its form/stripe deps) only matters once a rep
 // opens it; load it on demand instead of in the page's initial bundle.
@@ -249,6 +250,7 @@ export default function FulfillmentPage() {
     setBulkBusy(true)
     let ok = 0
     let failed = 0
+    let firstFailure: string | null = null
     for (const order of pickableSelected) {
       try {
         const r = await fetch(`/api/admin/orders/${order.id}/fulfillment`, {
@@ -256,15 +258,19 @@ export default function FulfillmentPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'pick' }),
         })
-        if (!r.ok) throw new Error()
+        if (!r.ok) throw await apiError(r, `Order #${order.orderNumber} failed to update`)
         ok++
-      } catch {
+      } catch (e) {
         failed++
+        if (!firstFailure && e instanceof Error) firstFailure = e.message
       }
     }
     setBulkBusy(false)
     if (ok > 0) toast.success(`${ok} order${ok === 1 ? '' : 's'} marked picked`)
-    if (failed > 0) toast.error(`${failed} order${failed === 1 ? '' : 's'} failed to update`)
+    if (failed > 0)
+      toast.error(
+        `${failed} order${failed === 1 ? '' : 's'} failed to update${firstFailure ? ` — ${firstFailure}` : ''}`
+      )
     load()
   }
 

@@ -111,6 +111,7 @@ export default function FedExLabelModal({
   const [submitted, setSubmitted] = useState(false)
   const [redownloading, setRedownloading] = useState(false)
   const [paymentGateBlocked, setPaymentGateBlocked] = useState(false)
+  const [stockGateBlocked, setStockGateBlocked] = useState(false)
 
   const availableServices = useMemo(
     () => (oneRate ? FEDEX_SERVICE_TYPES.filter((s) => s.oneRateEligible) : FEDEX_SERVICE_TYPES),
@@ -231,11 +232,14 @@ export default function FedExLabelModal({
     }
   }
 
-  const handleSubmit = async (overrideUnpaidShip = false) => {
+  const handleSubmit = async (
+    overrides: { overrideUnpaidShip?: boolean; overrideInsufficientStock?: boolean } = {}
+  ) => {
     if (submitted) return
     setSubmitted(true)
     setError(null)
     setPaymentGateBlocked(false)
+    setStockGateBlocked(false)
     setLoading(true)
     try {
       const res = await fetch('/api/admin/shipping/fedex/label', {
@@ -250,7 +254,8 @@ export default function FedExLabelModal({
           weightLbs,
           oneRate,
           labelFormat,
-          overrideUnpaidShip,
+          overrideUnpaidShip: overrides.overrideUnpaidShip ?? false,
+          overrideInsufficientStock: overrides.overrideInsufficientStock ?? false,
         }),
       })
       const data = await res.json()
@@ -259,6 +264,12 @@ export default function FedExLabelModal({
           setPaymentGateBlocked(true)
           throw new Error(
             'This order has not been paid or invoiced. Collect payment first, or ship anyway with an audit-logged override.'
+          )
+        }
+        if (data.code === 'INSUFFICIENT_BATCH_STOCK') {
+          setStockGateBlocked(true)
+          throw new Error(
+            'Insufficient batch stock recorded for this order. Receive/adjust inventory first, or ship anyway — the shortfall will be audit-logged for inventory true-up.'
           )
         }
         throw new Error(data.message || data.error || 'Failed to create label')
@@ -338,9 +349,20 @@ export default function FedExLabelModal({
                       variant="outline"
                       className="border-red-500/30 text-red-400 hover:bg-red-500/10"
                       disabled={loading}
-                      onClick={() => handleSubmit(true)}
+                      onClick={() => handleSubmit({ overrideUnpaidShip: true })}
                     >
                       Ship anyway (unpaid — will be audit-logged)
+                    </Button>
+                  )}
+                  {stockGateBlocked && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      disabled={loading}
+                      onClick={() => handleSubmit({ overrideInsufficientStock: true })}
+                    >
+                      Ship anyway (stock shortfall — will be audit-logged)
                     </Button>
                   )}
                 </div>

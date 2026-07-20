@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { apiError } from '@/lib/api-error'
 import {
   ArrowLeft,
   Plus,
@@ -99,9 +100,9 @@ export default function ClientPricingPage() {
         fetch('/api/admin/products'),
       ])
 
-      if (!pRes.ok || !cRes.ok || !vRes.ok) {
-        throw new Error('Failed to load pricing data')
-      }
+      if (!pRes.ok) throw await apiError(pRes, 'Failed to load client pricing')
+      if (!cRes.ok) throw await apiError(cRes, 'Failed to load clients')
+      if (!vRes.ok) throw await apiError(vRes, 'Failed to load products')
 
       const pData = await pRes.json()
       const cData = await cRes.json()
@@ -213,7 +214,7 @@ export default function ClientPricingPage() {
       const res = await fetch(`/api/admin/client-pricing?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error('Failed to delete pricing')
+      if (!res.ok) throw await apiError(res, 'Failed to delete pricing')
     } catch (e) {
       setPricing(prev) // rollback
       setError(e instanceof Error ? e.message : 'Failed to delete pricing')

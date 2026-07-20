@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import InviteUserDialog, { type ClientOption } from './InviteUserDialog'
 import EditUserDialog, { type EditableUser } from './EditUserDialog'
+import { apiError } from '@/lib/api-error'
 
 type Role = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
 type Status = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
@@ -86,7 +87,7 @@ export default function UsersPage() {
     setError(null)
     try {
       const res = await fetch('/api/admin/users')
-      if (!res.ok) throw new Error('Failed to load users')
+      if (!res.ok) throw await apiError(res, 'Failed to load users')
       const data = await res.json()
       setUsers(data.users ?? [])
     } catch (e) {
@@ -153,7 +154,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/admin/users/${id}/approve`, {
         method: action === 'approve' ? 'POST' : 'DELETE',
       })
-      if (!res.ok) throw new Error('Action failed')
+      if (!res.ok) throw await apiError(res, `Failed to ${action} user`)
       setUsers((prev) =>
         prev.map((u) =>
           u.id === id ? { ...u, status: action === 'approve' ? 'ACTIVE' : 'SUSPENDED' } : u
@@ -194,7 +195,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/admin/users/invite?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error('Failed to revoke invitation')
+      if (!res.ok) throw await apiError(res, 'Failed to revoke invitation')
       setInvites((prev) => prev.filter((i) => i.id !== id))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to revoke invitation')

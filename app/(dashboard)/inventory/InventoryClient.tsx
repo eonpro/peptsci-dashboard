@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Pagination } from '@/components/Pagination'
+import { apiError } from '@/lib/api-error'
 import { toast } from 'sonner'
 import {
   type AdjustmentRow,
@@ -223,11 +224,11 @@ export default function InventoryClient({
       const res = await fetch(`/api/admin/inventory/batches?${query}&t=${Date.now()}`, {
         cache: 'no-store',
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw await apiError(res, 'Failed to load batches')
       const data = await res.json()
       setBatchData({ rows: data.batches ?? [], total: data.total ?? 0 })
-    } catch {
-      toast.error('Failed to load batches')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load batches')
     } finally {
       setBatchLoading(false)
     }
@@ -265,12 +266,12 @@ export default function InventoryClient({
       const res = await fetch(`/api/admin/inventory/adjustments?${query}&t=${Date.now()}`, {
         cache: 'no-store',
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw await apiError(res, 'Failed to load the activity log')
       const data = await res.json()
       setLogData({ rows: data.adjustments ?? [], total: data.total ?? 0 })
-    } catch {
+    } catch (err) {
       setLogData({ rows: [], total: 0 })
-      toast.error('Failed to load the activity log')
+      toast.error(err instanceof Error ? err.message : 'Failed to load the activity log')
     } finally {
       setLogLoading(false)
     }
@@ -293,16 +294,16 @@ export default function InventoryClient({
       const res = await fetch(`/api/admin/inventory/reservations?${query}&t=${Date.now()}`, {
         cache: 'no-store',
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw await apiError(res, 'Failed to load reservations')
       const data = await res.json()
       setResData({
         rows: data.reservations ?? [],
         total: data.total ?? 0,
         totalUnits: data.totalUnits ?? 0,
       })
-    } catch {
+    } catch (err) {
       setResData({ rows: [], total: 0, totalUnits: 0 })
-      toast.error('Failed to load reservations')
+      toast.error(err instanceof Error ? err.message : 'Failed to load reservations')
     } finally {
       setResLoading(false)
     }
@@ -332,11 +333,11 @@ export default function InventoryClient({
       const res = await fetch(`/api/admin/inventory/catalog?t=${Date.now()}`, {
         cache: 'no-store',
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw await apiError(res, 'Failed to refresh the product catalog')
       const data = await res.json()
       setCatalog(data.catalog ?? [])
-    } catch {
-      toast.error('Failed to refresh the product catalog')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to refresh the product catalog')
     }
   }, [])
 
@@ -429,7 +430,7 @@ export default function InventoryClient({
         })
         if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
         const res = await fetch(`/api/admin/inventory/batches?${params}`, { cache: 'no-store' })
-        if (!res.ok) throw new Error()
+        if (!res.ok) throw await apiError(res, 'Failed to export batches')
         const rows: BatchRow[] = (await res.json()).batches ?? []
         downloadCsv(
           `inventory-batches-${stamp}.csv`,
@@ -454,7 +455,7 @@ export default function InventoryClient({
         if (logFrom) params.set('from', logFrom)
         if (logTo) params.set('to', logTo)
         const res = await fetch(`/api/admin/inventory/adjustments?${params}`, { cache: 'no-store' })
-        if (!res.ok) throw new Error()
+        if (!res.ok) throw await apiError(res, 'Failed to export the activity log')
         const rows: AdjustmentRow[] = (await res.json()).adjustments ?? []
         downloadCsv(
           `inventory-activity-${stamp}.csv`,
@@ -476,7 +477,7 @@ export default function InventoryClient({
         const res = await fetch(`/api/admin/inventory/reservations?${params}`, {
           cache: 'no-store',
         })
-        if (!res.ok) throw new Error()
+        if (!res.ok) throw await apiError(res, 'Failed to export reservations')
         const rows: ReservationRow[] = (await res.json()).reservations ?? []
         downloadCsv(
           `inventory-reservations-${stamp}.csv`,
@@ -511,8 +512,8 @@ export default function InventoryClient({
         )
       }
       toast.success('CSV downloaded')
-    } catch {
-      toast.error('Export failed — try again')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed — try again')
     }
   }
 

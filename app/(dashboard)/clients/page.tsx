@@ -18,6 +18,7 @@ import { Building2, Search, Loader2, ChevronRight, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import AddClientDialog from './AddClientDialog'
 import DeleteClientButton from './DeleteClientButton'
+import { apiError } from '@/lib/api-error'
 
 interface ClientRow {
   id: string
@@ -47,11 +48,13 @@ export default function ClientsPage() {
   useEffect(() => {
     fetch('/api/admin/clients')
       .then(async (r) => {
-        if (!r.ok) throw new Error('Failed to load clients')
+        if (!r.ok) throw await apiError(r, 'Failed to load clients')
         return r.json()
       })
       .then((data) => setClients(data.clients ?? []))
-      .catch(() => toast.error('Failed to load clients — refresh to retry'))
+      .catch((e) =>
+        toast.error(e instanceof Error ? `${e.message} — refresh to retry` : 'Failed to load clients — refresh to retry')
+      )
       .finally(() => setLoading(false))
   }, [])
 
