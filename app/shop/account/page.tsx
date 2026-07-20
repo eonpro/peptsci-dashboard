@@ -30,6 +30,7 @@ import {
   Lock,
   Loader2,
   MessageSquare,
+  Gift,
 } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
@@ -468,6 +469,16 @@ export default function AccountPage() {
                 <Link href="/shop/orders">
                   <FileText className="mr-2 h-4 w-4" />
                   Order History
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10"
+                asChild
+              >
+                <Link href="/shop/referrals">
+                  <Gift className="mr-2 h-4 w-4" />
+                  Refer &amp; Earn
                 </Link>
               </Button>
             </CardContent>

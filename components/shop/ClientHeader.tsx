@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Store,
   Receipt,
+  Gift,
 } from 'lucide-react'
 import { useCart } from './CartContext'
 import { useRole } from '@/hooks/useRole'
@@ -54,6 +55,7 @@ const navigation = [
   { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
   { name: 'Invoices', href: '/shop/invoices', icon: Receipt },
   { name: 'My Storefront', href: '/shop/storefront-manage', icon: Store },
+  { name: 'Refer & Earn', href: '/shop/referrals', icon: Gift },
   { name: 'Account', href: '/shop/account', icon: User },
 ]
 
@@ -178,6 +180,15 @@ export function ClientHeader() {
                   <Link href="/shop/invoices">
                     <Receipt className="mr-2 h-4 w-4" />
                     Invoices &amp; Billing
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  asChild
+                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
+                >
+                  <Link href="/shop/referrals">
+                    <Gift className="mr-2 h-4 w-4" />
+                    Refer &amp; Earn
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />
