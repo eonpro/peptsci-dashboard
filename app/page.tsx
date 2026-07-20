@@ -93,7 +93,7 @@ export default async function RootPage() {
                   right column on larger screens (fades into the copy) */}
               <div className="relative h-72 w-full sm:absolute sm:inset-y-0 sm:right-0 sm:h-auto sm:w-[44%]">
                 <Image
-                  src="/landing/doctor-hero.png"
+                  src="/landing/doctor-hero-v2.png"
                   alt="Physician presenting on a smartphone"
                   fill
                   priority
