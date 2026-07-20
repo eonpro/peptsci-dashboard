@@ -15,6 +15,8 @@ import { PatientsManager } from '@/components/shop/PatientsManager'
 import { DocumentsManager } from '@/components/shop/DocumentsManager'
 import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
+import { useClerk } from '@clerk/nextjs'
+import { isClerkConfigured } from '@/lib/clerk-config'
 import {
   User,
   Building2,
@@ -31,7 +33,24 @@ import {
   Loader2,
   MessageSquare,
   Gift,
+  LogOut,
 } from 'lucide-react'
+
+// Isolated so the useClerk hook is only mounted when ClerkProvider exists
+// (the app renders without ClerkProvider when Clerk is not configured).
+function SignOutButton() {
+  const { signOut } = useClerk()
+  return (
+    <Button
+      variant="ghost"
+      className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
+      onClick={() => signOut({ redirectUrl: '/sign-in' })}
+    >
+      <LogOut className="mr-2 h-4 w-4" />
+      Sign Out
+    </Button>
+  )
+}
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
   APPROVED: { label: 'Approved', color: 'bg-green-500/20 text-green-400', icon: CheckCircle2 },
@@ -481,6 +500,12 @@ export default function AccountPage() {
                   Refer &amp; Earn
                 </Link>
               </Button>
+              {isClerkConfigured && (
+                <>
+                  <Separator className="my-2 bg-white/10" />
+                  <SignOutButton />
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

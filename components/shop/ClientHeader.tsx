@@ -15,6 +15,7 @@ import {
   Store,
   Receipt,
   Gift,
+  LogOut,
 } from 'lucide-react'
 import { useCart } from './CartContext'
 import { useRole } from '@/hooks/useRole'
@@ -27,8 +28,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, useClerk } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
+
+// Separate component so the useClerk hook only runs when ClerkProvider exists.
+function SignOutMenuItem() {
+  const { signOut } = useClerk()
+  return (
+    <DropdownMenuItem
+      onClick={() => signOut({ redirectUrl: '/sign-in' })}
+      className="text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
+    >
+      <LogOut className="mr-2 h-4 w-4" />
+      Sign Out
+    </DropdownMenuItem>
+  )
+}
 
 function AuthUserButton() {
   if (!isClerkConfigured) {
@@ -215,6 +230,12 @@ export function ClientHeader() {
                     Help & Support
                   </a>
                 </DropdownMenuItem>
+                {isClerkConfigured && (
+                  <>
+                    <DropdownMenuSeparator className="bg-white/10" />
+                    <SignOutMenuItem />
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
