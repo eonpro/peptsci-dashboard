@@ -178,11 +178,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
               )}
               {product.displayPrice > 0 && <span className="text-white/50">per unit</span>}
             </div>
-            {product.isCustomPrice && (
-              <div className="mb-6 inline-flex items-center rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400">
-                Your account pricing
+            {product.isCustomPrice &&
+            product.standardPrice &&
+            product.standardPrice > product.displayPrice &&
+            product.displayPrice > 0 ? (
+              <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
+                Exclusive practice rate &mdash; you save $
+                {(product.standardPrice - product.displayPrice).toFixed(2)} (
+                {Math.round(
+                  ((product.standardPrice - product.displayPrice) / product.standardPrice) * 100,
+                )}
+                % off list) per unit
               </div>
-            )}
+            ) : product.isCustomPrice ? (
+              <div className="mb-6 inline-flex items-center rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400">
+                Exclusive practice rate
+              </div>
+            ) : null}
 
             {/* Stock status */}
             <div className="flex items-center gap-2 mb-6">

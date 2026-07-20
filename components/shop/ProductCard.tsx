@@ -59,6 +59,19 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     }).format(price)
   }
 
+  // Quantified account savings vs standard price (only when there is a real discount)
+  const savingsAmount =
+    product.isCustomPrice &&
+    product.standardPrice &&
+    product.standardPrice > product.displayPrice &&
+    product.displayPrice > 0
+      ? product.standardPrice - product.displayPrice
+      : 0
+  const savingsPercent =
+    savingsAmount > 0 && product.standardPrice
+      ? Math.round((savingsAmount / product.standardPrice) * 100)
+      : 0
+
   // Sellable units (already net of reservations, from the catalog). Checkout
   // hard-rejects oversell, so the card must not let clinics add more than is
   // actually available. Unknown stock (undefined) falls back to the order cap.
@@ -269,6 +282,11 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 {unpriced ? '—' : formatPrice(product.displayPrice)}
               </p>
             </div>
+            {savingsAmount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-green-400">
+                Exclusive practice rate &middot; Save {savingsPercent}%
+              </span>
+            )}
             {isInCart ? (
               renderInCartControls()
             ) : outOfStock || unpriced ? (
@@ -430,7 +448,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       {/* Price and Cart Section */}
       <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-3">
         {/* Price row */}
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-baseline gap-2 min-w-0">
             <p className="text-xl @[16rem]:text-2xl font-bold text-white">
               {unpriced ? '—' : formatPrice(product.displayPrice)}
@@ -441,8 +459,11 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               </span>
             )}
           </div>
-          {product.isCustomPrice && (
-            <p className="text-xs font-medium text-green-400 shrink-0">Your account price</p>
+          {savingsAmount > 0 && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold text-green-400">
+              <span className="hidden @[20rem]:inline">Exclusive practice rate&nbsp;&middot;&nbsp;</span>
+              Save {savingsPercent}%
+            </span>
           )}
         </div>
 
