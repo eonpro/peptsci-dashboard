@@ -116,7 +116,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const renderQtyStepper = (size: 'sm' | 'lg' = 'sm') => (
     <div
       className={cn(
-        'flex shrink-0 items-center rounded-xl border border-white/15 bg-white/5',
+        'relative z-10 flex shrink-0 items-center rounded-xl border border-white/15 bg-white/5',
         size === 'lg' ? 'h-10' : 'h-8'
       )}
     >
@@ -167,7 +167,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     cartItem && (
       <div
         className={cn(
-          'flex items-center rounded-xl border border-green-500/50 bg-green-500/10',
+          'relative z-10 flex items-center rounded-xl border border-green-500/50 bg-green-500/10',
           fullWidth ? 'w-full justify-between h-10' : 'h-8'
         )}
       >
@@ -236,7 +236,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   // Mobile-optimized list view
   if (viewMode === 'list') {
     return (
-      <div className="bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98]">
+      <div className="relative bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98] hover:border-blue-500/30">
         <div className="flex items-center gap-4">
           {/* Vial thumbnail (generated label) */}
           <div className="h-16 w-14 shrink-0 flex items-center justify-center">
@@ -257,9 +257,10 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               )}
             </div>
             <h3 className="font-semibold tracking-tight text-white text-lg leading-tight truncate">
+              {/* Stretched link: makes the whole card navigate to the PDP */}
               <Link
                 href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
-                className="hover:text-blue-300 transition-colors"
+                className="hover:text-blue-300 transition-colors after:absolute after:inset-0 after:content-['']"
               >
                 {product.name}
               </Link>
@@ -283,9 +284,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               </p>
             </div>
             {savingsAmount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-green-400">
+              <p className="text-[11px] font-semibold text-green-400">
                 Exclusive practice rate &middot; Save {savingsPercent}%
-              </span>
+              </p>
             )}
             {isInCart ? (
               renderInCartControls()
@@ -300,7 +301,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                   onClick={handleAddToCart}
                   disabled={isAdding}
                   size="sm"
-                  className="h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
+                  className="relative z-10 h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
                 >
                   {isAdding ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
                 </Button>
@@ -346,7 +347,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                     {i === 0 ? (
                       <Link
                         href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
-                        className="hover:text-blue-300 transition-colors"
+                        className="transition-colors group-hover:text-blue-300"
                       >
                         {c.name} {c.amount}
                       </Link>
@@ -380,7 +381,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               <h3 className="font-semibold tracking-tight text-white text-xl @[16rem]:text-2xl leading-tight">
                 <Link
                   href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
-                  className="hover:text-blue-300 transition-colors"
+                  className="transition-colors group-hover:text-blue-300"
                 >
                   {isBlend ? product.name : compounds[0]?.name || product.name}
                 </Link>
@@ -413,12 +414,12 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         {/* PRUO disclaimer + COA link - bottom-left of the artwork panel.
             The COA button lives in this flow (not absolutely offset) so it
             always sits neatly above the PRUO block regardless of card copy. */}
-        <div className="absolute bottom-5 left-5 right-24 @[18rem]:right-28 z-10">
+        <div className="pointer-events-none absolute bottom-5 left-5 right-24 @[18rem]:right-28 z-10">
           {product.hasCoa && (
             <button
               type="button"
               onClick={() => setCoaOpen(true)}
-              className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
+              className="pointer-events-auto mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
             >
               <FileText className="h-3 w-3" /> View COA
             </button>
@@ -447,9 +448,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
       {/* Price and Cart Section */}
       <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-3">
-        {/* Price row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-baseline gap-2 min-w-0">
+        {/* Price block: price + strikethrough on one line, savings below */}
+        <div>
+          <div className="flex items-baseline gap-2">
             <p className="text-xl @[16rem]:text-2xl font-bold text-white">
               {unpriced ? '—' : formatPrice(product.displayPrice)}
             </p>
@@ -460,10 +461,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             )}
           </div>
           {savingsAmount > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold text-green-400">
-              <span className="hidden @[20rem]:inline">Exclusive practice rate&nbsp;&middot;&nbsp;</span>
-              Save {savingsPercent}%
-            </span>
+            <p className="mt-1 text-[11px] font-semibold text-green-400">
+              Exclusive practice rate &middot; Save {savingsPercent}%
+            </p>
           )}
         </div>
 
@@ -480,7 +480,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             <Button
               onClick={handleAddToCart}
               disabled={isAdding}
-              className="h-10 flex-1 min-w-0 gap-1.5 px-2 text-sm bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold"
+              className="relative z-10 h-10 flex-1 min-w-0 gap-1.5 px-2 text-sm bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold"
             >
               {isAdding ? (
                 <>
@@ -502,12 +502,23 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
       {/* In cart indicator badge */}
       {isInCart && (
-        <div className="absolute top-3 right-3 z-10">
+        <div className="pointer-events-none absolute top-3 right-3 z-10">
           <div className="bg-green-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
             {cartItem?.quantity}
           </div>
         </div>
       )}
+
+      {/* Whole-card click target for the PDP. Sits above card content (z-[5])
+          but below interactive controls (z-10: COA, stepper, add-to-cart).
+          aria-hidden + tabIndex=-1 because the product-name link already
+          exposes this destination to keyboards and screen readers. */}
+      <Link
+        href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="absolute inset-0 z-[5]"
+      />
 
       {product.hasCoa && (
         <CoaDialog
