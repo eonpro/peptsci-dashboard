@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import { AlertCircle, ChevronDown, FileCheck2, ShieldCheck, Truck } from 'lucide-react'
@@ -60,7 +61,7 @@ export default async function RootPage() {
         <div className="absolute bottom-[-10%] right-[2%] h-[420px] w-[420px] rounded-full bg-[#7a5bff]/20 blur-[150px]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-12 pt-6 sm:px-6">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 pb-12 pt-6 sm:px-6">
         {/* Top bar: logo + quick log-in */}
         <header className="flex items-center justify-between">
           <Logo variant="light" width={132} height={44} />
@@ -72,59 +73,81 @@ export default async function RootPage() {
           </Link>
         </header>
 
-        {/* Hero */}
-        <section className="flex flex-1 flex-col items-center justify-center py-14 text-center sm:py-20">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3.5 py-1.5 text-xs font-medium tracking-wide text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" aria-hidden />
-            Members-only research platform
-          </span>
-
-          <h1 className="mt-6 text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl">
-            Research-grade peptides,
-            <span className="bg-linear-to-r from-[#5b74ff] to-[#a08bff] bg-clip-text text-transparent">
-              {' '}
-              verified
-            </span>
-            .
-          </h1>
-
-          <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/65 sm:text-lg">
-            Third-party tested compounds with certificates of analysis, exclusive practice
-            pricing, and fast tracked fulfillment.
-          </p>
-
-          {/* CTAs */}
-          <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
-            <Link
-              href="/sign-up"
-              className="flex h-13 items-center justify-center rounded-2xl bg-linear-to-r from-[#2342f0] to-[#7a5bff] text-base font-semibold text-white shadow-[0_12px_30px_-10px_rgba(67,76,255,0.7)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_16px_38px_-8px_rgba(67,76,255,0.9)]"
-            >
-              Create your account
-            </Link>
-            <Link
-              href="/sign-in"
-              className="flex h-13 items-center justify-center rounded-2xl bg-white/5 text-base font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/9 hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]"
-            >
-              Log in
-            </Link>
-          </div>
-
-          {/* Trust strip */}
-          <div className="mt-12 grid w-full gap-3 sm:grid-cols-3">
-            {TRUST_ITEMS.map(({ icon: Icon, label, detail }) => (
-              <div
-                key={label}
-                className="flex items-center gap-3.5 rounded-2xl bg-white/4 p-4 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] sm:flex-col sm:items-center sm:gap-2.5 sm:py-5 sm:text-center"
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/15 text-[#7a8dff]">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold text-white">{label}</span>
-                  <span className="mt-0.5 block text-xs leading-snug text-white/55">{detail}</span>
-                </span>
+        {/* Hero banner */}
+        <section className="flex flex-1 flex-col justify-center py-8 sm:py-12">
+          <div className="overflow-hidden rounded-3xl bg-[#0a0d33] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+            {/* Copy + image row (image stays out of the trust strip below) */}
+            <div className="relative">
+              {/* Doctor image: full-width on mobile (fades into the card below),
+                  right column on larger screens (fades into the copy) */}
+              <div className="relative h-72 w-full sm:absolute sm:inset-y-0 sm:right-0 sm:h-auto sm:w-[44%]">
+                <Image
+                  src="/landing/doctor-hero.png"
+                  alt="Physician presenting on a smartphone"
+                  fill
+                  priority
+                  sizes="(max-width: 640px) 100vw, 44vw"
+                  className="object-cover object-[center_22%] sm:object-center"
+                />
+                <div
+                  className="absolute inset-0 bg-linear-to-t from-[#0a0d33] via-[#0a0d33]/25 to-transparent sm:bg-linear-to-r sm:from-[#0a0d33] sm:via-[#0a0d33]/30 sm:to-transparent"
+                  aria-hidden
+                />
               </div>
-            ))}
+
+              {/* Copy */}
+              <div className="relative -mt-10 p-6 pb-8 sm:mt-0 sm:w-[62%] sm:p-10 sm:pb-10 lg:p-12">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3.5 py-1.5 text-xs font-medium tracking-wide text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" aria-hidden />
+                Members-only research platform
+              </span>
+
+              <h1 className="mt-5 text-balance text-3xl font-semibold leading-[1.12] tracking-tight sm:text-4xl lg:text-[2.75rem]">
+                Advancing Physician-Led Precision Care with{' '}
+                <span className="bg-linear-to-r from-[#5b74ff] to-[#a08bff] bg-clip-text text-transparent">
+                  Trusted Peptide Solutions
+                </span>
+              </h1>
+
+              <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/65">
+                Third-party tested compounds with certificates of analysis, exclusive practice
+                pricing, and fast tracked fulfillment.
+              </p>
+
+              {/* CTAs */}
+              <div className="mt-7 flex w-full max-w-md flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/sign-up"
+                  className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-linear-to-r from-[#2342f0] to-[#7a5bff] px-6 text-[15px] font-semibold text-white shadow-[0_12px_30px_-10px_rgba(67,76,255,0.7)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_16px_38px_-8px_rgba(67,76,255,0.9)]"
+                >
+                  Create your account
+                </Link>
+                <Link
+                  href="/sign-in"
+                  className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-white/5 px-6 text-[15px] font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/9 hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]"
+                >
+                  Log in
+                </Link>
+              </div>
+            </div>
+            </div>
+
+            {/* Trust strip (inside the banner, like the shop hero) */}
+            <div className="grid gap-4 border-t border-white/10 px-6 py-5 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/10 sm:px-10">
+              {TRUST_ITEMS.map(({ icon: Icon, label, detail }) => (
+                <div key={label} className="flex items-center gap-3 sm:justify-center sm:px-4">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-primary/15 text-[#7a8dff]">
+                    <Icon className="h-4.5 w-4.5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-white">{label}</span>
+                    <span className="mt-0.5 block text-xs leading-snug text-white/55">
+                      {detail}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
