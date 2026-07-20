@@ -406,6 +406,87 @@ textarea {
   }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   First-visit brand splash (landing page). Pure CSS timeline:
+     0.0s – 1.3s  icon beats twice (heartbeat)
+     1.3s – 2.3s  icon zooms toward the viewer while a brand-blue circle
+                  floods the screen behind it
+     2.3s – 2.9s  the whole overlay fades out, revealing the page
+   An inline script on the page adds `.splash-seen` to <html> for repeat
+   visitors (sessionStorage), which hides the overlay before first paint.
+   The overlay is pointer-events:none throughout and ends visibility:hidden,
+   so it can never block interaction. Reduced-motion users skip it almost
+   instantly via the global prefers-reduced-motion rule. */
+#brand-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--color-brand-onyx);
+  pointer-events: none;
+  animation: splash-fade 0.6s ease 2.3s forwards;
+}
+.splash-seen #brand-splash {
+  display: none;
+}
+#brand-splash .splash-flood {
+  position: absolute;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 9999px;
+  background: var(--color-brand-primary);
+  transform: scale(0);
+  animation: splash-flood 0.85s cubic-bezier(0.85, 0, 0.3, 1) 1.4s forwards;
+}
+#brand-splash .splash-icon {
+  position: relative;
+  width: clamp(72px, 18vw, 110px);
+  height: auto;
+  animation:
+    splash-beat 0.65s ease-in-out 2,
+    splash-zoom 1s cubic-bezier(0.8, 0, 0.9, 0.4) 1.3s forwards;
+}
+@keyframes splash-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.18);
+  }
+  55% {
+    transform: scale(0.98);
+  }
+  75% {
+    transform: scale(1.1);
+  }
+}
+@keyframes splash-zoom {
+  to {
+    transform: scale(40);
+  }
+}
+@keyframes splash-flood {
+  to {
+    transform: scale(60);
+  }
+}
+@keyframes splash-fade {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+/* The global reduced-motion rule zeroes durations but not delays, so hide
+   the splash outright for users who opt out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  #brand-splash {
+    display: none;
+  }
+}
+
 /* Bottom sheet animation */
 @keyframes slideUp {
   from {
