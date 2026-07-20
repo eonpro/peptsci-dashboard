@@ -1,7 +1,5 @@
+import { BrandLoader } from '@/components/BrandLoader'
+
 export default function Loading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-brand-primary"></div>
-    </div>
-  )
+  return <BrandLoader className="min-h-screen" size={88} />
 }
