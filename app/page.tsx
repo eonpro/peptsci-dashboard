@@ -3,7 +3,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
-import { AlertCircle, ChevronDown, FileCheck2, ShieldCheck, Truck } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowRight,
+  ChevronDown,
+  FileCheck2,
+  ShieldCheck,
+  Truck,
+} from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { ThemeScope } from '@/components/ThemeScope'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
@@ -125,17 +132,18 @@ export default async function RootPage() {
                 pricing, and fast tracked fulfillment.
               </p>
 
-              {/* CTAs */}
-              <div className="mt-7 flex w-full max-w-md flex-col gap-3 sm:flex-row">
+              {/* CTAs — generous touch targets on mobile, side-by-side on sm+ */}
+              <div className="mt-7 flex w-full max-w-md flex-col gap-3.5 sm:flex-row sm:gap-3">
                 <Link
                   href="/sign-up"
-                  className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-linear-to-r from-[#2342f0] to-[#7a5bff] px-6 text-[15px] font-semibold text-white shadow-[0_12px_30px_-10px_rgba(67,76,255,0.7)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_16px_38px_-8px_rgba(67,76,255,0.9)]"
+                  className="group flex h-14 items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#2342f0] to-[#7a5bff] px-6 text-base font-semibold text-white shadow-[0_14px_34px_-10px_rgba(67,76,255,0.8)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_18px_42px_-8px_rgba(67,76,255,0.95)] active:scale-[0.98] sm:h-12 sm:flex-1 sm:text-[15px]"
                 >
                   Create your account
+                  <ArrowRight className="h-4.5 w-4.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </Link>
                 <Link
                   href="/sign-in"
-                  className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-white/5 px-6 text-[15px] font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/9 hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]"
+                  className="flex h-14 items-center justify-center rounded-2xl bg-white/8 px-6 text-base font-semibold text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)] transition-all duration-200 hover:bg-white/12 hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.32)] active:scale-[0.98] sm:h-12 sm:flex-1 sm:text-[15px]"
                 >
                   Log in
                 </Link>
