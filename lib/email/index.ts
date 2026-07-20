@@ -11,6 +11,9 @@ import {
   affiliateApplicationReceivedEmail,
   affiliateApprovedEmail,
   affiliateRejectedEmail,
+  partnerClinicAttributedEmail,
+  partnerPayoutRecordedEmail,
+  partnerDailyDigestEmail,
   orderConfirmationEmail,
   orderShippedEmail,
   orderDeliveredEmail,
@@ -90,6 +93,39 @@ export async function sendAffiliateRejectedEmail(opts: {
   reason?: string
 }): Promise<SendEmailResult> {
   const { subject, html, text } = affiliateRejectedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendPartnerClinicAttributedEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  clinicName: string
+  via: 'link' | 'lead'
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = partnerClinicAttributedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendPartnerPayoutRecordedEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  amount: string
+  method?: string | null
+  reference?: string | null
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = partnerPayoutRecordedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendPartnerDailyDigestEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  dateLabel: string
+  earned: string
+  transactionCount: number
+  unpaid: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = partnerDailyDigestEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
 

@@ -182,7 +182,7 @@ export function CoaCertificate({ data, logoSrc }: { data: CoaData; logoSrc?: str
               </div>
             </div>
             <div className="docid">
-              <div className="a">▲ SUPPLIER CERTIFICATE — NOT PEPTSCI TESTING</div>
+              <div className="a">▲ SUPPLIER CERTIFICATE</div>
               <div className="b">
                 {data.taskNumber ? `TASK #${data.taskNumber}` : 'SUPPLIER COA'}
                 {data.reportCode ? ` / ${data.reportCode}` : ''}

@@ -31,6 +31,8 @@ export function ApplyForm() {
           phone: form.get('phone') || '',
           website: form.get('website') || '',
           notes: form.get('notes') || '',
+          // Partner-refers-partner attribution from the shared apply link.
+          pref: new URLSearchParams(window.location.search).get('pref') || '',
         }),
       })
       const data = await res.json().catch(() => ({}))

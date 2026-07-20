@@ -1919,9 +1919,27 @@ Clinics with PeptSci accounts can create subdomain-based white-label storefronts
 ### Remaining Work
 - [ ] Stripe integration for end-customer payments
 - [ ] Email notifications (order confirmation, shipping)
-- [ ] DNS/Vercel wildcard subdomain configuration for production
+- [~] DNS/Vercel wildcard subdomain configuration for production — IN PROGRESS 2026-07-19, see section below
 - [ ] Image upload for logo/hero (currently URL-based)
 - [ ] Prisma migration (`prisma migrate dev`)
+
+### Wildcard DNS Setup (2026-07-19) — Option A: Vercel nameservers
+Symptom: `eonpro.peptsci.com` → DNS_PROBE_FINISHED_NXDOMAIN. App routing (middleware slug rewrite → /sf) was fine; infra was missing.
+
+Done via Vercel CLI (`--scope eonpro1s-projects`, project `peptsci-dashboard`):
+- Added `*.peptsci.com` and `eonpro.peptsci.com` domains to the Vercel project.
+- Staged all existing Wix DNS records in Vercel DNS ahead of nameserver flip:
+  - MX x5 (Google Workspace: aspmx.l.google.com 10, alt1–alt4 20–50)
+  - TXT @ SPF `v=spf1 include:_spf.google.com ~all`
+  - TXT @ google-site-verification=3VduMfpI85ie...
+  - TXT google._domainkey (DKIM, full key staged)
+  - Apex + `*` ALIAS to Vercel are present by default.
+
+USER ACTION REQUIRED (blocked on this):
+- At Wix (current DNS host, ns4/ns5.wixdns.net): change nameservers for peptsci.com to `ns1.vercel-dns.com` + `ns2.vercel-dns.com`.
+- After propagation: `npx vercel domains verify '*.peptsci.com' --scope eonpro1s-projects` → wildcard cert issues automatically; every storefront slug then resolves with no per-clinic provisioning code needed.
+
+Lesson: Vercel only issues wildcard certs when it is the authoritative nameserver; a wildcard CNAME at a third-party DNS is not sufficient for `*.domain` on Vercel.
 
 ---
 

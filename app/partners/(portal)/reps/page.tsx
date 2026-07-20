@@ -51,6 +51,14 @@ export default function PartnerRepsPage() {
   const [orgRateBps, setOrgRateBps] = useState(0)
   const [loading, setLoading] = useState(true)
   const [inviting, setInviting] = useState(false)
+  const [joinUrl, setJoinUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/partners/team-join')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setJoinUrl(data?.url ?? null))
+      .catch(() => {})
+  }, [])
   const [rateEdit, setRateEdit] = useState<{ repId: string; name: string; value: string } | null>(
     null
   )
@@ -129,6 +137,26 @@ export default function PartnerRepsPage() {
           {orgRateBps > 0 ? ` of ${orgRateBps / 100}%` : ''}), and track their book.
         </p>
       </div>
+
+      {joinUrl && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
+          <span className="font-medium text-emerald-800">Team join link:</span>
+          <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 text-xs">{joinUrl}</code>
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(joinUrl)
+              toast.success('Join link copied — reps apply, you approve')
+            }}
+            className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            Copy
+          </button>
+          <p className="basis-full text-xs text-emerald-700/70">
+            Share this anywhere — reps apply themselves and appear below for your approval.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={invite} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
         <UserPlus className="mb-2 h-4 w-4 text-slate-400" />
@@ -228,7 +256,41 @@ export default function PartnerRepsPage() {
                 <TableCell className="py-3 text-right">{usd(rep.earnedCents)}</TableCell>
                 <TableCell className="py-3 text-right text-amber-600">{usd(rep.unpaidCents)}</TableCell>
                 <TableCell className="py-3 text-right">
-                  {rep.status !== 'PENDING' && (
+                  {rep.status === 'PENDING' && !rep.hasLogin ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-sm font-medium text-emerald-600 hover:bg-transparent hover:underline"
+                      onClick={() => {
+                        const rate = window.prompt(
+                          `Approve ${rep.name} — commission rate % (max ${orgRateBps / 100}%):`,
+                          String(rep.commissionRateBps / 100)
+                        )
+                        if (rate === null) return
+                        const value = Number(rate)
+                        if (!Number.isFinite(value) || value < 0) {
+                          toast.error('Enter a valid rate')
+                          return
+                        }
+                        void (async () => {
+                          const res = await fetch('/api/partners/reps', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ repId: rep.id, action: 'approve', ratePercent: value }),
+                          })
+                          const data = await res.json().catch(() => ({}))
+                          if (!res.ok) {
+                            toast.error(data.message || 'Approval failed')
+                            return
+                          }
+                          toast.success('Rep approved — sign-up invitation sent')
+                          void load()
+                        })()
+                      }}
+                    >
+                      Approve &amp; invite
+                    </Button>
+                  ) : rep.status !== 'PENDING' ? (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -239,7 +301,7 @@ export default function PartnerRepsPage() {
                     >
                       {rep.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
                     </Button>
-                  )}
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}

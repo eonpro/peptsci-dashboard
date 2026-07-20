@@ -30,9 +30,32 @@ interface OrgDetail {
   status: 'PENDING' | 'ACTIVE' | 'SUSPENDED'
   compensationModel: 'COMMISSION' | 'MARGIN'
   commissionRateBps: number
+  autoApproveEntries: boolean
+  holdDays: number
+  payoutMinimumCents: number
+  w9BlobUrl: string | null
   msaSignedAt: string | null
   clerkUserId: string | null
   createdAt: string
+  leads: Array<{
+    id: string
+    clinicName: string
+    email: string | null
+    npiNumber: string | null
+    status: string
+    protectedUntil: string
+    rep: { name: string } | null
+    matchedClient: { id: string; organizationName: string } | null
+  }>
+  payoutRequests: Array<{
+    id: string
+    payee: string
+    repId: string | null
+    amountCents: number
+    note: string | null
+    createdAt: string
+  }>
+  referredByOrg: { id: string; name: string } | null
   reps: Rep[]
   members: Array<{ id: string; name: string; email: string; role: string; status: string }>
   referralLinks: Array<{
@@ -92,7 +115,7 @@ interface DetailPayload {
     revenueCents: number
     refundedCents: number
     source: string
-    client: { organizationName: string }
+    client: { organizationName: string } | null
     entries: Array<{ id: string; payee: string; kind: string; amountCents: number; status: string }>
   }>
 }
@@ -191,6 +214,40 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             {org.contactEmail}
             {org.contactPhone ? ` · ${org.contactPhone}` : ''}
           </p>
+          {org.referredByOrg && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Referred by <strong>{org.referredByOrg.name}</strong>{' '}
+              {org.status === 'ACTIVE' && (
+                <button
+                  className="ml-1 text-emerald-500 hover:underline"
+                  disabled={busy}
+                  onClick={() => {
+                    const amount = window.prompt(
+                      `Grant a partner-referral bonus to ${org.referredByOrg!.name} — amount $:`,
+                      '250'
+                    )
+                    if (amount === null) return
+                    const value = Number(amount)
+                    if (!Number.isFinite(value) || value <= 0) {
+                      toast.error('Enter a valid amount')
+                      return
+                    }
+                    void act(
+                      () =>
+                        fetch(`/api/admin/partners/${id}/referral-bonus`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ amount: value }),
+                        }),
+                      'Referral bonus granted'
+                    )
+                  }}
+                >
+                  Grant referral bonus
+                </button>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()}>
@@ -306,6 +363,9 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                     body: JSON.stringify({
                       compensationModel: form.get('compensationModel'),
                       commissionRateBps: Math.round(Number(form.get('ratePercent') || 0) * 100),
+                      autoApproveEntries: form.get('autoApprove') === 'on',
+                      holdDays: Math.max(0, Math.round(Number(form.get('holdDays') || 0))),
+                      payoutMinimumCents: Math.max(0, Math.round(Number(form.get('payoutMin') || 0) * 100)),
                     }),
                   }),
                 'Settings saved'
@@ -331,6 +391,32 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                 className={inputClass}
               />
             </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-muted-foreground">Hold days</span>
+              <input
+                name="holdDays"
+                type="number"
+                min="0"
+                max="365"
+                defaultValue={org.holdDays}
+                className={`${inputClass} w-24`}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-muted-foreground">Payout min $</span>
+              <input
+                name="payoutMin"
+                type="number"
+                step="1"
+                min="0"
+                defaultValue={org.payoutMinimumCents / 100}
+                className={`${inputClass} w-28`}
+              />
+            </label>
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <input type="checkbox" name="autoApprove" defaultChecked={org.autoApproveEntries} />
+              Auto-approve after hold
+            </label>
             <Button type="submit" size="sm" disabled={busy}>
               Save
             </Button>
@@ -348,6 +434,18 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
           <CardTitle className="text-base">Commission ledger</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {org.payoutRequests.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <strong>Payout requested:</strong>{' '}
+              {org.payoutRequests
+                .map(
+                  (r) =>
+                    `${r.payee === 'ORG' ? 'Organization' : repById.get(r.repId ?? '')?.name || 'Rep'} — ${formatCents(r.amountCents)} (${new Date(r.createdAt).toLocaleDateString()})`
+                )
+                .join(' · ')}
+              {' — '}record the payout below to resolve.
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span>
               <strong>{pendingCount}</strong> pending · <strong>{approvedCount}</strong> approved awaiting payout
@@ -529,7 +627,7 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
                   return (
                     <tr key={txn.id} className="border-b last:border-0">
                       <td className="py-2 pr-4">{new Date(txn.transactionDate).toLocaleDateString()}</td>
-                      <td className="py-2 pr-4">{txn.client.organizationName}</td>
+                      <td className="py-2 pr-4">{txn.client?.organizationName ?? 'Program bonus'}</td>
                       <td className="py-2 pr-4 max-w-[240px] truncate">{txn.description || txn.reference || '—'}</td>
                       <td className="py-2 pr-4">
                         <Badge className="bg-muted/60 text-foreground/80">{txn.source}</Badge>
@@ -643,6 +741,86 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
           )}
         </CardContent>
       </Card>
+
+      {/* Volume bonus tiers (commission model) */}
+      {org.compensationModel === 'COMMISSION' && <TiersEditor orgId={id} />}
+
+      {/* Registered leads */}
+      {org.leads.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Registered leads ({org.leads.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="py-2 pr-4">Prospect</th>
+                    <th className="py-2 pr-4">Match keys</th>
+                    <th className="py-2 pr-4">Owner</th>
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Protected until</th>
+                    <th className="py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {org.leads.map((lead) => (
+                    <tr key={lead.id} className="border-b last:border-0">
+                      <td className="py-2 pr-4">
+                        {lead.clinicName}
+                        {lead.matchedClient && (
+                          <span className="ml-2 text-xs text-emerald-600">
+                            → {lead.matchedClient.organizationName}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">
+                        {[lead.email, lead.npiNumber && `NPI ${lead.npiNumber}`]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </td>
+                      <td className="py-2 pr-4">{lead.rep?.name || 'Organization'}</td>
+                      <td className="py-2 pr-4">
+                        <Badge className="bg-slate-100 text-slate-700">{lead.status}</Badge>
+                      </td>
+                      <td className="py-2 pr-4">
+                        {new Date(lead.protectedUntil).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 text-right">
+                        {(lead.status === 'NEW' || lead.status === 'WORKING') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => {
+                              const clientId = window.prompt(
+                                'Match this lead to a clinic — paste the clinic id (from /clients):'
+                              )
+                              if (!clientId) return
+                              void act(
+                                () =>
+                                  fetch(`/api/admin/partners/${id}/leads`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ leadId: lead.id, clientId: clientId.trim() }),
+                                  }),
+                                'Lead matched and clinic attributed'
+                              )
+                            }}
+                          >
+                            Match to clinic
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Wholesale floors (margin model) */}
       {org.compensationModel === 'MARGIN' && <FloorsEditor orgId={id} />}
@@ -861,6 +1039,87 @@ function FloorsEditor({ orgId }: { orgId: string }) {
             </table>
           </div>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Volume-tier editor: one "threshold,bonus%" pair per line, e.g.
+ * "50000, 1" = +1% once quarter-to-date revenue reaches $50,000.
+ */
+function TiersEditor({ orgId }: { orgId: string }) {
+  const [text, setText] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/admin/partners/${orgId}/tiers`)
+      .then((r) => (r.ok ? r.json() : { tiers: [] }))
+      .then((data) => {
+        setText(
+          (data.tiers ?? [])
+            .map(
+              (t: { thresholdCents: number; bonusBps: number }) =>
+                `${t.thresholdCents / 100}, ${t.bonusBps / 100}`
+            )
+            .join('\n')
+        )
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [orgId])
+
+  async function save() {
+    const tiers = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [threshold, bonus] = line.split(',').map((s) => Number(s.trim()))
+        return { threshold, bonusPercent: bonus }
+      })
+      .filter((t) => Number.isFinite(t.threshold) && Number.isFinite(t.bonusPercent))
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/partners/${orgId}/tiers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiers }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to save tiers')
+        return
+      }
+      toast.success('Volume tiers saved — applied to future accruals')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) return null
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Volume bonus tiers</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          One tier per line: <code>quarterly revenue $, bonus %</code> — e.g.{' '}
+          <code>50000, 1</code> adds +1% to the org rate once quarter-to-date attributed revenue
+          reaches $50,000. Highest reached tier wins; partners see their ladder on the Terms page.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          placeholder={'50000, 1\n150000, 2.5'}
+          className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+        />
+        <Button size="sm" onClick={() => void save()} disabled={saving}>
+          {saving ? 'Saving…' : 'Save tiers'}
+        </Button>
       </CardContent>
     </Card>
   )

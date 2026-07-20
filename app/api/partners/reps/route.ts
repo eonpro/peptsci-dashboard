@@ -102,9 +102,11 @@ const patchSchema = z.object({
   repId: z.string().trim().min(1),
   ratePercent: z.number().min(0).max(100).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  /** Approve a self-applied PENDING rep: sets the rate + sends the Clerk invite. */
+  action: z.literal('approve').optional(),
 })
 
-/** PATCH /api/partners/reps — update a rep's rate or suspend/reactivate. */
+/** PATCH /api/partners/reps — update a rep's rate, suspend, or approve. */
 export async function PATCH(request: NextRequest) {
   try {
     const ctx = await requirePartner({ orgOnly: true, minRole: 'ADMIN' })
@@ -113,6 +115,31 @@ export async function PATCH(request: NextRequest) {
     const parsed = patchSchema.safeParse(await request.json())
     if (!parsed.success) return errorResponse('Invalid request', 400, 'VALIDATION_ERROR')
     const { repId, ratePercent, status } = parsed.data
+
+    // ── Approve a self-applied rep (join-link flow) ──
+    if (parsed.data.action === 'approve') {
+      const rep = await prisma.partnerRep.findFirst({
+        where: { id: repId, orgId: ctx.org.id },
+        select: { name: true, email: true, phone: true, clerkUserId: true, commissionRateBps: true },
+      })
+      if (!rep) return errorResponse('Rep not found', 404, 'NOT_FOUND')
+      if (rep.clerkUserId) return errorResponse('Rep already has a login', 409, 'ALREADY_ACTIVE')
+
+      const rateBps =
+        ratePercent !== undefined ? Math.round(ratePercent * 100) : rep.commissionRateBps
+      if (ctx.org.compensationModel === 'COMMISSION') {
+        const err = validateRepRateBps(rateBps, ctx.org.commissionRateBps)
+        if (err) return errorResponse(err, 400, 'RATE_INVALID')
+      }
+      // invitePartnerRep updates the existing (orgId,email) row + sends the invite.
+      await invitePartnerRep(ctx.org.id, {
+        name: rep.name,
+        email: rep.email,
+        phone: rep.phone,
+        commissionRateBps: rateBps,
+      })
+      return successResponse({ success: true, invited: true })
+    }
 
     const data: { commissionRateBps?: number; status?: 'ACTIVE' | 'SUSPENDED' } = {}
     if (ratePercent !== undefined) {

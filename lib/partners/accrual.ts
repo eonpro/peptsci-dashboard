@@ -29,6 +29,41 @@ export function orderReference(orderId: string): string {
   return `order:${orderId}`
 }
 
+/** Start of the current calendar quarter (UTC). */
+export function quarterStart(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) * 3, 1))
+}
+
+/**
+ * The org's effective commission rate right now: base rate plus the highest
+ * volume-tier bonus whose quarter-to-date revenue threshold has been reached.
+ * Capped at 100%. Tiers only apply to COMMISSION-model orgs.
+ */
+export async function effectiveOrgRateBps(orgId: string, baseRateBps: number): Promise<number> {
+  if (!prisma) return baseRateBps
+  try {
+    const tiers = await prisma.partnerRateTier.findMany({
+      where: { orgId },
+      orderBy: { thresholdCents: 'asc' },
+      select: { thresholdCents: true, bonusBps: true },
+    })
+    if (tiers.length === 0) return baseRateBps
+
+    const qtd = await prisma.partnerTransaction.aggregate({
+      where: { orgId, transactionDate: { gte: quarterStart() } },
+      _sum: { revenueCents: true },
+    })
+    const revenue = qtd._sum.revenueCents ?? 0
+    let bonus = 0
+    for (const tier of tiers) {
+      if (revenue >= tier.thresholdCents) bonus = tier.bonusBps
+    }
+    return Math.min(10_000, baseRateBps + bonus)
+  } catch {
+    return baseRateBps
+  }
+}
+
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002'
 }
@@ -109,10 +144,12 @@ export async function accrueCommissionForOrder(orderId: string): Promise<void> {
       entries = computeMarginSplit({ marginCents, repRateBps })
     } else {
       if (validateOrgRateBps(org.commissionRateBps) || org.commissionRateBps <= 0) return
-      const effectiveRepRate = Math.min(repRateBps, org.commissionRateBps)
+      // Volume tiers: quarter-to-date revenue can bump the org rate.
+      const orgRateBps = await effectiveOrgRateBps(org.id, org.commissionRateBps)
+      const effectiveRepRate = Math.min(repRateBps, orgRateBps)
       entries = computeCommissionSplit({
         revenueCents,
-        orgRateBps: org.commissionRateBps,
+        orgRateBps,
         repRateBps: effectiveRepRate,
       })
     }
@@ -258,10 +295,11 @@ export async function accrueManualTransaction(
         400
       )
     }
+    const orgRateBps = await effectiveOrgRateBps(org.id, org.commissionRateBps)
     entries = computeCommissionSplit({
       revenueCents: input.revenueCents,
-      orgRateBps: org.commissionRateBps,
-      repRateBps: Math.min(repRateBps, org.commissionRateBps),
+      orgRateBps,
+      repRateBps: Math.min(repRateBps, orgRateBps),
     })
   }
 

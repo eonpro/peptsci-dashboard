@@ -5,6 +5,8 @@ import {
   commissionSummary,
   revenueSummary,
   monthlyTrend,
+  acquisitionFunnel,
+  orgLeaderboard,
   type LedgerScope,
 } from '@/lib/partners/queries'
 import { formatCents, formatBps } from '@/lib/partners/commission'
@@ -28,10 +30,12 @@ export default async function PartnerDashboardPage() {
   const viewer = ctx.kind
   const scope: LedgerScope = { orgId: ctx.org.id, ...(ctx.rep ? { repId: ctx.rep.id } : {}) }
 
-  const [summary, revenue, trend, recent] = await Promise.all([
+  const [summary, revenue, trend, funnel, leaderboard, recent] = await Promise.all([
     commissionSummary(scope, viewer),
     revenueSummary(scope),
     monthlyTrend(scope, viewer, 12),
+    acquisitionFunnel(scope),
+    ctx.kind === 'ORG' ? orgLeaderboard(ctx.org.id) : Promise.resolve([]),
     prisma!.partnerTransaction.findMany({
       where: { orgId: ctx.org.id, ...(ctx.rep ? { repId: ctx.rep.id } : {}) },
       orderBy: { transactionDate: 'desc' },
@@ -84,6 +88,32 @@ export default async function PartnerDashboardPage() {
         </p>
       )}
 
+      {/* Acquisition funnel */}
+      <div className="rounded-xl border bg-white p-5">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Your acquisition funnel
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {[
+            ['Link clicks', funnel.clicks.toLocaleString()],
+            ['Signups', funnel.signups.toLocaleString()],
+            ['Approved clinics', funnel.approvedClinics.toLocaleString()],
+            ['Ordering clinics', funnel.orderingClinics.toLocaleString()],
+            ['Attributed revenue', formatCents(funnel.revenueCents)],
+          ].map(([label, value], i) => (
+            <div key={label} className="relative rounded-lg bg-slate-50 p-3 text-center">
+              <p className="text-lg font-bold text-slate-900">{value}</p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
+              {i < 4 && (
+                <span className="absolute -right-2.5 top-1/2 hidden -translate-y-1/2 text-slate-300 sm:block">
+                  ›
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-xl border bg-white p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Last 12 months
@@ -96,6 +126,33 @@ export default async function PartnerDashboardPage() {
           }))}
         />
       </div>
+
+      {/* Quarterly leaderboard (org sessions) */}
+      {leaderboard.length > 1 && (
+        <div className="rounded-xl border bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Quarterly leaderboard
+          </h2>
+          <ol className="space-y-1.5">
+            {leaderboard.map((row) => (
+              <li
+                key={row.rank}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+                  row.isYou ? 'bg-[#213cef]/10 font-semibold text-[#213cef]' : 'text-slate-600'
+                }`}
+              >
+                <span>
+                  #{row.rank} {row.label}
+                </span>
+                <span>{formatCents(row.revenueCents)}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-2 text-xs text-slate-400">
+            Quarter-to-date attributed revenue across all partners (anonymized).
+          </p>
+        </div>
+      )}
 
       <div className="rounded-xl border bg-white p-5">
         <div className="mb-3 flex items-center justify-between">
@@ -137,7 +194,7 @@ export default async function PartnerDashboardPage() {
                   return (
                     <TableRow key={txn.id}>
                       <TableCell className="py-2 pl-0 pr-4">{txn.transactionDate.toLocaleDateString()}</TableCell>
-                      <TableCell className="py-2 pl-0 pr-4">{txn.client.organizationName}</TableCell>
+                      <TableCell className="py-2 pl-0 pr-4">{txn.client?.organizationName ?? 'Program bonus'}</TableCell>
                       <TableCell className="py-2 pl-0 pr-4 text-right">{formatCents(txn.revenueCents)}</TableCell>
                       <TableCell className="py-2 pl-0 pr-0 text-right font-medium">{formatCents(mine)}</TableCell>
                     </TableRow>

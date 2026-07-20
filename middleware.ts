@@ -37,7 +37,13 @@ const isPublicRoute = createRouteMatcher([
   // Affiliate program: public application form + referral-link redirect.
   '/partners/apply(.*)',
   '/api/partners/apply',
+  // Public rep application via an org's join link (GET stays partner-authed
+  // inside the route).
+  '/partners/join-team(.*)',
+  '/api/partners/team-join',
   '/join(.*)',
+  // Co-branded partner invite landing pages.
+  '/p/(.*)',
   // Clinic-to-clinic referral links (store-credit program).
   '/refer(.*)',
   // Partner read-only API authenticates via hashed API keys inside the route.

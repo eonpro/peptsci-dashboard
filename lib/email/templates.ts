@@ -645,6 +645,98 @@ Questions? ${SUPPORT_EMAIL}
   return { subject, html, text }
 }
 
+export function partnerClinicAttributedEmail(opts: {
+  contactName?: string | null
+  clinicName: string
+  via: 'link' | 'lead'
+}): EmailContent {
+  const subject = `New clinic attributed to you — ${opts.clinicName}`
+  const viaLabel = opts.via === 'lead' ? 'matched to your registered lead' : 'signed up through your referral link'
+  const html = layout({
+    heading: 'You just landed a clinic! 🎉',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `<strong>${escapeHtml(opts.clinicName)}</strong> ${viaLabel} and is now attributed to you. Once their account is approved and they start ordering, your commission accrues automatically on every purchase.`
+      ) +
+      para('Track them live in your partner portal.'),
+    cta: { label: 'Open your portal', href: `${APP_URL}/partners/clinics` },
+  })
+  const text = `${greeting(opts.contactName)}
+
+${opts.clinicName} ${viaLabel} and is now attributed to you. Once their account is approved and they start ordering, your commission accrues automatically on every purchase.
+
+Portal: ${APP_URL}/partners/clinics
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function partnerPayoutRecordedEmail(opts: {
+  contactName?: string | null
+  amount: string
+  method?: string | null
+  reference?: string | null
+}): EmailContent {
+  const subject = `Payout sent — ${opts.amount}`
+  const html = layout({
+    heading: 'Your payout is on the way',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(`We\u2019ve recorded a commission payout of <strong>${escapeHtml(opts.amount)}</strong>.`) +
+      detailPanel([
+        ['Amount', opts.amount],
+        ['Method', opts.method || '—'],
+        ['Reference', opts.reference || '—'],
+      ]) +
+      para('The full ledger is in your portal under Payouts.'),
+    cta: { label: 'View payouts', href: `${APP_URL}/partners/payouts` },
+  })
+  const text = `${greeting(opts.contactName)}
+
+We've recorded a commission payout of ${opts.amount}.
+Method: ${opts.method || '—'}  Reference: ${opts.reference || '—'}
+
+Payouts: ${APP_URL}/partners/payouts
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+export function partnerDailyDigestEmail(opts: {
+  contactName?: string | null
+  dateLabel: string
+  earned: string
+  transactionCount: number
+  unpaid: string
+}): EmailContent {
+  const subject = `You earned ${opts.earned} yesterday — PeptSci partner digest`
+  const html = layout({
+    heading: 'Your daily commission digest',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `On <strong>${escapeHtml(opts.dateLabel)}</strong> your attributed clinics generated <strong>${opts.transactionCount}</strong> transaction${opts.transactionCount === 1 ? '' : 's'}, earning you <strong>${escapeHtml(opts.earned)}</strong> in commission.`
+      ) +
+      detailPanel([
+        ['Earned', opts.earned],
+        ['Transactions', String(opts.transactionCount)],
+        ['Unpaid balance', opts.unpaid],
+      ]),
+    cta: { label: 'See the details', href: `${APP_URL}/partners/transactions` },
+  })
+  const text = `${greeting(opts.contactName)}
+
+On ${opts.dateLabel} your attributed clinics generated ${opts.transactionCount} transaction(s), earning you ${opts.earned} in commission. Unpaid balance: ${opts.unpaid}.
+
+Details: ${APP_URL}/partners/transactions
+
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
 export function affiliateRejectedEmail(opts: {
   contactName?: string | null
   orgName: string

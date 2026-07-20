@@ -71,7 +71,7 @@ export async function GET(
         transactions: txns.map((t) => ({
           id: t.id,
           date: t.transactionDate.toISOString(),
-          clinic: { id: t.client.id, name: t.client.organizationName },
+          clinic: t.client ? { id: t.client.id, name: t.client.organizationName } : null,
           description: t.description,
           reference: t.reference,
           revenue: usd(t.revenueCents),

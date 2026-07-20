@@ -11,6 +11,8 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { approvedBalance } from '@/lib/partners/queries'
 import { dispatchPartnerEvent } from '@/lib/partners/webhooks'
+import { sendPartnerPayoutRecordedEmail } from '@/lib/email'
+import { formatCents } from '@/lib/partners/commission'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,6 +101,43 @@ export async function POST(request: NextRequest, context: Params) {
       method: payout.method,
       reference: payout.reference,
     })
+
+    // Resolve any open payout request for this payee + email the recipient.
+    await prisma.partnerPayoutRequest
+      .updateMany({
+        where: {
+          orgId: id,
+          payee,
+          ...(payee === 'REP' ? { repId } : {}),
+          status: 'PENDING',
+        },
+        data: { status: 'COMPLETED', resolvedBy: userId, resolvedAt: new Date() },
+      })
+      .catch(() => {})
+    const recipient =
+      payee === 'REP' && repId
+        ? await prisma.partnerRep.findUnique({
+            where: { id: repId },
+            select: { email: true, name: true },
+          })
+        : await prisma.partnerOrg.findUnique({
+            where: { id },
+            select: { contactEmail: true, contactName: true, notifyByEmail: true },
+          })
+    if (recipient) {
+      const to = 'email' in recipient ? recipient.email : recipient.contactEmail
+      const name = 'name' in recipient ? recipient.name : recipient.contactName
+      const wants = 'notifyByEmail' in recipient ? recipient.notifyByEmail : true
+      if (to && wants) {
+        sendPartnerPayoutRecordedEmail({
+          to,
+          contactName: name,
+          amount: formatCents(payout.amountCents),
+          method: payout.method,
+          reference: payout.reference,
+        }).catch(() => {})
+      }
+    }
     return successResponse({ payout }, 201)
   } catch (error) {
     if (error instanceof Error && error.message === 'CONCURRENT_PAYOUT') {

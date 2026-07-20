@@ -85,7 +85,7 @@ export default async function PartnerTransactionsPage() {
               return (
                 <TableRow key={txn.id}>
                   <TableCell className="py-3">{txn.transactionDate.toLocaleDateString()}</TableCell>
-                  <TableCell className="py-3">{txn.client.organizationName}</TableCell>
+                  <TableCell className="py-3">{txn.client?.organizationName ?? 'Program bonus'}</TableCell>
                   <TableCell className="max-w-[280px] truncate py-3 text-slate-500">
                     {txn.description || txn.reference || '—'}
                   </TableCell>

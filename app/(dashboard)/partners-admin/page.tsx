@@ -103,6 +103,12 @@ export default function PartnersAdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link
+            href="/partners-admin/assets"
+            className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-muted/50"
+          >
+            Marketing assets
+          </Link>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="mr-1 h-4 w-4" /> Refresh
           </Button>
@@ -152,6 +158,8 @@ export default function PartnersAdminPage() {
         </div>
       )}
 
+      <PayoutQueue />
+
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Partner organizations
@@ -169,6 +177,87 @@ export default function PartnersAdminPage() {
           <OrgTable orgs={rest} />
         )}
       </div>
+    </div>
+  )
+}
+
+interface QueueRow {
+  orgId: string
+  orgName: string
+  payee: 'ORG' | 'REP'
+  repName: string | null
+  amountCents: number
+  w9OnFile: boolean
+  minimumCents: number
+  hasOpenRequest: boolean
+}
+
+/** All approved (payable) balances across the program, biggest first. */
+function PayoutQueue() {
+  const [queue, setQueue] = useState<QueueRow[] | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/partners/payout-queue')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setQueue(data?.queue ?? []))
+      .catch(() => setQueue([]))
+  }, [])
+
+  if (!queue || queue.length === 0) return null
+
+  return (
+    <div>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">
+        Payout queue ({queue.length})
+      </h2>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3">Payee</th>
+                <th className="px-4 py-3 text-right">Approved balance</th>
+                <th className="px-4 py-3">W-9</th>
+                <th className="px-4 py-3">Requested?</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {queue.map((row) => (
+                <tr key={`${row.orgId}:${row.payee}:${row.repName ?? ''}`} className="border-b last:border-0">
+                  <td className="px-4 py-3">
+                    <span className="font-medium">{row.orgName}</span>
+                    {row.repName && <span className="text-slate-500"> — rep {row.repName}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatCents(row.amountCents)}</td>
+                  <td className="px-4 py-3">
+                    {row.w9OnFile ? (
+                      <Badge className="bg-emerald-100 text-emerald-800">On file</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-800">Missing</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {row.hasOpenRequest ? (
+                      <Badge className="bg-blue-100 text-blue-800">Requested</Badge>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/partners-admin/${row.orgId}`}
+                      className="text-sm text-blue-700 hover:underline"
+                    >
+                      Record payout
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

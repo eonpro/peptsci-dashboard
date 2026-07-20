@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { requirePartner, PartnerForbiddenError } from '@/lib/partners/auth'
 import { generateReferralCode, referralUrl } from '@/lib/partners/referral'
+import { linkAnalytics } from '@/lib/partners/queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,16 +18,25 @@ export async function GET() {
     const ctx = await requirePartner()
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
-    const links = await prisma.referralLink.findMany({
-      where: {
-        orgId: ctx.org.id,
-        ...(ctx.kind === 'REP' ? { repId: ctx.rep!.id } : {}),
-      },
-      include: { rep: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'desc' },
-    })
+    const scope = { orgId: ctx.org.id, ...(ctx.kind === 'REP' ? { repId: ctx.rep!.id } : {}) }
+    const [links, analytics] = await Promise.all([
+      prisma.referralLink.findMany({
+        where: {
+          orgId: ctx.org.id,
+          ...(ctx.kind === 'REP' ? { repId: ctx.rep!.id } : {}),
+        },
+        include: { rep: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      linkAnalytics(scope, 30),
+    ])
     return successResponse({
-      links: links.map((l) => ({ ...l, url: referralUrl(l.code) })),
+      links: links.map((l) => ({
+        ...l,
+        url: referralUrl(l.code),
+        landingUrl: referralUrl(l.code).replace('/join/', '/p/'),
+      })),
+      analytics,
     })
   } catch (error) {
     if (error instanceof PartnerForbiddenError) return forbiddenResponse('Partner access required')

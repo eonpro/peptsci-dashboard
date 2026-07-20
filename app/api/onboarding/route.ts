@@ -16,6 +16,8 @@ import {
 } from '@/lib/partners/referral'
 import { CLINIC_REF_COOKIE } from '@/lib/referrals/credit'
 import { applicationReference } from '@/lib/application-reference'
+import { matchLeadForNewClient, convertLead } from '@/lib/partners/leads'
+import { sendPartnerClinicAttributedEmail } from '@/lib/email'
 
 /**
  * Resolve clinic-to-clinic referral attribution from the /refer/<code>
@@ -135,6 +137,10 @@ export async function POST(request: NextRequest) {
     const shippingAddress = resolveShippingAddress(data)
     const attribution = await resolveReferralAttribution()
     const clinicReferrerId = await resolveClinicReferrerId()
+    // Protected-lead attribution: only when there's no explicit link click.
+    const leadMatch = attribution
+      ? null
+      : await matchLeadForNewClient({ email: data.contactEmail, npiNumber: data.npiNumber })
 
     let client
     try {
@@ -146,7 +152,9 @@ export async function POST(request: NextRequest) {
                 partnerRepId: attribution.partnerRepId,
                 referralLinkId: attribution.referralLinkId,
               }
-            : {}),
+            : leadMatch
+              ? { partnerOrgId: leadMatch.orgId, partnerRepId: leadMatch.repId }
+              : {}),
           ...(clinicReferrerId ? { referredByClientId: clinicReferrerId } : {}),
           organizationName: data.organizationName,
           npiNumber: data.npiNumber,
@@ -216,6 +224,36 @@ export async function POST(request: NextRequest) {
         clientId: client.id,
         referrerClientId: clinicReferrerId,
       })
+    }
+
+    // Lead conversion + partner notification (best-effort, never blocks onboarding).
+    if (leadMatch) {
+      await convertLead(leadMatch.leadId, client.id)
+      logger.info('[ONBOARDING] Client attributed via protected lead', {
+        clientId: client.id,
+        leadId: leadMatch.leadId,
+        partnerOrgId: leadMatch.orgId,
+      })
+    }
+    // Notify the partner their attribution landed (link OR lead).
+    const attributedOrgId = attribution?.partnerOrgId ?? leadMatch?.orgId
+    if (attributedOrgId && prisma) {
+      prisma.partnerOrg
+        .findUnique({
+          where: { id: attributedOrgId },
+          select: { contactEmail: true, contactName: true, notifyByEmail: true },
+        })
+        .then((org) => {
+          if (org?.notifyByEmail) {
+            return sendPartnerClinicAttributedEmail({
+              to: org.contactEmail,
+              contactName: org.contactName,
+              clinicName: client.organizationName,
+              via: attribution ? 'link' : 'lead',
+            })
+          }
+        })
+        .catch(() => {})
     }
 
     // Referral attribution succeeded — bump the link's signup counter (best-effort).

@@ -17,6 +17,8 @@ const applySchema = z.object({
   phone: z.string().trim().max(30).optional().or(z.literal('')),
   website: z.string().trim().max(255).optional().or(z.literal('')),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
+  /** Partner-refers-partner code (?pref=… on the apply link). */
+  pref: z.string().trim().max(32).optional().or(z.literal('')),
 })
 
 /**
@@ -64,6 +66,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Partner-refers-partner attribution (best-effort; invalid codes ignored).
+    let referredByOrgId: string | null = null
+    if (parsed.data.pref) {
+      const referrer = await prisma.partnerOrg.findUnique({
+        where: { partnerRefCode: parsed.data.pref.toLowerCase() },
+        select: { id: true, status: true },
+      })
+      if (referrer?.status === 'ACTIVE') referredByOrgId = referrer.id
+    }
+
     const org = await prisma.partnerOrg.create({
       data: {
         name: orgName,
@@ -73,6 +85,7 @@ export async function POST(request: NextRequest) {
         website,
         notes,
         status: 'PENDING',
+        referredByOrgId,
       },
     })
 

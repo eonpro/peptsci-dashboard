@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getPartnerContext } from '@/lib/partners/auth'
-import { clinicBook } from '@/lib/partners/queries'
+import { clinicBook, monthlyStatements } from '@/lib/partners/queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +59,7 @@ export async function GET(
             : 'pending'
         return [
           t.transactionDate.toISOString().slice(0, 10),
-          t.client.organizationName,
+          t.client?.organizationName ?? 'Program bonus',
           t.description ?? '',
           t.reference ?? '',
           usd(t.revenueCents),
@@ -102,6 +102,18 @@ export async function GET(
         p.reference ?? '',
         p.notes ?? '',
         usd(p.amountCents),
+      ])
+    )
+  } else if (dataset === 'statements') {
+    const rows = await monthlyStatements({ orgId: ctx.org.id, ...repScope }, ctx.kind, 24)
+    csv = toCsv(
+      ['month', 'earned', 'reversed', 'paid_out', 'closing_balance'],
+      rows.map((r) => [
+        r.month,
+        usd(r.earnedCents),
+        usd(r.reversedCents),
+        usd(r.paidCents),
+        usd(r.closingUnpaidCents),
       ])
     )
   } else {

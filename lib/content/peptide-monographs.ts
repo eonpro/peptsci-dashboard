@@ -896,6 +896,11 @@ const ALIASES: Record<string, string> = {
   pregnyl: 'hcg',
   'bpc-157-tb-500': 'bpc-157-tb-500-blend',
   'bpc-tb-blend': 'bpc-157-tb-500-blend',
+  // "Glow"/"Klow" blends, including the total-mg marketing suffix.
+  'glow-70': 'glow',
+  'glow-blend': 'glow',
+  'klow-80': 'klow',
+  'klow-blend': 'klow',
   // Salt/acetate forms and spelling variants seen in the live catalog.
   'cjc-1295-with-dac': 'cjc-1295',
   'cjc-1295-dac-form': 'cjc-1295',

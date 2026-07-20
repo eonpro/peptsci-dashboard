@@ -59,6 +59,19 @@ export async function GET(_request: NextRequest, context: Params) {
           orderBy: { signedAt: 'desc' },
         },
         payouts: { orderBy: { paidAt: 'desc' }, take: 50 },
+        leads: {
+          include: {
+            rep: { select: { name: true } },
+            matchedClient: { select: { id: true, organizationName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        },
+        payoutRequests: {
+          where: { status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+        },
+        referredByOrg: { select: { id: true, name: true } },
       },
     })
     if (!org) return errorResponse('Partner org not found', 404, 'NOT_FOUND')
@@ -122,6 +135,11 @@ const patchSchema = z.object({
   status: z.enum(['PENDING', 'ACTIVE', 'SUSPENDED']).optional(),
   compensationModel: z.enum(['COMMISSION', 'MARGIN']).optional(),
   commissionRateBps: z.number().int().optional(),
+  // Payout policy (Wave 3)
+  autoApproveEntries: z.boolean().optional(),
+  holdDays: z.number().int().min(0).max(365).optional(),
+  payoutMinimumCents: z.number().int().min(0).max(10_000_000).optional(),
+  notifyByEmail: z.boolean().optional(),
 })
 
 /**

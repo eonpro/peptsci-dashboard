@@ -30,15 +30,24 @@ const KPV: BlendComponent = { name: 'KPV', casNumber: '67727-97-3', molecularFor
 const CJC_1295_NO_DAC: BlendComponent = { name: 'CJC-1295 (no DAC)', casNumber: '863288-34-0', molecularFormula: 'C152H252N44O42', molecularWeight: '3367.9 g/mol', purity: P }
 const IPAMORELIN: BlendComponent = { name: 'Ipamorelin', casNumber: '170851-70-4', molecularFormula: 'C38H49N9O5', molecularWeight: '711.9 g/mol', purity: P }
 
+// Component order matches the printed label artwork (BPC-157 / TB-500 first,
+// then GHK-Cu, then KPV) so per-component doses parsed from the variant dose
+// string line up positionally.
 export const BLEND_COMPOSITIONS: Record<string, BlendComponent[]> = {
-  glow: [GHK_CU, BPC_157, TB_500],
-  klow: [GHK_CU, BPC_157, TB_500, KPV],
+  'bpc-157-tb-500-blend': [BPC_157, TB_500],
+  glow: [BPC_157, TB_500, GHK_CU],
+  klow: [BPC_157, TB_500, GHK_CU, KPV],
   'cjc-1295-no-dac-ipamorelin': [CJC_1295_NO_DAC, IPAMORELIN],
 }
 
 const ALIASES: Record<string, string> = {
   'cjc-1295-ipamorelin': 'cjc-1295-no-dac-ipamorelin',
   'cjc-1295-no-dac-ipamorelin-blend': 'cjc-1295-no-dac-ipamorelin',
+  // Marketing names carry the total-mg suffix ("Glow 70", "Klow 80").
+  'glow-70': 'glow',
+  'klow-80': 'klow',
+  'glow-blend': 'glow',
+  'klow-blend': 'klow',
 }
 
 /** Resolve a blend's component list by product name, or null if not a known blend. */

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Copy, Link2, Plus } from 'lucide-react'
+import { Copy, Link2, PanelTop, Plus, QrCode, Tags } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ interface LinkRow {
   id: string
   code: string
   url: string
+  landingUrl: string
   label: string | null
   active: boolean
   clickCount: number
@@ -29,8 +30,15 @@ interface LinkRow {
   rep: { id: string; name: string } | null
 }
 
+interface Analytics {
+  series: Array<{ date: string; clicks: number; uniques: number }>
+  totals: { clicks: number; uniques: number; signups: number }
+  topSources: Array<{ source: string; clicks: number }>
+}
+
 export default function PartnerLinksPage() {
   const [links, setLinks] = useState<LinkRow[]>([])
+  const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [label, setLabel] = useState('')
@@ -40,8 +48,12 @@ export default function PartnerLinksPage() {
     try {
       const res = await fetch('/api/partners/links')
       const data = await res.json()
-      if (res.ok) setLinks(data.links)
-      else toast.error(data.message || 'Failed to load links')
+      if (res.ok) {
+        setLinks(data.links)
+        setAnalytics(data.analytics ?? null)
+      } else {
+        toast.error(data.message || 'Failed to load links')
+      }
     } finally {
       setLoading(false)
     }
@@ -95,6 +107,44 @@ export default function PartnerLinksPage() {
           clicking is attributed to you.
         </p>
       </div>
+
+      {/* 30-day click analytics */}
+      {analytics && analytics.totals.clicks > 0 && (
+        <div className="rounded-xl border bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-700">Last 30 days</p>
+            <p className="text-xs text-slate-500">
+              <strong>{analytics.totals.clicks}</strong> clicks ·{' '}
+              <strong>{analytics.totals.uniques}</strong> unique visitors ·{' '}
+              <strong>{analytics.totals.signups}</strong> signups all-time
+            </p>
+          </div>
+          <div className="flex h-20 items-end gap-[2px]">
+            {analytics.series.map((point) => {
+              const max = Math.max(1, ...analytics.series.map((p) => p.clicks))
+              return (
+                <div
+                  key={point.date}
+                  title={`${point.date}: ${point.clicks} clicks (${point.uniques} unique)`}
+                  className="flex-1 rounded-t bg-[#213cef]/70 transition-colors hover:bg-[#213cef]"
+                  style={{ height: `${Math.max(3, (point.clicks / max) * 100)}%` }}
+                />
+              )
+            })}
+          </div>
+          {analytics.topSources.length > 0 && (
+            <p className="mt-3 text-xs text-slate-500">
+              Top sources:{' '}
+              {analytics.topSources.map((s, i) => (
+                <span key={s.source}>
+                  {i > 0 && ' · '}
+                  <code className="rounded bg-slate-100 px-1">{s.source}</code> {s.clicks}
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-4">
         <Link2 className="h-4 w-4 text-slate-400" />
@@ -161,6 +211,47 @@ export default function PartnerLinksPage() {
                       aria-label="Copy link"
                     >
                       <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-slate-400 hover:text-slate-700"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(link.landingUrl)
+                        toast.success('Invitation page link copied — a branded landing page for prospects')
+                      }}
+                      aria-label="Copy invitation page link"
+                      title="Copy invitation page link"
+                    >
+                      <PanelTop className="h-4 w-4" />
+                    </Button>
+                    <a
+                      href={`/api/partners/links/qr?linkId=${link.id}`}
+                      download
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:text-slate-700"
+                      aria-label="Download QR code"
+                      title="Download QR code"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-slate-400 hover:text-slate-700"
+                      onClick={() => {
+                        const source = window.prompt('utm_source (e.g. instagram, newsletter):', 'newsletter')
+                        if (source === null) return
+                        const campaign = window.prompt('utm_campaign (optional):', '') ?? ''
+                        const url = new URL(link.url)
+                        if (source) url.searchParams.set('utm_source', source.trim())
+                        if (campaign) url.searchParams.set('utm_campaign', campaign.trim())
+                        void navigator.clipboard.writeText(url.toString())
+                        toast.success('Tracked link copied — clicks will report this source')
+                      }}
+                      aria-label="Build tracked UTM link"
+                      title="Build tracked UTM link"
+                    >
+                      <Tags className="h-4 w-4" />
                     </Button>
                   </div>
                 </TableCell>

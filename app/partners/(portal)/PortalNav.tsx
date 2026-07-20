@@ -13,17 +13,20 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { name: 'Dashboard', href: '/partners' },
+  { name: 'Leads', href: '/partners/leads' },
   { name: 'Clinics', href: '/partners/clinics' },
-  { name: 'Transactions', href: '/partners/transactions' },
-  { name: 'Payouts', href: '/partners/payouts' },
   { name: 'Links', href: '/partners/links' },
+  { name: 'Transactions', href: '/partners/transactions' },
+  { name: 'Statements', href: '/partners/statements' },
+  { name: 'Payouts', href: '/partners/payouts' },
+  { name: 'Assets', href: '/partners/assets' },
   { name: 'Quotes', href: '/partners/quotes' },
   { name: 'Goals', href: '/partners/goals' },
   { name: 'Pricing', href: '/partners/pricing', orgOnly: true, marginOnly: true },
   { name: 'Reps', href: '/partners/reps', orgOnly: true },
   { name: 'Team', href: '/partners/team', orgOnly: true },
   { name: 'API', href: '/partners/api', orgOnly: true },
-  { name: 'Agreement', href: '/partners/agreement' },
+  { name: 'Terms', href: '/partners/terms' },
 ]
 
 export function PortalNav({

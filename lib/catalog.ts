@@ -8,8 +8,9 @@
 import { prisma } from './prisma'
 import { stockEnforcementEnabled } from './stock-enforcement'
 import { logger } from './logger'
-import type { ShopProduct, ProductImage } from './types/shop'
+import type { ShopProduct, ProductImage, CompoundInfo } from './types/shop'
 import { parseMonograph } from './types/monograph'
+import { getBlendComposition } from './content/blend-compositions'
 
 /** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
 export const CATALOG_TAG = 'catalog'
@@ -52,6 +53,30 @@ function toImages(
   }))
 }
 
+/**
+ * Multi-peptide blends (Glow, Klow, BPC-157 / TB-500, ...) resolve their
+ * component chemistry by product name. Per-component doses are read positionally
+ * from the variant dose string ("10mg/10mg/50mg" -> one segment per component)
+ * so the catalog card, vial label, and PDP all render the same breakdown.
+ */
+function blendCompounds(name: string, dose: string | null): CompoundInfo[] | null {
+  const composition = getBlendComposition(name)
+  if (!composition) return null
+  const doses = (dose || '')
+    .split(/\s*[/+]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const hasPartDoses = doses.length === composition.length
+  return composition.map((c, i) => ({
+    name: c.name,
+    amount: hasPartDoses ? doses[i] : '',
+    casNumber: c.casNumber,
+    molecularFormula: c.molecularFormula,
+    molecularWeight: c.molecularWeight,
+    purity: c.purity,
+  }))
+}
+
 function toShopProduct(v: VariantWithProduct): ShopProduct {
   const srp = Number(v.srp)
   // Availability, not gross on-hand: stock already reserved for other open
@@ -61,11 +86,13 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
   // the entire catalog "Out of Stock".
   const enforceStock = stockEnforcementEnabled()
   const available = Math.max(0, v.inventoryOnHand - (v.inventoryReserved || 0))
+  const compounds = blendCompounds(v.product.name, v.dose)
   return {
     id: v.sku || v.id,
     sku: v.sku || v.id,
     name: v.product.name,
     dose: v.dose || v.unitSize || '',
+    ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
     description: v.product.description,
     category: v.product.category,
     displayPrice: srp,

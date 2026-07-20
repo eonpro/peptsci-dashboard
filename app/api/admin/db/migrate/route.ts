@@ -112,6 +112,11 @@ interface SchemaProbe {
   orderCreditAppliedColumn: boolean
   productMonographColumn: boolean
   productPurityColumn: boolean
+  partnerLeadTable: boolean
+  referralLinkClickTable: boolean
+  partnerPayoutRequestTable: boolean
+  partnerAssetTable: boolean
+  partnerOrgHoldDaysColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -125,7 +130,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'Notification', 'ReturnRequest', 'ReturnItem', 'InventoryReservation',
         'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
         'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa',
-        'ClientCreditEntry'
+        'ClientCreditEntry', 'PartnerLead', 'ReferralLinkClick',
+        'PartnerPayoutRequest', 'PartnerAsset'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -147,7 +153,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'referralCode')
         OR (table_name = 'Order' AND column_name = 'creditApplied')
         OR (table_name = 'Product' AND column_name = 'monograph')
-        OR (table_name = 'Product' AND column_name = 'purity'))
+        OR (table_name = 'Product' AND column_name = 'purity')
+        OR (table_name = 'PartnerOrg' AND column_name = 'holdDays'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -206,6 +213,11 @@ async function probeSchema(): Promise<SchemaProbe> {
     orderCreditAppliedColumn: colKeys.has('Order.creditApplied'),
     productMonographColumn: colKeys.has('Product.monograph'),
     productPurityColumn: colKeys.has('Product.purity'),
+    partnerLeadTable: tableNames.has('PartnerLead'),
+    referralLinkClickTable: tableNames.has('ReferralLinkClick'),
+    partnerPayoutRequestTable: tableNames.has('PartnerPayoutRequest'),
+    partnerAssetTable: tableNames.has('PartnerAsset'),
+    partnerOrgHoldDaysColumn: colKeys.has('PartnerOrg.holdDays'),
   }
 }
 

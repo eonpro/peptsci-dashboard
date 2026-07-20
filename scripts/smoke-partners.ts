@@ -13,7 +13,9 @@ import {
   reverseCommissionForOrder,
   accrueManualTransaction,
   orderReference,
+  effectiveOrgRateBps,
 } from '../lib/partners/accrual'
+import { matchLeadForNewClient, convertLead, LEAD_PROTECTION_DAYS } from '../lib/partners/leads'
 import { commissionSummary, approvedBalance, clinicBook, monthlyTrend } from '../lib/partners/queries'
 import { attributionFromLink, generateReferralCode } from '../lib/partners/referral'
 
@@ -265,6 +267,46 @@ async function main() {
     }
 
     await prisma.client.delete({ where: { id: clinic2.id } }).catch(() => {})
+
+    // ── Protected leads: register → match by email → convert.
+    const lead = await prisma.partnerLead.create({
+      data: {
+        orgId: org.id,
+        repId: rep.id,
+        clinicName: 'Smoke Lead Clinic',
+        email: `smoke-lead-${stamp}@example.com`,
+        protectedUntil: new Date(Date.now() + LEAD_PROTECTION_DAYS * 86_400_000),
+      },
+    })
+    const match = await matchLeadForNewClient({ email: `SMOKE-LEAD-${stamp}@example.com` })
+    assert.ok(match, 'lead matches case-insensitively')
+    assert.equal(match.orgId, org.id)
+    assert.equal(match.repId, rep.id)
+    const leadClinic = await prisma.client.create({
+      data: {
+        organizationName: `Smoke LeadClinic ${stamp}`,
+        partnerOrgId: match.orgId,
+        partnerRepId: match.repId,
+      },
+    })
+    await convertLead(match.leadId, leadClinic.id)
+    const converted = await prisma.partnerLead.findUnique({ where: { id: lead.id } })
+    assert.equal(converted!.status, 'CONVERTED')
+    assert.equal(converted!.matchedClientId, leadClinic.id)
+    const noMatch = await matchLeadForNewClient({ email: `smoke-lead-${stamp}@example.com` })
+    assert.equal(noMatch, null, 'converted leads stop matching')
+    console.log('✓ leads: email match attributes org+rep, converts, and stops matching')
+    await prisma.client.delete({ where: { id: leadClinic.id } }).catch(() => {})
+
+    // ── Volume tiers: +2% once QTD revenue ≥ $100 (already earned $600 this quarter).
+    await prisma.partnerRateTier.create({
+      data: { orgId: org.id, thresholdCents: 10_000, bonusBps: 200 },
+    })
+    const boosted = await effectiveOrgRateBps(org.id, 1000)
+    assert.equal(boosted, 1200, 'tier bonus applies once threshold reached')
+    const unboosted = await effectiveOrgRateBps(org.id, 9950)
+    assert.equal(unboosted, 10_000, 'boosted rate caps at 100%')
+    console.log('✓ tiers: quarter-to-date volume bumps the effective rate (capped)')
 
     console.log('\nALL SMOKE CHECKS PASSED')
   } finally {

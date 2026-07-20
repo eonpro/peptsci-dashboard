@@ -5,6 +5,7 @@ import { commissionSummary } from '@/lib/partners/queries'
 import { formatCents } from '@/lib/partners/commission'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
+import { RequestPayoutButton } from './RequestPayoutButton'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   Table,
@@ -42,13 +43,16 @@ export default async function PartnerPayoutsPage() {
             Paid to date: <strong className="text-emerald-600">{formatCents(summary.paidCents)}</strong>
           </p>
         </div>
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
-        <a
-          href="/partners/exports/payouts"
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
-        >
-          Export CSV
-        </a>
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
+          <a
+            href="/partners/exports/payouts"
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
+          >
+            Export CSV
+          </a>
+          <RequestPayoutButton />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-white">
