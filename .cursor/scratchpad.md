@@ -1,4 +1,6 @@
-# Supplier Price Lists + Crest Peptide (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+# Supplier Price Lists + Crest Peptide (Jul 20, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
+
+**Deployed Jul 21 ~12:35 AM ET** in `60962bc` (with card-layout fix `6b0fdb5`) → main → Vercel `dpl_95v2XvtfmcQUKvnXuX5cBz4Ds6d6` READY on peptsci.com (`/api/health` 200, version `6b0fdb5`). Prod migration `20260721040000_add_suppliers` applied via `POST /api/admin/db/migrate` through the owner's signed-in admin session: `success:true, upToDate:true` (15.4s), probes `supplierTable`+`supplierPriceItemTable` both true; `GET /api/admin/suppliers` returns `{"suppliers":[]}`. `scripts/data/` (confidential price sheets) is gitignored — the repo is public; owner loads Crest via PO Generator → Import Price List (owner action #2 below still pending). Note: local `next build` fails with `.next` MODULE_NOT_FOUND while a `next dev` server shares the same `.next` dir — Vercel build is the real gate and passed.
 
 ## Background and Motivation
 Owner onboarded a new supplier, **Crest Peptide**, with a negotiated "-10%" price sheet (`new-supplier-pricing-10pct-off.csv`, 102 items) and wants it usable when creating POs, plus a **Tesamorelin 10mg / Ipamorelin 5mg Blend @ $22.50/vial**. The app had no supplier price-list concept — the PO generator priced items only from our catalog `ProductVariant.unitCost`, and `supplierName`/`supplierSku` were just free-text fields per variant.
