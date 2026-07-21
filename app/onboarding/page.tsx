@@ -17,7 +17,7 @@ import { Logo } from '@/components/Logo'
 import { AddressFields } from '@/components/AddressFields'
 import { NpiLookup } from '@/components/NpiLookup'
 import type { Address } from '@/lib/address'
-import { isValidNpi, cleanNpi, type NormalizedProvider } from '@/lib/npi'
+import { isValidNpi, cleanNpi, isNpiBypass, NPI_BYPASS, type NormalizedProvider } from '@/lib/npi'
 import { SMS_OPT_IN_STORAGE_KEY } from '@/components/auth/SmsOptInConsent'
 import { Building2, Stethoscope, MapPin, User, Loader2, CheckCircle2, LogOut } from 'lucide-react'
 
@@ -77,6 +77,13 @@ export default function OnboardingPage() {
   }, [router])
 
   const applyProvider = (p: NormalizedProvider) => {
+    if (p.npiNumber === NPI_BYPASS) {
+      // Non-provider bypass: no NPPES data to apply, provider name optional.
+      setNpiNumber(NPI_BYPASS)
+      setProviderName('')
+      setNpiData(null)
+      return
+    }
     setNpiNumber(p.npiNumber)
     setProviderName(p.providerName)
     setNpiData(p)
@@ -86,6 +93,8 @@ export default function OnboardingPage() {
     }
     if (p.phone) setContactPhone((prev) => prev || p.phone!)
   }
+
+  const npiBypassed = isNpiBypass(npiNumber)
 
   // Mirror the server onboardingSchema requirements so the submit button only
   // enables once the NPI, contact details, and address(es) are filled in.
@@ -97,8 +106,8 @@ export default function OnboardingPage() {
         /^\d{5}(-\d{4})?$/.test(addr.zip?.trim() ?? '')
     )
   const canSubmit =
-    isValidNpi(cleanNpi(npiNumber)) &&
-    providerName.trim().length >= 2 &&
+    (isValidNpi(cleanNpi(npiNumber)) || npiBypassed) &&
+    (npiBypassed || providerName.trim().length >= 2) &&
     organizationName.trim().length >= 2 &&
     contactName.trim().length >= 2 &&
     contactEmail.trim().length > 0 &&
@@ -189,13 +198,13 @@ export default function OnboardingPage() {
               </CardTitle>
               <CardDescription>
                 Look up your National Provider Identifier by number or name. We verify it against the
-                federal NPPES registry.
+                federal NPPES registry. Not a provider? Enter 000000000 to continue without one.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Search the NPI registry *</Label>
-                <NpiLookup onSelect={applyProvider} />
+                <NpiLookup onSelect={applyProvider} allowBypass />
               </div>
               {npiNumber && (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -208,19 +217,26 @@ export default function OnboardingPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="providerName">Provider Name</Label>
+                    <Label htmlFor="providerName">
+                      Provider Name{npiBypassed ? ' (optional)' : ''}
+                    </Label>
                     <Input
                       id="providerName"
                       value={providerName}
                       onChange={(e) => setProviderName(e.target.value)}
                     />
                   </div>
-                  {npiData && (
+                  {npiBypassed ? (
+                    <div className="sm:col-span-2 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg p-2.5">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Continuing as a non-provider — NPI verification skipped
+                    </div>
+                  ) : npiData ? (
                     <div className="sm:col-span-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg p-2.5">
                       <CheckCircle2 className="h-4 w-4" />
                       Verified against NPPES{npiData.primaryTaxonomy ? ` • ${npiData.primaryTaxonomy}` : ''}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </CardContent>

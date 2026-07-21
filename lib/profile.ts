@@ -5,7 +5,7 @@
  */
 import { z } from 'zod'
 import { addressSchema, type Address } from './address'
-import { isValidNpi, cleanNpi } from './npi'
+import { isValidNpi, cleanNpi, isNpiBypass, NPI_BYPASS } from './npi'
 
 const phoneSchema = z
   .string()
@@ -18,6 +18,19 @@ export const npiSchema = z
   .trim()
   .transform(cleanNpi)
   .refine((v) => isValidNpi(v), { message: 'Enter a valid 10-digit NPI number' })
+
+/**
+ * Onboarding-only NPI: a real NPPES-valid NPI, or the all-zeros bypass for
+ * non-providers (normalized to NPI_BYPASS; the API stores null for those).
+ */
+export const onboardingNpiSchema = z
+  .string()
+  .trim()
+  .transform(cleanNpi)
+  .refine((v) => isValidNpi(v) || isNpiBypass(v), {
+    message: 'Enter a valid 10-digit NPI number, or 000000000 if you are not a provider',
+  })
+  .transform((v) => (isNpiBypass(v) ? NPI_BYPASS : v))
 
 /** Optional EIN / tax ID. Digits with optional hyphen; blank clears. */
 export const einSchema = z
@@ -42,17 +55,28 @@ const contactFields = {
 }
 
 /** Full onboarding payload: NPI + practice + addresses + contact. */
-export const onboardingSchema = z.object({
-  npiNumber: npiSchema,
-  providerName: z.string().trim().min(2, 'Provider name is required').max(200),
-  ...contactFields,
-  billingAddress: addressSchema,
-  shippingSameAsBilling: z.boolean().optional().default(false),
-  shippingAddress: addressSchema.optional(),
-  npiData: z.unknown().optional(),
-  // TCPA/A2P SMS consent — must default to false (checkbox is never pre-checked).
-  smsOptIn: z.boolean().optional().default(false),
-})
+export const onboardingSchema = z
+  .object({
+    npiNumber: onboardingNpiSchema,
+    // Required unless the caller used the non-provider NPI bypass (see superRefine).
+    providerName: z.string().trim().max(200).optional().default(''),
+    ...contactFields,
+    billingAddress: addressSchema,
+    shippingSameAsBilling: z.boolean().optional().default(false),
+    shippingAddress: addressSchema.optional(),
+    npiData: z.unknown().optional(),
+    // TCPA/A2P SMS consent — must default to false (checkbox is never pre-checked).
+    smsOptIn: z.boolean().optional().default(false),
+  })
+  .superRefine((data, ctx) => {
+    if (data.npiNumber !== NPI_BYPASS && data.providerName.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['providerName'],
+        message: 'Provider name is required',
+      })
+    }
+  })
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>
 

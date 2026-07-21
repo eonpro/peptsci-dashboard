@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   cleanNpi,
   isValidNpi,
+  isNpiBypass,
+  NPI_BYPASS,
   normalizeNppesResult,
   normalizeNppesResponse,
 } from '../npi.ts'
@@ -37,6 +39,26 @@ describe('isValidNpi (Luhn / 80840 prefix)', () => {
   test('rejects all-same-digit repdigits', () => {
     assert.equal(isValidNpi('0000000000'), false)
     assert.equal(isValidNpi('9999999999'), false)
+  })
+})
+
+describe('isNpiBypass (non-provider all-zeros sentinel)', () => {
+  test('accepts 9 or 10 zeros, with or without formatting', () => {
+    assert.equal(isNpiBypass('000000000'), true)
+    assert.equal(isNpiBypass('0000000000'), true)
+    assert.equal(isNpiBypass('000-000-000'), true)
+    assert.equal(isNpiBypass(NPI_BYPASS), true)
+  })
+
+  test('rejects real NPIs and other repdigits', () => {
+    assert.equal(isNpiBypass('1234567893'), false)
+    assert.equal(isNpiBypass('9999999999'), false)
+    assert.equal(isNpiBypass('00000000'), false) // 8 zeros
+    assert.equal(isNpiBypass(''), false)
+  })
+
+  test('bypass value is still not a valid NPI', () => {
+    assert.equal(isValidNpi(NPI_BYPASS), false)
   })
 })
 

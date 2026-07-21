@@ -2,31 +2,50 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { Loader2, Search, BadgeCheck } from 'lucide-react'
-import type { NormalizedProvider } from '@/lib/npi'
+import { Loader2, Search, BadgeCheck, UserX } from 'lucide-react'
+import { isNpiBypass, NPI_BYPASS, type NormalizedProvider } from '@/lib/npi'
 
 interface Props {
   onSelect: (provider: NormalizedProvider) => void
   dark?: boolean
   placeholder?: string
+  /** Offer the all-zeros "not a provider" bypass option (onboarding only). */
+  allowBypass?: boolean
 }
 
 /**
  * Search the NPPES registry by NPI number or provider/practice name and let
  * the user pick the matching provider. Debounced; calls /api/npi/lookup.
  */
-export function NpiLookup({ onSelect, dark, placeholder }: Props) {
+export function NpiLookup({ onSelect, dark, placeholder, allowBypass }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<NormalizedProvider[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [bypass, setBypass] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  // Skip one search cycle after a selection writes the display text back
+  // into the input (otherwise the dropdown re-opens with stale results).
+  const suppressSearchRef = useRef(false)
 
   useEffect(() => {
+    if (suppressSearchRef.current) {
+      suppressSearchRef.current = false
+      return
+    }
     const digits = query.replace(/\D/g, '')
     const isNumber = digits.length === 10
     const term = query.trim()
+    // All-zeros entry → non-provider bypass (don't query NPPES for it).
+    if (allowBypass && digits.length >= 9 && isNpiBypass(digits)) {
+      setResults([])
+      setError(null)
+      setBypass(true)
+      setOpen(true)
+      return
+    }
+    setBypass(false)
     if (!isNumber && term.length < 2) {
       setResults([])
       setError(null)
@@ -66,7 +85,7 @@ export function NpiLookup({ onSelect, dark, placeholder }: Props) {
       active = false
       clearTimeout(handle)
     }
-  }, [query])
+  }, [query, allowBypass])
 
   // Close the dropdown on outside click.
   useEffect(() => {
@@ -102,13 +121,37 @@ export function NpiLookup({ onSelect, dark, placeholder }: Props) {
         )}
       </div>
 
-      {open && (results.length > 0 || error) && (
+      {open && (results.length > 0 || error || bypass) && (
         <div
           className={`absolute z-50 mt-2 w-full rounded-xl border shadow-xl overflow-hidden ${
             dark ? 'bg-[#0a0e3a] border-white/10' : 'bg-white border-gray-200'
           }`}
         >
-          {error && results.length === 0 ? (
+          {bypass ? (
+            <button
+              type="button"
+              onClick={() => {
+                onSelect({ npiNumber: NPI_BYPASS, type: 'individual', providerName: '' })
+                suppressSearchRef.current = true
+                setQuery('Non-provider account (no NPI)')
+                setBypass(false)
+                setOpen(false)
+              }}
+              className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
+                dark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+              }`}
+            >
+              <UserX className={`h-4 w-4 mt-0.5 shrink-0 ${dark ? 'text-[#8b95ff]' : 'text-brand-primary'}`} />
+              <span className="min-w-0">
+                <span className={`block text-sm font-medium ${dark ? 'text-white' : 'text-gray-900'}`}>
+                  I&apos;m not a provider — continue without NPI
+                </span>
+                <span className={`block text-xs ${dark ? 'text-white/50' : 'text-gray-500'}`}>
+                  Skips NPPES verification for non-provider accounts
+                </span>
+              </span>
+            </button>
+          ) : error && results.length === 0 ? (
             <div className={`p-3 text-sm ${dark ? 'text-white/60' : 'text-gray-500'}`}>{error}</div>
           ) : (
             <ul className="max-h-72 overflow-y-auto">
@@ -118,6 +161,7 @@ export function NpiLookup({ onSelect, dark, placeholder }: Props) {
                     type="button"
                     onClick={() => {
                       onSelect(p)
+                      suppressSearchRef.current = true
                       setQuery(p.providerName)
                       setOpen(false)
                     }}

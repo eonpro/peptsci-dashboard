@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { onboardingSchema, resolveShippingAddress, serializeClientProfile } from '@/lib/profile'
+import { NPI_BYPASS } from '@/lib/npi'
 import {
   REF_COOKIE,
   isValidReferralCode,
@@ -134,13 +135,18 @@ export async function POST(request: NextRequest) {
       return successResponse({ success: true, profile: serializeClientProfile(user.client) })
     }
 
+    // Non-provider bypass: the all-zeros sentinel is never stored (npiNumber
+    // is unique — storing it would block the second non-provider signup).
+    const isNpiBypassed = data.npiNumber === NPI_BYPASS
+    const npiNumber = isNpiBypassed ? null : data.npiNumber
+
     const shippingAddress = resolveShippingAddress(data)
     const attribution = await resolveReferralAttribution()
     const clinicReferrerId = await resolveClinicReferrerId()
     // Protected-lead attribution: only when there's no explicit link click.
     const leadMatch = attribution
       ? null
-      : await matchLeadForNewClient({ email: data.contactEmail, npiNumber: data.npiNumber })
+      : await matchLeadForNewClient({ email: data.contactEmail, npiNumber })
 
     let client
     try {
@@ -157,9 +163,11 @@ export async function POST(request: NextRequest) {
               : {}),
           ...(clinicReferrerId ? { referredByClientId: clinicReferrerId } : {}),
           organizationName: data.organizationName,
-          npiNumber: data.npiNumber,
-          providerName: data.providerName,
-          npiData: (data.npiData as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          npiNumber,
+          providerName: isNpiBypassed ? data.providerName || null : data.providerName,
+          npiData: isNpiBypassed
+            ? Prisma.JsonNull
+            : ((data.npiData as Prisma.InputJsonValue) ?? Prisma.JsonNull),
           contactName: data.contactName,
           contactEmail: data.contactEmail,
           contactPhone: data.contactPhone,

@@ -35,6 +35,23 @@ function luhnCheckDigit(base: string): number {
 }
 
 /**
+ * Sentinel stored/submitted by non-provider accounts to skip NPPES
+ * verification during onboarding. Never persisted to Client.npiNumber
+ * (the API stores null instead, since npiNumber is unique).
+ */
+export const NPI_BYPASS = '0000000000'
+
+/**
+ * True when the input is the all-zeros non-provider bypass (9 or 10 zeros,
+ * formatting stripped). Kept separate from isValidNpi so only flows that
+ * explicitly opt in (onboarding) honor it.
+ */
+export function isNpiBypass(input: string): boolean {
+  const npi = cleanNpi(input)
+  return npi === '000000000' || npi === NPI_BYPASS
+}
+
+/**
  * Validate a 10-digit NPI using the CMS Luhn check-digit algorithm
  * (prefix "80840"). Accepts formatted input (spaces/dashes stripped).
  */
