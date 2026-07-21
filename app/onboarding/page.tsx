@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,17 @@ import { NpiLookup } from '@/components/NpiLookup'
 import type { Address } from '@/lib/address'
 import { isValidNpi, cleanNpi, isNpiBypass, NPI_BYPASS, type NormalizedProvider } from '@/lib/npi'
 import { SMS_OPT_IN_STORAGE_KEY } from '@/components/auth/SmsOptInConsent'
-import { Building2, Stethoscope, MapPin, User, Loader2, CheckCircle2, LogOut } from 'lucide-react'
+import {
+  Building2,
+  Stethoscope,
+  MapPin,
+  User,
+  Loader2,
+  CheckCircle2,
+  LogOut,
+  Handshake,
+  ArrowRight,
+} from 'lucide-react'
 
 const emptyAddress: Partial<Address> = { country: 'US' }
 
@@ -180,6 +191,33 @@ export default function OnboardingPage() {
             Welcome{user?.firstName ? `, ${user.firstName}` : ''}! Tell us about your practice so we
             can verify your provider credentials and set up your account for approval.
           </p>
+        </div>
+
+        {/* Partners (sales orgs / reps) are not clinics — route them to the
+            partner application instead of the clinic profile below. */}
+        <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10">
+              <Handshake className="h-5 w-5 text-brand-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900">
+                Here to join the partner program instead?
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                This form is for clinics and providers ordering products. If you&rsquo;re a sales
+                organization, distributor, or independent rep, you don&rsquo;t need provider
+                credentials — submit a partner application and we&rsquo;ll set up your partner
+                portal access once you&rsquo;re approved.
+              </p>
+              <Link
+                href="/partners/apply"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"
+              >
+                Apply to the partner program <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
         </div>
 
         {error && (

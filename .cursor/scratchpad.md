@@ -1,3 +1,23 @@
+# Meaningful Partner Welcome/Invite Emails (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+Approved partners were getting Clerk's generic "Invitation to join Peptsci" email (bare accept button, no branding or context) alongside our branded approval email that promised a "separate invitation." Replaced with a single branded email that carries the Clerk accept-invitation link plus a program overview; reps and org teammates get their own branded invites too.
+
+## Project Status Board
+- [x] **Templates** (`lib/email/templates.ts`) — `affiliateApprovedEmail` accepts optional `inviteUrl`: with it, the email becomes the invitation itself (accept CTA, what-you-can-do bullet panel, 30-day validity note); without it, the old "separate invitation" wording is preserved (fallback when EMAIL_ENABLED=false). New `partnerRepInviteEmail` (org name, rep capabilities, accept CTA) and `partnerTeamInviteEmail` (ADMIN vs VIEWER role wording). Shared `bulletList()` cream-panel helper.
+- [x] **Senders** (`lib/email/index.ts`) — `sendAffiliateApprovedEmail` gains `inviteUrl`; new `sendPartnerRepInviteEmail` + `sendPartnerTeamInviteEmail`.
+- [x] **Provisioning** (`lib/partners/provision.ts`) — `createPartnerInvitation` now passes `notify: !isEmailEnabled()` to Clerk and returns `invitation.url` when we own delivery (null otherwise). Org approval embeds the URL in the approved email; rep/member invites send the new branded emails (org name fetched for the copy). Logs an error if Clerk returns no URL with notify:false (nobody would have a link — revoke + re-invite).
+- [x] **Tests (TDD)** — `lib/__tests__/partnerInviteEmails.test.ts`: 7 tests covering link embedding, program-overview copy, no stale "separate invitation" promise when the link is present, fallback wording without a link, HTML escaping of org names, greeting fallbacks, ADMIN/VIEWER wording.
+- [x] Verified: `tsc --noEmit` clean, 343/343 unit tests, eslint clean on touched files.
+
+## Executor's Feedback or Assistance Requests
+- Behavior is gated on `EMAIL_ENABLED`: in prod (SES live) Clerk's generic email is suppressed and ours is the only invite. In envs without SES, Clerk's default email still goes out so invitees are never stranded.
+- Branded sends remain fire-and-forget (`sendEmail` never throws, logs failures). Residual risk: if SES send fails in prod, the invitee gets no email (Clerk's was suppressed) — the failure is logged; re-invite via the existing admin/portal flows resends.
+
+## Lessons
+- Clerk `createInvitation({ notify: false })` returns `invitation.url` so you can deliver the accept link in your own branded email; keep `notify: true` as the fallback when your mail pipeline is disabled so the invite always reaches the user through one channel.
+
+---
+
 # FedEx Label 409 (INSUFFICIENT_BATCH_STOCK) Override (Jul 19, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
 
 Ops reported "FedEx integration errors" (409) creating labels. Root cause: NOT FedEx — the Jul 13 hard batch-stock gate (`consumeOrderInventoryTx(requireFull: true)` inside the label transaction) fails any order whose variant has no allocatable batch (`RECEIVED`, qty>0, BUD ≥ today) in prod. Prod batch receipts were never fully populated (same class as the Jul 13 `CHECKOUT_ENFORCE_STOCK` incident), so legitimate shipments were blocked with no escape hatch.
@@ -2451,6 +2471,18 @@ Three parallel audits (client ordering, admin ops, design foundation + partner p
 - When adding a probeSchema key to the migrate runner, the column must ALSO be added to the information_schema SQL query — `colKeys.has()` on an unqueried column silently reports false forever (upToDate never turns true).
 - `ADD COLUMN IF NOT EXISTS` statements always count as "applied" in the idempotent runner (the guard is inside SQL, no error to catch) — re-run counts prove nothing for them; only the probe is authoritative.
 - Headless prod-admin auth: Clerk Backend API sign-in tokens + `/sign-in?__clerk_ticket=` works even when the instance has Native API disabled; `vercel env pull` returns EMPTY strings for this project's encrypted PG*/AWS vars (only OIDC + Clerk keys come through), so direct-RDS scripts are dead ends here.
+
+## Partner path out of clinic onboarding (Jul 20 2026) [EXECUTOR]
+
+**Background:** partners (sales orgs/reps) are not clinicians — but self-serve sign-ups default to role CLIENT, so middleware funneled them to `/onboarding` (the clinic application with NPI verification) with no way to reach the partner program. Worse, if they applied at `/partners/apply` with the same email, approval would FAIL: Clerk rejects invitations for emails that already have an account.
+
+**What shipped:**
+- `/onboarding`: prominent call-out card above the clinic form — "Here to join the partner program instead?" → links `/partners/apply` (already public in middleware; works signed-in).
+- `lib/partners/provision.ts` `linkExistingClerkAccount()`: on org approval, if the contact email already has a Clerk account, grant it partner access directly (metadata `{role: PARTNER, status: ACTIVE, partnerOrgId}` + stamp `PartnerOrg.clerkUserId` + inline DB User sync) instead of the doomed invitation. Guarded 409s: EMAIL_IS_ADMIN, EMAIL_IS_CLINIC (clientId set), EMAIL_IS_PARTNER (already a partner identity) — admin must change the application contact email.
+- `affiliateApprovedEmail` gains `existingAccount` variant ("your existing login now has partner access — just sign in", CTA → /partners; no invitation promised). Sender wrapper updated.
+- Session claims refresh (~60s) after metadata update → middleware `homeForRole('PARTNER')` routes them to `/partners`; `getPartnerContext` finds the stamped `clerkUserId`.
+
+**Verified:** tsc clean, next lint clean on touched files, 344/344 unit tests (3 new assertions in `partnerInviteEmails.test.ts` for the existing-account variant).
 
 ## Clinic notification bell — patient chat follow-up (Jul 18 2026) [EXECUTOR]
 

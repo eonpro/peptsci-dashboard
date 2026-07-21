@@ -615,11 +615,108 @@ Questions? ${SUPPORT_EMAIL}
   return { subject, html, text }
 }
 
+/**
+ * Bulleted "what you can do" list for partner onboarding emails.
+ * Items are trusted, pre-escaped HTML strings.
+ */
+function bulletList(items: string[]): string {
+  const rows = items
+    .map(
+      (item) =>
+        `<tr>
+           <td style="padding:4px 0;vertical-align:top;width:22px;color:${BRAND.blue};font-weight:700;">&bull;</td>
+           <td style="padding:4px 0;color:${BRAND.text};font-size:14px;line-height:1.55;">${item}</td>
+         </tr>`
+    )
+    .join('')
+  return `<tr><td style="padding:2px 0 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};border-radius:12px;padding:12px 18px;">
+      ${rows}
+    </table>
+  </td></tr>`
+}
+
+const PARTNER_PORTAL_BULLETS = [
+  `<strong>Create referral links</strong> — share them with clinics and every sign-up is attributed to you automatically.`,
+  `<strong>Invite your reps</strong> — give each rep their own login, links, and commission rate.`,
+  `<strong>Track commissions live</strong> — see attributed clinics, revenue, and your unpaid balance in real time.`,
+]
+
+const PARTNER_PORTAL_BULLETS_TEXT = [
+  '- Create referral links — share them with clinics and every sign-up is attributed to you automatically.',
+  '- Invite your reps — give each rep their own login, links, and commission rate.',
+  '- Track commissions live — see attributed clinics, revenue, and your unpaid balance in real time.',
+].join('\n')
+
 export function affiliateApprovedEmail(opts: {
   contactName?: string | null
   orgName: string
+  /** Clerk accept-invitation link. When present this email IS the invitation. */
+  inviteUrl?: string | null
+  /**
+   * The applicant already had a PeptSci login that was granted partner access
+   * — no invitation is coming; they just sign in.
+   */
+  existingAccount?: boolean
 }): EmailContent {
   const subject = 'Your PeptSci partner application is approved'
+
+  if (opts.existingAccount) {
+    const html = layout({
+      heading: 'Welcome to the partner program! 🎉',
+      body:
+        para(greetingHtml(opts.contactName)) +
+        para(
+          `Great news — <strong>${escapeHtml(opts.orgName)}</strong> has been approved for the PeptSci partner program. Your existing PeptSci login now has partner access, so there&rsquo;s nothing to set up — just sign in.`
+        ) +
+        para('Once you&rsquo;re in, here&rsquo;s what you can do:') +
+        bulletList(PARTNER_PORTAL_BULLETS),
+      cta: { label: 'Sign in to your partner portal', href: `${APP_URL}/partners` },
+    })
+    const text = `${greeting(opts.contactName)}
+
+Great news — ${opts.orgName} has been approved for the PeptSci partner program. Your existing PeptSci login now has partner access, so there's nothing to set up — just sign in.
+
+Once you're in, here's what you can do:
+${PARTNER_PORTAL_BULLETS_TEXT}
+
+Sign in to your partner portal: ${APP_URL}/partners
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+    return { subject, html, text }
+  }
+
+  if (opts.inviteUrl) {
+    const html = layout({
+      heading: 'Welcome to the partner program! 🎉',
+      body:
+        para(greetingHtml(opts.contactName)) +
+        para(
+          `Great news — <strong>${escapeHtml(opts.orgName)}</strong> has been approved for the PeptSci partner program. You&rsquo;re one click away from your partner portal.`
+        ) +
+        para('Once you&rsquo;re in, here&rsquo;s what you can do:') +
+        bulletList(PARTNER_PORTAL_BULLETS) +
+        para(
+          `Use the button below to accept your invitation and create your login. The link is valid for 30 days.`
+        ),
+      cta: { label: 'Accept invitation & set up your portal', href: opts.inviteUrl },
+    })
+    const text = `${greeting(opts.contactName)}
+
+Great news — ${opts.orgName} has been approved for the PeptSci partner program. You're one click away from your partner portal.
+
+Once you're in, here's what you can do:
+${PARTNER_PORTAL_BULLETS_TEXT}
+
+Accept your invitation and create your login (the link is valid for 30 days):
+${opts.inviteUrl}
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+    return { subject, html, text }
+  }
+
   const html = layout({
     heading: 'Welcome to the partner program! 🎉',
     body:
@@ -639,6 +736,87 @@ Great news — ${opts.orgName} has been approved for the PeptSci partner program
 You'll receive a separate sign-up invitation email in the next few minutes. Accept it to create your login, then sign in to your partner portal to create referral links, invite reps, and track your commissions.
 
 Partner portal: ${APP_URL}/partners
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+/** Branded sign-up invitation for a sales rep joining a partner org. */
+export function partnerRepInviteEmail(opts: {
+  repName?: string | null
+  orgName: string
+  inviteUrl: string
+}): EmailContent {
+  const subject = `You're invited to join ${opts.orgName} on PeptSci`
+  const html = layout({
+    heading: `Join ${escapeHtml(opts.orgName)} on PeptSci`,
+    body:
+      para(greetingHtml(opts.repName)) +
+      para(
+        `<strong>${escapeHtml(opts.orgName)}</strong> has invited you to join their team as a sales rep on the PeptSci partner platform.`
+      ) +
+      para('With your rep login you can:') +
+      bulletList([
+        `<strong>Create your own referral links</strong> — clinics that sign up through them are attributed to you.`,
+        `<strong>Register leads</strong> — lock in attribution for clinics you&rsquo;re actively working.`,
+        `<strong>Track your commissions</strong> — watch earnings accrue automatically as your clinics order.`,
+      ]) +
+      para('Use the button below to accept your invitation and create your login. The link is valid for 30 days.'),
+    cta: { label: 'Accept invitation', href: opts.inviteUrl },
+  })
+  const text = `${greeting(opts.repName)}
+
+${opts.orgName} has invited you to join their team as a sales rep on the PeptSci partner platform.
+
+With your rep login you can:
+- Create your own referral links — clinics that sign up through them are attributed to you.
+- Register leads — lock in attribution for clinics you're actively working.
+- Track your commissions — watch earnings accrue automatically as your clinics order.
+
+Accept your invitation and create your login (the link is valid for 30 days):
+${opts.inviteUrl}
+
+Questions? ${SUPPORT_EMAIL}
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+/** Branded sign-up invitation for an org teammate (ADMIN/VIEWER). */
+export function partnerTeamInviteEmail(opts: {
+  name?: string | null
+  orgName: string
+  role: 'ADMIN' | 'VIEWER'
+  inviteUrl: string
+}): EmailContent {
+  const subject = `You're invited to join ${opts.orgName} on PeptSci`
+  const roleLine =
+    opts.role === 'ADMIN'
+      ? 'As an <strong>admin</strong>, you can manage reps and teammates, create referral links, and see the full commission picture for the org.'
+      : 'As a <strong>viewer</strong>, you can view the org&rsquo;s clinics, referral performance, and commission reports.'
+  const roleLineText =
+    opts.role === 'ADMIN'
+      ? 'As an admin, you can manage reps and teammates, create referral links, and see the full commission picture for the org.'
+      : "As a viewer, you can view the org's clinics, referral performance, and commission reports."
+  const html = layout({
+    heading: `Join ${escapeHtml(opts.orgName)} on PeptSci`,
+    body:
+      para(greetingHtml(opts.name)) +
+      para(
+        `<strong>${escapeHtml(opts.orgName)}</strong> has invited you to their PeptSci partner portal.`
+      ) +
+      para(roleLine) +
+      para('Use the button below to accept your invitation and create your login. The link is valid for 30 days.'),
+    cta: { label: 'Accept invitation', href: opts.inviteUrl },
+  })
+  const text = `${greeting(opts.name)}
+
+${opts.orgName} has invited you to their PeptSci partner portal.
+
+${roleLineText}
+
+Accept your invitation and create your login (the link is valid for 30 days):
+${opts.inviteUrl}
 
 Questions? ${SUPPORT_EMAIL}
 © ${new Date().getFullYear()} PeptSci`

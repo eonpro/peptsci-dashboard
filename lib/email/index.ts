@@ -11,6 +11,8 @@ import {
   affiliateApplicationReceivedEmail,
   affiliateApprovedEmail,
   affiliateRejectedEmail,
+  partnerRepInviteEmail,
+  partnerTeamInviteEmail,
   partnerClinicAttributedEmail,
   partnerPayoutRecordedEmail,
   partnerDailyDigestEmail,
@@ -81,8 +83,31 @@ export async function sendAffiliateApprovedEmail(opts: {
   to: string | string[]
   contactName?: string | null
   orgName: string
+  inviteUrl?: string | null
+  existingAccount?: boolean
 }): Promise<SendEmailResult> {
   const { subject, html, text } = affiliateApprovedEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendPartnerRepInviteEmail(opts: {
+  to: string | string[]
+  repName?: string | null
+  orgName: string
+  inviteUrl: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = partnerRepInviteEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+export async function sendPartnerTeamInviteEmail(opts: {
+  to: string | string[]
+  name?: string | null
+  orgName: string
+  role: 'ADMIN' | 'VIEWER'
+  inviteUrl: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = partnerTeamInviteEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
 
