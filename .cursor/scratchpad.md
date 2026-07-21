@@ -1,4 +1,30 @@
-# Clinic "Pays Cost" (At-Cost Pricing) (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+# Supplier Price Lists + Crest Peptide (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+## Background and Motivation
+Owner onboarded a new supplier, **Crest Peptide**, with a negotiated "-10%" price sheet (`new-supplier-pricing-10pct-off.csv`, 102 items) and wants it usable when creating POs, plus a **Tesamorelin 10mg / Ipamorelin 5mg Blend @ $22.50/vial**. The app had no supplier price-list concept — the PO generator priced items only from our catalog `ProductVariant.unitCost`, and `supplierName`/`supplierSku` were just free-text fields per variant.
+
+## Project Status Board
+- [x] **Parser (TDD)** — `lib/supplier-import.ts`: `parseSupplierPriceCsv` accepts manufacturer sheets as-is via keyword header classification (`Cat.No`, `Name`, `Specification`, `Vials Per Box`, box/per-vial price columns; "-10%"/discount columns win as our cost; falls back per-vial list → box÷vials). 10 tests in `lib/__tests__/supplierImport.test.ts`.
+- [x] **Schema** — new `Supplier` (unique name) + `SupplierPriceItem` (unique `(supplierId, supplierSku)`, per-vial `unitCost`, optional `listPrice`/`vialsPerBox`) models; migration `20260721040000_add_suppliers` applied locally via `apply-local-migration.ts`.
+- [x] **API** — `GET /api/admin/suppliers` (suppliers + items, admin only) and `POST /api/admin/suppliers/import` (`{supplierName, csv, validateOnly?}`; upserts supplier by name, items by Cat.No — re-import revises prices in place).
+- [x] **PO generator** — "Price List" select (Our catalog ↔ any supplier): picking a supplier swaps the product dropdown to their catalog (their Cat.No as SKU, negotiated per-vial cost), auto-fills Vendor, and clears line items (different price basis). New "Import Price List" button (`components/admin/SupplierPriceImportDialog.tsx`, mirrors CsvImportDialog + supplier-name field) — this is the **prod data path**.
+- [x] **Data** — `scripts/data/crest-peptide-price-list.csv` = Crest sheet + appended `TSIP15,Tesamorelin 10mg / Ipamorelin 5mg Blend,10mg/5mg,10,,,,22.50`; `scripts/seed-supplier-crest.ts` (local-guarded) loaded all **103 items** into local DB (verified: TSM10 $15.75, SM5 $3.60, CBL60 $10.50 from 63/6 box math, blend $22.50).
+- [x] **QA** — `tsc --noEmit` clean, 372/372 unit tests, eslint clean on touched files, `next build` pass.
+
+## Owner actions (prod)
+1. Deploy, then run the migration (`./scripts/apply-prod-migrations.sh`).
+2. PO Generator → **Import Price List** → supplier name "Crest Peptide" → upload `scripts/data/crest-peptide-price-list.csv`.
+- Note: `TSIP15` is a placeholder Cat.No for the blend (Crest's sheet didn't include one) — correct the CSV and re-import if they assign a real number.
+
+## Lessons
+- Supplier sheets should be importable **as-is** (keyword header matching incl. discount detection), not forced into our template — the owner will paste whatever the manufacturer sends.
+- Keep supplier price lists in their own table rather than overwriting `ProductVariant.unitCost`: catalog cost drives margins/analytics everywhere; a new supplier's quote must not silently reprice the whole business.
+
+---
+
+# Clinic "Pays Cost" (At-Cost Pricing) (Jul 20, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
+
+**Deployed Jul 21 ~12:00 AM ET** in `b3f5765` (also carries the "+N more" per-line attribution work below) → main → Vercel `dpl_9aUoA8vqgyyWDTPcrDMXfMv1wWAR` READY on peptsci.com (`/api/health` 200, version `b3f5765`). Prod migrations applied via `POST /api/admin/db/migrate` through the owner's signed-in super-admin session: `success:true, upToDate:true` (18.4s) — probes `clientPaysAtCostColumn` + `salesRecordLineItemsColumn` both true (probeSchema extended for both in this commit). `test-results/` (Playwright artifacts) is now gitignored.
 
 ## Background and Motivation
 Owner wants an option when setting up pricing for a clinic: "clinic pays cost" — that clinic pays exactly what we pay per vial (`ProductVariant.unitCost`), with no markup.
@@ -17,7 +43,9 @@ Owner wants an option when setting up pricing for a clinic: "clinic pays cost" �
 
 ---
 
-# Top Products "+N more" Fix: Per-Line Product Attribution (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+# Top Products "+N more" Fix: Per-Line Product Attribution (Jul 20, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
+
+**Deployed Jul 21 ~12:00 AM ET** in `b3f5765` with the at-cost pricing work above; migration `20260721034500_sales_record_line_items` applied to prod (probe true).
 
 ## Background and Motivation
 Multi-item orders were collapsed into one SalesRecord row labeled "First Product +N more", and `groupByProduct` grouped by that string — so the Top Products chart showed fake buckets like "Tirzepatide 60mg +1 more" while understating the real products. Owner wants each product credited under its own name.
