@@ -90,6 +90,7 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
   return {
     id: v.sku || v.id,
     sku: v.sku || v.id,
+    parentProductId: v.productId,
     name: v.product.name,
     dose: v.dose || v.unitSize || '',
     ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
@@ -213,25 +214,49 @@ export async function getShopProductBySku(sku: string): Promise<ShopProduct | nu
 }
 
 /**
- * Fetch up to `limit` products in the same category (for "related products"),
- * excluding `excludeSku`.
+ * All ACTIVE sibling variants (mg sizes) of the same parent product, as
+ * ShopProducts — powers the size selector on the product detail page.
+ */
+export async function getSiblingShopProducts(productId: string): Promise<ShopProduct[]> {
+  if (!prisma || !productId) return []
+  try {
+    const variants = await prisma.productVariant.findMany({
+      where: { productId, status: 'ACTIVE' },
+      select: variantSelect,
+      orderBy: { dose: 'asc' },
+    })
+    return (variants as unknown as VariantWithProduct[]).map(toShopProduct)
+  } catch (error) {
+    logger.warn('Error fetching sibling variants', { productId, error: String(error) })
+    return []
+  }
+}
+
+/**
+ * Fetch up to `limit` distinct products in the same category (for "related
+ * products"), excluding the parent product `excludeProductId`. Variants are
+ * fetched generously so callers can group them one-card-per-product and still
+ * have `limit` cards.
  */
 export async function getRelatedShopProducts(
   category: string | null,
-  excludeSku: string,
+  excludeProductId: string,
   limit = 4
 ): Promise<ShopProduct[]> {
   if (!prisma || !category) return []
   try {
     const variants = await prisma.productVariant.findMany({
-      where: { status: 'ACTIVE', product: { category } },
+      where: {
+        status: 'ACTIVE',
+        product: { category },
+        NOT: { productId: excludeProductId },
+      },
       select: variantSelect,
-      take: limit + 1,
+      orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
+      // Enough variants to yield `limit` distinct parents after grouping.
+      take: limit * 6,
     })
-    return (variants as unknown as VariantWithProduct[])
-      .map(toShopProduct)
-      .filter((p) => p.sku !== excludeSku)
-      .slice(0, limit)
+    return (variants as unknown as VariantWithProduct[]).map(toShopProduct)
   } catch (error) {
     logger.warn('Error fetching related products', { category, error: String(error) })
     return []

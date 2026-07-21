@@ -1,3 +1,22 @@
+# Shop Catalog: One Card Per Product + PDP Size Picker (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+## Background and Motivation
+`/shop` listed one card per `ProductVariant` (BPC-157 5mg and 10mg were separate cards), making the catalog long and repetitive. Owner asked for a compact grid with **one card per product**, with mg-size selection + add-to-cart moved to the product detail page.
+
+## Project Status Board
+- [x] Types — `lib/types/shop.ts`: added `parentProductId` + `sizeOptions` (`SizeOption`) to `ShopProduct`; new `groupProductsByParent()` (cheapest priced size fronts the card so "From $X" and price sorting work; runs AFTER `applyClientPricing`); catalog search now also matches sibling sizes' SKUs/doses.
+- [x] Catalog — `lib/catalog.ts`: `toShopProduct` exposes `parentProductId`; new `getSiblingShopProducts(productId)` for the PDP size picker; `getRelatedShopProducts` now excludes by parent product id and over-fetches (`limit*6` variants) so callers can group and still fill 4 cards.
+- [x] Shop page — `app/shop/page.tsx` groups the priced+COA-enriched catalog via `groupProductsByParent` before `CatalogShell`.
+- [x] ProductCard — browse-only now (h-500→h-440): removed qty stepper / add-to-cart / in-cart controls; footer shows size pills (max 4 + "+N"), "From $X" with practice-rate savings, and a Select Size/View link; green badge shows total cart qty across all sizes of the compound; list view is a compact row with chevron.
+- [x] PDP — new `components/shop/PdpSizeSelector.tsx`: size chips (dose + per-size client price, out-of-stock dimmed) that **navigate** to the sibling SKU's PDP (`scroll={false}`) so price/vial/COA/stock all stay consistent; rendered above the price in the Pricing card. `PdpAddToCart` unchanged. Related products grouped + deduped by parent.
+- [x] QA — `tsc --noEmit` clean; `next build` passes (only pre-existing warnings). Authenticated visual pass blocked by Clerk on localhost (same as prior efforts) — owner should eyeball `/shop` and a PDP.
+
+## Lessons
+- Grouping must happen AFTER `applyClientPricing` — `sizeOptions` snapshot per-size prices, so grouping earlier would show SRP on the size chips for clients with custom pricing.
+- Card COA dialog loads by the representative SKU, so a grouped card keeps the representative's own `hasCoa` (advertising a sibling's COA would open an empty dialog).
+
+---
+
 # Partner Portal UI/UX Overhaul (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
 
 ## Background and Motivation

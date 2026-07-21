@@ -2,8 +2,11 @@ import { notFound } from 'next/navigation'
 import {
   getProductCatalog,
   getShopProductBySku,
+  getSiblingShopProducts,
   getRelatedShopProducts,
 } from '@/lib/catalog'
+import { groupProductsByParent, type SizeOption } from '@/lib/types/shop'
+import { PdpSizeSelector } from '@/components/shop/PdpSizeSelector'
 import { ProductDetailCard, type ProductDetailData } from '@/components/shop/ProductDetailCard'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { ProductVial } from '@/components/shop/ProductVial'
@@ -91,12 +94,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // an exact Airtable SKU (or Airtable isn't the source).
   let product: ShopProduct | undefined
   let relatedProducts: ShopProduct[] = []
+  let sizeSiblings: ShopProduct[] = []
 
   const exact = await getShopProductBySku(sku)
   if (exact) {
     ;[product] = await applyClientPricing([exact], clientId)
-    const related = await getRelatedShopProducts(exact.category, exact.sku, 4)
-    relatedProducts = await applyClientPricing(related, clientId)
+    // All mg sizes of this compound, with the viewing client's pricing, so
+    // the size selector can show per-size prices.
+    if (exact.parentProductId) {
+      const siblings = await getSiblingShopProducts(exact.parentProductId)
+      sizeSiblings = await applyClientPricing(siblings, clientId)
+    }
+    const related = await getRelatedShopProducts(
+      exact.category,
+      exact.parentProductId ?? '',
+      4
+    )
+    relatedProducts = groupProductsByParent(await applyClientPricing(related, clientId)).slice(0, 4)
   } else {
     const { products: catalog } = await getProductCatalog()
     const products = await applyClientPricing(catalog, clientId)
@@ -109,15 +123,31 @@ export default async function ProductPage({ params }: ProductPageProps) {
     })
 
     if (product) {
-      relatedProducts = products
-        .filter((p) => p.category === product!.category && p.id !== product!.id)
-        .slice(0, 4)
+      sizeSiblings = products.filter(
+        (p) => p.parentProductId && p.parentProductId === product!.parentProductId
+      )
+      relatedProducts = groupProductsByParent(
+        products.filter(
+          (p) => p.category === product!.category && p.parentProductId !== product!.parentProductId
+        )
+      ).slice(0, 4)
     }
   }
 
   if (!product) {
     notFound()
   }
+
+  // Size picker options — one per sellable mg size of this compound.
+  const sizeOptions: SizeOption[] = sizeSiblings.map((s) => ({
+    sku: s.sku,
+    dose: s.dose,
+    displayPrice: s.displayPrice,
+    standardPrice: s.standardPrice,
+    isCustomPrice: s.isCustomPrice,
+    inStock: s.inStock,
+    inventoryOnHand: s.inventoryOnHand,
+  }))
 
   const detailedData = buildDetailData(product)
   const coaAvailable = await hasPublishedCoa(product.sku)
@@ -165,6 +195,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="space-y-6">
           <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Pricing</h2>
+
+            {/* Size (mg) picker — each size is its own SKU/price */}
+            <PdpSizeSelector options={sizeOptions} currentSku={product.sku} />
 
             {/* Price display */}
             <div className="flex items-baseline gap-2 mb-2">

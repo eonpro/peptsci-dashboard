@@ -4,12 +4,13 @@ import { CatalogShell } from '@/components/shop/CatalogShell'
 import { getUserMetadata } from '@/lib/roles'
 import { applyClientPricing } from '@/lib/shop-pricing'
 import { getSkusWithPublishedCoa } from '@/lib/coa'
+import { groupProductsByParent } from '@/lib/types/shop'
 
 // Client-specific pricing requires per-request auth context.
 export const dynamic = 'force-dynamic'
 
 export default async function ShopPage() {
-  // Fetch products from Airtable (falls back to Google Sheets if not configured)
+  // Variant-level catalog from Postgres (one row per mg size).
   const { products: catalog, source } = await getProductCatalog()
 
   // Overlay the viewing client's custom pricing (falls back to SRP).
@@ -20,6 +21,9 @@ export default async function ShopPage() {
   // "View COA" link without a per-card check.
   const coaSkus = await getSkusWithPublishedCoa(products.map((p) => p.sku).filter(Boolean))
   const productsWithCoa = products.map((p) => ({ ...p, hasCoa: coaSkus.has(p.sku) }))
+
+  // One card per compound; mg sizes are picked on the product page.
+  const groupedProducts = groupProductsByParent(productsWithCoa)
 
   return (
     <div className="space-y-8">
@@ -41,7 +45,7 @@ export default async function ShopPage() {
           </div>
         }
       >
-        <CatalogShell products={productsWithCoa} />
+        <CatalogShell products={groupedProducts} />
       </Suspense>
     </div>
   )

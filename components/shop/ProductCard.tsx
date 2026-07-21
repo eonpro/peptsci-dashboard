@@ -4,10 +4,9 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ShopProduct } from '@/lib/types/shop'
-import { Button } from '@/components/ui/button'
-import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
+import { useCart } from './CartContext'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Check, Minus, Plus, FileText } from 'lucide-react'
+import { ChevronRight, FileText } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
 
@@ -40,17 +39,37 @@ function formatMolecularFormula(formula: string | null | undefined): JSX.Element
   )
 }
 
+/**
+ * Browse-only catalog card: one card per compound. Size (mg) selection and
+ * add-to-cart happen on the product detail page — the whole card links there.
+ */
 export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
-  const { addItem, items, updateQuantity, openCart } = useCart()
-  const [isAdding, setIsAdding] = useState(false)
-  const [qty, setQty] = useState(1)
+  const { items } = useCart()
   const [coaOpen, setCoaOpen] = useState(false)
 
-  // Cart lines are keyed by SKU (falling back to id) so every add path —
-  // catalog card, PDP, and Buy Again — merges into the same line.
   const productId = product.sku || product.id
-  const isInCart = items.some((item) => item.id === productId)
-  const cartItem = items.find((item) => item.id === productId)
+  const pdpHref = `/shop/product/${encodeURIComponent(productId)}`
+
+  // All purchasable sizes (grouped catalog) — falls back to the single variant.
+  const sizes =
+    product.sizeOptions && product.sizeOptions.length > 0
+      ? product.sizeOptions
+      : [
+          {
+            sku: productId,
+            dose: product.dose,
+            displayPrice: product.displayPrice,
+            standardPrice: product.standardPrice,
+            isCustomPrice: product.isCustomPrice,
+            inStock: product.inStock,
+          },
+        ]
+
+  // Units of any size of this compound already in the cart.
+  const sizeSkus = new Set(sizes.map((s) => s.sku))
+  const cartQty = items
+    .filter((item) => sizeSkus.has(item.id))
+    .reduce((sum, item) => sum + item.quantity, 0)
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -59,163 +78,43 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     }).format(price)
   }
 
+  // "From $X" — cheapest priced size (client pricing already applied).
+  const pricedSizes = sizes.filter((s) => s.displayPrice > 0)
+  const unpriced = pricedSizes.length === 0
+  const fromPrice = unpriced ? 0 : Math.min(...pricedSizes.map((s) => s.displayPrice))
+  const distinctPrices = new Set(pricedSizes.map((s) => s.displayPrice))
+  const showFromLabel = sizes.length > 1 && distinctPrices.size > 1
+  const cheapest = pricedSizes.find((s) => s.displayPrice === fromPrice)
+
   // Quantified account savings vs standard price (only when there is a real discount)
   const savingsAmount =
-    product.isCustomPrice &&
-    product.standardPrice &&
-    product.standardPrice > product.displayPrice &&
-    product.displayPrice > 0
-      ? product.standardPrice - product.displayPrice
+    cheapest?.isCustomPrice &&
+    cheapest.standardPrice &&
+    cheapest.standardPrice > cheapest.displayPrice &&
+    cheapest.displayPrice > 0
+      ? cheapest.standardPrice - cheapest.displayPrice
       : 0
   const savingsPercent =
-    savingsAmount > 0 && product.standardPrice
-      ? Math.round((savingsAmount / product.standardPrice) * 100)
+    savingsAmount > 0 && cheapest?.standardPrice
+      ? Math.round((savingsAmount / cheapest.standardPrice) * 100)
       : 0
 
-  // Sellable units (already net of reservations, from the catalog). Checkout
-  // hard-rejects oversell, so the card must not let clinics add more than is
-  // actually available. Unknown stock (undefined) falls back to the order cap.
   const outOfStock = product.inStock === false
-  // No SRP / custom price set — checkout rejects $0 lines, so don't offer Add.
-  const unpriced = !(product.displayPrice > 0)
-  const maxQty = Math.min(
-    MAX_ITEM_QUANTITY,
-    typeof product.inventoryOnHand === 'number' && product.inventoryOnHand > 0
-      ? product.inventoryOnHand
-      : MAX_ITEM_QUANTITY
-  )
-
-  const clampQty = (value: number) => Math.min(Math.max(1, value), maxQty)
-
-  const handleQtyInput = (raw: string) => {
-    const parsed = parseInt(raw, 10)
-    setQty(Number.isNaN(parsed) ? 1 : clampQty(parsed))
-  }
-
-  const handleAddToCart = () => {
-    setIsAdding(true)
-    addItem({
-      id: productId,
-      productId: product.sku || productId,
-      name: product.name,
-      dose: product.dose,
-      sku: product.sku || 'N/A',
-      price: product.displayPrice,
-      quantity: qty,
-      image: undefined,
-    })
-    setQty(1)
-
-    setTimeout(() => {
-      setIsAdding(false)
-    }, 600)
-  }
-
-  // Compact stepper used before the item is in the cart.
-  // size="lg" is used in the grid card footer for a bigger touch target.
-  const renderQtyStepper = (size: 'sm' | 'lg' = 'sm') => (
-    <div
-      className={cn(
-        'relative z-10 flex shrink-0 items-center rounded-xl border border-white/15 bg-white/5',
-        size === 'lg' ? 'h-10' : 'h-8'
-      )}
-    >
-      <button
-        type="button"
-        aria-label="Decrease quantity"
-        onClick={() => setQty((q) => clampQty(q - 1))}
-        disabled={qty <= 1}
-        className={cn(
-          'flex h-full items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed',
-          size === 'lg' ? 'w-8' : 'w-7'
-        )}
-      >
-        <Minus className="h-3 w-3" />
-      </button>
-      <input
-        type="number"
-        inputMode="numeric"
-        min={1}
-        max={maxQty}
-        value={qty}
-        aria-label="Quantity"
-        onChange={(e) => handleQtyInput(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        className={cn(
-          'h-full bg-transparent text-center text-sm font-semibold text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
-          size === 'lg' ? 'w-9' : 'w-10'
-        )}
-      />
-      <button
-        type="button"
-        aria-label="Increase quantity"
-        onClick={() => setQty((q) => clampQty(q + 1))}
-        disabled={qty >= maxQty}
-        className={cn(
-          'flex h-full items-center justify-center text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed',
-          size === 'lg' ? 'w-8' : 'w-7'
-        )}
-      >
-        <Plus className="h-3 w-3" />
-      </button>
-    </div>
-  )
-
-  // Inline cart controls once the item is in the cart.
-  // fullWidth stretches the control to fill the card footer (grid view).
-  const renderInCartControls = (fullWidth = false) =>
-    cartItem && (
-      <div
-        className={cn(
-          'relative z-10 flex items-center rounded-xl border border-green-500/50 bg-green-500/10',
-          fullWidth ? 'w-full justify-between h-10' : 'h-8'
-        )}
-      >
-        <button
-          type="button"
-          aria-label="Decrease quantity in cart"
-          onClick={() => updateQuantity(productId, cartItem.quantity - 1)}
-          className={cn(
-            'flex h-full items-center justify-center text-green-400 hover:text-green-300',
-            fullWidth ? 'w-10' : 'w-7'
-          )}
-        >
-          <Minus className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          onClick={openCart}
-          className={cn(
-            'h-full truncate px-1 text-center text-sm font-semibold text-green-400',
-            fullWidth ? 'flex-1' : 'min-w-8'
-          )}
-          title="View cart"
-        >
-          {cartItem.quantity} in cart
-        </button>
-        <button
-          type="button"
-          aria-label="Increase quantity in cart"
-          onClick={() => updateQuantity(productId, cartItem.quantity + 1)}
-          disabled={cartItem.quantity >= maxQty}
-          className={cn(
-            'flex h-full items-center justify-center text-green-400 hover:text-green-300 disabled:opacity-30 disabled:cursor-not-allowed',
-            fullWidth ? 'w-10' : 'w-7'
-          )}
-        >
-          <Plus className="h-3 w-3" />
-        </button>
-      </div>
-    )
 
   // Compound breakdown drives both the card copy and the generated vial label
   const compounds = getCompoundParts(product)
   const isBlend = compounds.length >= 2
 
-  // Parse dose from product - try multiple sources
-  const doseDisplay = product.dose 
-    || (product.milligrams ? `${product.milligrams}mg` : '')
-    || `${product.name.match(/\d+mg/)?.[0] || ''}`
+  // Sizes line ("5mg · 10mg") — grouped doses when available
+  const doseList =
+    product.availableDoses && product.availableDoses.length > 0
+      ? product.availableDoses
+      : sizes.map((s) => s.dose).filter(Boolean)
+  const doseDisplay =
+    doseList.join(' · ') ||
+    product.dose ||
+    (product.milligrams ? `${product.milligrams}mg` : '') ||
+    `${product.name.match(/\d+mg/)?.[0] || ''}`
 
   // Total mg for the blend callout ("Total 10mg (Blend)")
   const totalMg =
@@ -233,10 +132,52 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   const purityDisplay = product.compounds?.[0]?.purity || '99%'
 
+  // Compact dose pills shown in the footer / list row
+  const renderSizePills = () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {doseList.slice(0, 4).map((dose) => (
+        <span
+          key={dose}
+          className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75"
+        >
+          {dose}
+        </span>
+      ))}
+      {doseList.length > 4 && (
+        <span className="text-[11px] font-medium text-white/45">+{doseList.length - 4}</span>
+      )}
+    </div>
+  )
+
+  const priceBlock = (
+    <div className="min-w-0">
+      <div className="flex items-baseline gap-1.5">
+        {showFromLabel && !unpriced && (
+          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+            From
+          </span>
+        )}
+        <p className="text-xl font-bold text-white">
+          {unpriced ? '—' : formatPrice(fromPrice)}
+        </p>
+        {cheapest?.isCustomPrice && cheapest.standardPrice && savingsAmount > 0 && (
+          <span className="text-sm text-white/40 line-through">
+            {formatPrice(cheapest.standardPrice)}
+          </span>
+        )}
+      </div>
+      {savingsAmount > 0 && (
+        <p className="text-[11px] font-semibold text-green-400">
+          Practice rate &middot; Save {savingsPercent}%
+        </p>
+      )}
+    </div>
+  )
+
   // Mobile-optimized list view
   if (viewMode === 'list') {
     return (
-      <div className="relative bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98] hover:border-blue-500/30">
+      <div className="relative bg-linear-to-br from-[#0a0e3a] to-brand-onyx border border-white/10 rounded-2xl p-4 transition-all active:scale-[0.98] hover:border-blue-400/50 hover:bg-white/[0.02] hover:shadow-lg hover:shadow-blue-500/15">
         <div className="flex items-center gap-4">
           {/* Vial thumbnail (generated label) */}
           <div className="h-16 w-14 shrink-0 flex items-center justify-center">
@@ -259,63 +200,50 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             <h3 className="font-semibold tracking-tight text-white text-lg leading-tight truncate">
               {/* Stretched link: makes the whole card navigate to the PDP */}
               <Link
-                href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                href={pdpHref}
                 className="hover:text-blue-300 transition-colors after:absolute after:inset-0 after:content-['']"
               >
                 {product.name}
               </Link>
             </h3>
-            <p className="text-white/60 text-sm">{doseDisplay}</p>
-            {product.casNumber && (
-              <p className="text-white/40 text-xs mt-1">CAS: {product.casNumber}</p>
-            )}
+            <p className="text-white/60 text-sm truncate">{doseDisplay}</p>
+            {outOfStock && <p className="text-white/40 text-xs mt-1">Out of Stock</p>}
           </div>
 
-          {/* Price and action */}
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-baseline gap-2">
-              {product.isCustomPrice && product.standardPrice && (
-                <span className="text-sm text-white/40 line-through">
-                  {formatPrice(product.standardPrice)}
+          {/* Price and chevron */}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-col items-end">
+              {showFromLabel && !unpriced && (
+                <span className="text-[10px] font-medium uppercase tracking-wide text-white/45">
+                  From
                 </span>
               )}
-              <p className="text-xl font-bold text-white">
-                {unpriced ? '—' : formatPrice(product.displayPrice)}
+              <p className="text-lg font-bold text-white">
+                {unpriced ? 'Call' : formatPrice(fromPrice)}
               </p>
+              {savingsAmount > 0 && (
+                <p className="text-[10px] font-semibold text-green-400">Save {savingsPercent}%</p>
+              )}
             </div>
-            {savingsAmount > 0 && (
-              <p className="text-[11px] font-semibold text-green-400">
-                Exclusive practice rate &middot; Save {savingsPercent}%
-              </p>
-            )}
-            {isInCart ? (
-              renderInCartControls()
-            ) : outOfStock || unpriced ? (
-              <span className="text-xs font-medium text-white/40 border border-white/10 rounded-xl px-3 py-2">
-                {unpriced ? 'Call for Pricing' : 'Out of Stock'}
-              </span>
-            ) : (
-              <div className="flex items-center gap-2">
-                {renderQtyStepper('sm')}
-                <Button
-                  onClick={handleAddToCart}
-                  disabled={isAdding}
-                  size="sm"
-                  className="relative z-10 h-9 px-3 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
-                >
-                  {isAdding ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
-                </Button>
-              </div>
-            )}
+            <ChevronRight className="h-5 w-5 text-white/40" />
           </div>
         </div>
+
+        {/* In cart indicator badge */}
+        {cartQty > 0 && (
+          <div className="pointer-events-none absolute top-2 right-2 z-10">
+            <div className="bg-green-500 text-white text-xs font-bold min-w-6 h-6 px-1 rounded-full flex items-center justify-center shadow-lg">
+              {cartQty}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
 
   // Scientific-style grid card (matches PeptSci reference artwork)
   return (
-    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 h-[500px] flex flex-col">
+    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-blue-400/50 hover:shadow-xl hover:shadow-blue-500/20 h-[440px] flex flex-col">
       {/* Reference artwork panel */}
       <div className="relative flex-1 overflow-hidden">
         {/* Hairline inner border (reference style) */}
@@ -346,7 +274,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                   <h3 className="font-semibold tracking-tight text-white text-base @[16rem]:text-lg leading-tight">
                     {i === 0 ? (
                       <Link
-                        href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                        href={pdpHref}
                         className="transition-colors group-hover:text-blue-300"
                       >
                         {c.name} {c.amount}
@@ -380,7 +308,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             <>
               <h3 className="font-semibold tracking-tight text-white text-xl @[16rem]:text-2xl leading-tight">
                 <Link
-                  href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+                  href={pdpHref}
                   className="transition-colors group-hover:text-blue-300"
                 >
                   {isBlend ? product.name : compounds[0]?.name || product.name}
@@ -399,7 +327,6 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 )}
                 {product.molecularWeight && <p>MW: {product.molecularWeight}</p>}
                 <p>Purity: {purityDisplay}</p>
-                {!isBlend && doseDisplay && <p>Size: {doseDisplay}</p>}
               </div>
 
               {isBlend && totalMg && (
@@ -441,80 +368,50 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
             product={product}
-            className="h-[168px] @[16rem]:h-[196px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-[150px] @[16rem]:h-[172px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
       </div>
 
-      {/* Price and Cart Section */}
-      <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-3">
-        {/* Price block: price + strikethrough on one line, savings below */}
-        <div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-xl @[16rem]:text-2xl font-bold text-white">
-              {unpriced ? '—' : formatPrice(product.displayPrice)}
-            </p>
-            {product.isCustomPrice && product.standardPrice && (
-              <span className="text-sm text-white/40 line-through">
-                {formatPrice(product.standardPrice)}
-              </span>
-            )}
-          </div>
-          {savingsAmount > 0 && (
-            <p className="mt-1 text-[11px] font-semibold text-green-400">
-              Exclusive practice rate &middot; Save {savingsPercent}%
-            </p>
+      {/* Price + sizes footer — selection happens on the product page */}
+      <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-2.5">
+        {renderSizePills()}
+        <div className="flex items-center justify-between gap-2">
+          {priceBlock}
+          {outOfStock ? (
+            <span className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/40">
+              Out of Stock
+            </span>
+          ) : (
+            <Link
+              href={pdpHref}
+              className={cn(
+                'relative z-10 inline-flex h-10 shrink-0 items-center gap-1 rounded-xl px-4 text-sm font-semibold text-white',
+                'bg-brand-primary transition-colors hover:bg-[#1a30c0]'
+              )}
+            >
+              {unpriced ? 'Details' : doseList.length > 1 ? 'Select Size' : 'View'}
+              <ChevronRight className="h-4 w-4" />
+            </Link>
           )}
         </div>
-
-        {/* Action row - full width so the button is never clipped */}
-        {isInCart ? (
-          renderInCartControls(true)
-        ) : outOfStock || unpriced ? (
-          <div className="w-full h-10 flex items-center justify-center text-xs font-medium text-white/40 border border-white/10 rounded-xl">
-            {unpriced ? 'Call for Pricing' : 'Out of Stock'}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            {renderQtyStepper('lg')}
-            <Button
-              onClick={handleAddToCart}
-              disabled={isAdding}
-              className="relative z-10 h-10 flex-1 min-w-0 gap-1.5 px-2 text-sm bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold"
-            >
-              {isAdding ? (
-                <>
-                  <Check className="h-4 w-4 shrink-0" />
-                  <span className="truncate">Added</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="h-4 w-4 shrink-0" />
-                  <span className="truncate">
-                    Add<span className="hidden @[17rem]:inline"> to Cart</span>
-                  </span>
-                </>
-              )}
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* In cart indicator badge */}
-      {isInCart && (
+      {cartQty > 0 && (
         <div className="pointer-events-none absolute top-3 right-3 z-10">
-          <div className="bg-green-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
-            {cartItem?.quantity}
+          <div className="bg-green-500 text-white text-xs font-bold min-w-6 h-6 px-1 rounded-full flex items-center justify-center shadow-lg">
+            {cartQty}
           </div>
         </div>
       )}
 
       {/* Whole-card click target for the PDP. Sits above card content (z-[5])
-          but below interactive controls (z-10: COA, stepper, add-to-cart).
-          aria-hidden + tabIndex=-1 because the product-name link already
-          exposes this destination to keyboards and screen readers. */}
+          but below interactive controls (z-10: COA button). aria-hidden +
+          tabIndex=-1 because the product-name link already exposes this
+          destination to keyboards and screen readers. */}
       <Link
-        href={`/shop/product/${encodeURIComponent(product.sku || product.id)}`}
+        href={pdpHref}
         aria-hidden="true"
         tabIndex={-1}
         className="absolute inset-0 z-[5]"
@@ -522,7 +419,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
       {product.hasCoa && (
         <CoaDialog
-          sku={product.sku || product.id}
+          sku={productId}
           productName={product.name}
           open={coaOpen}
           onOpenChange={setCoaOpen}

@@ -15,10 +15,25 @@ export interface CompoundInfo {
   purity?: string
 }
 
+/**
+ * One purchasable mg size of a product — used to render size pickers on
+ * grouped catalog cards and the PDP without carrying the full ShopProduct.
+ */
+export interface SizeOption {
+  sku: string
+  dose: string
+  displayPrice: number
+  standardPrice?: number
+  isCustomPrice?: boolean
+  inStock?: boolean
+  inventoryOnHand?: number
+}
+
 export interface ShopProduct {
   // Identifiers
   id: string // Unique identifier (SKU or generated)
   sku: string // Product SKU
+  parentProductId?: string // Postgres Product.id — groups sibling mg variants
   airtableId?: string // Airtable record ID (if from Airtable)
 
   // Basic info
@@ -71,6 +86,10 @@ export interface ShopProduct {
   // True when a published Certificate of Analysis exists for this variant
   // (enriched server-side on the shop page).
   hasCoa?: boolean
+
+  // All purchasable sizes of this compound (set when the catalog is grouped
+  // one-card-per-product; the card links to the PDP where a size is chosen).
+  sizeOptions?: SizeOption[]
 }
 
 export interface ProductImage {
@@ -97,6 +116,58 @@ export interface CartProduct {
   price: number
   quantity: number
   image?: string
+}
+
+/** Numeric value of a dose string ("5mg" -> 5, "10mg/10mg" -> 10) for sorting. */
+function doseValue(dose: string): number {
+  const n = parseFloat(dose)
+  return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n
+}
+
+/**
+ * Collapse a variant-level catalog (one ShopProduct per mg size) into one
+ * ShopProduct per compound. The representative is the cheapest priced size
+ * (so price sorting/"From $X" works naturally) and carries `sizeOptions`
+ * for every sellable size. Must run AFTER client pricing is applied so the
+ * size prices reflect the viewing client's rates.
+ */
+export function groupProductsByParent(products: ShopProduct[]): ShopProduct[] {
+  const groups = new Map<string, ShopProduct[]>()
+  for (const p of products) {
+    const key = p.parentProductId || p.name
+    const list = groups.get(key)
+    if (list) list.push(p)
+    else groups.set(key, [p])
+  }
+
+  const grouped: ShopProduct[] = []
+  for (const variants of groups.values()) {
+    const byDose = [...variants].sort((a, b) => doseValue(a.dose) - doseValue(b.dose))
+    // Cheapest priced size fronts the card; fall back to the smallest dose.
+    const priced = byDose.filter((v) => v.displayPrice > 0)
+    const representative =
+      priced.length > 0
+        ? priced.reduce((min, v) => (v.displayPrice < min.displayPrice ? v : min))
+        : byDose[0]
+
+    grouped.push({
+      ...representative,
+      inStock: byDose.some((v) => v.inStock !== false),
+      // Keep the representative's own COA flag — the card's COA dialog loads
+      // by the representative SKU, so advertising a sibling's COA would 404.
+      availableDoses: byDose.map((v) => v.dose).filter(Boolean),
+      sizeOptions: byDose.map((v) => ({
+        sku: v.sku,
+        dose: v.dose,
+        displayPrice: v.displayPrice,
+        standardPrice: v.standardPrice,
+        isCustomPrice: v.isCustomPrice,
+        inStock: v.inStock,
+        inventoryOnHand: v.inventoryOnHand,
+      })),
+    })
+  }
+  return grouped
 }
 
 /**
@@ -126,7 +197,11 @@ export function filterProducts(products: ShopProduct[], filters: ProductFilters)
         p.dose.toLowerCase().includes(query) ||
         p.sku.toLowerCase().includes(query) ||
         p.description?.toLowerCase().includes(query) ||
-        p.category?.toLowerCase().includes(query)
+        p.category?.toLowerCase().includes(query) ||
+        // Grouped cards: match any of the sibling sizes' SKUs/doses too.
+        p.sizeOptions?.some(
+          (o) => o.sku.toLowerCase().includes(query) || o.dose.toLowerCase().includes(query)
+        )
     )
   }
 
