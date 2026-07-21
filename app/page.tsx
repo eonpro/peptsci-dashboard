@@ -184,9 +184,9 @@ export default async function RootPage() {
                 evaluated or approved by the FDA.
               </p>
               <details className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-1 text-[13px] font-medium text-[#8b9bff] transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-[13px] font-medium text-[#8b9bff] transition-colors hover:text-white group-open:hidden [&::-webkit-details-marker]:hidden">
                   Read the full disclaimer
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </summary>
                 <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-white/65">
                   <p>
