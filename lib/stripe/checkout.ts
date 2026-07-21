@@ -52,6 +52,15 @@ export async function resolveCart(params: {
   const items: CartLineInput[] = validateCartInput(params.items)
   const skus = items.map((i) => i.sku)
 
+  // At-cost clinics pay ProductVariant.unitCost per vial (overrides
+  // ClientPricing and SRP) — see resolveEffectiveUnitPrice.
+  const client = params.clientId
+    ? await prisma.client.findUnique({
+        where: { id: params.clientId },
+        select: { paysAtCost: true },
+      })
+    : null
+
   const variants = await prisma.productVariant.findMany({
     where: { sku: { in: skus }, status: 'ACTIVE' },
     include: {
@@ -86,6 +95,8 @@ export async function resolveCart(params: {
     const { price, isCustom } = resolveEffectiveUnitPrice({
       srp: Number(variant.srp),
       customPrice: custom ? Number(custom.customPrice) : null,
+      unitCost: Number(variant.unitCost),
+      paysAtCost: client?.paysAtCost ?? false,
     })
 
     const unitPrice = round2(price)

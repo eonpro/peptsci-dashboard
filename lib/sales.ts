@@ -9,6 +9,7 @@
  *   - CSV upload        -> /api/admin/sales/import
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { logger } from './logger'
 
@@ -51,6 +52,7 @@ type SalesRecordRow = {
   vials: number
   amountPerVial: unknown
   product: string
+  lineItems?: unknown
   notes: string
   unitCost: unknown
   cogs: unknown
@@ -85,14 +87,84 @@ function toSale(r: SalesRecordRow): Sale {
   }
 }
 
-/** All sales records, newest first. */
+/** Shape of one entry in SalesRecord.lineItems (validated at read time). */
+interface StoredLineItem {
+  product: string
+  quantity: number
+  amount: number
+  cogs: number
+}
+
+function parseLineItems(raw: unknown): StoredLineItem[] {
+  if (!Array.isArray(raw)) return []
+  const out: StoredLineItem[] = []
+  for (const entry of raw) {
+    const li = entry as Record<string, unknown>
+    const product = typeof li?.product === 'string' ? li.product.trim() : ''
+    if (!product) continue
+    out.push({
+      product,
+      quantity: typeof li.quantity === 'number' && li.quantity > 0 ? li.quantity : 0,
+      amount: typeof li.amount === 'number' ? li.amount : 0,
+      cogs: typeof li.cogs === 'number' ? li.cogs : 0,
+    })
+  }
+  return out
+}
+
+/**
+ * Map a SalesRecord row into one or more `Sale` rows: multi-item orders with a
+ * stored per-line breakdown become one Sale PER PRODUCT (so "Tirzepatide 60mg
+ * +1 more" credits Tirzepatide 60mg AND the other product separately), while
+ * everything else stays a single row. Line amounts/COGS are rescaled so they
+ * always sum exactly to the record's paidAmount/COGS — totals never drift.
+ */
+export function salesFromRecord(r: SalesRecordRow): Sale[] {
+  const base = toSale(r)
+  const lines = parseLineItems(r.lineItems)
+  if (lines.length === 0) return [base]
+  // Single line: keep the record's totals but prefer the line's product name
+  // (order-sourced lines are dose-qualified, e.g. "Semaglutide 5mg").
+  if (lines.length === 1) return [{ ...base, Product: lines[0].product || base.Product }]
+
+  const lineAmountSum = lines.reduce((s, li) => s + li.amount, 0)
+  const lineCogsSum = lines.reduce((s, li) => s + li.cogs, 0)
+  // Invoice-level discounts/adjustments mean line sums can differ from the
+  // captured total; scale proportionally so the record's totals are preserved.
+  const amountFactor = lineAmountSum > 0 ? base.PaidAmount / lineAmountSum : 0
+  if (lineAmountSum <= 0 && base.PaidAmount > 0) return [base]
+
+  return lines.map((li) => {
+    const paidAmount = li.amount * amountFactor
+    const cogs =
+      lineCogsSum > 0
+        ? (li.cogs / lineCogsSum) * base.COGS
+        : lineAmountSum > 0
+          ? (li.amount / lineAmountSum) * base.COGS
+          : 0
+    const profit = paidAmount - cogs
+    return {
+      ...base,
+      Product: li.product,
+      PaidAmount: paidAmount,
+      Vials: li.quantity,
+      AmountPerVial: li.quantity > 0 ? paidAmount / li.quantity : 0,
+      COGS: cogs,
+      Profit: profit,
+      ProfitMargin: paidAmount > 0 ? (profit / paidAmount) * 100 : 0,
+      Markup: cogs > 0 ? (profit / cogs) * 100 : 0,
+    }
+  })
+}
+
+/** All sales records, newest first. Multi-item orders yield one row per product. */
 export async function getSales(): Promise<Sale[]> {
   if (!prisma) return []
   try {
     const rows = await prisma.salesRecord.findMany({
       orderBy: { date: 'desc' },
     })
-    return rows.map((r) => toSale(r as unknown as SalesRecordRow))
+    return rows.flatMap((r) => salesFromRecord(r as unknown as SalesRecordRow))
   } catch (error) {
     logger.error(
       'Error fetching sales',
@@ -212,6 +284,17 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
         : order.items.length === 1
           ? order.items[0].variant.product.name
           : `${order.items[0].variant.product.name} +${order.items.length - 1} more`
+    // Per-line breakdown (net of refunds, same scaling as the totals) so
+    // analytics credits each real product instead of the "+N more" label.
+    const lineItems =
+      order.items.length > 0
+        ? order.items.map((it) => ({
+            product: [it.variant.product.name, it.variant.dose].filter(Boolean).join(' ').trim(),
+            quantity: it.quantity,
+            amount: Number(it.totalPrice) * paidFraction,
+            cogs: Number(it.variant.unitCost) * it.quantity * paidFraction,
+          }))
+        : Prisma.JsonNull
     const addr = addressString(order.shippingAddress ?? order.client.shippingAddress)
 
     const data = {
@@ -232,6 +315,7 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
       vials,
       amountPerVial: vials > 0 ? paidAmount / vials : 0,
       product: productLabel,
+      lineItems,
       notes: order.notes || '',
       unitCost: vials > 0 ? cogs / vials : 0,
       cogs,

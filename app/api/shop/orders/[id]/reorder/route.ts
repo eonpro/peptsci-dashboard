@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { resolveShopClientId } from '@/lib/shop-actor'
+import { resolveShopActor } from '@/lib/shop-actor'
 import { resolveEffectiveUnitPrice } from '@/lib/access'
 
 export const dynamic = 'force-dynamic'
@@ -19,8 +19,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!isAuthenticated || !userId) return unauthorizedResponse()
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
-    const clientId = await resolveShopClientId(userId)
-    if (!clientId) return errorResponse('No client account linked', 403, 'NO_CLIENT')
+    const actor = await resolveShopActor(userId)
+    if (!actor) return errorResponse('No client account linked', 403, 'NO_CLIENT')
+    const clientId = actor.clientId
 
     const { id } = await params
     const order = await prisma.order.findFirst({
@@ -35,6 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                 dose: true,
                 status: true,
                 srp: true,
+                unitCost: true,
                 product: { select: { name: true } },
                 clientPricing: {
                   where: {
@@ -73,6 +75,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       const { price } = resolveEffectiveUnitPrice({
         srp: Number(v.srp),
         customPrice: v.clientPricing[0] ? Number(v.clientPricing[0].customPrice) : null,
+        unitCost: Number(v.unitCost),
+        paysAtCost: actor.paysAtCost,
       })
       items.push({
         sku: v.sku,

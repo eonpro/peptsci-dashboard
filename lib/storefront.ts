@@ -338,6 +338,8 @@ export async function createRetailOrder(data: {
     const { price: unitPrice } = resolveEffectiveUnitPrice({
       srp: Number(sp.variant.srp),
       customPrice: clientPrice ? Number(clientPrice.customPrice) : null,
+      unitCost: Number(sp.variant.unitCost),
+      paysAtCost: storefront.client.paysAtCost,
     })
     return {
       variantId: sp.variantId,

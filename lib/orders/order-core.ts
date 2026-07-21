@@ -38,6 +38,8 @@ export interface VariantPriceInfo {
   srp: number
   /** Active per-client negotiated price, if any. */
   customPrice?: number | null
+  /** Our per-vial cost — the effective price for at-cost clinics. */
+  unitCost?: number | null
 }
 
 /**
@@ -94,7 +96,9 @@ export function validateManualLines(lines: unknown): ManualLineInput[] {
  */
 export function buildManualOrderLines(
   inputs: ManualLineInput[],
-  variantInfo: Map<string, VariantPriceInfo>
+  variantInfo: Map<string, VariantPriceInfo>,
+  /** Clinic-level at-cost flag (Client.paysAtCost): price = unitCost. */
+  options?: { paysAtCost?: boolean }
 ): ResolvedLine[] {
   return inputs.map((input) => {
     const info = variantInfo.get(input.variantId)
@@ -108,7 +112,12 @@ export function buildManualOrderLines(
       unitPrice = round2(input.unitPrice)
       isCustomPrice = true
     } else {
-      const resolved = resolveEffectiveUnitPrice({ srp: info.srp, customPrice: info.customPrice ?? null })
+      const resolved = resolveEffectiveUnitPrice({
+        srp: info.srp,
+        customPrice: info.customPrice ?? null,
+        unitCost: info.unitCost ?? null,
+        paysAtCost: options?.paysAtCost ?? false,
+      })
       unitPrice = round2(resolved.price)
       isCustomPrice = resolved.isCustom
     }

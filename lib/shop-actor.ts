@@ -9,18 +9,28 @@ export interface ShopActor {
   clientId: string
   /** Practice approval state — ordering mutations require APPROVED. */
   clientApproved: boolean
+  /** At-cost pricing: this clinic pays ProductVariant.unitCost per vial. */
+  paysAtCost: boolean
 }
 
 export async function resolveShopActor(clerkUserId: string): Promise<ShopActor | null> {
   if (!prisma) return null
   let user = await prisma.user.findUnique({
     where: { clerkUserId },
-    select: { id: true, clientId: true, client: { select: { onboardingStatus: true } } },
+    select: {
+      id: true,
+      clientId: true,
+      client: { select: { onboardingStatus: true, paysAtCost: true } },
+    },
   })
   if (!user && clerkUserId === 'dev-user') {
     user = await prisma.user.findFirst({
       where: { clientId: { not: null } },
-      select: { id: true, clientId: true, client: { select: { onboardingStatus: true } } },
+      select: {
+        id: true,
+        clientId: true,
+        client: { select: { onboardingStatus: true, paysAtCost: true } },
+      },
     })
   }
   if (!user || !user.clientId) return null
@@ -28,6 +38,7 @@ export async function resolveShopActor(clerkUserId: string): Promise<ShopActor |
     userId: user.id,
     clientId: user.clientId,
     clientApproved: user.client?.onboardingStatus === 'APPROVED',
+    paysAtCost: user.client?.paysAtCost ?? false,
   }
 }
 

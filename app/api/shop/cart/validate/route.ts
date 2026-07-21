@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       select: {
         sku: true,
         srp: true,
+        unitCost: true,
         inventoryOnHand: true,
         inventoryReserved: true,
         clientPricing: clientId
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
       const { price } = resolveEffectiveUnitPrice({
         srp: Number(v.srp),
         customPrice: custom ? Number(custom.customPrice) : null,
+        unitCost: Number(v.unitCost),
+        paysAtCost: actor?.paysAtCost ?? false,
       })
       return {
         sku,

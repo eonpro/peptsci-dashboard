@@ -38,6 +38,7 @@ export async function GET() {
             sku: true,
             dose: true,
             srp: true,
+            unitCost: true,
             status: true,
             inventoryOnHand: true,
             inventoryReserved: true,
@@ -83,6 +84,8 @@ export async function GET() {
         const { price, isCustom } = resolveEffectiveUnitPrice({
           srp: Number(item.srp),
           customPrice: custom ? Number(custom.customPrice) : null,
+          unitCost: Number(item.unitCost),
+          paysAtCost: actor.paysAtCost,
         })
         const sellable = Math.max(0, item.inventoryOnHand - item.inventoryReserved)
         return {

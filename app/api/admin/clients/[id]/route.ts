@@ -15,6 +15,7 @@ import { addressSchema } from '@/lib/address'
 import { einSchema, npiSchema, serializeClientProfile } from '@/lib/profile'
 import { deleteClientForce } from '@/lib/clients/delete-client'
 import { cascadeOnboardingDecision } from '@/lib/clients/approval'
+import { writeAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ const clientSelect = {
   onboardingStatus: true,
   paymentTermsDays: true,
   creditLimit: true,
+  paysAtCost: true,
 } as const
 
 const adminUpdateSchema = z.object({
@@ -48,6 +50,8 @@ const adminUpdateSchema = z.object({
   // Net-terms billing: null disables "bill to account"; creditLimit null = no cap.
   paymentTermsDays: z.number().int().min(1).max(365).nullable().optional(),
   creditLimit: z.number().min(0).max(10_000_000).nullable().optional(),
+  // At-cost pricing: this clinic pays ProductVariant.unitCost per vial.
+  paysAtCost: z.boolean().optional(),
 })
 
 /** GET /api/admin/clients/[id] — full client profile + linked users. */
@@ -102,6 +106,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return successResponse({
       profile: serializeClientProfile(client),
+      paysAtCost: client.paysAtCost,
       users: client.users,
       counts: { orders: client._count.orders, patients: client._count.patients },
       setup,
@@ -126,7 +131,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { isAuthenticated, isAdmin } = await requireAdmin()
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
@@ -156,6 +161,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
     if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
     if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
+    if (input.paysAtCost !== undefined) data.paysAtCost = input.paysAtCost
 
     let client
     try {
@@ -171,6 +177,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (err.code === 'P2025') return errorResponse('Client not found', 404, 'NOT_FOUND')
       }
       throw err
+    }
+
+    // At-cost pricing changes every price this clinic sees — leave an audit
+    // trail like other pricing mutations.
+    if (input.paysAtCost !== undefined) {
+      void writeAudit({
+        clerkUserId: userId,
+        entity: 'Client',
+        entityId: id,
+        action: 'pays_at_cost_set',
+        metadata: { paysAtCost: input.paysAtCost },
+      })
     }
 
     // Onboarding decisions go through the canonical cascade (client status +

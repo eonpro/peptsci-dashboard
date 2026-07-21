@@ -12,6 +12,7 @@
 // Relative imports (not "@/lib/..."): this module is unit-tested under the
 // node --import tsx test runner, which does not resolve tsconfig path aliases.
 import type Stripe from 'stripe'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { buildCostLookup, estimateUnitCost } from '../sales'
@@ -57,27 +58,41 @@ export async function invoiceForPaymentIntent(
   }
 }
 
+/** One invoice line, kept so analytics can credit each real product. */
+export interface SaleLineItem {
+  product: string
+  quantity: number
+  /** Gross line revenue in dollars (pre-refund). */
+  amount: number
+  /** Catalog-estimated gross COGS for the line in dollars. */
+  cogs: number
+}
+
 export interface LineSummary {
   product: string
   quantity: number
   cogs: number | null
+  /** Per-line breakdown; empty when the invoice has no described lines. */
+  lineItems: SaleLineItem[]
 }
 
 /**
- * Summarize invoice lines into a product label, total unit quantity, and a
- * catalog-estimated COGS (null when no line matches the catalog).
+ * Summarize invoice lines into a product label, total unit quantity, a
+ * catalog-estimated COGS (null when no line matches the catalog), and the
+ * per-line breakdown used to attribute revenue to each real product.
  */
 export function summarizeInvoiceLines(
   invoice: Stripe.Invoice | null,
   costLookup: Map<string, number>
 ): LineSummary {
   const lines = invoice?.lines?.data ?? []
-  if (lines.length === 0) return { product: '', quantity: 0, cogs: null }
+  if (lines.length === 0) return { product: '', quantity: 0, cogs: null, lineItems: [] }
 
   let quantity = 0
   let cogs = 0
   let matchedAny = false
   const names: string[] = []
+  const lineItems: SaleLineItem[] = []
 
   for (const line of lines) {
     const qty = line.quantity ?? 1
@@ -85,17 +100,21 @@ export function summarizeInvoiceLines(
     if (desc) names.push(desc)
     quantity += qty
     if (desc) {
-      const perUnit = (line.amount ?? 0) / 100 / (qty || 1)
+      const amount = (line.amount ?? 0) / 100
+      const perUnit = amount / (qty || 1)
       const unitCost = estimateUnitCost(desc, perUnit, costLookup)
       // estimateUnitCost falls back to 35% of price; only trust real matches.
       if (unitCost !== perUnit * 0.35) matchedAny = true
       cogs += unitCost * qty
+      lineItems.push({ product: desc, quantity: qty, amount, cogs: unitCost * qty })
     }
   }
 
+  // The label stays a compact summary ("X +N more") for display columns; the
+  // per-product truth lives in `lineItems`.
   const product =
     names.length === 0 ? '' : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1} more`
-  return { product, quantity, cogs: matchedAny ? cogs : null }
+  return { product, quantity, cogs: matchedAny ? cogs : null, lineItems }
 }
 
 /**
@@ -132,6 +151,18 @@ export async function salesRecordDataFromPaymentIntent(
   const grossCogs = lines.cogs ?? grossAmount * 0.35
   const cogs = grossCogs * netFraction
 
+  // Persist the per-line breakdown net of refunds (scaled by the same
+  // fraction as the totals) so line amounts/COGS always sum to the record.
+  const lineItems =
+    lines.lineItems.length > 0
+      ? lines.lineItems.map((li) => ({
+          product: li.product,
+          quantity: li.quantity,
+          amount: li.amount * netFraction,
+          cogs: li.cogs * netFraction,
+        }))
+      : Prisma.JsonNull
+
   const baseNote = invoice?.number
     ? `Imported from Stripe (invoice ${invoice.number})`
     : 'Imported from Stripe'
@@ -165,6 +196,7 @@ export async function salesRecordDataFromPaymentIntent(
     vials,
     amountPerVial: vials > 0 ? paidAmount / vials : 0,
     product: lines.product || pi.description || '',
+    lineItems,
     notes: `${baseNote}${refundNote}`,
     unitCost: vials > 0 ? cogs / vials : 0,
     cogs,

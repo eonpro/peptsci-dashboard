@@ -75,7 +75,10 @@ export async function createManualOrder(
 
   const lines = validateManualLines(params.lines)
 
-  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, paysAtCost: true },
+  })
   if (!client) throw new ManualOrderError('Selected client was not found', 'CLIENT_UNKNOWN')
 
   if (params.patientId) {
@@ -114,10 +117,11 @@ export async function createManualOrder(
       dose: v.dose,
       srp: Number(v.srp),
       customPrice: v.clientPricing[0] ? Number(v.clientPricing[0].customPrice) : null,
+      unitCost: Number(v.unitCost),
     })
   }
 
-  const resolvedLines = buildManualOrderLines(lines, info)
+  const resolvedLines = buildManualOrderLines(lines, info, { paysAtCost: client.paysAtCost })
   const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
   const totals = computeCartTotals(resolvedLines, shipSpeed)
 

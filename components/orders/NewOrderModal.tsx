@@ -25,6 +25,8 @@ type ClientRow = {
   contactName: string | null
   contactEmail: string | null
   contactPhone: string | null
+  /** At-cost pricing: this clinic pays our unit cost per vial. */
+  paysAtCost?: boolean
 }
 
 type VariantRow = {
@@ -33,6 +35,7 @@ type VariantRow = {
   productName: string
   dose: string | null
   srp: number
+  unitCost: number
   available: number
 }
 
@@ -118,6 +121,9 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
       )
       return
     }
+    // At-cost clinics pay unitCost per vial — overrides custom prices and SRP
+    // (display-only; the server re-resolves auto lines at submit).
+    const paysAtCost = clients.find((c) => c.id === clientId)?.paysAtCost ?? false
     let cancelled = false
     fetch(`/api/admin/client-pricing?clientId=${encodeURIComponent(clientId)}`)
       .then((r) => (r.ok ? r.json() : []))
@@ -138,7 +144,8 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
             if (l.priceSource !== 'auto') return l
             const v = variants.find((x) => x.id === l.variantId)
             if (!v) return l
-            const next = map[l.variantId] ?? v.srp
+            const next =
+              paysAtCost && v.unitCost > 0 ? v.unitCost : (map[l.variantId] ?? v.srp)
             return { ...l, unitPrice: next }
           })
         )
@@ -149,7 +156,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
     return () => {
       cancelled = true
     }
-  }, [clientId, variants])
+  }, [clientId, variants, clients])
 
   const selectedClient = clients.find((c) => c.id === clientId) || null
 
@@ -179,7 +186,9 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
       .slice(0, 8)
   }, [variants, productQuery])
 
-  const resolveUnitPrice = (v: VariantRow) => customPriceMap[v.id] ?? v.srp
+  const clientPaysAtCost = selectedClient?.paysAtCost ?? false
+  const resolveUnitPrice = (v: VariantRow) =>
+    clientPaysAtCost && v.unitCost > 0 ? v.unitCost : (customPriceMap[v.id] ?? v.srp)
 
   const addLine = (v: VariantRow) => {
     setLines((prev) => {
@@ -414,9 +423,11 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                         <span className="flex items-center gap-2 text-xs">
                           <span className={v.available > 0 ? 'text-emerald-400' : 'text-red-500'}>{v.available} avail</span>
                           <span className="font-medium text-foreground/90">{formatPrice(resolveUnitPrice(v))}</span>
-                          {customPriceMap[v.id] != null && (
+                          {clientPaysAtCost && v.unitCost > 0 ? (
+                            <span className="rounded bg-amber-500/15 px-1 text-[10px] font-medium text-amber-300">At cost</span>
+                          ) : customPriceMap[v.id] != null ? (
                             <span className="rounded bg-emerald-500/15 px-1 text-[10px] font-medium text-emerald-300">Custom</span>
-                          )}
+                          ) : null}
                           <Plus className="h-3.5 w-3.5 text-muted-foreground/70" />
                         </span>
                       </button>
@@ -433,7 +444,13 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                         <p className="truncate text-sm text-foreground">{l.label}</p>
                         <p className={`text-xs ${l.quantity > l.available ? 'text-amber-400' : 'text-muted-foreground/70'}`}>
                           {l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}
-                          {customPriceMap[l.variantId] != null && l.priceSource === 'auto' ? ' · Custom price' : ''}
+                          {l.priceSource === 'auto'
+                            ? clientPaysAtCost
+                              ? ' · At-cost price'
+                              : customPriceMap[l.variantId] != null
+                                ? ' · Custom price'
+                                : ''
+                            : ''}
                         </p>
                       </div>
                       <input

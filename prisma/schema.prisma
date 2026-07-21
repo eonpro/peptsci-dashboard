@@ -81,6 +81,10 @@ model Client {
   // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
   paymentTermsDays      Int?
   creditLimit           Decimal?                @db.Decimal(12, 2)
+  // At-cost pricing: this clinic pays exactly what we pay per vial
+  // (ProductVariant.unitCost). Takes precedence over ClientPricing and SRP;
+  // vials with no cost set (unitCost <= 0) fall back to custom price / SRP.
+  paysAtCost            Boolean                 @default(false)
   // Stripe Customer for this B2B account. Saved cards are shared across the
   // client's users. Stripe never holds our product catalog (Model A).
   stripeCustomerId      String?                 @unique
@@ -1055,6 +1059,9 @@ model SalesRecord {
   vials                 Int       @default(0)
   amountPerVial         Decimal   @default(0) @db.Decimal(12, 2)
   product               String    @default("")
+  // Per-line breakdown [{ product, quantity, amount, cogs }] so analytics can
+  // attribute multi-item orders to each real product instead of "X +N more".
+  lineItems             Json?
   notes                 String    @default("")
   unitCost              Decimal   @default(0) @db.Decimal(12, 2)
   cogs                  Decimal   @default(0) @db.Decimal(12, 2)

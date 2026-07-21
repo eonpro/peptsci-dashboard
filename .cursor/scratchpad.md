@@ -1,3 +1,41 @@
+# Clinic "Pays Cost" (At-Cost Pricing) (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+## Background and Motivation
+Owner wants an option when setting up pricing for a clinic: "clinic pays cost" — that clinic pays exactly what we pay per vial (`ProductVariant.unitCost`), with no markup.
+
+## Project Status Board
+- [x] **Schema** — `Client.paysAtCost Boolean @default(false)` (migration `20260721034808_add_client_pays_at_cost`, applied to local DB).
+- [x] **Resolver** — `resolveEffectiveUnitPrice` (lib/access.ts) precedence: at-cost (paysAtCost + unitCost>0) > customPrice > SRP; returns `isAtCost`. Vials with unitCost<=0 fall through (never $0).
+- [x] **Sell paths** — all resolver callers pass `unitCost` + `paysAtCost`: `resolveCart` (card+terms checkout), cart validate, quick-reorder, order reorder, `createManualOrder`/`buildManualOrderLines` (admin orders + Stripe convert), storefront wholesale reorder, shop catalog overlay (`applyClientPricing` via new `getClientShopPricingContext` — loads a per-SKU unitCost map only for at-cost clinics). `ShopActor` now carries `paysAtCost`.
+- [x] **API** — PATCH `/api/admin/clients/[id]` accepts `paysAtCost` (audit-logged `pays_at_cost_set`); GET list + detail return it. Kept OUT of `serializeClientProfile` (client-facing shop profile must not expose it).
+- [x] **UI** — client-pricing page: "Clinic pays cost" switch in the Add/Edit dialog (saves immediately via PATCH), amber "Pays cost" badge per client card + at-cost clinics strip; CustomerPricing card: same switch + "custom prices ignored" note; NewOrderModal/ConvertStripeModal show at-cost display prices + "At cost" badge (server still reprices auto lines).
+- [x] **Tests** — access.test.ts: at-cost precedence, unitCost<=0 fall-through, flag-off ignore. 362/362 pass; tsc + eslint clean.
+
+## Lessons
+- Invoices bill the frozen `Order.total`, so a pricing-mode flag only needs to be honored where orders are PRICED (resolveCart/manual orders/storefront) — invoicing needs no branch, and existing open invoices keep their frozen totals.
+- Margin-partner accrual compares revenue to `PartnerOrgPricing.floorCents`; an at-cost clinic under a margin partner would price below floor — no commission rule exists for that combination yet (flag to owner if it comes up).
+
+---
+
+# Top Products "+N more" Fix: Per-Line Product Attribution (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+## Background and Motivation
+Multi-item orders were collapsed into one SalesRecord row labeled "First Product +N more", and `groupByProduct` grouped by that string — so the Top Products chart showed fake buckets like "Tirzepatide 60mg +1 more" while understating the real products. Owner wants each product credited under its own name.
+
+## Project Status Board
+- [x] Schema — `SalesRecord.lineItems Json?` (+ migration `20260721034500_sales_record_line_items`, applied to local DB): `[{ product, quantity, amount, cogs }]`, stored NET of refunds (same scaling as totals).
+- [x] Stripe ingest — `summarizeInvoiceLines` now also returns the per-line breakdown; `salesRecordDataFromPaymentIntent` persists it (refund-scaled). Display label unchanged ("X +N more").
+- [x] Order sync — `syncSalesRecordFromOrder` persists per-item lines (dose-qualified names, `totalPrice`/real unit-cost COGS, paidFraction-scaled).
+- [x] Read path — new `salesFromRecord()` in `lib/sales.ts`: multi-line records explode into one `Sale` per product (amounts/COGS rescaled so they sum EXACTLY to the record totals — invoice-level discounts distributed proportionally); single-line records adopt the dose-qualified line name; order identity (OrderID/customer/date) is preserved so order-count dedupe (customer+date) still works everywhere.
+- [x] Tests — new `salesFromRecord` suite (explosion, discount rescale, malformed JSON safety); updated ingest tests; fixed pre-existing `access.test.ts` failure (missing `isAtCost` in expectations). 359/359 pass; `tsc --noEmit` + eslint clean.
+- [ ] **Prod data**: after deploy, re-run the admin Stripe backfill (idempotent upsert fills `lineItems` for historical Stripe rows) and `npm run backfill:sales` for order-sourced rows. Until then old rows keep showing the combined label.
+
+## Lessons
+- `SalesRecord.paidAmount` includes invoice-level discounts/tax not present in line sums — per-line amounts must be rescaled at read time (factor = paidAmount / Σline.amount) or dashboard revenue totals drift.
+- Prisma nullable Json fields reject plain `null` in writes; use `Prisma.JsonNull`.
+
+---
+
 # Shop Catalog: One Card Per Product + PDP Size Picker (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
 
 ## Background and Motivation

@@ -331,3 +331,51 @@ export async function getClientPriceMapBySku(
 
   return map
 }
+
+/**
+ * Everything the shop catalog overlay needs to price products for a client:
+ * the at-cost flag, the per-SKU custom price map, and — only when the clinic
+ * pays at cost — a per-SKU unitCost map for the whole active catalog.
+ */
+export interface ClientShopPricingContext {
+  paysAtCost: boolean
+  customBySku: Map<string, number>
+  costBySku: Map<string, number>
+}
+
+export async function getClientShopPricingContext(
+  clientId: string
+): Promise<ClientShopPricingContext> {
+  const ctx: ClientShopPricingContext = {
+    paysAtCost: false,
+    customBySku: new Map(),
+    costBySku: new Map(),
+  }
+  if (!prisma || !clientId) return ctx
+
+  try {
+    const [client, customBySku] = await Promise.all([
+      prisma.client.findUnique({ where: { id: clientId }, select: { paysAtCost: true } }),
+      getClientPriceMapBySku(clientId),
+    ])
+    ctx.paysAtCost = client?.paysAtCost ?? false
+    ctx.customBySku = customBySku
+
+    if (ctx.paysAtCost) {
+      const variants = await prisma.productVariant.findMany({
+        where: { status: 'ACTIVE', sku: { not: null } },
+        select: { sku: true, unitCost: true },
+      })
+      for (const v of variants) {
+        if (v.sku) ctx.costBySku.set(v.sku, Number(v.unitCost))
+      }
+    }
+  } catch (error) {
+    logger.warn('Failed to load client shop pricing context', {
+      clientId,
+      error: String(error),
+    })
+  }
+
+  return ctx
+}

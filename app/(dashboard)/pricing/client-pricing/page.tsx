@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -47,6 +48,8 @@ import {
 interface ClientOption {
   id: string
   organizationName: string
+  /** At-cost pricing: this clinic pays our unit cost per vial. */
+  paysAtCost: boolean
 }
 
 interface VariantOption {
@@ -159,6 +162,30 @@ export default function ClientPricingPage() {
   }, [pricing])
 
   const selectedVariant = variants.find((v) => v.id === form.variantId)
+  const selectedDialogClient = clients.find((c) => c.id === form.clientId)
+  const atCostClients = useMemo(() => clients.filter((c) => c.paysAtCost), [clients])
+  const [togglingAtCost, setTogglingAtCost] = useState(false)
+
+  /** Flip the clinic-level "pays cost" flag (at-cost pricing for every vial). */
+  async function setPaysAtCost(clientId: string, value: boolean) {
+    setTogglingAtCost(true)
+    setError(null)
+    // Optimistic flip so the switch feels instant.
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, paysAtCost: value } : c)))
+    try {
+      const res = await fetch(`/api/admin/clients/${encodeURIComponent(clientId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paysAtCost: value }),
+      })
+      if (!res.ok) throw await apiError(res, 'Failed to update at-cost pricing')
+    } catch (e) {
+      setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, paysAtCost: !value } : c)))
+      setError(e instanceof Error ? e.message : 'Failed to update at-cost pricing')
+    } finally {
+      setTogglingAtCost(false)
+    }
+  }
 
   function openAdd() {
     setEditingId(null)
@@ -302,6 +329,22 @@ export default function ClientPricingPage() {
         </Card>
       </div>
 
+      {/* Clinics on at-cost pricing (they pay our unit cost on every vial) */}
+      {atCostClients.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+          <span className="text-sm text-amber-300/90 font-medium">Clinics paying cost:</span>
+          {atCostClients.map((c) => (
+            <Badge
+              key={c.id}
+              variant="outline"
+              className="border-amber-500/30 text-amber-400 bg-amber-500/10"
+            >
+              {c.organizationName}
+            </Badge>
+          ))}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1 max-w-sm">
@@ -358,12 +401,22 @@ export default function ClientPricingPage() {
                       </CardDescription>
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="border-green-500/30 text-green-400 bg-green-500/10"
-                  >
-                    Active
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {clients.find((c) => c.id === clientId)?.paysAtCost && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/30 text-amber-400 bg-amber-500/10"
+                      >
+                        Pays cost
+                      </Badge>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className="border-green-500/30 text-green-400 bg-green-500/10"
+                    >
+                      Active
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -493,6 +546,30 @@ export default function ClientPricingPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {form.clientId && (
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Clinic pays cost</p>
+                  <p className="text-xs text-white/50">
+                    This clinic pays exactly what we pay per vial (unit cost) on every
+                    product — no markup. Overrides custom prices and SRP.
+                  </p>
+                </div>
+                <Switch
+                  checked={selectedDialogClient?.paysAtCost ?? false}
+                  disabled={togglingAtCost}
+                  onCheckedChange={(value) => setPaysAtCost(form.clientId, value)}
+                />
+              </div>
+            )}
+
+            {selectedDialogClient?.paysAtCost && (
+              <p className="text-xs text-amber-300/80">
+                Per-product custom prices are ignored while this clinic pays cost. Turn the
+                toggle off to use custom prices again.
+              </p>
+            )}
 
             <div className="space-y-2">
               <Label className="text-white/80">Product</Label>

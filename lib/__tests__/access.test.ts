@@ -48,12 +48,50 @@ describe('resolveEffectiveUnitPrice', () => {
     assert.deepEqual(resolveEffectiveUnitPrice({ srp: 349, customPrice: null }), {
       price: 349,
       isCustom: false,
+      isAtCost: false,
     })
-    assert.deepEqual(resolveEffectiveUnitPrice({ srp: 349 }), { price: 349, isCustom: false })
+    assert.deepEqual(resolveEffectiveUnitPrice({ srp: 349 }), {
+      price: 349,
+      isCustom: false,
+      isAtCost: false,
+    })
   })
 
   test('ignores zero or negative custom prices', () => {
     assert.equal(resolveEffectiveUnitPrice({ srp: 349, customPrice: 0 }).isCustom, false)
     assert.equal(resolveEffectiveUnitPrice({ srp: 349, customPrice: -5 }).price, 349)
+  })
+
+  test('at-cost clinics pay unitCost, overriding custom price and SRP', () => {
+    const r = resolveEffectiveUnitPrice({
+      srp: 349,
+      customPrice: 299,
+      unitCost: 120,
+      paysAtCost: true,
+    })
+    assert.deepEqual(r, { price: 120, isCustom: true, isAtCost: true })
+  })
+
+  test('at-cost falls through to custom/SRP when unitCost is missing or zero', () => {
+    assert.deepEqual(
+      resolveEffectiveUnitPrice({ srp: 349, customPrice: 299, unitCost: 0, paysAtCost: true }),
+      { price: 299, isCustom: true, isAtCost: false }
+    )
+    assert.deepEqual(
+      resolveEffectiveUnitPrice({ srp: 349, unitCost: null, paysAtCost: true }),
+      { price: 349, isCustom: false, isAtCost: false }
+    )
+  })
+
+  test('unitCost is ignored when the clinic is not flagged paysAtCost', () => {
+    assert.deepEqual(resolveEffectiveUnitPrice({ srp: 349, unitCost: 120 }), {
+      price: 349,
+      isCustom: false,
+      isAtCost: false,
+    })
+    assert.deepEqual(
+      resolveEffectiveUnitPrice({ srp: 349, customPrice: 299, unitCost: 120, paysAtCost: false }),
+      { price: 299, isCustom: true, isAtCost: false }
+    )
   })
 })

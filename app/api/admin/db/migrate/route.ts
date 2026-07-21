@@ -123,6 +123,8 @@ interface SchemaProbe {
   backInStockSubscriptionTable: boolean
   partnerOrgStripeAccountColumn: boolean
   partnerPayoutStripeTransferColumn: boolean
+  clientPaysAtCostColumn: boolean
+  salesRecordLineItemsColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -163,7 +165,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Product' AND column_name = 'purity')
         OR (table_name = 'PartnerOrg' AND column_name = 'holdDays')
         OR (table_name = 'PartnerOrg' AND column_name = 'stripeConnectAccountId')
-        OR (table_name = 'PartnerPayout' AND column_name = 'stripeTransferId'))
+        OR (table_name = 'PartnerPayout' AND column_name = 'stripeTransferId')
+        OR (table_name = 'Client' AND column_name = 'paysAtCost')
+        OR (table_name = 'SalesRecord' AND column_name = 'lineItems'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -233,6 +237,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     backInStockSubscriptionTable: tableNames.has('BackInStockSubscription'),
     partnerOrgStripeAccountColumn: colKeys.has('PartnerOrg.stripeConnectAccountId'),
     partnerPayoutStripeTransferColumn: colKeys.has('PartnerPayout.stripeTransferId'),
+    clientPaysAtCostColumn: colKeys.has('Client.paysAtCost'),
+    salesRecordLineItemsColumn: colKeys.has('SalesRecord.lineItems'),
   }
 }
 

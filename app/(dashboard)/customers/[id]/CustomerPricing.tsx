@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,8 @@ interface ClientRecord {
   organizationName: string
   contactName: string | null
   contactEmail: string | null
+  /** At-cost pricing: this clinic pays our unit cost per vial. */
+  paysAtCost: boolean
 }
 
 interface VariantOption {
@@ -181,6 +184,33 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
       setError(e instanceof Error ? e.message : 'Failed to save pricing')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const [togglingAtCost, setTogglingAtCost] = useState(false)
+
+  /** Flip the clinic-level "pays cost" flag (at-cost pricing for every vial). */
+  const handlePaysAtCostChange = async (value: boolean) => {
+    if (!client) return
+    setTogglingAtCost(true)
+    setError(null)
+    const prev = client
+    setClient({ ...client, paysAtCost: value }) // optimistic
+    try {
+      const res = await fetch(`/api/admin/clients/${encodeURIComponent(client.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paysAtCost: value }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.message || body.error || 'Failed to update at-cost pricing')
+      }
+    } catch (e) {
+      setClient(prev) // rollback
+      setError(e instanceof Error ? e.message : 'Failed to update at-cost pricing')
+    } finally {
+      setTogglingAtCost(false)
     }
   }
 
@@ -342,6 +372,27 @@ export function CustomerPricing({ customerId, customerName, customerEmail }: Cus
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>
+        )}
+        {!loading && client && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Clinic pays cost</p>
+              <p className="text-xs text-muted-foreground">
+                {customerName} pays exactly what we pay per vial (unit cost) on every product.
+                Overrides custom prices and SRP.
+              </p>
+            </div>
+            <Switch
+              checked={client.paysAtCost}
+              disabled={togglingAtCost}
+              onCheckedChange={handlePaysAtCostChange}
+            />
+          </div>
+        )}
+        {!loading && client?.paysAtCost && customPrices.length > 0 && (
+          <p className="mb-4 text-xs text-amber-400/80">
+            Per-product custom prices below are ignored while this clinic pays cost.
+          </p>
         )}
         {loading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
