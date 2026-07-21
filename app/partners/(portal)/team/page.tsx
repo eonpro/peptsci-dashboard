@@ -6,7 +6,9 @@ import { Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -103,16 +105,15 @@ export default function PartnerTeamPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Team</h1>
-        <p className="text-sm text-slate-500">
-          Give teammates access to your partner portal. Admins can manage reps, links, and pricing;
-          viewers see numbers only.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Team"
+        description="Give teammates access to your partner portal. Admins can manage reps, links, and pricing; viewers see numbers only."
+      />
 
-      <form onSubmit={invite} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
+      <Card>
+        <CardContent className="p-4">
+      <form onSubmit={invite} className="flex flex-wrap items-end gap-2">
         <Input name="name" required placeholder="Full name *" aria-label="Full name" className="w-auto bg-white" />
         <Input name="email" type="email" required placeholder="Email *" aria-label="Email" className="w-auto bg-white" />
         {/* Native select: this form is read via FormData by name, which Radix
@@ -129,11 +130,14 @@ export default function PartnerTeamPage() {
           {inviting ? 'Inviting…' : 'Invite teammate'}
         </Button>
       </form>
+        </CardContent>
+      </Card>
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Name</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Email</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Role</TableHead>
@@ -222,7 +226,8 @@ export default function PartnerTeamPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

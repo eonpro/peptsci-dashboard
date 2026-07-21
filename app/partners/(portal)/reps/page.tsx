@@ -6,6 +6,8 @@ import { UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '../_components/PageHeader'
 import {
   Dialog,
   DialogContent,
@@ -129,17 +131,19 @@ export default function PartnerRepsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Sales reps</h1>
-        <p className="text-sm text-slate-500">
-          Invite reps, set their commission carve-out (out of your org rate
-          {orgRateBps > 0 ? ` of ${orgRateBps / 100}%` : ''}), and track their book.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Sales reps"
+        description={
+          <>
+            Invite reps, set their commission carve-out (out of your org rate
+            {orgRateBps > 0 ? ` of ${orgRateBps / 100}%` : ''}), and track their book.
+          </>
+        }
+      />
 
       {joinUrl && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
           <span className="font-medium text-emerald-800">Team join link:</span>
           <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 text-xs">{joinUrl}</code>
           <button
@@ -158,7 +162,9 @@ export default function PartnerRepsPage() {
         </div>
       )}
 
-      <form onSubmit={invite} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
+      <Card>
+        <CardContent className="p-4">
+      <form onSubmit={invite} className="flex flex-wrap items-end gap-2">
         <UserPlus className="mb-2 h-4 w-4 text-slate-400" />
         <Input name="name" required placeholder="Full name *" aria-label="Full name" className="w-auto bg-white" />
         <Input name="email" type="email" required placeholder="Email *" aria-label="Email" className="w-auto bg-white" />
@@ -178,11 +184,14 @@ export default function PartnerRepsPage() {
           {inviting ? 'Inviting…' : 'Invite rep'}
         </Button>
       </form>
+        </CardContent>
+      </Card>
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Rep</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Rate</TableHead>
@@ -307,7 +316,8 @@ export default function PartnerRepsPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
 
       <Dialog open={!!rateEdit} onOpenChange={(open) => !open && setRateEdit(null)}>
         <DialogContent className="max-w-sm bg-white text-slate-900 border-slate-200">

@@ -5,7 +5,9 @@ import { toast } from 'sonner'
 import { FileText, Plus, Printer, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -130,18 +132,16 @@ export default function PartnerQuotesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Quotes</h1>
-          <p className="text-sm text-slate-500">
-            Build price quotes for prospective clinics, print them, and track their status.
-          </p>
-        </div>
-        <Button onClick={() => setBuilding((v) => !v)} className="gap-1 font-semibold">
-          <Plus className="h-4 w-4" /> New quote
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Quotes"
+        description="Build price quotes for prospective clinics, print them, and track their status."
+        actions={
+          <Button onClick={() => setBuilding((v) => !v)} className="gap-1 font-semibold">
+            <Plus className="h-4 w-4" /> New quote
+          </Button>
+        }
+      />
 
       {building && (
         <QuoteBuilder
@@ -153,10 +153,11 @@ export default function PartnerQuotesPage() {
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Clinic</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Items</TableHead>
               <TableHead className="text-right text-xs uppercase tracking-wide">Total</TableHead>
@@ -237,7 +238,8 @@ export default function PartnerQuotesPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }
@@ -295,7 +297,10 @@ function QuoteBuilder({ catalog, onDone }: { catalog: CatalogRow[]; onDone: () =
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border bg-white p-4">
+    <form
+      onSubmit={submit}
+      className="space-y-3 rounded-2xl border border-brand-primary/20 bg-white p-5 shadow-xs"
+    >
       <div className="grid gap-2 sm:grid-cols-3">
         <Input name="clinicName" required placeholder="Clinic name *" aria-label="Clinic name" className="bg-white" />
         <Input name="contactName" placeholder="Contact name" aria-label="Contact name" className="bg-white" />

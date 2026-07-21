@@ -5,10 +5,12 @@ import { toast } from 'sonner'
 import { Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '../_components/PageHeader'
 
 interface GoalRow {
   id: string
@@ -76,16 +78,15 @@ export default function PartnerGoalsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Goals</h1>
-        <p className="text-sm text-slate-500">
-          Set revenue or commission targets and track progress in real time. Setting a target of
-          $0 removes the goal.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Goals"
+        description="Set revenue or commission targets and track progress in real time. Setting a target of $0 removes the goal."
+      />
 
-      <form onSubmit={saveGoal} className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4">
+      <Card>
+        <CardContent className="p-4">
+      <form onSubmit={saveGoal} className="flex flex-wrap items-end gap-2">
         {/* Native selects: this form is read via FormData by name, which Radix
             Select doesn't participate in. */}
         <select
@@ -119,32 +120,34 @@ export default function PartnerGoalsPage() {
           {saving ? 'Saving…' : 'Set goal'}
         </Button>
       </form>
+        </CardContent>
+      </Card>
 
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {[0, 1].map((i) => (
-            <div key={i} className="space-y-3 rounded-xl border bg-white p-5">
+            <Card key={i} className="space-y-3 p-5">
               <Skeleton className="h-5 w-2/3" />
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-2.5 w-full rounded-full" />
-            </div>
+            </Card>
           ))}
         </div>
       ) : goals.length === 0 ? (
-        <div className="rounded-xl border bg-white">
+        <Card>
           <EmptyState
             icon={Target}
             title="No goals yet"
             description="Set your first target above."
             className="py-10"
           />
-        </div>
+        </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {goals.map((goal) => {
             const pct = goal.targetCents > 0 ? Math.min(100, (goal.actualCents / goal.targetCents) * 100) : 0
             return (
-              <div key={goal.id} className="rounded-xl border bg-white p-5">
+              <Card key={goal.id} className="p-5">
                 <div className="flex items-baseline justify-between">
                   <p className="font-semibold text-slate-900">
                     {METRIC_LABEL[goal.metric]} · {PERIOD_LABEL[goal.period]}
@@ -159,7 +162,7 @@ export default function PartnerGoalsPage() {
                   value={pct}
                   className={cn('mt-2 h-2.5 bg-slate-100', pct >= 100 && '[&>div]:bg-emerald-500')}
                 />
-              </div>
+              </Card>
             )
           })}
         </div>

@@ -16,7 +16,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -164,12 +166,10 @@ export default function PartnerApiPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">API &amp; webhooks</h1>
-        <p className="text-sm text-slate-500">
-          Read-only programmatic access to your numbers, plus signed event notifications.
-        </p>
-      </div>
+      <PageHeader
+        title="API & webhooks"
+        description="Read-only programmatic access to your numbers, plus signed event notifications."
+      />
 
       {/* API keys */}
       <section className="space-y-3">
@@ -197,24 +197,29 @@ export default function PartnerApiPage() {
           </div>
         )}
 
-        <form onSubmit={createKey} className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-4">
-          <Input
-            name="name"
-            required
-            maxLength={120}
-            placeholder="Key name (e.g. CRM sync)"
-            aria-label="Key name"
-            className="w-auto bg-white"
-          />
-          <Button type="submit" disabled={busy} className="font-semibold">
-            Create key
-          </Button>
-        </form>
+        <Card>
+          <CardContent className="p-4">
+            <form onSubmit={createKey} className="flex flex-wrap items-center gap-2">
+              <Input
+                name="name"
+                required
+                maxLength={120}
+                placeholder="Key name (e.g. CRM sync)"
+                aria-label="Key name"
+                className="w-auto bg-white"
+              />
+              <Button type="submit" disabled={busy} className="font-semibold">
+                Create key
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableHead className="text-xs uppercase tracking-wide">Name</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Prefix</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Last used</TableHead>
@@ -274,7 +279,8 @@ export default function PartnerApiPage() {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </Card>
       </section>
 
       {/* Webhooks */}
@@ -302,7 +308,9 @@ export default function PartnerApiPage() {
           </div>
         )}
 
-        <form onSubmit={createWebhook} className="space-y-2 rounded-xl border bg-white p-4">
+        <Card>
+          <CardContent className="p-4">
+        <form onSubmit={createWebhook} className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Input
               name="url"
@@ -326,11 +334,14 @@ export default function PartnerApiPage() {
             ))}
           </div>
         </form>
+          </CardContent>
+        </Card>
 
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableHead className="text-xs uppercase tracking-wide">URL</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Events</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Last delivery</TableHead>
@@ -400,7 +411,8 @@ export default function PartnerApiPage() {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </Card>
       </section>
 
       <AlertDialog open={!!confirmRevoke} onOpenChange={(open) => !open && setConfirmRevoke(null)}>

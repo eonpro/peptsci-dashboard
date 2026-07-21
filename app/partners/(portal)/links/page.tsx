@@ -6,7 +6,9 @@ import { Copy, Link2, PanelTop, Plus, QrCode, Tags } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -99,18 +101,15 @@ export default function PartnerLinksPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Referral links</h1>
-        <p className="text-sm text-slate-500">
-          Share these links with prospective clinics. Anyone who signs up within 90 days of
-          clicking is attributed to you.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Referral links"
+        description="Share these links with prospective clinics. Anyone who signs up within 90 days of clicking is attributed to you."
+      />
 
       {/* 30-day click analytics */}
       {analytics && analytics.totals.clicks > 0 && (
-        <div className="rounded-xl border bg-white p-4">
+        <Card className="p-5">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-sm font-semibold text-slate-700">Last 30 days</p>
             <p className="text-xs text-slate-500">
@@ -126,7 +125,7 @@ export default function PartnerLinksPage() {
                 <div
                   key={point.date}
                   title={`${point.date}: ${point.clicks} clicks (${point.uniques} unique)`}
-                  className="flex-1 rounded-t bg-[#213cef]/70 transition-colors hover:bg-[#213cef]"
+                  className="flex-1 rounded-t bg-brand-primary/70 transition-colors hover:bg-brand-primary"
                   style={{ height: `${Math.max(3, (point.clicks / max) * 100)}%` }}
                 />
               )
@@ -143,28 +142,31 @@ export default function PartnerLinksPage() {
               ))}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-4">
-        <Link2 className="h-4 w-4 text-slate-400" />
-        <Input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          maxLength={120}
-          placeholder="Label (e.g. Spring conference booth)"
-          className="min-w-[240px] flex-1 bg-white"
-          aria-label="Link label"
-        />
-        <Button onClick={() => void createLink()} disabled={creating} className="gap-1 font-semibold">
-          <Plus className="h-4 w-4" /> New link
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 p-4">
+          <Link2 className="h-4 w-4 text-slate-400" />
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            maxLength={120}
+            placeholder="Label (e.g. Spring conference booth)"
+            className="min-w-[240px] flex-1 bg-white"
+            aria-label="Link label"
+          />
+          <Button onClick={() => void createLink()} disabled={creating} className="gap-1 font-semibold">
+            <Plus className="h-4 w-4" /> New link
+          </Button>
+        </CardContent>
+      </Card>
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Link</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Label</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Owner</TableHead>
@@ -286,7 +288,8 @@ export default function PartnerLinksPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

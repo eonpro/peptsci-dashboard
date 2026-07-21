@@ -5,7 +5,9 @@ import { formatCents } from '@/lib/partners/commission'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import {
   Table,
   TableBody,
@@ -32,27 +34,26 @@ export default async function PartnerTransactionsPage() {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
-          <p className="text-sm text-slate-500">
-            Every attributed revenue event and your commission on it (net of refunds).
-          </p>
-        </div>
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
-        <a
-          href="/partners/exports/transactions"
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
-        >
-          Export CSV
-        </a>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Transactions"
+        description="Every attributed revenue event and your commission on it (net of refunds)."
+        actions={
+          // eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route
+          <a
+            href="/partners/exports/transactions"
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
+          >
+            Export CSV
+          </a>
+        }
+      />
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Date</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Clinic</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Description</TableHead>
@@ -89,11 +90,11 @@ export default async function PartnerTransactionsPage() {
                   <TableCell className="max-w-[280px] truncate py-3 text-slate-500">
                     {txn.description || txn.reference || '—'}
                   </TableCell>
-                  <TableCell className="py-3 text-right">{formatCents(txn.revenueCents)}</TableCell>
-                  <TableCell className="py-3 text-right text-red-600">
+                  <TableCell className="py-3 text-right tabular-nums">{formatCents(txn.revenueCents)}</TableCell>
+                  <TableCell className="py-3 text-right tabular-nums text-red-600">
                     {txn.refundedCents > 0 ? `−${formatCents(txn.refundedCents)}` : '—'}
                   </TableCell>
-                  <TableCell className="py-3 text-right font-medium">{formatCents(mine)}</TableCell>
+                  <TableCell className="py-3 text-right font-semibold tabular-nums">{formatCents(mine)}</TableCell>
                   <TableCell className="py-3">
                     <Badge
                       variant="outline"
@@ -114,7 +115,8 @@ export default async function PartnerTransactionsPage() {
             })}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

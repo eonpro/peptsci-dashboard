@@ -5,7 +5,9 @@ import { toast } from 'sonner'
 import { PackageSearch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '../_components/PageHeader'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -91,14 +93,11 @@ export default function PartnerPricingPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Clinic pricing</h1>
-        <p className="text-sm text-slate-500">
-          Set what each clinic pays per product. Your margin is the spread above your wholesale
-          floor — earned automatically on every order.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Clinic pricing"
+        description="Set what each clinic pays per product. Your margin is the spread above your wholesale floor — earned automatically on every order."
+      />
 
       <Select
         value={clientId || undefined}
@@ -121,10 +120,11 @@ export default function PartnerPricingPage() {
       </Select>
 
       {clientId && (
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableHead className="text-xs uppercase tracking-wide">Product</TableHead>
                 <TableHead className="text-right text-xs uppercase tracking-wide">Your floor</TableHead>
                 <TableHead className="text-right text-xs uppercase tracking-wide">List (SRP)</TableHead>
@@ -207,7 +207,8 @@ export default function PartnerPricingPage() {
               })}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </Card>
       )}
     </div>
   )

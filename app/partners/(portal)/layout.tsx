@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getPartnerContext } from '@/lib/partners/auth'
 import { Button } from '@/components/ui/button'
-import { PortalNav } from './PortalNav'
+import { PortalSidebar } from './_components/PortalSidebar'
+import { PortalTopbar } from './_components/PortalTopbar'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,25 +47,23 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
     (ctx.kind === 'REP' && ctx.rep && !ctx.rep.msaSignedAt)
   if (needsMsa) redirect('/partners/agreement')
 
-  const marginModel = ctx.org.compensationModel === 'MARGIN'
+  const navCtx = {
+    kind: ctx.kind,
+    role: ctx.role,
+    marginModel: ctx.org.compensationModel === 'MARGIN',
+  }
+  const identity = {
+    orgName: ctx.org.name,
+    roleLabel: ctx.kind === 'REP' ? `Rep — ${ctx.rep?.name}` : `Org ${ctx.role?.toLowerCase()}`,
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-brand-onyx text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link href="/partners" className="text-lg font-bold tracking-wide">
-              PEPTSCI <span className="font-normal text-white/60">Partners</span>
-            </Link>
-          </div>
-          <div className="text-right text-xs text-white/60">
-            <div className="font-medium text-white">{ctx.org.name}</div>
-            {ctx.kind === 'REP' ? `Rep — ${ctx.rep?.name}` : `Org ${ctx.role?.toLowerCase()}`}
-          </div>
-        </div>
-        <PortalNav kind={ctx.kind} role={ctx.role} marginModel={marginModel} />
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</main>
+      <PortalSidebar ctx={navCtx} identity={identity} />
+      <div className="lg:pl-64">
+        <PortalTopbar ctx={navCtx} identity={identity} />
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      </div>
     </div>
   )
 }

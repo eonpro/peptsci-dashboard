@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { FileCheck2, ScrollText } from 'lucide-react'
+import { FileCheck2 } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '../_components/PageHeader'
 
 interface Settings {
   org: {
@@ -44,7 +47,18 @@ export default function PartnerTermsPage() {
     void load()
   }, [load])
 
-  if (!data) return <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
+  if (!data)
+    return (
+      <div className="max-w-3xl space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-32 rounded-2xl" />
+        ))}
+      </div>
+    )
 
   const { org } = data
   const canManage = data.kind === 'ORG' && (data.role === 'OWNER' || data.role === 'ADMIN')
@@ -98,18 +112,20 @@ export default function PartnerTermsPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-          <ScrollText className="h-6 w-6 text-slate-400" /> Program terms
-        </h1>
-        <p className="text-sm text-slate-500">
-          Everything that governs your program — rates, holds, payout policy — in one place.
-        </p>
-      </div>
+      <PageHeader
+        title="Program terms"
+        description="Everything that governs your program — rates, holds, payout policy — in one place."
+        className="mb-6"
+      />
 
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Compensation</h2>
-        <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Compensation
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+        <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Model</dt>
             <dd className="font-medium">
@@ -137,11 +153,17 @@ export default function PartnerTermsPage() {
             </div>
           )}
         </dl>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Payout policy</h2>
-        <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Payout policy
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+        <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Commission hold</dt>
             <dd className="font-medium">
@@ -184,11 +206,17 @@ export default function PartnerTermsPage() {
             </dd>
           </div>
         </dl>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Notifications</h2>
-        <label className="mt-3 flex items-center gap-3 text-sm">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+        <label className="flex items-center gap-3 text-sm">
           <input
             type="checkbox"
             checked={org.notifyByEmail}
@@ -199,14 +227,18 @@ export default function PartnerTermsPage() {
           Email me when clinics are attributed, commissions accrue (daily digest), and payouts are
           recorded
         </label>
-      </div>
+        </CardContent>
+      </Card>
 
       {data.partnerReferralUrl && (
-        <div className="rounded-xl border bg-white p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Refer another partner
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Refer another partner
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+          <p className="text-sm text-slate-600">
             Know another sales org that should be here? Share your partner referral link — when
             they&rsquo;re approved and producing, PeptSci grants referral bonuses.
           </p>
@@ -225,12 +257,18 @@ export default function PartnerTermsPage() {
               Copy
             </button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Agreement</h2>
-        <p className="mt-3 text-sm">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Agreement
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+        <p className="text-sm">
           Marketing Services Agreement {data.msaVersion} —{' '}
           {(data.kind === 'REP' ? data.rep?.msaSignedAt : org.msaSignedAt) ? (
             <>
@@ -243,11 +281,12 @@ export default function PartnerTermsPage() {
           ) : (
             'not signed yet. '
           )}
-          <Link href="/partners/agreement" className="text-[#213cef] hover:underline">
+          <Link href="/partners/agreement" className="text-brand-primary hover:underline">
             View the executed copy
           </Link>
         </p>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

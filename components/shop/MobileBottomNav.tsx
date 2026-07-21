@@ -4,11 +4,12 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCart } from './CartContext'
-import { Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react'
+import { Home, Search, BookOpen, ShoppingCart, ClipboardList, User } from 'lucide-react'
 
 const navItems = [
   { href: '/shop', icon: Home, label: 'Shop', exact: true },
   { href: '/shop#search', icon: Search, label: 'Search', action: 'search' },
+  { href: '/shop/resources', icon: BookOpen, label: 'Learn' },
   { href: '#cart', icon: ShoppingCart, label: 'Cart', action: 'cart' },
   { href: '/shop/orders', icon: ClipboardList, label: 'Orders' },
   { href: '/shop/account', icon: User, label: 'Account' },

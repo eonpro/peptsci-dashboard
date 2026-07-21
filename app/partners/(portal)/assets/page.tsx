@@ -1,7 +1,12 @@
 import { requirePartner } from '@/lib/partners/auth'
 import { prisma } from '@/lib/prisma'
-import { FileText, Image as ImageIcon, Type } from 'lucide-react'
+import { FileText, FolderOpen, Image as ImageIcon, Type } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 import { CopyTextButton } from './CopyTextButton'
+import { PageHeader } from '../_components/PageHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,25 +20,27 @@ export default async function PartnerAssetsPage() {
   })
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Marketing assets</h1>
-        <p className="text-sm text-slate-500">
-          Ready-to-use banners, one-pagers, and copy blocks — pair them with your referral links
-          and tracked UTM sources.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Marketing assets"
+        description="Ready-to-use banners, one-pagers, and copy blocks — pair them with your referral links and tracked UTM sources."
+      />
 
       {assets.length === 0 ? (
-        <p className="rounded-xl border bg-white py-10 text-center text-sm text-slate-400">
-          No assets published yet — check back soon.
-        </p>
+        <Card>
+          <EmptyState
+            icon={FolderOpen}
+            title="No assets published yet"
+            description="Check back soon — the PeptSci team adds new marketing material regularly."
+            className="py-10"
+          />
+        </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {assets.map((asset) => {
             const Icon = KIND_ICON[asset.kind]
             return (
-              <div key={asset.id} className="flex flex-col rounded-xl border bg-white p-4">
+              <Card key={asset.id} className="flex flex-col p-4 transition-shadow hover:shadow-md">
                 {asset.kind === 'IMAGE' && asset.blobUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -65,13 +72,13 @@ export default async function PartnerAssetsPage() {
                       download={asset.fileName ?? undefined}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-block rounded-lg bg-[#213cef] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1a30c4]"
+                      className={cn(buttonVariants({ size: 'sm' }), 'text-xs font-semibold')}
                     >
                       Download
                     </a>
                   ) : null}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>

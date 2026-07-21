@@ -15,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Card } from '@/components/ui/card'
+import { PageHeader } from '../_components/PageHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,29 +35,33 @@ export default async function PartnerClinicsPage() {
   )
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clinics</h1>
-          <p className="text-sm text-slate-500">
-            Your book of business — every clinic attributed to {ctx.kind === 'REP' ? 'you' : 'your organization'}.
-          </p>
-        </div>
-        {/* Plain anchor: this is a file download served by a route handler,
-            not a client navigation — <Link/> would prefetch the CSV. */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a
-          href="/partners/exports/clinics"
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
-        >
-          Export CSV
-        </a>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Clinics"
+        description={
+          <>
+            Your book of business — every clinic attributed to{' '}
+            {ctx.kind === 'REP' ? 'you' : 'your organization'}.
+          </>
+        }
+        actions={
+          /* Plain anchor: this is a file download served by a route handler,
+             not a client navigation — <Link/> would prefetch the CSV. */
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
+          <a
+            href="/partners/exports/clinics"
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
+          >
+            Export CSV
+          </a>
+        }
+      />
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Clinic</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Stage</TableHead>
               {ctx.kind === 'ORG' && (
@@ -112,7 +118,8 @@ export default async function PartnerClinicsPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

@@ -1,7 +1,11 @@
 import { requirePartner } from '@/lib/partners/auth'
 import { monthlyStatements } from '@/lib/partners/queries'
 import { formatCents } from '@/lib/partners/commission'
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { PrintButton } from '@/app/partners/agreement/PrintButton'
+import { PageHeader } from '../_components/PageHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,26 +21,24 @@ export default async function PartnerStatementsPage() {
   const newestFirst = [...rows].reverse()
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Statements</h1>
-          <p className="text-sm text-slate-500">
-            Month-by-month commission activity with a true running balance — your books and ours,
-            always in agreement.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
-          <a
-            href="/partners/exports/statements"
-            className="rounded-lg border px-3 py-1.5 text-sm text-slate-600 hover:bg-white"
-          >
-            Export CSV
-          </a>
-          <PrintButton />
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        className="print:hidden"
+        title="Statements"
+        description="Month-by-month commission activity with a true running balance — your books and ours, always in agreement."
+        actions={
+          <>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
+            <a
+              href="/partners/exports/statements"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
+            >
+              Export CSV
+            </a>
+            <PrintButton />
+          </>
+        }
+      />
 
       <div className="hidden print:block">
         <h1 className="text-xl font-bold">PeptSci Partner Statement — {ctx.org.name}</h1>
@@ -46,7 +48,8 @@ export default async function PartnerStatementsPage() {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -83,7 +86,8 @@ export default async function PartnerStatementsPage() {
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+      </Card>
       <p className="text-xs text-slate-400 print:hidden">
         Earned is net new commission in the month; Reversed is refund clawbacks; Closing balance
         is your cumulative unpaid commission at month end.
