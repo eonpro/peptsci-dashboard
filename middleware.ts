@@ -16,6 +16,11 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'mail', 'stag
 const isPublicRoute = createRouteMatcher([
   // Landing page (app/page.tsx redirects signed-in users by role)
   '/',
+  // Root Open Graph share images (app/opengraph-image.tsx) — link scrapers
+  // (iMessage, Slack, WhatsApp…) fetch these without a session. Nested OG
+  // images ride along with their segment's public matcher below.
+  '/opengraph-image(.*)',
+  '/twitter-image(.*)',
   // Public legal pages
   '/termsandconditions(.*)',
   '/privacy(.*)',

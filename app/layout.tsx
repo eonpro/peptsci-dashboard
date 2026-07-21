@@ -3,9 +3,23 @@ import './globals.css'
 import { cn } from '@/lib/utils'
 import { Providers } from '@/components/Providers'
 
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').replace(/\/$/, '')
+
 export const metadata: Metadata = {
-  title: 'PEPTSCI Dashboard',
-  description: 'Production-ready dashboard for PEPTSCI sales, inventory, and analytics',
+  // Absolute base for OG/twitter image URLs (scrapers reject relative paths).
+  metadataBase: new URL(APP_URL),
+  // NOTE: no title template — child pages already suffix "| PeptSci" themselves.
+  title: 'PeptSci — Research Peptides for Licensed Practices',
+  description:
+    'Members-only platform for licensed practices to order high-purity, third-party-tested research peptides with transparent practice pricing.',
+  openGraph: {
+    type: 'website',
+    siteName: 'PeptSci',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
 }
 
 export default function RootLayout({
