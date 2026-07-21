@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { writeAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ const attachSchema = z.object({
  */
 export async function POST(request: NextRequest, context: Params) {
   try {
-    const { isAuthenticated, isAdmin } = await requireAdmin()
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
@@ -58,6 +59,13 @@ export async function POST(request: NextRequest, context: Params) {
       data: { partnerOrgId: id, partnerRepId: repId ?? null },
     })
     logger.info('[ADMIN PARTNERS] Clinic attributed', { orgId: id, clientId, repId: repId ?? null })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'Client',
+      entityId: clientId,
+      action: 'partner_attributed',
+      metadata: { orgId: id, repId: repId ?? null },
+    })
     return successResponse({ success: true })
   } catch (error) {
     logger.error(
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest, context: Params) {
  */
 export async function DELETE(request: NextRequest, context: Params) {
   try {
-    const { isAuthenticated, isAdmin } = await requireAdmin()
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
@@ -92,6 +100,13 @@ export async function DELETE(request: NextRequest, context: Params) {
       return errorResponse('Clinic is not attributed to this org', 404, 'NOT_ATTRIBUTED')
     }
     logger.info('[ADMIN PARTNERS] Clinic detached', { orgId: id, clientId })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'Client',
+      entityId: clientId,
+      action: 'partner_detached',
+      metadata: { orgId: id },
+    })
     return successResponse({ success: true })
   } catch (error) {
     logger.error(

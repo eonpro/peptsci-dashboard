@@ -64,6 +64,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       select: {
         ...clientSelect,
         createdAt: true,
+        partnerOrg: { select: { id: true, name: true } },
+        partnerRep: { select: { id: true, name: true } },
         users: {
           select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true },
         },
@@ -103,6 +105,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       users: client.users,
       counts: { orders: client._count.orders, patients: client._count.patients },
       setup,
+      // Affiliate attribution (which partner org/rep referred this practice),
+      // shown + managed from the admin client page.
+      partner: client.partnerOrg
+        ? { org: client.partnerOrg, rep: client.partnerRep }
+        : null,
       createdAt: client.createdAt,
     })
   } catch (error) {
