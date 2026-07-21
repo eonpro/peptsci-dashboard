@@ -209,7 +209,14 @@ const middleware = isClerkConfigured
       const pathname = request.nextUrl.pathname
 
       // Onboarding + its supporting APIs are always allowed for signed-in users.
+      // Except partners: invited partner accounts (role seeded via Clerk
+      // invitation metadata) land on /sign-up whose forceRedirectUrl points at
+      // /onboarding — that form is the CLINIC practice profile, so send them
+      // to their portal instead.
       if (isOnboardingRoute(request)) {
+        if (role === 'PARTNER' && !pathname.startsWith('/api/')) {
+          return NextResponse.redirect(new URL('/partners', request.url))
+        }
         return NextResponse.next()
       }
 
