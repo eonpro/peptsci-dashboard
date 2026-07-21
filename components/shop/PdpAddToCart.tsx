@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ShopProduct } from '@/lib/types/shop'
 import { Button } from '@/components/ui/button'
 import { useCart, MAX_ITEM_QUANTITY } from './CartContext'
+import { NotifyMeButton } from './NotifyMeButton'
 import { ShoppingCart, Check, Minus, Plus } from 'lucide-react'
 
 interface PdpAddToCartProps {
@@ -53,9 +54,19 @@ export function PdpAddToCart({ product }: PdpAddToCartProps) {
   }
 
   if (outOfStock || unpriced) {
+    if (unpriced) {
+      return (
+        <div className="w-full h-14 flex items-center justify-center text-sm font-medium text-white/40 border border-white/10 rounded-xl">
+          Call for Pricing
+        </div>
+      )
+    }
     return (
-      <div className="w-full h-14 flex items-center justify-center text-sm font-medium text-white/40 border border-white/10 rounded-xl">
-        {unpriced ? 'Call for Pricing' : 'Out of Stock'}
+      <div className="flex w-full flex-col gap-3">
+        <div className="w-full h-14 flex items-center justify-center text-sm font-medium text-white/40 border border-white/10 rounded-xl">
+          Out of Stock
+        </div>
+        <NotifyMeButton sku={productId} />
       </div>
     )
   }

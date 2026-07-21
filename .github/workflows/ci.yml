@@ -41,3 +41,100 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  # Boots the real app (next build + start) against a disposable Postgres and
+  # runs the Playwright smoke suite. Needs TEST-INSTANCE Clerk keys in repo
+  # secrets (E2E_CLERK_PUBLISHABLE_KEY / E2E_CLERK_SECRET_KEY) — the sign-in
+  # widget and the middleware redirects only exist with Clerk configured. When
+  # the secrets are absent the job passes as a no-op so forks/PRs don't break.
+  e2e-smoke:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: peptsci
+          POSTGRES_PASSWORD: peptsci
+          POSTGRES_DB: peptsci_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U peptsci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://peptsci:peptsci@127.0.0.1:5432/peptsci_e2e
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      E2E_BASE_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gate on Clerk test secrets
+        id: gate
+        run: |
+          if [ -n "${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}" ] && [ -n "${{ secrets.E2E_CLERK_SECRET_KEY }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::E2E smoke skipped — set E2E_CLERK_PUBLISHABLE_KEY / E2E_CLERK_SECRET_KEY repo secrets to enable."
+          fi
+
+      - name: Setup Node.js
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Apply migrations
+        if: steps.gate.outputs.run == 'true'
+        run: npx prisma migrate deploy
+
+      - name: Build
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+        run: npm run build
+
+      - name: Install Playwright browser
+        if: steps.gate.outputs.run == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Start app & run smoke suite
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+          # Optional: approved CLIENT login unlocks e2e/checkout.spec.ts.
+          E2E_CLERK_EMAIL: ${{ secrets.E2E_CLERK_EMAIL }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
+        run: |
+          npm run start &
+          APP_PID=$!
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:3000/api/health
+          npx playwright test e2e/smoke.spec.ts
+          kill $APP_PID
+
+      - name: Upload Playwright traces on failure
+        if: failure() && steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7

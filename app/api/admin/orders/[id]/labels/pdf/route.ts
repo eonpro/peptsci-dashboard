@@ -33,6 +33,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const searchParams = new URL(request.url).searchParams
     const consume = searchParams.get('consume') === 'true'
     const overrideUnpaidShip = searchParams.get('overrideUnpaidShip') === 'true'
+    // Explicit admin acknowledgement to consume despite insufficient batch
+    // stock — mirrors the FedEx label route's override; always audit-logged.
+    const overrideInsufficientStock = searchParams.get('overrideInsufficientStock') === 'true'
 
     const order = await prisma.order.findUnique({
       where: { id },
@@ -129,11 +132,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    if (consume && shortfalls.length > 0) {
+    if (consume && shortfalls.length > 0 && !overrideInsufficientStock) {
       return errorResponse(
-        'Insufficient batch stock to fulfill this order. Receive more inventory before consuming.',
+        'Insufficient batch stock to fulfill this order. Receive more inventory before consuming, or pass overrideInsufficientStock=true to ship short (audit-logged).',
         409,
-        'INSUFFICIENT_STOCK'
+        'INSUFFICIENT_BATCH_STOCK'
       )
     }
 
@@ -147,12 +150,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // consume on an already-fulfilled order (reprint) falls back to the
       // planned groups.
       try {
-        const res = await consumeOrderInventory(id, { clerkUserId: userId, label: userId }, { requireFull: true })
+        const res = await consumeOrderInventory(
+          id,
+          { clerkUserId: userId, label: userId },
+          { requireFull: !overrideInsufficientStock }
+        )
         logger.info('Order labels generated + stock consumed', {
           orderId: id,
           draws: res.draws,
           alreadyConsumed: res.alreadyConsumed,
         })
+        if (overrideInsufficientStock && res.shortfall > 0) {
+          logger.warn('[Order labels] insufficient-stock override used', {
+            orderId: id,
+            shortfall: res.shortfall,
+            userId: userId ?? null,
+          })
+          const dbUserId = await resolveAdminUserId(userId)
+          await prisma.auditLog
+            .create({
+              data: {
+                userId: dbUserId,
+                entity: 'Order',
+                entityId: id,
+                action: 'insufficient_stock_override',
+                orderId: id,
+                metadata: { shortfall: res.shortfall, via: 'labels_pdf_consume' },
+              },
+            })
+            .catch(() => {})
+        }
         if (!res.alreadyConsumed && res.drawList.length > 0) {
           const drawnBatches = await prisma.inventoryBatch.findMany({
             where: { id: { in: res.drawList.map((d) => d.batchId) } },
@@ -191,7 +218,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return errorResponse(
             'Insufficient batch stock to fulfill this order. Receive more inventory before consuming.',
             409,
-            'INSUFFICIENT_STOCK'
+            'INSUFFICIENT_BATCH_STOCK'
           )
         }
         if (msg.includes('changed during fulfillment')) {

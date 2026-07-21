@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { sendEmail } from '@/lib/email/client'
+import { createTicket } from '@/lib/support-tickets'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,15 +56,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Persist as a support ticket so the message lands in the trackable queue
+    // (/support admin page, /shop/support for the clinic) instead of living
+    // only in an inbox. Best-effort: fall through to bell + email regardless.
+    let ticketId: string | null = null
+    if (actor && prisma) {
+      try {
+        const sender = await prisma.user.findUnique({
+          where: { id: actor.userId },
+          select: { firstName: true, lastName: true, email: true },
+        })
+        const senderName =
+          [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') ||
+          sender?.email ||
+          practice
+        const subject = message.length > 80 ? `${message.slice(0, 77)}…` : message
+        const ticket = await createTicket({
+          clientId: actor.clientId,
+          subject,
+          body: message,
+          senderId: actor.userId,
+          senderName,
+          createdBy: userId,
+        })
+        ticketId = ticket.id
+      } catch (err) {
+        logger.warn('[shop/support] ticket create failed', { err: String(err) })
+      }
+    }
+
     // Bell for the admin team (best effort — never fails the request).
     await notifyAdmins({
       category: 'CLIENT',
       priority: 'HIGH',
       title: `Support message from ${practice}`,
       message: message.length > 140 ? `${message.slice(0, 140)}…` : message,
-      actionUrl: actor ? `/clients/${actor.clientId}` : '/clients',
+      actionUrl: ticketId ? `/support?ticket=${ticketId}` : actor ? `/clients/${actor.clientId}` : '/clients',
       sourceType: 'support_chat',
-      sourceId: `${userId}:${Date.now()}`,
+      sourceId: ticketId ?? `${userId}:${Date.now()}`,
     }).catch((err) => logger.warn('[shop/support] notify failed', { err: String(err) }))
 
     // Support inbox email with reply-to pointing at the clinic.

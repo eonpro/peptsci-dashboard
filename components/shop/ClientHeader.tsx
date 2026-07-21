@@ -15,6 +15,7 @@ import {
   Store,
   Receipt,
   Gift,
+  BookOpen,
   LogOut,
 } from 'lucide-react'
 import { useCart } from './CartContext'
@@ -70,6 +71,7 @@ const navigation = [
   { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
   { name: 'Invoices', href: '/shop/invoices', icon: Receipt },
   { name: 'My Storefront', href: '/shop/storefront-manage', icon: Store },
+  { name: 'Resources', href: '/shop/resources', icon: BookOpen },
   { name: 'Refer & Earn', href: '/shop/referrals', icon: Gift },
   { name: 'Account', href: '/shop/account', icon: User },
 ]
@@ -131,9 +133,9 @@ export function ClientHeader() {
             asChild
             className="hidden md:flex text-white/50 hover:text-white hover:bg-white/10"
           >
-            <a href="mailto:support@peptsci.com" aria-label="Contact support">
+            <Link href="/shop/support" aria-label="Support tickets">
               <HelpCircle className="h-5 w-5" />
-            </a>
+            </Link>
           </Button>
 
           {/* Notifications (order updates, PeptSci messages) */}
@@ -206,6 +208,15 @@ export function ClientHeader() {
                     Refer &amp; Earn
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  asChild
+                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
+                >
+                  <Link href="/shop/resources">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Resources
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />
                 {!isLoading && isAdmin && (
                   <>
@@ -225,10 +236,10 @@ export function ClientHeader() {
                   asChild
                   className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
                 >
-                  <a href="mailto:support@peptsci.com">
+                  <Link href="/shop/support">
                     <HelpCircle className="mr-2 h-4 w-4" />
                     Help & Support
-                  </a>
+                  </Link>
                 </DropdownMenuItem>
                 {isClerkConfigured && (
                   <>

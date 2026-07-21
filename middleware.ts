@@ -67,8 +67,12 @@ const isAdminRoute = createRouteMatcher([
   '/po-generator(.*)',
   '/storefronts(.*)',
   '/users(.*)',
+  // Client-education article authoring (admin console).
+  '/resources(.*)',
   // Affiliate partner administration (orgs, ledger, payouts).
   '/partners-admin(.*)',
+  // Clinic support-ticket queue.
+  '/support(.*)',
   '/api/admin(.*)',
 ])
 

@@ -13,6 +13,11 @@ import { approvedBalance } from '@/lib/partners/queries'
 import { dispatchPartnerEvent } from '@/lib/partners/webhooks'
 import { sendPartnerPayoutRecordedEmail } from '@/lib/email'
 import { formatCents } from '@/lib/partners/commission'
+import {
+  partnerStripePayoutsEnabled,
+  executeStripeTransfer,
+  PartnerPayoutStripeError,
+} from '@/lib/partners/stripe-payouts'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +29,12 @@ const payoutSchema = z.object({
   method: z.string().trim().max(40).optional().or(z.literal('')),
   reference: z.string().trim().max(200).optional().or(z.literal('')),
   notes: z.string().trim().max(1000).optional().or(z.literal('')),
+  /**
+   * When true (and PARTNER_STRIPE_PAYOUTS_ENABLED), money moves automatically:
+   * a Stripe transfer to the org's Express account executes right after the
+   * ledger flip. ORG payee only.
+   */
+  viaStripe: z.boolean().optional().default(false),
 })
 
 /**
@@ -42,9 +53,19 @@ export async function POST(request: NextRequest, context: Params) {
     const { id } = await context.params
     const parsed = payoutSchema.safeParse(await request.json())
     if (!parsed.success) return errorResponse('Invalid request', 400, 'VALIDATION_ERROR')
-    const { payee, repId } = parsed.data
+    const { payee, repId, viaStripe } = parsed.data
     if (payee === 'REP' && !repId) {
       return errorResponse('repId is required for rep payouts', 400, 'REP_REQUIRED')
+    }
+    if (viaStripe && !partnerStripePayoutsEnabled()) {
+      return errorResponse(
+        'Stripe payouts are not enabled (PARTNER_STRIPE_PAYOUTS_ENABLED).',
+        409,
+        'FEATURE_DISABLED'
+      )
+    }
+    if (viaStripe && payee !== 'ORG') {
+      return errorResponse('Stripe payouts are org-level only.', 400, 'ORG_ONLY')
     }
 
     const balance = await approvedBalance(id, payee, repId ?? null)
@@ -68,7 +89,7 @@ export async function POST(request: NextRequest, context: Params) {
           repId: payee === 'REP' ? repId : null,
           payee,
           amountCents: balance.amountCents,
-          method: parsed.data.method || null,
+          method: viaStripe ? 'STRIPE' : parsed.data.method || null,
           reference: parsed.data.reference || null,
           notes: parsed.data.notes || null,
           recordedBy: userId,
@@ -86,6 +107,59 @@ export async function POST(request: NextRequest, context: Params) {
       }
       return created
     })
+
+    // Automated rail: move the money via Stripe transfer. On a DETERMINISTIC
+    // Stripe rejection (insufficient platform balance, missing destination)
+    // the ledger unwinds atomically — payout deleted, entries back to
+    // APPROVED — so the books never claim money moved when it didn't. On an
+    // UNCONFIRMED failure (timeout) the payout stays recorded and is flagged
+    // for manual verification in the Stripe dashboard.
+    if (viaStripe) {
+      try {
+        await executeStripeTransfer({
+          id: payout.id,
+          amountCents: payout.amountCents,
+          orgId: id,
+        })
+      } catch (err) {
+        const stripeErr =
+          err instanceof PartnerPayoutStripeError
+            ? err
+            : new PartnerPayoutStripeError('Stripe transfer failed', 'TRANSFER_FAILED', 502, true)
+        if (!stripeErr.unconfirmed) {
+          await prisma.$transaction([
+            prisma.commissionEntry.updateMany({
+              where: { payoutId: payout.id },
+              data: { status: 'APPROVED', payoutId: null },
+            }),
+            prisma.partnerPayout.delete({ where: { id: payout.id } }),
+          ])
+          logger.warn('[ADMIN PARTNERS] Stripe payout unwound', {
+            orgId: id,
+            payoutId: payout.id,
+            reason: stripeErr.message,
+          })
+          return errorResponse(
+            `Stripe transfer failed — nothing was recorded. ${stripeErr.message}`,
+            stripeErr.status,
+            stripeErr.code
+          )
+        }
+        await prisma.partnerPayout
+          .update({
+            where: { id: payout.id },
+            data: {
+              notes: `${payout.notes ? `${payout.notes} — ` : ''}STRIPE TRANSFER UNCONFIRMED (${stripeErr.message}) — verify in the Stripe dashboard before retrying.`,
+            },
+          })
+          .catch(() => {})
+        return errorResponse(
+          'The Stripe transfer outcome is unconfirmed. The payout WAS recorded — verify the transfer in the Stripe dashboard before doing anything else.',
+          502,
+          'TRANSFER_UNCONFIRMED'
+        )
+      }
+    }
 
     logger.info('[ADMIN PARTNERS] Payout recorded', {
       orgId: id,

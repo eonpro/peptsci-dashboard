@@ -33,6 +33,8 @@ interface OrgDetail {
   autoApproveEntries: boolean
   holdDays: number
   payoutMinimumCents: number
+  stripeConnectAccountId: string | null
+  stripePayoutsEnabled: boolean
   w9BlobUrl: string | null
   msaSignedAt: string | null
   clerkUserId: string | null
@@ -487,6 +489,32 @@ export default function PartnerOrgAdminPage({ params }: { params: Promise<{ id: 
             >
               Record org payout
             </Button>
+            {org.stripePayoutsEnabled && (
+              <Button
+                size="sm"
+                disabled={busy}
+                className="bg-[#635bff] text-white hover:bg-[#5449e0]"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      'Pay the org’s full approved balance via Stripe transfer? Money moves immediately.'
+                    )
+                  )
+                    return
+                  void act(
+                    () =>
+                      fetch(`/api/admin/partners/${id}/payouts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ payee: 'ORG', viaStripe: true }),
+                      }),
+                    'Stripe payout sent'
+                  )
+                }}
+              >
+                Pay org via Stripe
+              </Button>
+            )}
             {org.reps
               .filter((rep) => rep.status === 'ACTIVE')
               .map((rep) => (

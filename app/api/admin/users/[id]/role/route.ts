@@ -10,6 +10,7 @@ import {
 import { getUserMetadata } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { writeAudit } from '@/lib/audit'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { role: newRole } = parseResult.data
 
+    // Snapshot the previous role for the audit trail.
+    const previousRole = prisma
+      ? (
+          await prisma.user.findUnique({
+            where: { clerkUserId: targetUserId },
+            select: { role: true },
+          })
+        )?.role ?? null
+      : null
+
     // Update Clerk user metadata
     const client = await clerkClient()
     await client.users.updateUserMetadata(targetUserId, {
@@ -80,6 +91,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     logger.info('User role updated', { targetUserId, newRole, updatedBy: userId })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'User',
+      entityId: targetUserId,
+      action: 'role_changed',
+      metadata: { from: previousRole, to: newRole },
+    })
 
     return successResponse({
       message: 'User role updated successfully',

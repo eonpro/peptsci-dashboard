@@ -33,6 +33,7 @@ import {
   type BatchActor,
   type CreateBatchInput,
 } from './inventory-batches-core'
+import { fireBackInStockAlerts } from './back-in-stock'
 import {
   expiringWindow,
   type BatchScope,
@@ -174,7 +175,7 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
   for (let attempt = 1; attempt <= MAX_BATCH_NUMBER_ATTEMPTS; attempt += 1) {
     const batchNumber = withCollisionSuffix(base, attempt)
     try {
-      return await client.$transaction(async (tx) => {
+      const created = await client.$transaction(async (tx) => {
         const batch = await tx.inventoryBatch.create({
           data: {
             batchNumber,
@@ -223,6 +224,9 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
 
         return batch
       })
+      // Restock alert pass — fire-and-forget after the receive commits.
+      if (qtyOnHand > 0) void fireBackInStockAlerts(resolved.variantId)
+      return created
     } catch (err) {
       // A P2002 inside this transaction can only come from the batchNumber unique
       // index (the only unique value we write here). The pg driver adapter does

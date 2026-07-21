@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { creditBalanceCents, clinicReferralUrl } from '@/lib/referrals/credit'
 import { dollarsToCents } from '@/lib/partners/commission'
+import { writeAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,6 +115,13 @@ export async function POST(request: NextRequest, context: Params) {
       },
     })
     logger.info('[ADMIN CREDIT] Adjustment recorded', { clientId: id, amountCents, by: userId })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'Client',
+      entityId: id,
+      action: 'credit_adjusted',
+      metadata: { amountCents, note: parsed.data.note, entryId: entry.id },
+    })
     return successResponse({ entry, balanceCents: await creditBalanceCents(id) }, 201)
   } catch (error) {
     logger.error('Error adjusting client credit', {}, error instanceof Error ? error : new Error(String(error)))

@@ -18,6 +18,7 @@ import { releaseForOrder } from '@/lib/inventory/reservations'
 import { recordPayment } from '@/lib/invoicing/service'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { reconcileRetailOrderFromPaymentIntent } from '@/lib/storefront-payments'
+import { syncConnectAccountStatus } from '@/lib/partners/stripe-payouts'
 
 export interface ProcessResult {
   success: boolean
@@ -244,6 +245,14 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
         data: { isActive: false },
       })
       return { success: true, details: { paymentMethodId: pm.id } }
+    }
+
+    case 'account.updated': {
+      // Partner Express accounts (automated payouts): mirror payouts_enabled
+      // onto the org row. Accounts we don't know are a no-op.
+      const account = event.data.object as Stripe.Account
+      const matched = await syncConnectAccountStatus(account)
+      return { success: true, details: { accountId: account.id, matched } }
     }
 
     default:

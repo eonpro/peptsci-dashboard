@@ -33,6 +33,7 @@ model User {
   packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
   notifications        Notification[]
   patientMessages      PatientMessage[]
+  supportMessages      SupportTicketMessage[]
 
   @@index([clientId])
 }
@@ -104,6 +105,8 @@ model Client {
   creditEntries         ClientCreditEntry[]     @relation("CreditOwner")
   creditEntriesAsSource ClientCreditEntry[]     @relation("CreditSource")
   matchedPartnerLeads   PartnerLead[]
+  backInStockSubs       BackInStockSubscription[]
+  supportTickets        SupportTicket[]
 
   @@index([partnerOrgId])
   @@index([partnerRepId])
@@ -195,6 +198,85 @@ model PatientMessage {
   @@index([patientId, createdAt])
   @@index([clientId, senderRole, readByClinic])
   @@index([patientId, senderRole, readByAdmin])
+}
+
+// -------------------------------------------------
+// Support tickets. Threaded clinic ↔ PeptSci support conversations, modeled
+// on PatientMessage (dual read flags, frozen senderName). Replaces the old
+// one-shot /api/shop/support inbox ping with a real, trackable queue.
+// -------------------------------------------------
+
+enum SupportTicketStatus {
+  OPEN // needs PeptSci attention
+  PENDING // waiting on the clinic's reply
+  RESOLVED // closed; clinic replying reopens it
+}
+
+enum SupportMessageSenderRole {
+  CLINIC
+  PEPTSCI
+}
+
+model SupportTicket {
+  id         String                 @id @default(cuid())
+  client     Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  subject    String
+  status     SupportTicketStatus    @default(OPEN)
+  createdBy  String? // Clerk user id of the clinic user who opened it
+  resolvedAt DateTime?
+  resolvedBy String? // Clerk user id of the admin who resolved it
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  messages   SupportTicketMessage[]
+
+  @@index([clientId, updatedAt])
+  @@index([status, updatedAt])
+}
+
+model SupportTicketMessage {
+  id           String                   @id @default(cuid())
+  ticket       SupportTicket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId     String
+  sender       User?                    @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  senderId     String?
+  senderName   String
+  senderRole   SupportMessageSenderRole
+  body         String
+  readByClinic Boolean                  @default(false)
+  readByAdmin  Boolean                  @default(false)
+  createdAt    DateTime                 @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([ticketId, senderRole, readByClinic])
+  @@index([ticketId, senderRole, readByAdmin])
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Educational resource article shown in the client portal (/shop/resources).
+// Body is markdown authored from the admin dashboard.
+model Article {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  excerpt         String? // card teaser shown on the index grid
+  body            String // markdown
+  category        String? // e.g. "GLP-1", "Dosing", "Research"
+  coverImageUrl   String?
+  readTimeMinutes Int? // computed from body word count on save
+  status          ArticleStatus @default(DRAFT)
+  publishedAt     DateTime?
+  authorName      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([category])
 }
 
 // Saved card (or other payment method) for a client's Stripe Customer.
@@ -490,9 +572,31 @@ model ProductVariant {
   reservations       InventoryReservation[]
   partnerOrgPricing  PartnerOrgPricing[]
   coas               ProductCoa[]
+  backInStockSubs    BackInStockSubscription[]
 
   @@index([status])
   @@index([productId])
+}
+
+// -------------------------------------------------
+// Back-in-stock alerts. A clinic taps "Notify me" on an out-of-stock product;
+// when a receive/restock makes the variant sellable again (available > 0),
+// every armed subscription fires ONCE (bell + email) and is stamped
+// notifiedAt. Re-subscribing after a fire re-arms the same row.
+// -------------------------------------------------
+model BackInStockSubscription {
+  id         String         @id @default(cuid())
+  client     Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId  String
+  createdBy  String? // Clerk user id of the subscriber
+  notifiedAt DateTime? // set when the restock alert fired; null = armed
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([clientId, variantId])
+  @@index([variantId, notifiedAt])
 }
 
 // -------------------------------------------------
@@ -1210,6 +1314,11 @@ model PartnerOrg {
   w9BlobUrl          String?
   w9FileName         String?
   w9UploadedAt       DateTime?
+  // ── Automated Stripe Connect payouts (env-gated PARTNER_STRIPE_PAYOUTS_ENABLED) ──
+  // Express account for ORG payouts; payouts-enabled mirrors Stripe's
+  // `payouts_enabled` capability via the account.updated webhook.
+  stripeConnectAccountId String?              @unique
+  stripePayoutsEnabled   Boolean              @default(false)
   // ── Growth (Wave 4) ──
   // Self-serve rep joining + partner-refers-partner attribution.
   teamJoinCode       String?                  @unique
@@ -1511,6 +1620,8 @@ model PartnerPayout {
   method          String?
   reference       String?
   notes           String?
+  // Stripe transfer id when the payout moved money via Connect (method STRIPE).
+  stripeTransferId String?          @unique
   paidAt          DateTime          @default(now())
   recordedBy      String
   recordedByEmail String?

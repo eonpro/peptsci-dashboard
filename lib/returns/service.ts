@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveInventoryActor } from '@/lib/inventory-log'
+import { fireBackInStockAlerts } from '@/lib/back-in-stock'
 import type { Prisma, ReturnRequest, ReturnStatus } from '@prisma/client'
 import { notifyAdmins } from '@/lib/notifications/service'
 import {
@@ -330,6 +331,8 @@ export async function restockReturnItems(
     if (applied) {
       restocked += 1
       totalUnits += item.quantity
+      // Restock may make the variant sellable again — fire-and-forget alerts.
+      void fireBackInStockAlerts(variantId)
     }
   }
 

@@ -31,6 +31,8 @@ import {
   Tag,
   ChevronDown,
   Handshake,
+  BookOpen,
+  LifeBuoy,
 } from 'lucide-react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
@@ -151,7 +153,9 @@ const navGroups: NavGroupDef[] = [
       { name: 'Users', href: '/users', icon: UserCog, desc: 'Logins, roles, invitations' },
       { name: 'Partners', href: '/partners-admin', icon: Handshake, desc: 'Sales orgs and commissions' },
       { name: 'Storefronts', href: '/storefronts', icon: Store, desc: 'White-label clinic stores' },
+      { name: 'Resources', href: '/resources', icon: BookOpen, desc: 'Client education articles' },
       { name: 'Package Photos', href: '/package-photos', icon: Camera, desc: 'Contents photos by order' },
+      { name: 'Support', href: '/support', icon: LifeBuoy, desc: 'Clinic support tickets' },
     ],
   },
 ]

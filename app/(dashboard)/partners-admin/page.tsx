@@ -207,9 +207,19 @@ function PayoutQueue() {
 
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">
-        Payout queue ({queue.length})
-      </h2>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+          Payout queue ({queue.length})
+        </h2>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
+        <a
+          href={`/api/admin/partners/tax-report?year=${new Date().getFullYear()}`}
+          className="text-xs text-blue-700 hover:underline"
+          title="Payout totals per payee with W-9 status — for 1099 filing"
+        >
+          1099 export (CSV, {new Date().getFullYear()})
+        </a>
+      </div>
       <Card>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-sm">

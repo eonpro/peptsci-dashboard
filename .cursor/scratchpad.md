@@ -1,3 +1,37 @@
+# Partner Portal UI/UX Overhaul (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
+
+## Background and Motivation
+The partner portal (`/partners`) was a dark onyx top bar with 14 horizontally-scrolling text tabs over a flat slate body: raw div cards, no nav icons, no route-level loading skeletons, no real mobile nav. Owner asked for a major UI/UX improvement. Chosen direction: modern SaaS sidebar app shell (Stripe/Linear feel) staying on brand (onyx `#050722` sidebar, `#213cef` primary, light canvas, Sofia Pro), full redesign of all portal pages. UI layer only — no changes to `lib/partners/*`, `/api/partners/*`, Prisma, auth/MSA flow, or apply/agreement/join-team pages.
+
+## Key Challenges and Analysis
+- Nav has role gating (orgOnly, marginOnly, VIEWER hides Team/API) that must be preserved exactly in the new sidebar.
+- Mix of server pages (Dashboard, Clinics, Transactions, Statements, Payouts, Assets) and client pages (Leads, Links, Quotes, Goals, Pricing, Reps, Team, API, Terms, clinic detail) — keep data flows untouched, restyle only.
+- No new dependencies: shadcn/Radix (Sheet for mobile drawer), lucide-react, recharts already present.
+
+## High-level Task Breakdown
+1. Sidebar app shell: rewrite `(portal)/layout.tsx`, new `PortalSidebar` (grouped nav: Overview / Grow / Earnings / Resources / Organization / Settings) + `PortalTopbar` (mobile Sheet drawer); delete `PortalNav`.
+2. Shared `_components/`: `PageHeader`, `StatCard`; adopt `components/ui/card`; route `loading.tsx`.
+3. Dashboard redesign incl. guided first-run empty state.
+4. All remaining pages restyled to PageHeader + Card patterns with skeletons and empty states.
+5. QA: mobile pass, `npm run build`, lints, browser visual check.
+
+## Project Status Board
+- [x] Shell — rewrote `(portal)/layout.tsx` (fixed onyx sidebar `lg:pl-64`, sticky topbar); new `_components/nav.ts` (grouped, gated nav config + `pageTitleForPath`), `PortalSidebar.tsx` (grouped icon nav, identity footer with org initials avatar), `PortalTopbar.tsx` (mobile Sheet drawer, page title, org/role chips). Deleted `PortalNav.tsx`. Auth/MSA gating untouched.
+- [x] Shared — `_components/PageHeader.tsx`, `_components/StatCard.tsx` (icon chip + tones); route-level `loading.tsx` skeleton.
+- [x] Dashboard — iconized KPI StatCards, funnel with step-conversion % hints, TrendChart upgraded (gradient Area + styled tooltip), leaderboard rank medals, guided 3-step "Get started" card on first-run (0 clicks + 0 txns).
+- [x] Grow — Leads (Card form with shadcn Inputs, skeleton rows, light badges), Clinics (+detail rebuilt as details-sidebar / activity+txns 2-col), Links, Quotes, Goals all on PageHeader+Card pattern.
+- [x] Earnings — Transactions, Statements, Payouts (added unpaid/paid StatCards), Pricing.
+- [x] Assets, Reps, Team, API, Terms — Cards, EmptyStates, brand tokens instead of hardcoded hex.
+- [x] QA — `tsc --noEmit` clean, eslint clean on `(portal)`, `next build` passes (only pre-existing warnings elsewhere). Browser visual check blocked by Clerk auth (no session in IDE browser) — sign-in page renders fine; owner should eyeball the portal at localhost:3000/partners.
+
+## Executor's Feedback or Assistance Requests
+- Visual verification of authenticated pages needs a real partner session (Clerk-gated); everything compiles and lints, but a quick human pass over the new sidebar/pages is recommended before deploy.
+
+## Lessons
+- The portal nav gating (orgOnly / marginOnly / VIEWER hides Team+API) now lives in one place: `app/partners/(portal)/_components/nav.ts` — both desktop sidebar and mobile drawer consume it, so future tabs only need one entry.
+
+---
+
 # Meaningful Partner Welcome/Invite Emails (Jul 20, 2026)  [EXECUTOR — ✅ IMPLEMENTED LOCALLY]
 
 Approved partners were getting Clerk's generic "Invitation to join Peptsci" email (bare accept button, no branding or context) alongside our branded approval email that promised a "separate invitation." Replaced with a single branded email that carries the Clerk accept-invitation link plus a program overview; reps and org teammates get their own branded invites too.
@@ -2496,3 +2530,70 @@ Three parallel audits (client ordering, admin ops, design foundation + partner p
 
 ### Lessons (this effort)
 - TWO agent sessions were active in this repo at once: the other session's `74c338d` commit swept up this session's uncommitted files (shop notification routes + bell changes) together with its nav work, and pushed to main. Check `git show --stat HEAD` before assuming your working-tree files are still uncommitted — and expect `next build` failures from the other session's half-saved files.
+
+---
+
+## Platform hardening & gap-closure — 7 workstreams (Jul 20 2026) [PLANNER]
+
+### Background and Motivation
+Post-launch gap analysis identified missing pieces the owner approved for build (their picks: #2 payouts+1099, #3 overselling, #5 staging, #6 e2e-in-CI, #7 audit coverage, #10 back-in-stock, #12 support tickets). Goal: close the operational/financial-risk gaps first, product gaps second, infra last.
+
+### Key Challenges and Analysis
+- **Stock enforcement** is a single helper (`lib/stock-enforcement.ts` → `CHECKOUT_ENFORCE_STOCK === 'true'`). Flipping default-ON is surgical, but the Jul 13 incident (flag flipped with empty on-hand counts) means the default flip must ship with an explicit opt-OUT (`CHECKOUT_ENFORCE_STOCK=false`) and the readiness script stays the pre-flight for prod. Non-enforced side doors remain by design (Stripe capture reserve, stripe-convert, storefront) — capture-time reserve must never fail post-payment.
+- **Audit**: no shared writer exists; every call site hand-rolls `tx.auditLog.create`. A tiny `lib/audit.ts` (fire-and-forget + tx variant) + wiring into the sensitive mutations (pricing, credit, partner rates, role grants, floors, invoice adjustments) is cheap. No UI exists; add a read API + simple viewer on the client/partner detail pages later (optional).
+- **Back-in-stock**: notification infra + stock math already exist. Needs a `BackInStockSubscription` model, "Notify me" on PDP/card (only meaningful when enforcement ON), a hook where stock increases (`createBatch`, restock, reverse-consume → simplest: check transition available 0→>0 after variant increment), email + bell to the clinic users, one-shot per subscription.
+- **Support tickets**: reuse the PatientMessage pattern (thread + dual read flags + shared chat UI). New `SupportTicket` + `SupportTicketMessage`, statuses OPEN/PENDING/RESOLVED, clinic UI on /shop/account, admin queue page, notifications both ways. Existing `POST /api/shop/support` becomes "create ticket".
+- **Partner payouts**: PeptSci is a Connect *platform*; clinic funds settle on ONE connected account. Automated payouts = partners onboard as Express connected accounts (platform-level), payout executes a `transfers.create` (platform balance) — funds source must be the platform account, so transfers depend on platform balance topology; ship env-gated (`PARTNER_STRIPE_PAYOUTS_ENABLED`) with manual-record fallback unchanged. 1099 export needs no Stripe: yearly PAID rollups per org/rep + W-9 status CSV.
+- **E2E in CI**: smoke spec needs a booted app + DB + Clerk keys. CI job: Postgres service container + `prisma migrate deploy` + `next build` + `next start` + smoke spec. Checkout spec stays preview-only (needs real Clerk user; wire via repo secrets when owner creates them).
+- **Staging**: RDS IAM blocks Prisma CLI from local; keep the in-app runner for prod, but give previews their own DB (Prisma Postgres/Neon) + document the flow. Requires owner's Vercel/Neon accounts → docs + scripts first, provisioning with owner.
+
+### High-level Task Breakdown (execution order)
+| # | Phase | Success criteria |
+|---|-------|------------------|
+| P1 | Overselling default-ON: invert `stockEnforcementEnabled()` default, opt-out env, labels-PDF override parity + audit, cancel-releases-reservations gap, tests | tsc/lint/tests green; enforcement ON with no env var; readiness script documented as pre-flight |
+| P2 | `lib/audit.ts` writer + audit on: client-pricing set, credit adjustment, partner org PATCH (rates/model/status), user role change, floors, invoice adjustments, storefront pricing | Each mutation writes AuditLog row w/ actor + before/after metadata; unit tests for helper |
+| P3 | Back-in-stock: schema + migration + probes, notify-me API/UI, restock trigger, email+bell, dedupe/one-shot | Subscribe while OOS → receive batch → notification + email fires once; sub marked notified |
+| P4 | Support tickets: schema + migration + probes, shop create/list/thread UI, admin queue + reply, status flow, notifications | Clinic creates ticket → admin bell → reply → clinic bell; resolve closes thread |
+| P5 | Payouts: PartnerOrg Stripe Connect fields + Express onboarding link API + portal connect UI, transfer-on-payout (env-gated) + webhook, 1099 CSV export (admin) + YTD card | With flag off: nothing changes. Export: per-org/rep YTD PAID totals + W-9 status |
+| P6 | CI e2e job: postgres service, build+start, smoke spec; checkout spec wired to secrets if present | CI green incl. e2e-smoke on PR |
+| P7 | Staging: docs/runbook + preview DB wiring (`docs/environments.md`), seed for staging | Owner can create preview env following runbook |
+
+### Project Status Board
+- [x] P1 overselling protection (default ON + labels-PDF override parity + tests)
+- [x] P2 audit wrapper + sensitive-mutation coverage
+- [x] P3 back-in-stock notifications
+- [x] P4 support tickets
+- [x] P5 automated payouts (env-gated) + 1099 export
+- [x] P6 e2e in CI
+- [x] P7 staging runbook + staging DB provisioned
+- [x] Final verify: tsc clean, lint 0 errors, 354/354 unit tests, clean `next build`, `scripts/smoke-hardening.ts` all-green vs local PG
+
+### Executor's report (Jul 20 2026, local — NOT yet committed/deployed)
+**P1 — Overselling default-ON.** `stockEnforcementEnabled()` now `!== 'false'` (opt-OUT via `CHECKOUT_ENFORCE_STOCK=false`); env-example updated; 4 unit tests. Labels-PDF consume gains `overrideInsufficientStock` param + `insufficient_stock_override` AuditLog (parity w/ FedEx modal), 409 code unified to `INSUFFICIENT_BATCH_STOCK` (no UI callers existed). Release-on-cancel: no cancel endpoint exists in the codebase — nothing to wire (checked; disposition route only rejects CANCELLED). ⚠️ **DEPLOY GATE: on the next prod deploy, enforcement turns ON. Verify prod counts first (`scripts/check-stock-enforcement-readiness.ts` logic vs prod, or Inventory KPIs) or set `CHECKOUT_ENFORCE_STOCK=false` in Vercel prod before deploying.** Non-enforced side doors unchanged by design (capture reserve, stripe-convert, storefront).
+**P2 — Audit.** New `lib/audit.ts` (`writeAudit` never-throws + pure `changedFields` diff, 6 tests). Wired: client-pricing set/remove (w/ previous price), credit adjustments, PartnerOrg PATCH (before/after diff), user role change (from→to), floors PUT, invoice adjustments, support-ticket status.
+**P3 — Back-in-stock.** `BackInStockSubscription` model; `lib/back-in-stock.ts` (subscribe/unsubscribe/armed + `fireBackInStockAlerts` with conditional `notifiedAt IS NULL` claim → one-shot); fired post-commit from `createBatch`, positive `createManualAdjustment`, return restock; shop API `GET/POST/DELETE /api/shop/back-in-stock`; `NotifyMeButton` on PDP out-of-stock branch; `backInStockEmail` template + bell (INVENTORY, deep-link to PDP).
+**P4 — Support tickets.** `SupportTicket`/`SupportTicketMessage` (PatientMessage pattern: dual read flags, frozen senderName; status machine OPEN→PENDING→RESOLVED, clinic reply reopens). Lib `lib/support-tickets.ts`; shop APIs (`/api/shop/support/tickets…`) + admin APIs (`/api/admin/support/tickets…`); legacy `POST /api/shop/support` now ALSO creates a ticket (bell deep-links `/support?ticket=`); `SupportChat` component (semantic tokens); pages `/shop/support` (list+create+thread) and admin `/support` (queue w/ filters, resolve/reopen); nav: AdminHeader Manage→Support, ClientHeader help icon + menu → /shop/support (was mailto); middleware: `/support(.*)` added to isAdminRoute.
+**P5 — Payouts + 1099.** PartnerOrg gains `stripeConnectAccountId`/`stripePayoutsEnabled`; PartnerPayout gains `stripeTransferId`. `lib/partners/stripe-payouts.ts`: Express account create + onboarding link, `account.updated` webhook sync (webhook scoping now lets `account.updated` through for partner accounts), `executeStripeTransfer` (idempotencyKey `partner_payout_<id>`). Admin payouts POST accepts `viaStripe` (ORG only, flag-gated): ledger flip → transfer; DETERMINISTIC Stripe failure unwinds atomically (payout deleted, entries back to APPROVED); UNCONFIRMED (timeout) keeps payout + flags notes for dashboard verification. Portal: `StripeConnectCard` on /partners/payouts + `POST /api/partners/stripe-onboarding` (OWNER/ADMIN). Admin org detail: "Pay org via Stripe" button when payout-enabled. Env flag `PARTNER_STRIPE_PAYOUTS_ENABLED` (default off — nothing changes until set). ⚠️ transfers draw from the PLATFORM balance (clinic revenue settles on the connected account) — platform must be funded/topped up. Rep payouts stay manual. 1099: `GET /api/admin/partners/tax-report?year=` CSV (per-payee YTD paid, W-9 status, $600 threshold col) + link above the payout queue.
+**P6 — CI e2e.** `.github/workflows/ci.yml` gains `e2e-smoke` job: PG16 service container → `prisma migrate deploy` → `next build`+`start` → `e2e/smoke.spec.ts`; needs repo secrets `E2E_CLERK_PUBLISHABLE_KEY`/`E2E_CLERK_SECRET_KEY` (test instance) — job no-ops with a ::notice when unset, so nothing breaks until the owner adds them.
+**P7 — Staging.** `docs/environments.md` runbook (preview env vars, CLI migrate rehearsal, seeds, release flow, hard rules). Provisioned Prisma Postgres db **peptsci-staging** (us-east-1) via MCP and applied ALL migrations to it (`migrate deploy` clean, including a concurrent session's `20260721014735_add_articles`). Connection string: console.prisma.io (NOT recorded here — secret).
+**Migrations (applied locally + staging; prod via in-app runner on deploy):** `20260721011000_add_back_in_stock_and_support_tickets`, `20260721013000_partner_stripe_payouts`. probeSchema extended (+ fixed the pre-existing missing `PatientMessage` probe).
+**Smoke:** `scripts/smoke-hardening.ts` (local-only guard) — back-in-stock arm→zero-stock no-op→receive fires once→re-fire no-op; ticket lifecycle incl. unread counts both sides + reopen-on-clinic-reply; audit metadata round-trip. All passed.
+
+### Lessons (this effort)
+- `prisma migrate diff` (Prisma 7) removed `--from-url`; use `--from-config-datasource` (reads prisma.config.ts, which honors env DATABASE_URL) + `--to-schema prisma/schema.prisma --script`.
+- A concurrent agent session's half-saved portal edit broke `next build` mid-verify (again — see Jul 18 lesson). tsc going clean a few minutes later = their save completed; retry the build rather than touching their files.
+- Killing a redundant `next build` mid-flight leaves a PARTIAL `.next` that breaks `next dev` — `rm -rf .next` after.
+- Filtered relation counts (`_count.select.rel.where`) do unread-badge rollups in one query — no groupBy needed when you're already fetching the rows.
+
+---
+
+## Manual partner attribution from the client page (Jul 20 2026) [EXECUTOR]
+
+**Background:** owner asked for admins to attach a clinic to a partner org when the clinic signed up directly on the site without the partner's referral link. The org-side flow already existed (`POST/DELETE /api/admin/partners/[id]/clients` + attach form on `/partners-admin/[id]`), but there was no way to do it from the clinic's own admin page, and admins reviewing a new signup start there.
+
+**What shipped:**
+- `GET /api/admin/clients/[id]` now returns `partner: { org, rep } | null` (attribution snapshot).
+- New `components/admin/ClientPartnerCard.tsx` on `/clients/[id]`: shows the current partner org/rep (links to `/partners-admin/[id]`) with Detach; when unattributed, offers org select (ACTIVE/SUSPENDED, not PENDING) + per-org rep select + Attach. Reuses the existing org-scoped attach/detach endpoints — future transactions only, historic ledger untouched.
+- Audit coverage (P2 pattern): attach/detach now write `writeAudit` rows (`Client` / `partner_attributed` / `partner_detached` with orgId+repId metadata).
+
+**Verified:** tsc clean, next lint clean on the four touched files.

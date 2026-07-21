@@ -117,6 +117,12 @@ interface SchemaProbe {
   partnerPayoutRequestTable: boolean
   partnerAssetTable: boolean
   partnerOrgHoldDaysColumn: boolean
+  patientMessageTable: boolean
+  supportTicketTable: boolean
+  supportTicketMessageTable: boolean
+  backInStockSubscriptionTable: boolean
+  partnerOrgStripeAccountColumn: boolean
+  partnerPayoutStripeTransferColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -131,7 +137,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'OrderFulfillment', 'Invoice', 'InvoiceLineItem', 'InvoicePayment',
         'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa',
         'ClientCreditEntry', 'PartnerLead', 'ReferralLinkClick',
-        'PartnerPayoutRequest', 'PartnerAsset'
+        'PartnerPayoutRequest', 'PartnerAsset', 'PatientMessage',
+        'SupportTicket', 'SupportTicketMessage', 'BackInStockSubscription'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -154,7 +161,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Order' AND column_name = 'creditApplied')
         OR (table_name = 'Product' AND column_name = 'monograph')
         OR (table_name = 'Product' AND column_name = 'purity')
-        OR (table_name = 'PartnerOrg' AND column_name = 'holdDays'))
+        OR (table_name = 'PartnerOrg' AND column_name = 'holdDays')
+        OR (table_name = 'PartnerOrg' AND column_name = 'stripeConnectAccountId')
+        OR (table_name = 'PartnerPayout' AND column_name = 'stripeTransferId'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -218,6 +227,12 @@ async function probeSchema(): Promise<SchemaProbe> {
     partnerPayoutRequestTable: tableNames.has('PartnerPayoutRequest'),
     partnerAssetTable: tableNames.has('PartnerAsset'),
     partnerOrgHoldDaysColumn: colKeys.has('PartnerOrg.holdDays'),
+    patientMessageTable: tableNames.has('PatientMessage'),
+    supportTicketTable: tableNames.has('SupportTicket'),
+    supportTicketMessageTable: tableNames.has('SupportTicketMessage'),
+    backInStockSubscriptionTable: tableNames.has('BackInStockSubscription'),
+    partnerOrgStripeAccountColumn: colKeys.has('PartnerOrg.stripeConnectAccountId'),
+    partnerPayoutStripeTransferColumn: colKeys.has('PartnerPayout.stripeTransferId'),
   }
 }
 

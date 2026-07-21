@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { writeAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ const putSchema = z.object({
 /** PUT /api/admin/partners/[id]/floors — upsert/clear wholesale floors. */
 export async function PUT(request: NextRequest, context: Params) {
   try {
-    const { isAuthenticated, isAdmin } = await requireAdmin()
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
@@ -107,6 +108,17 @@ export async function PUT(request: NextRequest, context: Params) {
     }
 
     logger.info('[ADMIN PARTNERS] Floors updated', { orgId: id, updated, cleared })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'PartnerOrg',
+      entityId: id,
+      action: 'floors_updated',
+      metadata: {
+        updated,
+        cleared,
+        items: parsed.data.items.map((i) => ({ variantId: i.variantId, floorCents: i.floorCents })),
+      },
+    })
     return successResponse({ updated, cleared })
   } catch (error) {
     logger.error('Error saving floors', {}, error instanceof Error ? error : new Error(String(error)))

@@ -915,6 +915,34 @@ Details: ${APP_URL}/partners/transactions
   return { subject, html, text }
 }
 
+export function backInStockEmail(opts: {
+  contactName?: string | null
+  productName: string
+  dose?: string | null
+  sku: string
+}): EmailContent {
+  const label = opts.dose ? `${opts.productName} ${opts.dose}` : opts.productName
+  const subject = `Back in stock: ${label}`
+  const productUrl = `${APP_URL}/shop/product/${encodeURIComponent(opts.sku)}`
+  const html = layout({
+    heading: 'It&rsquo;s back in stock',
+    body:
+      para(greetingHtml(opts.contactName)) +
+      para(
+        `Good news — <strong>${escapeHtml(label)}</strong> is available again. You asked us to let you know, so here it is. Stock can move quickly; order while it&rsquo;s available.`
+      ),
+    cta: { label: 'Order now', href: productUrl },
+  })
+  const text = `${greeting(opts.contactName)}
+
+Good news — ${label} is back in stock. You asked us to let you know.
+
+Order now: ${productUrl}
+
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
 export function affiliateRejectedEmail(opts: {
   contactName?: string | null
   orgName: string

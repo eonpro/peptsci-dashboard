@@ -125,12 +125,24 @@ ACH_ENABLED=""
 # ===========================================
 # INVENTORY - Hard stock enforcement at checkout
 # ===========================================
-# When "true", clinic checkout rejects carts whose quantities exceed sellable
-# stock (onHand - reserved) and the shop marks zero-stock products as
-# "Out of Stock" with quantity steppers capped at availability.
-# Leave unset/false until real inventory counts are maintained in the DB —
-# with all-zero counts the gate blocks every checkout.
+# ON BY DEFAULT: clinic checkout rejects carts whose quantities exceed
+# sellable stock (onHand - reserved) and the shop marks zero-stock products
+# as "Out of Stock" with quantity steppers capped at availability.
+# Set to "false" ONLY as an escape hatch while inventory counts are not yet
+# maintained in the DB — with all-zero counts the gate blocks every checkout.
+# Pre-flight for a new environment: npx tsx scripts/check-stock-enforcement-readiness.ts
 CHECKOUT_ENFORCE_STOCK=""
+
+# ===========================================
+# PARTNERS - Automated Stripe Connect payouts (optional)
+# ===========================================
+# When "true", partner orgs can onboard as Stripe Express accounts (portal
+# Payouts page) and admins get a "Pay org via Stripe" button that moves money
+# via transfers.create instead of a manual check/wire. IMPORTANT: transfers
+# draw from the PLATFORM Stripe balance - since clinic revenue settles on the
+# operating connected account, the platform balance must be funded (top-up)
+# or transfers will fail with insufficient funds. Rep payouts stay manual.
+PARTNER_STRIPE_PAYOUTS_ENABLED=""
 
 # ===========================================
 # SECURITY - Admin 2FA enforcement

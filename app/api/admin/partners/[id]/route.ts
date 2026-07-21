@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { commissionSummary, revenueSummary } from '@/lib/partners/queries'
 import { validateOrgRateBps } from '@/lib/partners/commission'
+import { writeAudit, changedFields } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,7 +149,7 @@ const patchSchema = z.object({
  */
 export async function PATCH(request: NextRequest, context: Params) {
   try {
-    const { isAuthenticated, isAdmin } = await requireAdmin()
+    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
     if (!isAuthenticated) return unauthorizedResponse()
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
@@ -174,8 +175,26 @@ export async function PATCH(request: NextRequest, context: Params) {
       })
     }
 
+    // Snapshot before the update so the audit trail has real before/after
+    // values for rate, model, status, and payout-policy changes.
+    const before = await prisma.partnerOrg.findUnique({ where: { id } })
+    if (!before) return errorResponse('Partner org not found', 404, 'NOT_FOUND')
+
     const org = await prisma.partnerOrg.update({ where: { id }, data })
     logger.info('[ADMIN PARTNERS] Org updated', { orgId: id, fields: Object.keys(data) })
+    const changes = changedFields(
+      before as unknown as Record<string, unknown>,
+      data as Record<string, unknown>
+    )
+    if (Object.keys(changes).length > 0) {
+      void writeAudit({
+        clerkUserId: userId,
+        entity: 'PartnerOrg',
+        entityId: id,
+        action: 'partner_org_updated',
+        metadata: { changes },
+      })
+    }
     return successResponse({ org })
   } catch (error) {
     logger.error(

@@ -9,6 +9,7 @@ import {
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { setClientPricing, removeClientPricing, getClientPricing } from '@/lib/pricing'
+import { writeAudit } from '@/lib/audit'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -134,6 +135,14 @@ export async function POST(request: NextRequest) {
     const { clientId, variantId, customPrice, discountPercent, notes, validFrom, validUntil } =
       parseResult.data
 
+    // Snapshot the previous price for the audit trail before overwriting.
+    const previous = prisma
+      ? await prisma.clientPricing.findUnique({
+          where: { clientId_variantId: { clientId, variantId } },
+          select: { customPrice: true, isActive: true },
+        })
+      : null
+
     // Use the pricing module which handles Postgres
     const result = await setClientPricing(clientId, variantId, customPrice, {
       discountPercent,
@@ -152,6 +161,19 @@ export async function POST(request: NextRequest) {
       variantId,
       customPrice,
       setBy: userId,
+    })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'ClientPricing',
+      entityId: `${clientId}:${variantId}`,
+      action: 'pricing_set',
+      metadata: {
+        clientId,
+        variantId,
+        previousPrice: previous ? Number(previous.customPrice) : null,
+        customPrice,
+        discountPercent: discountPercent ?? null,
+      },
     })
 
     // Return the updated pricing
@@ -208,6 +230,17 @@ export async function DELETE(request: NextRequest) {
       })
 
       logger.info('Client pricing deleted by ID', { pricingId: id, deletedBy: userId })
+      void writeAudit({
+        clerkUserId: userId,
+        entity: 'ClientPricing',
+        entityId: `${existing.clientId}:${existing.variantId}`,
+        action: 'pricing_removed',
+        metadata: {
+          clientId: existing.clientId,
+          variantId: existing.variantId,
+          previousPrice: Number(existing.customPrice),
+        },
+      })
       return successResponse({ message: 'Pricing deleted successfully' })
     }
 
@@ -222,6 +255,13 @@ export async function DELETE(request: NextRequest) {
         clientId,
         variantId,
         deletedBy: userId,
+      })
+      void writeAudit({
+        clerkUserId: userId,
+        entity: 'ClientPricing',
+        entityId: `${clientId}:${variantId}`,
+        action: 'pricing_removed',
+        metadata: { clientId, variantId },
       })
       return successResponse({ message: 'Pricing deleted successfully' })
     }

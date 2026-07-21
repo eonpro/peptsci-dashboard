@@ -1,4 +1,4 @@
-import { Banknote } from 'lucide-react'
+import { Banknote, Hourglass } from 'lucide-react'
 import { requirePartner } from '@/lib/partners/auth'
 import { prisma } from '@/lib/prisma'
 import { commissionSummary } from '@/lib/partners/queries'
@@ -6,7 +6,11 @@ import { formatCents } from '@/lib/partners/commission'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import { RequestPayoutButton } from './RequestPayoutButton'
+import { StripeConnectCard } from './StripeConnectCard'
+import { partnerStripePayoutsEnabled } from '@/lib/partners/stripe-payouts'
+import { roleAtLeast } from '@/lib/partners/auth'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Card } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -15,6 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { PageHeader } from '../_components/PageHeader'
+import { StatCard } from '../_components/StatCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,31 +40,53 @@ export default async function PartnerPayoutsPage() {
   ])
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Payouts</h1>
-          <p className="text-sm text-slate-500">
-            Unpaid balance: <strong className="text-amber-600">{formatCents(summary.unpaidCents)}</strong> ·
-            Paid to date: <strong className="text-emerald-600">{formatCents(summary.paidCents)}</strong>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
-          <a
-            href="/partners/exports/payouts"
-            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
-          >
-            Export CSV
-          </a>
-          <RequestPayoutButton />
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Payouts"
+        description="Approved commission is paid out on the regular payout schedule."
+        actions={
+          <>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route */}
+            <a
+              href="/partners/exports/payouts"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'bg-white text-slate-600')}
+            >
+              Export CSV
+            </a>
+            <RequestPayoutButton />
+          </>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatCard
+          label="Unpaid balance"
+          value={formatCents(summary.unpaidCents)}
+          icon={Hourglass}
+          tone="amber"
+          sub="Accrued commission awaiting payout"
+        />
+        <StatCard
+          label="Paid to date"
+          value={formatCents(summary.paidCents)}
+          icon={Banknote}
+          tone="emerald"
+          sub="Lifetime payouts received"
+        />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      {partnerStripePayoutsEnabled() && ctx.kind === 'ORG' && roleAtLeast(ctx.role, 'ADMIN') && (
+        <StripeConnectCard
+          connected={Boolean(ctx.org.stripeConnectAccountId)}
+          payoutsEnabled={ctx.org.stripePayoutsEnabled}
+        />
+      )}
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="text-xs uppercase tracking-wide">Date</TableHead>
               {ctx.kind === 'ORG' && (
                 <TableHead className="text-xs uppercase tracking-wide">Payee</TableHead>
@@ -93,12 +121,15 @@ export default async function PartnerPayoutsPage() {
                 <TableCell className="py-3">{p.method || '—'}</TableCell>
                 <TableCell className="py-3">{p.reference || '—'}</TableCell>
                 <TableCell className="max-w-[240px] truncate py-3 text-slate-500">{p.notes || '—'}</TableCell>
-                <TableCell className="py-3 text-right font-medium">{formatCents(p.amountCents)}</TableCell>
+                <TableCell className="py-3 text-right font-semibold tabular-nums">
+                  {formatCents(p.amountCents)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

@@ -61,11 +61,16 @@ export async function POST(request: NextRequest) {
   // but FAIL CLOSED in production (a missing account id must not cause us to
   // process events for arbitrary connected accounts).
   const monitoredAccount = getConnectedAccountId()
+  // Partner Express accounts (automated payouts) emit account.updated with
+  // THEIR account id — those must pass the scoping gate. The processor looks
+  // the account up by PartnerOrg.stripeConnectAccountId; unknown accounts
+  // no-op, so letting this event type through is safe.
+  const isPartnerAccountEvent = event.type === 'account.updated'
   if (monitoredAccount) {
-    if (event.account !== monitoredAccount) {
+    if (event.account !== monitoredAccount && !isPartnerAccountEvent) {
       return NextResponse.json({ received: true, skipped: 'account_not_monitored' })
     }
-  } else if (process.env.NODE_ENV === 'production') {
+  } else if (process.env.NODE_ENV === 'production' && !isPartnerAccountEvent) {
     logger.error('[STRIPE WEBHOOK] No connected account configured in production; skipping', {
       eventId: event.id,
       eventAccount: event.account,

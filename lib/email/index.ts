@@ -24,6 +24,7 @@ import {
   invoiceOverdueEmail,
   statementEmail,
   weeklyReportEmail,
+  backInStockEmail,
   type OrderConfirmationEmailOpts,
   type ShipmentEmailOpts,
   type InvoiceEmailOpts,
@@ -206,6 +207,19 @@ export async function sendStatementEmail(
   opts: { to: string | string[] } & StatementEmailOpts
 ): Promise<SendEmailResult> {
   const { subject, html, text } = statementEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Back-in-stock alerts (customer-facing) ──
+
+export async function sendBackInStockEmail(opts: {
+  to: string | string[]
+  contactName?: string | null
+  productName: string
+  dose?: string | null
+  sku: string
+}): Promise<SendEmailResult> {
+  const { subject, html, text } = backInStockEmail(opts)
   return sendEmail({ to: opts.to, subject, html, text })
 }
 

@@ -10,6 +10,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { addAdjustment } from '@/lib/invoicing/service'
+import { writeAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,6 +43,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       percent: parsed.data.percent,
       reason: parsed.data.reason,
       createdBy: userId ?? undefined,
+    })
+    void writeAudit({
+      clerkUserId: userId,
+      entity: 'Invoice',
+      entityId: id,
+      action: 'invoice_adjusted',
+      metadata: {
+        kind: parsed.data.kind,
+        amount: parsed.data.amount ?? null,
+        percent: parsed.data.percent ?? null,
+        reason: parsed.data.reason ?? null,
+      },
     })
     return successResponse({ invoice: view }, 201)
   } catch (error) {
