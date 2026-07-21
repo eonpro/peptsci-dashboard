@@ -2568,7 +2568,14 @@ Post-launch gap analysis identified missing pieces the owner approved for build 
 - [x] P7 staging runbook + staging DB provisioned
 - [x] Final verify: tsc clean, lint 0 errors, 354/354 unit tests, clean `next build`, `scripts/smoke-hardening.ts` all-green vs local PG
 
-### Executor's report (Jul 20 2026, local — NOT yet committed/deployed)
+### Deployed (Jul 20 2026 ~22:30 EDT)
+- Commits `cf9d248` (concurrent session's portal refresh + articles — committed on owner's DEPLOY order so main matched the verified tree) + `450acd2` (this hardening slate) pushed to main → Vercel prod Ready; GitHub CI green on both (e2e-smoke no-ops until Clerk test secrets are added).
+- **`CHECKOUT_ENFORCE_STOCK=false` set in Vercel prod BEFORE the deploy** — preserves current behavior; owner flips to enforcement by deleting the var (or setting true) after verifying prod counts.
+- Prod migrations applied via in-app runner (temp Clerk SUPER_ADMIN service user → sign-in ticket → hosted /sign-in redemption → browser fetch POST): `add_back_in_stock_and_support_tickets` 17/17, `partner_stripe_payouts` 4/4, `add_articles` 5/5 — `upToDate: true`, zero failures. Temp user deleted; pulled env file removed.
+- Live checks: /api/health ok+db up; admin /support queue renders (screenshot verified); /api/admin/support/tickets + tax-report 200 authed; /shop/support 307s anonymous.
+- Lesson: this Clerk prod instance requires `username` + `phone_number` on Backend-API user creation (form_data_missing otherwise).
+
+### Executor's report (Jul 20 2026, local — now deployed, see above)
 **P1 — Overselling default-ON.** `stockEnforcementEnabled()` now `!== 'false'` (opt-OUT via `CHECKOUT_ENFORCE_STOCK=false`); env-example updated; 4 unit tests. Labels-PDF consume gains `overrideInsufficientStock` param + `insufficient_stock_override` AuditLog (parity w/ FedEx modal), 409 code unified to `INSUFFICIENT_BATCH_STOCK` (no UI callers existed). Release-on-cancel: no cancel endpoint exists in the codebase — nothing to wire (checked; disposition route only rejects CANCELLED). ⚠️ **DEPLOY GATE: on the next prod deploy, enforcement turns ON. Verify prod counts first (`scripts/check-stock-enforcement-readiness.ts` logic vs prod, or Inventory KPIs) or set `CHECKOUT_ENFORCE_STOCK=false` in Vercel prod before deploying.** Non-enforced side doors unchanged by design (capture reserve, stripe-convert, storefront).
 **P2 — Audit.** New `lib/audit.ts` (`writeAudit` never-throws + pure `changedFields` diff, 6 tests). Wired: client-pricing set/remove (w/ previous price), credit adjustments, PartnerOrg PATCH (before/after diff), user role change (from→to), floors PUT, invoice adjustments, support-ticket status.
 **P3 — Back-in-stock.** `BackInStockSubscription` model; `lib/back-in-stock.ts` (subscribe/unsubscribe/armed + `fireBackInStockAlerts` with conditional `notifiedAt IS NULL` claim → one-shot); fired post-commit from `createBatch`, positive `createManualAdjustment`, return restock; shop API `GET/POST/DELETE /api/shop/back-in-stock`; `NotifyMeButton` on PDP out-of-stock branch; `backInStockEmail` template + bell (INVENTORY, deep-link to PDP).
