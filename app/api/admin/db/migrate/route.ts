@@ -125,6 +125,8 @@ interface SchemaProbe {
   partnerPayoutStripeTransferColumn: boolean
   clientPaysAtCostColumn: boolean
   salesRecordLineItemsColumn: boolean
+  supplierTable: boolean
+  supplierPriceItemTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -140,7 +142,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'InvoiceAdjustment', 'PartnerOrg', 'CommissionEntry', 'ProductCoa',
         'ClientCreditEntry', 'PartnerLead', 'ReferralLinkClick',
         'PartnerPayoutRequest', 'PartnerAsset', 'PatientMessage',
-        'SupportTicket', 'SupportTicketMessage', 'BackInStockSubscription'
+        'SupportTicket', 'SupportTicketMessage', 'BackInStockSubscription',
+        'Supplier', 'SupplierPriceItem'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -239,6 +242,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     partnerPayoutStripeTransferColumn: colKeys.has('PartnerPayout.stripeTransferId'),
     clientPaysAtCostColumn: colKeys.has('Client.paysAtCost'),
     salesRecordLineItemsColumn: colKeys.has('SalesRecord.lineItems'),
+    supplierTable: tableNames.has('Supplier'),
+    supplierPriceItemTable: tableNames.has('SupplierPriceItem'),
   }
 }
 

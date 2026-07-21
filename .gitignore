@@ -42,3 +42,6 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# confidential supplier price sheets (repo is public — never commit these)
+/scripts/data/

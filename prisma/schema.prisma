@@ -12,25 +12,25 @@ datasource db {
 // -------------------------------------------------
 
 model User {
-  id                   String                @id @default(cuid())
-  clerkUserId          String                @unique
-  email                String?               @unique
+  id                   String                 @id @default(cuid())
+  clerkUserId          String                 @unique
+  email                String?                @unique
   firstName            String?
   lastName             String?
-  role                 UserRole              @default(CLIENT)
-  status               UserStatus            @default(PENDING)
+  role                 UserRole               @default(CLIENT)
+  status               UserStatus             @default(PENDING)
   lastLoginAt          DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  client               Client?               @relation(fields: [clientId], references: [id])
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  client               Client?                @relation(fields: [clientId], references: [id])
   clientId             String?
   auditLogs            AuditLog[]
-  ordersCreated        Order[]               @relation("OrdersCreated")
-  ordersApproved       Order[]               @relation("OrdersApproved")
+  ordersCreated        Order[]                @relation("OrdersCreated")
+  ordersApproved       Order[]                @relation("OrdersApproved")
   inventoryAdjustments InventoryAdjustment[]
   inventoryBatches     InventoryBatch[]
-  shipmentLabels       ShipmentLabel[]       @relation("LabelsCreated")
-  packagePhotos        PackagePhoto[]        @relation("PhotosCaptured")
+  shipmentLabels       ShipmentLabel[]        @relation("LabelsCreated")
+  packagePhotos        PackagePhoto[]         @relation("PhotosCaptured")
   notifications        Notification[]
   patientMessages      PatientMessage[]
   supportMessages      SupportTicketMessage[]
@@ -39,10 +39,10 @@ model User {
 }
 
 model Client {
-  id                    String                  @id @default(cuid())
+  id                    String                    @id @default(cuid())
   organizationName      String
   // Credentialed medical provider verified against the NPPES NPI Registry.
-  npiNumber             String?                 @unique // 10-digit National Provider Identifier
+  npiNumber             String?                   @unique // 10-digit National Provider Identifier
   providerName          String? // Provider/organization name as returned by NPPES
   npiData               Json? // Frozen NPPES registry snapshot at verification time
   // Employer Identification Number (tax ID), optional — formatted as XX-XXXXXXX when known.
@@ -52,44 +52,44 @@ model Client {
   contactPhone          String?
   // SMS consent (TCPA / Twilio A2P): captured via the un-prechecked checkbox on
   // the onboarding web form. Texts are only sent when smsOptIn is true.
-  smsOptIn              Boolean                 @default(false)
+  smsOptIn              Boolean                   @default(false)
   smsOptInAt            DateTime? // When consent was given (audit trail)
   billingAddress        Json?
   shippingAddress       Json?
   licenseNumber         String?
   licenseExpiresAt      DateTime?
-  onboardingStatus      ClientOnboardingStatus  @default(PENDING)
+  onboardingStatus      ClientOnboardingStatus    @default(PENDING)
   // Affiliate attribution — which partner org/rep referred this practice.
   // Stamped at onboarding from the /join/<code> referral cookie, or set by an
   // admin. SetNull so partner deletions never break clinics.
-  partnerOrg            PartnerOrg?             @relation(fields: [partnerOrgId], references: [id], onDelete: SetNull)
+  partnerOrg            PartnerOrg?               @relation(fields: [partnerOrgId], references: [id], onDelete: SetNull)
   partnerOrgId          String?
-  partnerRep            PartnerRep?             @relation(fields: [partnerRepId], references: [id], onDelete: SetNull)
+  partnerRep            PartnerRep?               @relation(fields: [partnerRepId], references: [id], onDelete: SetNull)
   partnerRepId          String?
-  referralLink          ReferralLink?           @relation(fields: [referralLinkId], references: [id], onDelete: SetNull)
+  referralLink          ReferralLink?             @relation(fields: [referralLinkId], references: [id], onDelete: SetNull)
   referralLinkId        String?
   // Clinic-to-clinic referral program: this clinic's shareable code
   // (/refer/<code>, generated lazily) and which clinic referred THEM. The
   // referrer earns store credit on every captured purchase this clinic makes
   // (lib/referrals/credit.ts). Independent of partner attribution.
-  referralCode          String?                 @unique
-  referredBy            Client?                 @relation("ClinicReferrals", fields: [referredByClientId], references: [id], onDelete: SetNull)
+  referralCode          String?                   @unique
+  referredBy            Client?                   @relation("ClinicReferrals", fields: [referredByClientId], references: [id], onDelete: SetNull)
   referredByClientId    String?
-  referredClinics       Client[]                @relation("ClinicReferrals")
+  referredClinics       Client[]                  @relation("ClinicReferrals")
   // Net-terms billing. When set, the client may check out "bill to account"
   // (order is invoiced on these terms instead of paying by card). NULL = card
   // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
   paymentTermsDays      Int?
-  creditLimit           Decimal?                @db.Decimal(12, 2)
+  creditLimit           Decimal?                  @db.Decimal(12, 2)
   // At-cost pricing: this clinic pays exactly what we pay per vial
   // (ProductVariant.unitCost). Takes precedence over ClientPricing and SRP;
   // vials with no cost set (unitCost <= 0) fall back to custom price / SRP.
-  paysAtCost            Boolean                 @default(false)
+  paysAtCost            Boolean                   @default(false)
   // Stripe Customer for this B2B account. Saved cards are shared across the
   // client's users. Stripe never holds our product catalog (Model A).
-  stripeCustomerId      String?                 @unique
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  stripeCustomerId      String?                   @unique
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
   users                 User[]
   orders                Order[]
   documents             ClientDocument[]
@@ -106,8 +106,8 @@ model Client {
   partnerTransactions   PartnerTransaction[]
   partnerClinicMeta     PartnerClinicMeta[]
   partnerClinicActivity PartnerClinicActivity[]
-  creditEntries         ClientCreditEntry[]     @relation("CreditOwner")
-  creditEntriesAsSource ClientCreditEntry[]     @relation("CreditSource")
+  creditEntries         ClientCreditEntry[]       @relation("CreditOwner")
+  creditEntriesAsSource ClientCreditEntry[]       @relation("CreditSource")
   matchedPartnerLeads   PartnerLead[]
   backInStockSubs       BackInStockSubscription[]
   supportTickets        SupportTicket[]
@@ -546,27 +546,27 @@ model Product {
 }
 
 model ProductVariant {
-  id                 String                 @id @default(cuid())
-  product            Product                @relation(fields: [productId], references: [id])
+  id                 String                    @id @default(cuid())
+  product            Product                   @relation(fields: [productId], references: [id])
   productId          String
-  airtableId         String?                @unique // Link to Airtable variant record
-  sku                String?                @unique // Variant-level SKU for ordering
+  airtableId         String?                   @unique // Link to Airtable variant record
+  sku                String?                   @unique // Variant-level SKU for ordering
   dose               String?
   unitSize           String?
-  unitCost           Decimal                @db.Decimal(12, 2)
-  srp                Decimal                @db.Decimal(12, 2)
+  unitCost           Decimal                   @db.Decimal(12, 2)
+  srp                Decimal                   @db.Decimal(12, 2)
   // How we buy this from the manufacturer (purchasing terms)
   supplierName       String? // Manufacturer / supplier name
   supplierSku        String? // Supplier's catalog # / SKU for reorder
-  inventoryOnHand    Int                    @default(0)
+  inventoryOnHand    Int                       @default(0)
   // Units committed to open orders but not yet physically shipped. Availability
   // for new orders is (inventoryOnHand - inventoryReserved). Maintained by the
   // reservation service (lib/inventory/reservations.ts); never edited directly.
-  inventoryReserved  Int                    @default(0)
-  reorderLevel       Int                    @default(0)
-  status             ProductStatus          @default(ACTIVE)
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  inventoryReserved  Int                       @default(0)
+  reorderLevel       Int                       @default(0)
+  status             ProductStatus             @default(ACTIVE)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
   orderItems         OrderItem[]
   inventoryLogs      InventoryAdjustment[]
   clientPricing      ClientPricing[]
@@ -1096,6 +1096,43 @@ model CompetitorPrice {
 }
 
 // -------------------------------------------------
+// Purchasing: Suppliers + their negotiated price lists. A Supplier is a
+// manufacturer/vendor we buy from; SupplierPriceItem rows are their catalog
+// (their Cat.No/SKU, product, dose, per-vial cost). Consumed by the PO
+// generator so a PO can be priced from a specific supplier's list instead of
+// our catalog unitCost.
+// -------------------------------------------------
+
+model Supplier {
+  id           String              @id @default(cuid())
+  name         String              @unique
+  contactName  String?
+  contactEmail String?
+  website      String?
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  priceItems   SupplierPriceItem[]
+}
+
+model SupplierPriceItem {
+  id          String   @id @default(cuid())
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId  String
+  supplierSku String // supplier's catalog number (e.g. "TSM10")
+  productName String
+  dose        String   @default("")
+  vialsPerBox Int?
+  unitCost    Decimal  @db.Decimal(12, 2) // per-vial cost we pay (negotiated/discounted)
+  listPrice   Decimal? @db.Decimal(12, 2) // per-vial list price before discount, if known
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([supplierId, supplierSku])
+  @@index([supplierId, productName])
+}
+
+// -------------------------------------------------
 // Purchasing: Distributor orders + expenses (replaces "Orders /Expenses" tab)
 // -------------------------------------------------
 
@@ -1302,66 +1339,66 @@ model InventoryReservation {
 // -------------------------------------------------
 
 model PartnerOrg {
-  id                 String                   @id @default(cuid())
+  id                     String                   @id @default(cuid())
   // Clerk account of the org owner; linked when the invited owner signs up.
-  clerkUserId        String?                  @unique
-  name               String
-  contactName        String?
-  contactEmail       String                   @unique
-  contactPhone       String?
-  website            String?
-  notes              String?
-  status             PartnerStatus            @default(PENDING)
+  clerkUserId            String?                  @unique
+  name                   String
+  contactName            String?
+  contactEmail           String                   @unique
+  contactPhone           String?
+  website                String?
+  notes                  String?
+  status                 PartnerStatus            @default(PENDING)
   // ── Payout policy (Wave 3) ──
   // Commissions auto-approve after the refund-hold window; payouts require
   // the minimum balance and a W-9 on file.
-  autoApproveEntries Boolean                  @default(true)
-  holdDays           Int                      @default(30)
-  payoutMinimumCents Int                      @default(5000) // $50 default floor
-  w9BlobUrl          String?
-  w9FileName         String?
-  w9UploadedAt       DateTime?
+  autoApproveEntries     Boolean                  @default(true)
+  holdDays               Int                      @default(30)
+  payoutMinimumCents     Int                      @default(5000) // $50 default floor
+  w9BlobUrl              String?
+  w9FileName             String?
+  w9UploadedAt           DateTime?
   // ── Automated Stripe Connect payouts (env-gated PARTNER_STRIPE_PAYOUTS_ENABLED) ──
   // Express account for ORG payouts; payouts-enabled mirrors Stripe's
   // `payouts_enabled` capability via the account.updated webhook.
-  stripeConnectAccountId String?              @unique
-  stripePayoutsEnabled   Boolean              @default(false)
+  stripeConnectAccountId String?                  @unique
+  stripePayoutsEnabled   Boolean                  @default(false)
   // ── Growth (Wave 4) ──
   // Self-serve rep joining + partner-refers-partner attribution.
-  teamJoinCode       String?                  @unique
-  partnerRefCode     String?                  @unique
-  referredByOrg      PartnerOrg?              @relation("PartnerOrgReferrals", fields: [referredByOrgId], references: [id], onDelete: SetNull)
-  referredByOrgId    String?
-  referredOrgs       PartnerOrg[]             @relation("PartnerOrgReferrals")
+  teamJoinCode           String?                  @unique
+  partnerRefCode         String?                  @unique
+  referredByOrg          PartnerOrg?              @relation("PartnerOrgReferrals", fields: [referredByOrgId], references: [id], onDelete: SetNull)
+  referredByOrgId        String?
+  referredOrgs           PartnerOrg[]             @relation("PartnerOrgReferrals")
   // Partner email notifications (attribution, payouts, digests).
-  notifyByEmail      Boolean                  @default(true)
+  notifyByEmail          Boolean                  @default(true)
   // COMMISSION: org earns commissionRateBps of attributed revenue.
   // MARGIN: org prices clinics above per-variant floors and earns the spread.
-  compensationModel  PartnerCompensationModel @default(COMMISSION)
-  commissionRateBps  Int                      @default(0)
-  msaSignedAt        DateTime?
-  approvedAt         DateTime?
-  approvedBy         String? // Clerk id of the approving admin
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  reps               PartnerRep[]
-  members            PartnerOrgMember[]
-  referralLinks      ReferralLink[]
-  clients            Client[]
-  transactions       PartnerTransaction[]
-  commissionEntries  CommissionEntry[]
-  payouts            PartnerPayout[]
-  pricing            PartnerOrgPricing[]
-  agreements         PartnerAgreement[]
-  clinicMeta         PartnerClinicMeta[]
-  clinicActivity     PartnerClinicActivity[]
-  goals              PartnerGoal[]
-  quotes             PartnerQuote[]
-  apiKeys            PartnerApiKey[]
-  webhooks           PartnerWebhook[]
-  leads              PartnerLead[]
-  payoutRequests     PartnerPayoutRequest[]
-  rateTiers          PartnerRateTier[]
+  compensationModel      PartnerCompensationModel @default(COMMISSION)
+  commissionRateBps      Int                      @default(0)
+  msaSignedAt            DateTime?
+  approvedAt             DateTime?
+  approvedBy             String? // Clerk id of the approving admin
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  reps                   PartnerRep[]
+  members                PartnerOrgMember[]
+  referralLinks          ReferralLink[]
+  clients                Client[]
+  transactions           PartnerTransaction[]
+  commissionEntries      CommissionEntry[]
+  payouts                PartnerPayout[]
+  pricing                PartnerOrgPricing[]
+  agreements             PartnerAgreement[]
+  clinicMeta             PartnerClinicMeta[]
+  clinicActivity         PartnerClinicActivity[]
+  goals                  PartnerGoal[]
+  quotes                 PartnerQuote[]
+  apiKeys                PartnerApiKey[]
+  webhooks               PartnerWebhook[]
+  leads                  PartnerLead[]
+  payoutRequests         PartnerPayoutRequest[]
+  rateTiers              PartnerRateTier[]
 
   @@index([status])
 }
@@ -1617,23 +1654,23 @@ model CommissionEntry {
 
 // A recorded payment to an org or rep (check/ACH/wire — recorded, not moved).
 model PartnerPayout {
-  id              String            @id @default(cuid())
-  org             PartnerOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  orgId           String
-  rep             PartnerRep?       @relation(fields: [repId], references: [id], onDelete: SetNull)
-  repId           String?
-  payee           CommissionPayee
-  amountCents     Int
-  method          String?
-  reference       String?
-  notes           String?
+  id               String            @id @default(cuid())
+  org              PartnerOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId            String
+  rep              PartnerRep?       @relation(fields: [repId], references: [id], onDelete: SetNull)
+  repId            String?
+  payee            CommissionPayee
+  amountCents      Int
+  method           String?
+  reference        String?
+  notes            String?
   // Stripe transfer id when the payout moved money via Connect (method STRIPE).
-  stripeTransferId String?          @unique
-  paidAt          DateTime          @default(now())
-  recordedBy      String
-  recordedByEmail String?
-  createdAt       DateTime          @default(now())
-  entries         CommissionEntry[]
+  stripeTransferId String?           @unique
+  paidAt           DateTime          @default(now())
+  recordedBy       String
+  recordedByEmail  String?
+  createdAt        DateTime          @default(now())
+  entries          CommissionEntry[]
 
   @@index([orgId])
 }

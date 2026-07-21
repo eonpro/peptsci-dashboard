@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { PriceSheet } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,7 @@ import { Trash2, Plus, FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type JsPDF from 'jspdf'
+import { SupplierPriceImportDialog } from '@/components/admin/SupplierPriceImportDialog'
 
 interface POItem {
   id: string
@@ -27,8 +28,29 @@ interface POItem {
   total: number
 }
 
+interface SupplierPriceItem {
+  id: string
+  supplierSku: string
+  productName: string
+  dose: string
+  vialsPerBox: number | null
+  unitCost: number
+  listPrice: number | null
+}
+
+interface Supplier {
+  id: string
+  name: string
+  priceItems: SupplierPriceItem[]
+}
+
+/** Sentinel for pricing a PO from our own catalog (variant unitCost). */
+const CATALOG_SOURCE = 'catalog'
+
 export default function POGeneratorPage() {
-  const [products, setProducts] = useState<PriceSheet[]>([])
+  const [catalogProducts, setCatalogProducts] = useState<PriceSheet[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [priceSource, setPriceSource] = useState<string>(CATALOG_SOURCE)
   const [poItems, setPOItems] = useState<POItem[]>([])
   const [loading, setLoading] = useState(true)
   const [poNumber, setPONumber] = useState('')
@@ -43,7 +65,21 @@ export default function POGeneratorPage() {
     setPONumber(poNum)
   }, [])
 
-  // Fetch products on mount
+  const fetchSuppliers = useCallback(async (): Promise<Supplier[]> => {
+    try {
+      const response = await fetch('/api/admin/suppliers')
+      if (!response.ok) return []
+      const data = await response.json()
+      const list = (data?.suppliers ?? []) as Supplier[]
+      setSuppliers(list)
+      return list
+    } catch (error) {
+      console.error('Error fetching suppliers:', error)
+      return []
+    }
+  }, [])
+
+  // Fetch catalog products + supplier price lists on mount
   useEffect(() => {
     async function fetchProducts() {
       try {
@@ -59,7 +95,7 @@ export default function POGeneratorPage() {
           Cost: Number(p.unitCost ?? p.Cost ?? 0),
           SRP: Number(p.srp ?? p.SRP ?? 0),
         }))
-        setProducts(normalised as unknown as PriceSheet[])
+        setCatalogProducts(normalised as unknown as PriceSheet[])
       } catch (error) {
         console.error('Error fetching products:', error)
         toast.error('Failed to load the product catalog — refresh to retry')
@@ -68,7 +104,44 @@ export default function POGeneratorPage() {
       }
     }
     fetchProducts()
-  }, [])
+    fetchSuppliers()
+  }, [fetchSuppliers])
+
+  const selectedSupplier =
+    priceSource === CATALOG_SOURCE ? null : (suppliers.find((s) => s.id === priceSource) ?? null)
+
+  // Product list for the item picker: our catalog, or the selected supplier's
+  // price list (their Cat.No + our negotiated per-vial cost).
+  const products = useMemo<PriceSheet[]>(() => {
+    if (!selectedSupplier) return catalogProducts
+    return selectedSupplier.priceItems.map((i) => ({
+      SKU: i.supplierSku,
+      Product: i.productName,
+      Dose: i.dose,
+      Cost: i.unitCost,
+      SRP: i.listPrice ?? i.unitCost,
+    }))
+  }, [selectedSupplier, catalogProducts])
+
+  // Switching price source re-prices the sheet, so line items no longer match.
+  const changePriceSource = (value: string) => {
+    setPriceSource(value)
+    setPOItems([])
+    const supplier = value === CATALOG_SOURCE ? null : suppliers.find((s) => s.id === value)
+    setVendor(supplier ? supplier.name : '')
+  }
+
+  // After a price-list import, refresh and select the imported supplier.
+  const handleImported = async (supplierName: string) => {
+    const list = await fetchSuppliers()
+    const imported = list.find((s) => s.name.toLowerCase() === supplierName.toLowerCase())
+    if (imported) {
+      setPriceSource(imported.id)
+      setPOItems([])
+      setVendor(imported.name)
+    }
+    toast.success(`${supplierName} price list ready`)
+  }
 
   const addItem = () => {
     const newItem: POItem = {
@@ -336,14 +409,20 @@ export default function POGeneratorPage() {
             Create purchase orders for inventory replenishment
           </p>
         </div>
-        <Button
-          onClick={exportPDF}
-          disabled={poItems.length === 0}
-          className="bg-brand-primary hover:bg-brand-primary/90"
-        >
-          <FileDown className="mr-2 h-4 w-4" />
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <SupplierPriceImportDialog
+            defaultSupplierName={selectedSupplier?.name ?? ''}
+            onImported={handleImported}
+          />
+          <Button
+            onClick={exportPDF}
+            disabled={poItems.length === 0}
+            className="bg-brand-primary hover:bg-brand-primary/90"
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* PO Details */}
@@ -352,7 +431,7 @@ export default function POGeneratorPage() {
           <CardTitle>Purchase Order Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="text-sm font-medium">PO Number</label>
               <Input
@@ -369,6 +448,22 @@ export default function POGeneratorPage() {
                 className="mt-1"
                 disabled
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Price List</label>
+              <Select value={priceSource} onValueChange={changePriceSource}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select price list" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CATALOG_SOURCE}>Our catalog (unit cost)</SelectItem>
+                  {suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} ({s.priceItems.length} items)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium">Vendor</label>
