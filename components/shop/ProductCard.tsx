@@ -243,9 +243,12 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
 
   // Scientific-style grid card (matches PeptSci reference artwork)
   return (
-    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-blue-400/50 hover:shadow-xl hover:shadow-blue-500/20 h-[440px] flex flex-col">
-      {/* Reference artwork panel */}
-      <div className="relative flex-1 overflow-hidden">
+    <div className="@container group relative bg-linear-to-b from-[#0a1050] via-[#070b38] to-[#04051f] border border-white/10 rounded-2xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-blue-400/50 hover:shadow-xl hover:shadow-blue-500/20 min-h-[440px] h-full flex flex-col">
+      {/* Reference artwork panel — a flex column so the COA/PRUO block is
+          pushed to the bottom in normal flow and can never overlap the spec
+          copy above it. Only the vial is absolutely positioned; every text
+          block reserves right padding so nothing runs underneath it. */}
+      <div className="relative flex flex-1 flex-col overflow-hidden">
         {/* Hairline inner border (reference style) */}
         <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-blue-400/30" />
 
@@ -268,7 +271,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="px-5 pt-2">
           {isBlend && product.compounds && product.compounds.length >= 2 ? (
             /* Blend layout: per-compound spec blocks */
-            <div className="space-y-3">
+            <div className="space-y-3 pr-14 @[18rem]:pr-16">
               {product.compounds.slice(0, 2).map((c, i) => (
                 <div key={i}>
                   <h3 className="font-semibold tracking-tight text-white text-base @[16rem]:text-lg leading-tight">
@@ -320,13 +323,13 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </p>
               )}
 
-              <div className="mt-3 space-y-1 text-sm @[16rem]:text-base tracking-tight text-white/90 pr-16 @[20rem]:pr-20">
-                {product.casNumber && <p>CAS #: {product.casNumber}</p>}
+              <div className="mt-3 space-y-1 text-[13px] @[16rem]:text-sm tracking-tight text-white/90 pr-20 @[18rem]:pr-24">
+                {product.casNumber && <p className="truncate">CAS #: {product.casNumber}</p>}
                 {product.molecularFormula && (
-                  <p>Formula: {formatMolecularFormula(product.molecularFormula)}</p>
+                  <p className="truncate">Formula: {formatMolecularFormula(product.molecularFormula)}</p>
                 )}
-                {product.molecularWeight && <p>MW: {product.molecularWeight}</p>}
-                <p>Purity: {purityDisplay}</p>
+                {product.molecularWeight && <p className="truncate">MW: {product.molecularWeight}</p>}
+                <p className="truncate">Purity: {purityDisplay}</p>
               </div>
 
               {isBlend && totalMg && (
@@ -338,20 +341,20 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           )}
         </div>
 
-        {/* PRUO disclaimer + COA link - bottom-left of the artwork panel.
-            The COA button lives in this flow (not absolutely offset) so it
-            always sits neatly above the PRUO block regardless of card copy. */}
-        <div className="pointer-events-none absolute bottom-5 left-5 right-24 @[18rem]:right-28 z-10">
+        {/* PRUO disclaimer + COA link — sits at the bottom of the panel in
+            normal flow (mt-auto) so long spec copy pushes it down instead of
+            colliding with it. Right padding keeps it clear of the vial. */}
+        <div className="relative z-10 mt-auto px-5 pb-5 pt-4 pr-24 @[18rem]:pr-28">
           {product.hasCoa && (
             <button
               type="button"
               onClick={() => setCoaOpen(true)}
-              className="pointer-events-auto mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
+              className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
             >
               <FileText className="h-3 w-3" /> View COA
             </button>
           )}
-          <div className="flex items-start gap-2">
+          <div className="pointer-events-none flex items-start gap-2">
             <span className="shrink-0 rounded-full border border-white/70 px-1.5 py-0.5 text-[9px] font-bold text-white leading-tight">
               PRUO
             </span>
@@ -359,7 +362,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               Physician Research Use Only
             </span>
           </div>
-          <p className="mt-1 text-[9px] @[16rem]:text-[10px] font-medium text-white/80">
+          <p className="pointer-events-none mt-1 text-[9px] @[16rem]:text-[10px] font-medium text-white/80">
             Not for human or veterinary use.
           </p>
         </div>
@@ -368,7 +371,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
             product={product}
-            className="h-[150px] @[16rem]:h-[172px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-[144px] @[16rem]:h-[164px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
       </div>
