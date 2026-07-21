@@ -14,8 +14,8 @@ Owner onboarded a new supplier, **Crest Peptide**, with a negotiated "-10%" pric
 - [x] **QA** — `tsc --noEmit` clean, 372/372 unit tests, eslint clean on touched files, `next build` pass.
 
 ## Owner actions (prod)
-1. Deploy, then run the migration (`./scripts/apply-prod-migrations.sh`).
-2. PO Generator → **Import Price List** → supplier name "Crest Peptide" → upload `scripts/data/crest-peptide-price-list.csv`.
+1. ~~Deploy + migration~~ ✅ Jul 21 — deployed in `60962bc`/`6b0fdb5`; migration applied via `POST /api/admin/db/migrate` (probes true).
+2. ~~Import Crest price list~~ ✅ Jul 21 ~12:45 AM — imported via `POST /api/admin/suppliers/import` through the owner's admin session: 103/103 rows, 0 failed; `GET /api/admin/suppliers` returns Crest Peptide with priceItems. (Import is idempotent — ran twice from concurrent sessions, second run was all-updates.)
 - Note: `TSIP15` is a placeholder Cat.No for the blend (Crest's sheet didn't include one) — correct the CSV and re-import if they assign a real number.
 
 ## Lessons
