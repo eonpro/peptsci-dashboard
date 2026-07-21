@@ -5,7 +5,6 @@ import {
   FileSpreadsheet,
   FileText,
   FolderOpen,
-  KeyRound,
   LayoutDashboard,
   Link2,
   Receipt,
@@ -70,7 +69,6 @@ const SECTIONS: PortalNavSection[] = [
     items: [
       { name: 'Reps', href: '/partners/reps', icon: Users, orgOnly: true },
       { name: 'Team', href: '/partners/team', icon: UserCog, orgOnly: true, adminOnly: true },
-      { name: 'API', href: '/partners/api', icon: KeyRound, orgOnly: true, adminOnly: true },
     ],
   },
   {
