@@ -19,6 +19,9 @@ import { defaultRouteForRole } from '@/lib/access'
 // Tint mobile browser chrome (status bar / URL bar) onyx to match the page.
 export const viewport: Viewport = {
   themeColor: '#050722',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 // Check if Clerk is configured

@@ -12,6 +12,9 @@ export const metadata: Metadata = {
 // Tint mobile browser chrome (status bar / URL bar) onyx to match the page.
 export const viewport: Viewport = {
   themeColor: '#050722',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {

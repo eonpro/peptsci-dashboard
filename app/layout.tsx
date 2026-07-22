@@ -1,9 +1,19 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { cn } from '@/lib/utils'
 import { Providers } from '@/components/Providers'
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').replace(/\/$/, '')
+
+// `viewport-fit=cover` lets the page extend under the iOS home-indicator /
+// collapsed-toolbar area. Without it, env(safe-area-inset-bottom) is always 0
+// and fixed bottom elements (mobile nav) float detached above a strip of
+// exposed page content instead of hugging the screen edge.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
 
 export const metadata: Metadata = {
   // Absolute base for OG/twitter image URLs (scrapers reject relative paths).

@@ -25,7 +25,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         {/* Main content: same `container` wrapper as the header/footer so page
             content always lines up with the banner. Bottom padding clears the
             mobile nav. */}
-        <main className="container mx-auto w-full flex-1 px-4 py-6 pb-24 md:py-8 md:pb-8">
+        <main className="container mx-auto w-full flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:py-8 md:pb-8">
           {children}
         </main>
         {/* Footer hidden on mobile, shown on desktop */}
