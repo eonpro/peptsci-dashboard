@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, AlertCircle, Camera, Upload, X, CheckCircle2 } from 'lucide-react'
+import { Loader2, AlertCircle, Camera, X, CheckCircle2 } from 'lucide-react'
 
 export type PackPhotoOrder = {
   id: string
@@ -54,10 +54,23 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setCameraOpen(false)
+  }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      stopCamera()
+      return
+    }
     setFile(null)
     setPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -65,7 +78,18 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
     })
     setNotes('')
     setError(null)
-  }, [open])
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }, [open, stopCamera])
+
+  // Attach the stream once the video element is mounted.
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraOpen])
+
+  // Stop the camera if the component unmounts with it open.
+  useEffect(() => stopCamera, [stopCamera])
 
   const onFileChange = (f: File | null) => {
     setError(null)
@@ -74,7 +98,7 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
       if (validationError) {
         setError(validationError)
         f = null
-        if (fileInputRef.current) fileInputRef.current.value = ''
+        if (cameraInputRef.current) cameraInputRef.current.value = ''
       }
     }
     setFile(f)
@@ -82,6 +106,45 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
       if (prev) URL.revokeObjectURL(prev)
       return f ? URL.createObjectURL(f) : null
     })
+  }
+
+  const openCamera = async () => {
+    setError(null)
+    // Phones/tablets get the native full-screen camera via the capture input.
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMobile || !navigator.mediaDevices?.getUserMedia) {
+      cameraInputRef.current?.click()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      })
+      streamRef.current = stream
+      setCameraOpen(true)
+    } catch {
+      setError('Could not access the camera. Check browser permissions.')
+    }
+  }
+
+  const capturePhoto = () => {
+    const video = videoRef.current
+    if (!video || !video.videoWidth) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          onFileChange(new File([blob], `pack-${order.orderNumber}-${Date.now()}.jpg`, { type: 'image/jpeg' }))
+        }
+        stopCamera()
+      },
+      'image/jpeg',
+      0.9
+    )
   }
 
   const submit = async () => {
@@ -150,10 +213,11 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
 
           <div>
             <Label>Contents photo (required)</Label>
+            {/* Mobile: capture attr opens the native camera. Desktop uses getUserMedia. */}
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               capture="environment"
               onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
               className="hidden"
@@ -163,6 +227,7 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={preview} alt="Contents preview" className="max-h-64 w-full bg-black/5 object-contain" />
                 <button
+                  type="button"
                   onClick={() => onFileChange(null)}
                   className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80"
                   aria-label="Remove photo"
@@ -170,13 +235,31 @@ export default function PackPhotoModal({ open, onOpenChange, order, onPacked }: 
                   <X className="h-4 w-4" />
                 </button>
               </div>
+            ) : cameraOpen ? (
+              <div className="relative mt-1 overflow-hidden rounded-xl border bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="max-h-64 w-full object-contain"
+                />
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-3 bg-gradient-to-t from-black/70 to-transparent p-3">
+                  <Button type="button" onClick={capturePhoto} size="sm">
+                    <Camera className="mr-2 h-4 w-4" /> Capture
+                  </Button>
+                  <Button type="button" onClick={stopCamera} size="sm" variant="outline">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => void openCamera()}
                 className="mt-1 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-8 text-muted-foreground transition-colors hover:border-muted-foreground/70 hover:text-foreground/90"
               >
-                <Upload className="h-7 w-7" />
+                <Camera className="h-7 w-7" />
                 <span className="text-sm">Tap to photograph the open box</span>
               </button>
             )}
