@@ -704,8 +704,29 @@ async function embedFonts(doc: PDFDocument): Promise<EmbeddedFonts> {
   }
 }
 
+/**
+ * Normalize a free-text dose for the label's dose box: strip meaningless
+ * trailing decimals ("10.0" -> "10"), remove the space before the unit, and
+ * lowercase it — so "10.0 mg" / "10 MG" / "10" all print as "10mg".
+ * Meaningful fractions (e.g. "2.5mg") are preserved.
+ */
+export function normalizeDoseLabel(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+  // Bare number => assume mg.
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return `${Number(trimmed)}mg`
+  return trimmed.replace(
+    /(\d+(?:\.\d+)?)\s*(mg|mcg|iu|ml|g)\b/gi,
+    (_m, num: string, unit: string) => `${Number(num)}${unit.toLowerCase()}`
+  )
+}
+
 function normalizeReq(input: PeptSciLabelRequest): PeptSciLabelRequest {
-  return { ...input, batchNumber: input.batchNumber.trim().toUpperCase() }
+  return {
+    ...input,
+    batchNumber: input.batchNumber.trim().toUpperCase(),
+    dose: normalizeDoseLabel(input.dose),
+  }
 }
 
 /** One run of identical labels for a single batch. */
