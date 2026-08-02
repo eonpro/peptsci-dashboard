@@ -73,9 +73,10 @@ export function classifySupplierHeader(raw: string): Field | undefined {
   if (h === 'catalog #' || h === 'catalog number' || h === 'item code' || h === 'code')
     return 'supplierSku'
 
-  // Product name
+  // Product name, including combined headers like "Name / Product"
   if (h === 'name' || h === 'product' || h === 'product name' || h === 'productname' || h === 'peptide')
     return 'productName'
+  if (/^(name|product|peptide)\s*\/\s*(name|product|peptide)$/.test(h)) return 'productName'
 
   // Dose / specification
   if (h === 'specification' || h === 'spec' || h === 'dose' || h === 'strength' || h === 'size')

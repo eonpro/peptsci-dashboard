@@ -28,6 +28,12 @@ describe('classifySupplierHeader', () => {
     assert.equal(classifySupplierHeader('Unit Cost'), 'unitCost')
     assert.equal(classifySupplierHeader('nonsense column'), undefined)
   })
+
+  test('maps combined "Name / Product" headers', () => {
+    assert.equal(classifySupplierHeader('Name / Product'), 'productName')
+    assert.equal(classifySupplierHeader('name/product'), 'productName')
+    assert.equal(classifySupplierHeader('Product / Name'), 'productName')
+  })
 })
 
 describe('parseSupplierPriceCsv', () => {
@@ -92,6 +98,29 @@ describe('parseSupplierPriceCsv', () => {
     assert.equal(errors.length, 2)
     assert.match(errors[0].message, /Cat\.No \/ SKU is required/)
     assert.match(errors[1].message, /duplicate Cat\.No/)
+  })
+
+  test('parses the four-column "Name / Product" per-vial sheet', () => {
+    const csv = [
+      'Cat.No,Name / Product,Specification,New Per-Vial (USD)',
+      '5AM5,5-AMINO-1MQ,5mg,"$ 5.30"',
+      'WA3,BAC Water,3ml,"$ 0.60"',
+      'PRO20,Alprostadil,20mcg,"$ 4.90"',
+    ].join('\n')
+    const { rows, errors } = parseSupplierPriceCsv(csv)
+    assert.equal(errors.length, 0)
+    assert.equal(rows.length, 3)
+    assert.deepEqual(rows[0], {
+      rowNumber: 2,
+      supplierSku: '5AM5',
+      productName: '5-AMINO-1MQ',
+      dose: '5mg',
+      vialsPerBox: undefined,
+      unitCost: 5.3,
+      listPrice: undefined,
+    })
+    assert.equal(rows[1].unitCost, 0.6)
+    assert.equal(rows[2].dose, '20mcg')
   })
 
   test('handles currency symbols and non-mg specifications', () => {
