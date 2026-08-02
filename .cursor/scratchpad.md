@@ -1,4 +1,9 @@
-# PO Generator: Date Picker + Placed-Order Recording → Incoming Inventory + Spend (Aug 1, 2026)  [EXECUTOR — ✅ LOCAL, PENDING DEPLOY]
+# PO Generator: Date Picker + Placed-Order Recording → Incoming Inventory + Spend (Aug 1, 2026)  [EXECUTOR — ✅ DEPLOYED, MIGRATION PENDING]
+
+**Deployed Aug 1 ~11:05 PM ET** in `bca0e9b` → main → Vercel `dpl_GESTRyjZqyTwfgK59okuW4cwUCX1` READY on peptsci.com (`/api/health` 200, version `bca0e9b`, DB up).
+
+## Owner action (prod) — URGENT
+1. **Apply prod migration** `20260802022533_add_po_line_sku_received_qty` via `POST /api/admin/db/migrate { "confirm": true }` from a signed-in super-admin session. Until it runs, the Inventory page and batch receiving will error in prod (the deployed code selects the new `DistributorOrderLine.sku` / `receivedQty` columns). Probe keys to verify: `distributorLineSkuColumn` + `distributorLineReceivedQtyColumn` both true.
 
 ## Background and Motivation
 Owner reported the PO Generator date picker not working (it was hardcoded to today + `disabled`), and wants the flow closed: after exporting a PO the system should ask "Did you place the order?" — if yes, the units should be "pre-added" as incoming inventory (NOT sellable until batches are physically received) and the amount spent should land on the financial tabs.
