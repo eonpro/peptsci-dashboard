@@ -119,11 +119,43 @@ const BUD_SIZE_DAY = 7.61
 const BUD_SIZE_YEAR = 4.75
 
 // Dose box (two-tone) geometry from the artwork; dose text centered in the black
-// (top) band. Purity ("99%HPLC") is baked into the template.
+// (top) band. Purity ("99%HPLC") is baked into the template's blue band.
 const DOSE_BOX_LEFT = 40.55
 const DOSE_BOX_RIGHT = 68.56
 const DOSE_BASELINE = 31.21
 const DOSE_SIZE = 7.61
+
+// Full dose-box band geometry (SVG y, from the artwork paths) — used for blend
+// labels, where the second compound's dose replaces the baked purity in the
+// blue band and the purity moves outside the box, rotated (like the physical
+// "99%+ HPLC" on the vial).
+const DOSE_BOX_TOP = 24.94
+const DOSE_BOX_MID = 33.83
+const DOSE_BOX_BOTTOM = 42.73
+const DOSE_BOX_CORNER = 2.16
+const DOSE_BASELINE_BLUE = 40.1
+// Exact fill of the artwork's blue band (SVG .st1 #2f2f80); painting with this
+// color hides the baked purity text seamlessly.
+const COLOR_BOX_BLUE = rgb(0x2f / 255, 0x2f / 255, 0x80 / 255)
+const PURITY_SIDE_SIZE = 4.2
+
+// On two-line names the dose box (bands + RUO + purity) is shifted down so the
+// second name line stays clear of it. The baked artwork box is whited out and
+// redrawn at the shifted position using the exact SVG paths/colors.
+const DOSE_BOX_SHIFT = 6
+const DOSE_BOX_TOP_PATH =
+  'M42.72,24.94h23.69c1.19,0,2.16.97,2.16,2.16v6.74h-28.01v-6.74c0-1.19.97-2.16,2.16-2.16Z'
+const DOSE_BOX_BOTTOM_PATH =
+  'M40.55,33.83h28.01v6.74c0,1.19-.97,2.16-2.16,2.16h-23.69c-1.19,0-2.16-.97-2.16-2.16v-6.74h0Z'
+// Baked RUO glyphs span x 34.32-38.60, y 29.08-38.03 in the artwork.
+const RUO_CLEAR_LEFT = 33.3
+const RUO_BASELINE_X = 38.9
+const RUO_TEXT_LENGTH = 8.95
+// Purity re-drawn inside the blue band (single-compound, shifted box): the
+// baked glyphs span x 43.7-64.7 with baseline ~39.9.
+const PURITY_BAND_BASELINE = 39.9
+const PURITY_BAND_SIZE_MAX = 5.6
+const PURITY_BAND_MAX_WIDTH = 21.5
 
 // Barcode well (the display:none bar group spans this rectangle, bars stacked
 // vertically => a 90°-rotated Code 128).
@@ -138,6 +170,16 @@ const NAME_LEFT = 28
 const NAME_RIGHT = 86
 const NAME_BASELINE = 20.5
 const NAME_SIZE_MAX = 11
+const NAME_SIZE_MIN = 6
+
+// Two-line name layout for long names (e.g. "CJC-1295 and Ipamorelin"),
+// matching the physical vial artwork: the main peptide name sits just below
+// the BUD row and the qualifier line just above the (shifted) dose box.
+const NAME_LINE1_BASELINE = 17.4
+const NAME_LINE1_SIZE_MAX = 9.5
+const NAME_LINE2_BASELINE = 25.4
+const NAME_LINE2_SIZE_MAX = 7
+const NAME_LINE2_SIZE_MIN = 5
 
 // Batch number value: continues the baked "BATCH:" label (rotated, far right).
 const BATCH_X = 137.3
@@ -167,6 +209,40 @@ export type PeptSciLabelRequest = {
   proofMode?: boolean
   /** Accent hex (#rrggbb) for the BUD day + batch text. Defaults to indigo. */
   accentColor?: string
+}
+
+/**
+ * Split a long product name into two label lines at a natural break: two-part
+ * blend names ("CJC-1295 and Ipamorelin", "BPC-157 / TB-500 Blend") become
+ * compound 1 / "and compound 2" like the printed vial artwork; otherwise break
+ * before a trailing parenthetical ("CJC-1295 (no DAC)") or at the space
+ * nearest the middle. Returns a single line when there is no space to break.
+ */
+export function splitProductNameLines(name: string): string[] {
+  const trimmed = name.trim().replace(/\s+/g, ' ')
+  // Slash-style blend names: "BPC-157 / TB-500 Blend" -> "BPC-157" / "and TB-500".
+  const slashParts = trimmed
+    .replace(/\s+blend$/i, '')
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (slashParts.length === 2) return [slashParts[0], `and ${slashParts[1]}`]
+  const byAnd = /^(.+?)\s+(and\s.+)$/i.exec(trimmed)
+  if (byAnd) return [byAnd[1], byAnd[2]]
+  const byParen = /^(.+?)\s+(\(.+)$/.exec(trimmed)
+  if (byParen) return [byParen[1], byParen[2]]
+  const words = trimmed.split(' ')
+  if (words.length < 2) return [trimmed]
+  let best = 1
+  let bestDelta = Infinity
+  for (let i = 1; i < words.length; i += 1) {
+    const delta = Math.abs(words.slice(0, i).join(' ').length - trimmed.length / 2)
+    if (delta < bestDelta) {
+      bestDelta = delta
+      best = i
+    }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')]
 }
 
 type BudParts = { month: string; day: string; year: string }
@@ -370,47 +446,194 @@ function drawLabel(ctx: LabelContext): void {
     color: COLOR_TEXT,
   })
 
-  // --- Product name: auto-fit, centered in the open band above the dose box.
-  // Shrink to a readable floor; if it still won't fit, truncate with an ellipsis
-  // so the name can never bleed into the logo or barcode columns.
+  // --- Product name: centered in the open band above the dose box. Names that
+  // fit at full size stay on one line; longer names break onto two lines at a
+  // natural point (e.g. "CJC-1295" / "and Ipamorelin"), matching the vial
+  // artwork. Each line auto-fits and, as a last resort, truncates with an
+  // ellipsis so it can never bleed into the logo or barcode columns.
   const nameMaxWidth = NAME_RIGHT - NAME_LEFT
-  const NAME_SIZE_MIN = 6
-  let nameSize = NAME_SIZE_MAX
-  while (
-    nameSize > NAME_SIZE_MIN &&
-    fonts.name.widthOfTextAtSize(req.productName, nameSize) > nameMaxWidth
-  ) {
-    nameSize -= 0.25
-  }
-  let nameText = req.productName
-  if (fonts.name.widthOfTextAtSize(nameText, nameSize) > nameMaxWidth) {
-    while (
-      nameText.length > 1 &&
-      fonts.name.widthOfTextAtSize(`${nameText}…`, nameSize) > nameMaxWidth
-    ) {
-      nameText = nameText.slice(0, -1)
+  const nameCenterX = (NAME_LEFT + NAME_RIGHT) / 2
+  const fitNameSize = (text: string, maxSize: number, minSize: number) => {
+    let size = maxSize
+    while (size > minSize && fonts.name.widthOfTextAtSize(text, size) > nameMaxWidth) {
+      size -= 0.25
     }
-    nameText = `${nameText.trimEnd()}…`
+    return size
   }
-  const nameWidth = fonts.name.widthOfTextAtSize(nameText, nameSize)
-  page.drawText(nameText, {
-    x: toX((NAME_LEFT + NAME_RIGHT) / 2 - nameWidth / 2),
-    y: toY(NAME_BASELINE),
-    size: nameSize,
-    font: fonts.name,
-    color: COLOR_TEXT,
-  })
+  const ellipsizeName = (text: string, size: number) => {
+    if (fonts.name.widthOfTextAtSize(text, size) <= nameMaxWidth) return text
+    let t = text
+    while (t.length > 1 && fonts.name.widthOfTextAtSize(`${t}…`, size) > nameMaxWidth) {
+      t = t.slice(0, -1)
+    }
+    return `${t.trimEnd()}…`
+  }
+  const drawNameLine = (text: string, size: number, baseline: number) => {
+    const fitted = ellipsizeName(text, size)
+    const width = fonts.name.widthOfTextAtSize(fitted, size)
+    page.drawText(fitted, {
+      x: toX(nameCenterX - width / 2),
+      y: toY(baseline),
+      size,
+      font: fonts.name,
+      color: COLOR_TEXT,
+    })
+  }
+  // Line 2 of a blend name renders "and" in dark text and the second compound
+  // in the brand blue, matching the printed vial label.
+  const drawNameLine2 = (text: string, size: number, baseline: number) => {
+    const fitted = ellipsizeName(text, size)
+    const blend = /^(and\s+)(.+)$/i.exec(fitted)
+    if (!blend) {
+      drawNameLine(fitted, size, baseline)
+      return
+    }
+    const andWidth = fonts.name.widthOfTextAtSize(blend[1], size)
+    const compoundWidth = fonts.name.widthOfTextAtSize(blend[2], size)
+    let cursorX = nameCenterX - (andWidth + compoundWidth) / 2
+    page.drawText(blend[1], {
+      x: toX(cursorX),
+      y: toY(baseline),
+      size,
+      font: fonts.name,
+      color: COLOR_TEXT,
+    })
+    cursorX += andWidth
+    page.drawText(blend[2], {
+      x: toX(cursorX),
+      y: toY(baseline),
+      size,
+      font: fonts.name,
+      color: COLOR_BOX_BLUE,
+    })
+  }
 
-  // --- Dose: white, centered in the black (top) band of the dose box.
-  const doseWidth = fonts.dose.widthOfTextAtSize(req.dose, DOSE_SIZE)
+  const fitsOneLine =
+    fonts.name.widthOfTextAtSize(req.productName, NAME_SIZE_MAX) <= nameMaxWidth
+  const nameLines = fitsOneLine ? [req.productName] : splitProductNameLines(req.productName)
+  const twoLine = nameLines.length === 2
+  const boxShift = twoLine ? DOSE_BOX_SHIFT : 0
+
+  // Two-line names need the extra vertical room, so lower the dose box: paint
+  // over the baked box + RUO and redraw them (exact artwork paths and colors)
+  // shifted down. Drawn before the name so text always sits on top.
+  if (twoLine) {
+    page.drawRectangle({
+      x: toX(RUO_CLEAR_LEFT),
+      y: toY(DOSE_BOX_BOTTOM + 0.5),
+      width: DOSE_BOX_RIGHT + 0.6 - RUO_CLEAR_LEFT,
+      height: DOSE_BOX_BOTTOM - DOSE_BOX_TOP + 1,
+      color: COLOR_WHITE,
+    })
+    const shiftedOrigin = { x, y: y + SVG_H - boxShift }
+    page.drawSvgPath(DOSE_BOX_TOP_PATH, { ...shiftedOrigin, color: COLOR_TEXT })
+    page.drawSvgPath(DOSE_BOX_BOTTOM_PATH, { ...shiftedOrigin, color: COLOR_BOX_BLUE })
+    const ruoSize = Math.min(6, RUO_TEXT_LENGTH / fonts.name.widthOfTextAtSize('RUO', 1))
+    const ruoWidth = fonts.name.widthOfTextAtSize('RUO', ruoSize)
+    page.drawText('RUO', {
+      x: toX(RUO_BASELINE_X),
+      y: toY((DOSE_BOX_TOP + DOSE_BOX_BOTTOM) / 2 + boxShift) - ruoWidth / 2,
+      size: ruoSize,
+      font: fonts.name,
+      color: COLOR_TEXT,
+      rotate: degrees(90),
+    })
+  }
+
+  if (nameLines.length === 2) {
+    // Both lines share the same rendered width (like the printed label): line 1
+    // fits the band at its max size, then line 2's size is derived so its
+    // width matches line 1's, clamped so it never exceeds line 1's size.
+    const size1 = fitNameSize(nameLines[0], NAME_LINE1_SIZE_MAX, NAME_SIZE_MIN)
+    const line1Width = fonts.name.widthOfTextAtSize(ellipsizeName(nameLines[0], size1), size1)
+    const line2UnitWidth = fonts.name.widthOfTextAtSize(nameLines[1], 1)
+    let size2 = line2UnitWidth > 0 ? line1Width / line2UnitWidth : NAME_LINE2_SIZE_MAX
+    size2 = Math.max(NAME_LINE2_SIZE_MIN, Math.min(size2, size1))
+    drawNameLine(nameLines[0], size1, NAME_LINE1_BASELINE)
+    drawNameLine2(nameLines[1], size2, NAME_LINE2_BASELINE)
+  } else {
+    drawNameLine(
+      nameLines[0],
+      fitNameSize(nameLines[0], NAME_SIZE_MAX, NAME_SIZE_MIN),
+      NAME_BASELINE
+    )
+  }
+
+  // --- Dose: white, centered in the black (top) band of the dose box. Blend
+  // doses ("5mg / 5mg") put the first compound's dose in the black band and
+  // the second in the blue band — covering the baked purity — and re-draw the
+  // purity rotated just outside the box, like the physical vial label.
   const doseCx = (DOSE_BOX_LEFT + DOSE_BOX_RIGHT) / 2
-  page.drawText(req.dose, {
-    x: toX(doseCx - doseWidth / 2),
-    y: toY(DOSE_BASELINE),
-    size: DOSE_SIZE,
-    font: fonts.dose,
-    color: COLOR_WHITE,
-  })
+  const doseMaxWidth = DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 4
+  const drawDose = (text: string, baseline: number) => {
+    let size = DOSE_SIZE
+    while (size > 4 && fonts.dose.widthOfTextAtSize(text, size) > doseMaxWidth) {
+      size -= 0.25
+    }
+    const width = fonts.dose.widthOfTextAtSize(text, size)
+    page.drawText(text, {
+      x: toX(doseCx - width / 2),
+      y: toY(baseline),
+      size,
+      font: fonts.dose,
+      color: COLOR_WHITE,
+    })
+  }
+  const doseParts = req.dose
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const isBlendDose = doseParts.length === 2 && doseParts.every((part) => /\d/.test(part))
+  if (isBlendDose) {
+    if (!twoLine) {
+      // Box not redrawn: hide the baked "99%+HPLC" with a band-colored fill
+      // (inset clear of the rounded bottom corners).
+      page.drawRectangle({
+        x: toX(DOSE_BOX_LEFT + DOSE_BOX_CORNER),
+        y: toY(DOSE_BOX_BOTTOM - DOSE_BOX_CORNER),
+        width: DOSE_BOX_RIGHT - DOSE_BOX_LEFT - DOSE_BOX_CORNER * 2,
+        height: DOSE_BOX_BOTTOM - DOSE_BOX_CORNER - DOSE_BOX_MID,
+        color: COLOR_BOX_BLUE,
+      })
+    }
+    drawDose(doseParts[0], DOSE_BASELINE + boxShift)
+    drawDose(doseParts[1], DOSE_BASELINE_BLUE + boxShift)
+    if (req.purity) {
+      // Rotated purity beside the box, reading bottom-to-top, vertically
+      // centered on the (possibly shifted) box.
+      const purityWidth = fonts.dose.widthOfTextAtSize(req.purity, PURITY_SIDE_SIZE)
+      const boxCenterSvgY = (DOSE_BOX_TOP + DOSE_BOX_BOTTOM) / 2 + boxShift
+      page.drawText(req.purity, {
+        x: toX(DOSE_BOX_RIGHT + 1.2 + PURITY_SIDE_SIZE),
+        y: toY(boxCenterSvgY) - purityWidth / 2,
+        size: PURITY_SIDE_SIZE,
+        font: fonts.dose,
+        color: COLOR_TEXT,
+        rotate: degrees(90),
+      })
+    }
+  } else {
+    drawDose(req.dose, DOSE_BASELINE + boxShift)
+    if (twoLine && req.purity) {
+      // The shifted box was redrawn without the baked purity glyphs, so
+      // re-render the purity (white) centered in the blue band.
+      let puritySize = PURITY_BAND_SIZE_MAX
+      while (
+        puritySize > 4 &&
+        fonts.dose.widthOfTextAtSize(req.purity, puritySize) > PURITY_BAND_MAX_WIDTH
+      ) {
+        puritySize -= 0.25
+      }
+      const purityWidth = fonts.dose.widthOfTextAtSize(req.purity, puritySize)
+      page.drawText(req.purity, {
+        x: toX(doseCx - purityWidth / 2),
+        y: toY(PURITY_BAND_BASELINE + boxShift),
+        size: puritySize,
+        font: fonts.dose,
+        color: COLOR_WHITE,
+      })
+    }
+  }
 
   // --- Code 128 barcode: rotated (vertical bars) filling the artwork's well.
   const bits = getCode128Bits(req.batchNumber)
