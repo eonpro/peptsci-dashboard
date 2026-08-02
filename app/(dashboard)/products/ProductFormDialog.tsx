@@ -13,8 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, X } from 'lucide-react'
 import { formToMonograph } from '@/lib/monograph-format'
+import {
+  composeBlendProduct,
+  parseBlendProduct,
+  type BlendComponent,
+} from '@/lib/products/blend'
 
 export interface ProductFormValues {
   id?: string
@@ -60,6 +65,11 @@ const EMPTY: ProductFormValues = {
 const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
 const labelClass = 'text-white/70 text-xs'
 
+const EMPTY_BLEND: BlendComponent[] = [
+  { name: '', amount: '' },
+  { name: '', amount: '' },
+]
+
 function toNumber(raw: string): number | undefined {
   const cleaned = raw.replace(/[$,\s]/g, '').trim()
   if (cleaned === '') return undefined
@@ -85,12 +95,19 @@ export default function ProductFormDialog({
 }) {
   const isEdit = Boolean(initial?.id)
   const [values, setValues] = useState<ProductFormValues>(EMPTY)
+  const [productType, setProductType] = useState<'single' | 'blend'>('single')
+  const [blend, setBlend] = useState<BlendComponent[]>(EMPTY_BLEND)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setValues(initial ? { ...initial } : { ...EMPTY })
+      // Existing blend products ("BPC-157 and TB-500" / "5mg / 5mg") reopen
+      // in blend mode with one row per compound.
+      const parsed = initial ? parseBlendProduct(initial.name, initial.dose) : null
+      setProductType(parsed ? 'blend' : 'single')
+      setBlend(parsed ?? EMPTY_BLEND.map((c) => ({ ...c })))
       setError(null)
     }
   }, [open, initial])
@@ -99,9 +116,32 @@ export default function ProductFormDialog({
     setValues((prev) => ({ ...prev, [key]: value }))
   }
 
+  function setBlendField(index: number, key: keyof BlendComponent, value: string) {
+    setBlend((prev) => prev.map((c, i) => (i === index ? { ...c, [key]: value } : c)))
+  }
+
+  const blendPreview = composeBlendProduct(blend)
+
   async function save() {
     setError(null)
-    if (!values.name.trim() || !values.sku.trim()) {
+    let name = values.name.trim()
+    let dose = values.dose.trim()
+    if (productType === 'blend') {
+      const filled = blend.filter((c) => c.name.trim() !== '')
+      if (filled.length < 2) {
+        setError('A blend needs at least two compound names')
+        return
+      }
+      const amounts = filled.filter((c) => c.amount.trim() !== '')
+      if (amounts.length > 0 && amounts.length < filled.length) {
+        setError('Enter an mg amount for every compound (or leave them all blank)')
+        return
+      }
+      const composed = composeBlendProduct(blend)
+      name = composed.name
+      dose = composed.dose
+    }
+    if (!name || !values.sku.trim()) {
       setError('Product name and SKU are required')
       return
     }
@@ -124,9 +164,9 @@ export default function ProductFormDialog({
     setSaving(true)
     try {
       const payload = {
-        name: values.name.trim(),
+        name,
         sku: values.sku.trim(),
-        dose: values.dose.trim(),
+        dose,
         category: values.category.trim(),
         aka: values.aka.trim() || null,
         ...(unitCost !== undefined ? { unitCost } : {}),
@@ -186,47 +226,162 @@ export default function ProductFormDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Product name *</Label>
-              <Input
-                className={inputClass}
-                placeholder="Tesamorelin"
-                value={values.name}
-                onChange={(e) => set('name', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>SKU *</Label>
-              <Input
-                className={inputClass}
-                placeholder="TES-10"
-                value={values.sku}
-                onChange={(e) => set('sku', e.target.value)}
-              />
+          {/* Product type: single compound vs blend of compounds */}
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Product type</Label>
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-[#0a0e3a] p-1">
+              {(
+                [
+                  { id: 'single', label: 'Single peptide' },
+                  { id: 'blend', label: 'Blend' },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setProductType(option.id)}
+                  className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    productType === option.id
+                      ? 'bg-brand-primary text-white'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Dose</Label>
-              <Input
-                className={inputClass}
-                placeholder="10mg"
-                value={values.dose}
-                onChange={(e) => set('dose', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Category</Label>
-              <Input
-                className={inputClass}
-                placeholder="Peptides"
-                value={values.category}
-                onChange={(e) => set('category', e.target.value)}
-              />
-            </div>
-          </div>
+          {productType === 'single' ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Product name *</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="Tesamorelin"
+                    value={values.name}
+                    onChange={(e) => set('name', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>SKU *</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="TES-10"
+                    value={values.sku}
+                    onChange={(e) => set('sku', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Dose</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="10mg"
+                    value={values.dose}
+                    onChange={(e) => set('dose', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Category</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="Peptides"
+                    value={values.category}
+                    onChange={(e) => set('category', e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2 rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-3">
+                <Label className={labelClass}>Blend compounds *</Label>
+                {blend.map((component, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      {index === 0 && (
+                        <Label className="text-white/40 text-[11px]">Compound name</Label>
+                      )}
+                      <Input
+                        className={inputClass}
+                        placeholder={index === 0 ? 'BPC-157' : 'TB-500'}
+                        value={component.name}
+                        onChange={(e) => setBlendField(index, 'name', e.target.value)}
+                      />
+                    </div>
+                    <div className="w-28 space-y-1.5">
+                      {index === 0 && (
+                        <Label className="text-white/40 text-[11px]">Amount (mg)</Label>
+                      )}
+                      <Input
+                        className={inputClass}
+                        placeholder="5mg"
+                        value={component.amount}
+                        onChange={(e) => setBlendField(index, 'amount', e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={blend.length <= 2}
+                      onClick={() => setBlend((prev) => prev.filter((_, i) => i !== index))}
+                      className="border-white/20 text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                      aria-label={`Remove compound ${index + 1}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBlend((prev) => [...prev, { name: '', amount: '' }])}
+                  className="border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add compound
+                </Button>
+                {blendPreview.name && (
+                  <p className="text-white/40 text-xs">
+                    Saved as: <span className="text-white/70">{blendPreview.name}</span>
+                    {blendPreview.dose && (
+                      <>
+                        {' — '}
+                        <span className="text-white/70">{blendPreview.dose}</span>
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>SKU *</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="BPC-TB-10"
+                    value={values.sku}
+                    onChange={(e) => set('sku', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Category</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="Peptides"
+                    value={values.category}
+                    onChange={(e) => set('category', e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-1.5">
             <Label className={labelClass}>Also known as (subtitle under the product name)</Label>
