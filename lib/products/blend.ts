@@ -46,6 +46,14 @@ export function composeBlendProduct(components: BlendComponent[]): {
   return { name, dose }
 }
 
+/** Compound list for the "also known as" subtitle: "GHK-Cu / BPC-157 / TB-500". */
+export function composeCompoundList(components: BlendComponent[]): string {
+  return components
+    .map((c) => c.name.trim().replace(/\s+/g, ' '))
+    .filter(Boolean)
+    .join(' / ')
+}
+
 /**
  * Parse a stored blend product back into per-compound fields for editing.
  * Supports both stored conventions: "A and B" and "A / B [Blend]". Returns

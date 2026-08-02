@@ -583,7 +583,7 @@ function drawLabel(ctx: LabelContext): void {
     .split('/')
     .map((part) => part.trim())
     .filter(Boolean)
-  const isBlendDose = doseParts.length === 2 && doseParts.every((part) => /\d/.test(part))
+  const isBlendDose = doseParts.length >= 2 && doseParts.every((part) => /\d/.test(part))
   if (isBlendDose) {
     if (!twoLine) {
       // Box not redrawn: hide the baked "99%+HPLC" with a band-colored fill
@@ -596,8 +596,10 @@ function drawLabel(ctx: LabelContext): void {
         color: COLOR_BOX_BLUE,
       })
     }
+    // First compound's dose in the black band; the rest share the blue band
+    // (3+-compound blends like GLOW join compactly so the text stays legible).
     drawDose(doseParts[0], DOSE_BASELINE + boxShift)
-    drawDose(doseParts[1], DOSE_BASELINE_BLUE + boxShift)
+    drawDose(doseParts.slice(1).join(doseParts.length > 2 ? '/' : ' / '), DOSE_BASELINE_BLUE + boxShift)
     if (req.purity) {
       // Rotated purity beside the box, reading bottom-to-top, vertically
       // centered on the (possibly shifted) box.

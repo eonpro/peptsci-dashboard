@@ -17,6 +17,7 @@ import { Loader2, Plus, X } from 'lucide-react'
 import { formToMonograph } from '@/lib/monograph-format'
 import {
   composeBlendProduct,
+  composeCompoundList,
   parseBlendProduct,
   type BlendComponent,
 } from '@/lib/products/blend'
@@ -97,17 +98,23 @@ export default function ProductFormDialog({
   const [values, setValues] = useState<ProductFormValues>(EMPTY)
   const [productType, setProductType] = useState<'single' | 'blend'>('single')
   const [blend, setBlend] = useState<BlendComponent[]>(EMPTY_BLEND)
+  const [blendName, setBlendName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setValues(initial ? { ...initial } : { ...EMPTY })
-      // Existing blend products ("BPC-157 and TB-500" / "5mg / 5mg") reopen
-      // in blend mode with one row per compound.
-      const parsed = initial ? parseBlendProduct(initial.name, initial.dose) : null
+      // Existing blend products reopen in blend mode with one row per
+      // compound: either the name itself lists the compounds ("BPC-157 and
+      // TB-500") or a named blend ("GLOW") keeps them in the aka subtitle.
+      const parsedFromName = initial ? parseBlendProduct(initial.name, initial.dose) : null
+      const parsedFromAka =
+        !parsedFromName && initial?.aka ? parseBlendProduct(initial.aka, initial.dose) : null
+      const parsed = parsedFromName ?? parsedFromAka
       setProductType(parsed ? 'blend' : 'single')
       setBlend(parsed ?? EMPTY_BLEND.map((c) => ({ ...c })))
+      setBlendName(parsedFromAka && initial ? initial.name : '')
       setError(null)
     }
   }, [open, initial])
@@ -126,6 +133,7 @@ export default function ProductFormDialog({
     setError(null)
     let name = values.name.trim()
     let dose = values.dose.trim()
+    let aka = values.aka.trim()
     if (productType === 'blend') {
       const filled = blend.filter((c) => c.name.trim() !== '')
       if (filled.length < 2) {
@@ -138,8 +146,15 @@ export default function ProductFormDialog({
         return
       }
       const composed = composeBlendProduct(blend)
-      name = composed.name
       dose = composed.dose
+      if (blendName.trim()) {
+        // Named blend (GLOW, KLOW…): the trade name is the product/label name
+        // and the compound list becomes the subtitle unless one was typed.
+        name = blendName.trim()
+        aka = aka || composeCompoundList(blend)
+      } else {
+        name = composed.name
+      }
     }
     if (!name || !values.sku.trim()) {
       setError('Product name and SKU are required')
@@ -168,7 +183,7 @@ export default function ProductFormDialog({
         sku: values.sku.trim(),
         dose,
         category: values.category.trim(),
-        aka: values.aka.trim() || null,
+        aka: aka || null,
         ...(unitCost !== undefined ? { unitCost } : {}),
         ...(srp !== undefined ? { srp } : {}),
         supplierName: values.supplierName.trim(),
@@ -299,6 +314,17 @@ export default function ProductFormDialog({
           ) : (
             <>
               <div className="space-y-2 rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>
+                    Blend name (shown on labels — leave blank to list the compounds)
+                  </Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="GLOW"
+                    value={blendName}
+                    onChange={(e) => setBlendName(e.target.value)}
+                  />
+                </div>
                 <Label className={labelClass}>Blend compounds *</Label>
                 {blend.map((component, index) => (
                   <div key={index} className="flex items-end gap-2">
@@ -349,11 +375,20 @@ export default function ProductFormDialog({
                 </Button>
                 {blendPreview.name && (
                   <p className="text-white/40 text-xs">
-                    Saved as: <span className="text-white/70">{blendPreview.name}</span>
+                    Saved as:{' '}
+                    <span className="text-white/70">
+                      {blendName.trim() || blendPreview.name}
+                    </span>
                     {blendPreview.dose && (
                       <>
                         {' — '}
                         <span className="text-white/70">{blendPreview.dose}</span>
+                      </>
+                    )}
+                    {blendName.trim() && (
+                      <>
+                        {' · subtitle: '}
+                        <span className="text-white/70">{composeCompoundList(blend)}</span>
                       </>
                     )}
                   </p>
