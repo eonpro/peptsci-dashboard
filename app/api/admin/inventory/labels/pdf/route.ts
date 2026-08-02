@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } from '@/lib/auth'
+import {
+  requireAdmin,
+  currentActorLabel,
+  unauthorizedResponse,
+  forbiddenResponse,
+  errorResponse,
+} from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getBatch, recordLabelPrintEvent } from '@/lib/inventory-batches'
 import { generatePeptSciLabelSheetPdf, PEPTSCI_LABEL_SHEET_MAX } from '@/lib/labels/peptsciLabelPdf'
@@ -53,7 +59,10 @@ export async function POST(request: NextRequest) {
     })
 
     if (!parsed.data.proofMode) {
-      await recordLabelPrintEvent(batch.id, quantity, { clerkUserId: userId, label: userId })
+      await recordLabelPrintEvent(batch.id, quantity, {
+        clerkUserId: userId,
+        label: await currentActorLabel(userId),
+      })
     }
 
     const suffix = parsed.data.proofMode ? '-proof' : ''

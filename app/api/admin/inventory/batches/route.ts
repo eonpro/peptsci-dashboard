@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   requireAdmin,
+  currentActorLabel,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     const batch = await createBatch(parsed.data, {
       clerkUserId: userId,
-      label: userId,
+      label: await currentActorLabel(userId),
     })
 
     logger.info('Inventory batch received', {

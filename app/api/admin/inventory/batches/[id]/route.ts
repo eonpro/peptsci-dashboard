@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   requireAdmin,
+  currentActorLabel,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -60,7 +61,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         'VALIDATION_ERROR'
       )
     }
-    const batch = await updateBatch(id, parsed.data, { clerkUserId: userId, label: userId })
+    const batch = await updateBatch(id, parsed.data, {
+      clerkUserId: userId,
+      label: await currentActorLabel(userId),
+    })
     return successResponse({ batch })
   } catch (error) {
     if (error instanceof BatchValidationError) {
@@ -88,7 +92,10 @@ export async function DELETE(
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const reason = searchParams.get('reason') || 'Voided by admin'
-    const batch = await voidBatch(id, reason, { clerkUserId: userId, label: userId })
+    const batch = await voidBatch(id, reason, {
+      clerkUserId: userId,
+      label: await currentActorLabel(userId),
+    })
     logger.info('Inventory batch voided', { batchId: id, by: userId })
     return successResponse({ batch })
   } catch (error) {

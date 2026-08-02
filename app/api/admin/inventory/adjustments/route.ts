@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   requireAdmin,
+  currentActorLabel,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     const adjustment = await createManualAdjustment(parsed.data, {
       clerkUserId: userId,
-      label: userId,
+      label: await currentActorLabel(userId),
     })
 
     logger.info('Manual inventory adjustment recorded', {

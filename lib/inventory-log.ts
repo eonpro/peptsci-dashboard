@@ -9,7 +9,6 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
-import { fireBackInStockAlerts } from './back-in-stock'
 
 export interface InventoryActor {
   /** Internal User.id (cuid) or null when the Clerk id has no User row. */
@@ -199,7 +198,7 @@ export async function createManualAdjustment(
   }
 
   const client = prisma
-  const adjustment = await client.$transaction(async (tx) => {
+  return client.$transaction(async (tx) => {
     const variant = await tx.productVariant.findUnique({
       where: { id: input.variantId },
       select: { id: true, inventoryOnHand: true },
@@ -236,10 +235,6 @@ export async function createManualAdjustment(
       },
     })
   })
-  // Positive corrections can make an out-of-stock variant sellable again —
-  // fire-and-forget the back-in-stock alert pass after commit.
-  if (delta > 0) void fireBackInStockAlerts(input.variantId)
-  return adjustment
 }
 
 /**

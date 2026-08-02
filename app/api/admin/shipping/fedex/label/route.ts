@@ -1,7 +1,14 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse, successResponse } from '@/lib/auth'
+import {
+  requireAdmin,
+  currentActorLabel,
+  unauthorizedResponse,
+  forbiddenResponse,
+  errorResponse,
+  successResponse,
+} from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -235,6 +242,8 @@ export async function POST(request: NextRequest) {
     // shipment is cancelled so no orphan label exists at the carrier.
     let label
     let consumeShortfall = 0
+    // Resolve outside the transaction — currentActorLabel may call Clerk.
+    const actorLabel = await currentActorLabel(userId)
     try {
       label = await prisma.$transaction(async (tx) => {
         const created = await tx.shipmentLabel.create({
@@ -292,7 +301,7 @@ export async function POST(request: NextRequest) {
             order.id,
             {
               clerkUserId: userId && userId !== 'dev-user' ? userId : null,
-              label: userId ?? null,
+              label: actorLabel,
             },
             { requireFull: !data.overrideInsufficientStock }
           )
@@ -562,7 +571,7 @@ export async function DELETE(request: NextRequest) {
       try {
         const reversed = await reverseOrderConsume(label.orderId, {
           clerkUserId: userId && userId !== 'dev-user' ? userId : null,
-          label: userId ?? null,
+          label: await currentActorLabel(userId),
         })
         if (reversed.reversed) {
           logger.info('[FedEx label] consume reversed after void', {

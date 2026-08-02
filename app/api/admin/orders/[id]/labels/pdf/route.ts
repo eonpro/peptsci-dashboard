@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } from '@/lib/auth'
+import {
+  requireAdmin,
+  currentActorLabel,
+  unauthorizedResponse,
+  forbiddenResponse,
+  errorResponse,
+} from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { allocatableBatchesForVariants, planAllocation } from '@/lib/inventory-batches'
@@ -152,7 +158,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       try {
         const res = await consumeOrderInventory(
           id,
-          { clerkUserId: userId, label: userId },
+          { clerkUserId: userId, label: await currentActorLabel(userId) },
           { requireFull: !overrideInsufficientStock }
         )
         logger.info('Order labels generated + stock consumed', {

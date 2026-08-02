@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   requireAdmin,
+  currentActorLabel,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -153,6 +154,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const now = new Date()
 
     let shortfall = 0
+    // Resolve outside the transaction — currentActorLabel may call Clerk.
+    const actorLabel = await currentActorLabel(userId)
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: order.id },
@@ -175,7 +178,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const consumed = await consumeOrderInventoryTx(
         tx,
         order.id,
-        { clerkUserId: userId && userId !== 'dev-user' ? userId : null, label: userId ?? null },
+        { clerkUserId: userId && userId !== 'dev-user' ? userId : null, label: actorLabel },
         { requireFull: false }
       )
       shortfall = consumed.shortfall

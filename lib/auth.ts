@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { logger } from './logger'
 import { isAdminRole, isSuperAdminRole, type UserRole, type UserStatus } from './access'
@@ -74,6 +74,30 @@ export async function requireAuth(): Promise<AuthResult> {
       isSuspended: false,
     }
   }
+}
+
+/**
+ * Human-readable label for the signed-in user, for audit/display fields
+ * (e.g. "received by"). Prefers the Clerk account email, then full name, and
+ * only falls back to the raw Clerk id when nothing better is available —
+ * never show `user_...` ids to staff when we can avoid it.
+ */
+export async function currentActorLabel(userId: string | null): Promise<string | null> {
+  if (!isClerkConfigured) return userId
+  try {
+    const user = await currentUser()
+    if (user) {
+      const email =
+        user.primaryEmailAddress?.emailAddress ?? user.emailAddresses[0]?.emailAddress
+      const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+      return email || fullName || userId
+    }
+  } catch (error) {
+    logger.warn('Failed to resolve actor label from Clerk', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+  return userId
 }
 
 /**
