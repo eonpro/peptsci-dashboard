@@ -21,7 +21,10 @@ export default async function StorefrontProductPage({
   const { sku } = await params
   const decodedSku = decodeURIComponent(sku)
 
-  const allProducts = await getStorefrontProducts(config.id, { enabledOnly: true })
+  const allProducts = await getStorefrontProducts(config.id, {
+    enabledOnly: true,
+    inStockOnly: true,
+  })
   const product = allProducts.find(
     (p) =>
       (p.sku?.toLowerCase() === decodedSku.toLowerCase() || p.id === decodedSku) &&

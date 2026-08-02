@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const products = await getStorefrontProducts(config.id, {
       enabledOnly: true,
       featuredOnly: featured || undefined,
+      inStockOnly: true,
     })
 
     // Only return products with a retail price set

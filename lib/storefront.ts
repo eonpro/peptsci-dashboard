@@ -3,6 +3,7 @@ import { prisma } from './prisma'
 import { logger } from './logger'
 import { reserveForOrder } from './inventory/reservations'
 import { resolveEffectiveUnitPrice } from './access'
+import { stockEnforcementEnabled } from './stock-enforcement'
 import type { BrandingConfig, StorefrontProductItem, StorefrontPublicConfig } from './types/storefront'
 
 function toJsonInput(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -151,7 +152,7 @@ export async function deleteStorefront(id: string) {
 
 export async function getStorefrontProducts(
   storefrontId: string,
-  options?: { enabledOnly?: boolean; featuredOnly?: boolean }
+  options?: { enabledOnly?: boolean; featuredOnly?: boolean; inStockOnly?: boolean }
 ): Promise<StorefrontProductItem[]> {
   if (!prisma) return []
 
@@ -174,28 +175,43 @@ export async function getStorefrontProducts(
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
 
-  return products.map((p) => ({
-    id: p.id,
-    variantId: p.variantId,
-    productName: p.variant.product.name,
-    displayName: p.displayName,
-    displayDescription: p.displayDescription,
-    sku: p.variant.sku,
-    dose: p.variant.dose,
-    unitSize: p.variant.unitSize,
-    category: p.variant.product.category,
-    retailPrice: p.retailPrice ? Number(p.retailPrice.retailPrice) : null,
-    compareAtPrice: p.retailPrice?.compareAtPrice ? Number(p.retailPrice.compareAtPrice) : null,
-    isFeatured: p.isFeatured,
-    displayOrder: p.displayOrder,
-    isEnabled: p.isEnabled,
-    inventoryOnHand: p.variant.inventoryOnHand,
-    media: p.variant.product.media.map((m) => ({
-      url: m.url,
-      altText: m.altText,
-      isPrimary: m.isPrimary,
-    })),
-  }))
+  const items = products.map((p) => {
+    // Sellable availability: units already reserved for open orders are not
+    // purchasable. Shopper-facing callers (inStockOnly) get this number so
+    // quantity caps match what checkout will accept; the clinic's catalog
+    // management view keeps the raw on-hand count.
+    const available = Math.max(0, p.variant.inventoryOnHand - (p.variant.inventoryReserved || 0))
+    return {
+      id: p.id,
+      variantId: p.variantId,
+      productName: p.variant.product.name,
+      displayName: p.displayName,
+      displayDescription: p.displayDescription,
+      sku: p.variant.sku,
+      dose: p.variant.dose,
+      unitSize: p.variant.unitSize,
+      category: p.variant.product.category,
+      retailPrice: p.retailPrice ? Number(p.retailPrice.retailPrice) : null,
+      compareAtPrice: p.retailPrice?.compareAtPrice ? Number(p.retailPrice.compareAtPrice) : null,
+      isFeatured: p.isFeatured,
+      displayOrder: p.displayOrder,
+      isEnabled: p.isEnabled,
+      inventoryOnHand: options?.inStockOnly ? available : p.variant.inventoryOnHand,
+      media: p.variant.product.media.map((m) => ({
+        url: m.url,
+        altText: m.altText,
+        isPrimary: m.isPrimary,
+      })),
+    }
+  })
+
+  // Shoppers only see products with sellable stock. Skipped when stock
+  // enforcement is off (CHECKOUT_ENFORCE_STOCK=false) so unmaintained
+  // inventory counts don't blank out the storefront.
+  if (options?.inStockOnly && stockEnforcementEnabled()) {
+    return items.filter((p) => p.inventoryOnHand > 0)
+  }
+  return items
 }
 
 export async function upsertStorefrontProduct(data: {

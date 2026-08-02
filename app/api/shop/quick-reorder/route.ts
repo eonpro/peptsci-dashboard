@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { resolveEffectiveUnitPrice } from '@/lib/access'
+import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,7 +101,9 @@ export async function GET() {
           lastOrderedAt: last.toISOString(),
         }
       })
-      .filter((i) => i.unitPrice != null)
+      // Only priced, in-stock items are offered for one-tap reorder (stock
+      // gate is skipped when enforcement is off, matching the catalog).
+      .filter((i) => i.unitPrice != null && (!stockEnforcementEnabled() || i.inStock))
 
     return successResponse({ items })
   } catch (error) {

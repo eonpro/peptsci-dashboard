@@ -13,7 +13,10 @@ export default async function StorefrontHomePage() {
   const config = await getStorefrontBySlug(slug)
   if (!config || config.status !== 'ACTIVE') return notFound()
 
-  const allProducts = await getStorefrontProducts(config.id, { enabledOnly: true })
+  const allProducts = await getStorefrontProducts(config.id, {
+    enabledOnly: true,
+    inStockOnly: true,
+  })
   const pricedProducts = allProducts.filter((p) => p.retailPrice !== null)
   const featured = pricedProducts.filter((p) => p.isFeatured)
 

@@ -22,7 +22,10 @@ export async function GET(
     const { sku } = await params
     const decodedSku = decodeURIComponent(sku)
 
-    const products = await getStorefrontProducts(config.id, { enabledOnly: true })
+    const products = await getStorefrontProducts(config.id, {
+      enabledOnly: true,
+      inStockOnly: true,
+    })
     const product = products.find(
       (p) => p.sku?.toLowerCase() === decodedSku.toLowerCase()
     )
