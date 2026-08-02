@@ -34,6 +34,11 @@ export interface CatalogStockRow {
   onHand: number
   reserved: number
   reorderLevel: number
+  /**
+   * Units on order via open purchase orders (placed but not yet received as
+   * batches). Informational only — never counted as available for sale.
+   */
+  incoming: number
   /** RECEIVED (active) batches attached to this variant. */
   batches: number
   /** Soonest BUD among RECEIVED batches that still hold stock (ISO), else null. */
@@ -49,12 +54,13 @@ export interface CatalogStockRow {
  */
 export async function listCatalogStock(): Promise<CatalogStockRow[]> {
   if (!prisma) return []
-  const [variants, batchCounts, soonestBuds] = await Promise.all([
+  const [variants, batchCounts, soonestBuds, openPoLines] = await Promise.all([
     prisma.productVariant.findMany({
       where: { status: 'ACTIVE' },
       select: {
         id: true,
         sku: true,
+        supplierSku: true,
         dose: true,
         inventoryOnHand: true,
         inventoryReserved: true,
@@ -73,9 +79,35 @@ export async function listCatalogStock(): Promise<CatalogStockRow[]> {
       where: { status: 'RECEIVED', qtyOnHand: { gt: 0 } },
       _min: { bud: true },
     }),
+    // Purchase-order lines still awaiting receipt ("incoming" stock).
+    prisma.distributorOrderLine.findMany({
+      where: { order: { status: { not: 'delivered' } } },
+      select: { sku: true, productName: true, dose: true, quantity: true, receivedQty: true },
+    }),
   ])
   const countByVariant = new Map(batchCounts.map((b) => [b.variantId, b._count._all]))
   const budByVariant = new Map(soonestBuds.map((b) => [b.variantId, b._min.bud]))
+
+  // Match open PO lines to variants: by our SKU or the supplier's Cat.No when
+  // the line carries one, else by product name + dose (case-insensitive).
+  const variantBySku = new Map<string, string>()
+  const variantByNameDose = new Map<string, string>()
+  for (const v of variants) {
+    if (v.sku) variantBySku.set(v.sku.toLowerCase(), v.id)
+    if (v.supplierSku) variantBySku.set(v.supplierSku.toLowerCase(), v.id)
+    variantByNameDose.set(`${v.product.name}::${v.dose ?? ''}`.toLowerCase(), v.id)
+  }
+  const incomingByVariant = new Map<string, number>()
+  for (const line of openPoLines) {
+    const pending = Math.max(0, line.quantity - line.receivedQty)
+    if (pending === 0) continue
+    const variantId =
+      (line.sku ? variantBySku.get(line.sku.toLowerCase()) : undefined) ??
+      variantByNameDose.get(`${line.productName}::${line.dose}`.toLowerCase())
+    if (!variantId) continue
+    incomingByVariant.set(variantId, (incomingByVariant.get(variantId) ?? 0) + pending)
+  }
+
   return variants.map((v) => ({
     variantId: v.id,
     sku: v.sku,
@@ -84,6 +116,7 @@ export async function listCatalogStock(): Promise<CatalogStockRow[]> {
     onHand: v.inventoryOnHand,
     reserved: v.inventoryReserved,
     reorderLevel: v.reorderLevel,
+    incoming: incomingByVariant.get(v.id) ?? 0,
     batches: countByVariant.get(v.id) ?? 0,
     soonestBud: budByVariant.get(v.id)?.toISOString() ?? null,
   }))

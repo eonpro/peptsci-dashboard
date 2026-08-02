@@ -396,6 +396,7 @@ export default function InventoryClient({
         onHand: v.onHand,
         reserved: v.reserved,
         available: Math.max(0, v.onHand - v.reserved),
+        incoming: v.incoming,
         reorderLevel: v.reorderLevel,
         batches: v.batches,
         soonestBud: v.soonestBud,

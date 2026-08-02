@@ -29,6 +29,8 @@ export interface CatalogStockRow {
   onHand: number
   reserved: number
   reorderLevel: number
+  /** Units on open purchase orders, not yet received (never sellable). */
+  incoming: number
   batches: number
   soonestBud: string | null
 }
@@ -62,6 +64,8 @@ export interface ProductRollupRow {
   onHand: number
   reserved: number
   available: number
+  /** Units on open purchase orders, not yet received (never sellable). */
+  incoming: number
   reorderLevel: number
   batches: number
   soonestBud: string | null

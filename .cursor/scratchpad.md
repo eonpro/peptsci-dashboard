@@ -1,3 +1,24 @@
+# PO Generator: Date Picker + Placed-Order Recording → Incoming Inventory + Spend (Aug 1, 2026)  [EXECUTOR — ✅ LOCAL, PENDING DEPLOY]
+
+## Background and Motivation
+Owner reported the PO Generator date picker not working (it was hardcoded to today + `disabled`), and wants the flow closed: after exporting a PO the system should ask "Did you place the order?" — if yes, the units should be "pre-added" as incoming inventory (NOT sellable until batches are physically received) and the amount spent should land on the financial tabs.
+
+## Project Status Board
+- [x] **Date picker** — `poDate` state on `app/(dashboard)/po-generator/page.tsx`, editable `type="date"` input; PDF uses the picked date (was always `new Date()`).
+- [x] **Schema** — `DistributorOrderLine.sku String?` (+index) and `receivedQty Int @default(0)`; migration `20260802022533_add_po_line_sku_received_qty` applied locally. (Local DB had drift: `20260721040000_add_suppliers` tables existed but weren't recorded — resolved via `prisma migrate resolve --applied`, no reset.)
+- [x] **API** — `POST /api/admin/purchase-orders` (admin): records a placed PO as a `DistributorOrder` (`externalId`=PO number, status `pending`, lines carry sku/qty/unitCost). 409 on duplicate PO number.
+- [x] **Confirm dialog** — after Export PDF, AlertDialog "Did you place this order?"; Yes → POST above, toast explains spend + incoming behavior; "Not yet" skips.
+- [x] **Incoming inventory** — `listCatalogStock()` (lib/inventory.ts) now sums open (non-delivered) PO line remainders (`quantity - receivedQty`) per variant, matched by our SKU / supplier Cat.No / name+dose; new amber "Incoming" column on Inventory → Products (desktop + mobile). Never counted in Available.
+- [x] **Receive tie-in** — `createBatch` (lib/inventory-batches.ts) burns receipts against open PO lines oldest-first inside the same transaction (damaged units count as received); when all lines of a PO are fully received the order auto-flips to `delivered` (drops out of incoming + outstanding orders).
+- [x] **Financials** — recorded POs flow through the existing `DistributorOrder` pipeline: Orders & Expenses (Total Spent + monthly breakdown) and P&L Balance Sheet (Inventory Spend YTD/all-time, Outstanding Orders). Per-unit COGS on the P&L stays recognized at sale time from `ProductVariant.unitCost` (correct accrual behavior — purchase spend is inventory, not COGS, until sold).
+- [x] **QA** — `tsc --noEmit` clean, eslint clean on touched files, `next build` pass, and `scripts/smoke-po-flow.ts` (new, self-cleaning) verifies end-to-end against local DB: incoming 10 → partial receive 6 → incoming 4/pending → receive 4 → incoming 0/delivered.
+
+## Lessons
+- Reuse the `DistributorOrder` pipeline for placed POs instead of a parallel PurchaseOrder model — the financial tabs (Orders & Expenses, P&L balance sheet) light up with zero extra wiring.
+- `prisma migrate dev` on a drifted dev DB offers a destructive reset; `prisma migrate resolve --applied <name>` reconciles already-present tables without data loss.
+
+---
+
 # Supplier Price Lists + Crest Peptide (Jul 20, 2026)  [EXECUTOR — ✅ DEPLOYED TO PROD]
 
 **Deployed Jul 21 ~12:35 AM ET** in `60962bc` (with card-layout fix `6b0fdb5`) → main → Vercel `dpl_95v2XvtfmcQUKvnXuX5cBz4Ds6d6` READY on peptsci.com (`/api/health` 200, version `6b0fdb5`). Prod migration `20260721040000_add_suppliers` applied via `POST /api/admin/db/migrate` through the owner's signed-in admin session: `success:true, upToDate:true` (15.4s), probes `supplierTable`+`supplierPriceItemTable` both true; `GET /api/admin/suppliers` returns `{"suppliers":[]}`. `scripts/data/` (confidential price sheets) is gitignored — the repo is public; owner loads Crest via PO Generator → Import Price List (owner action #2 below still pending). Note: local `next build` fails with `.next` MODULE_NOT_FOUND while a `next dev` server shares the same `.next` dir — Vercel build is the real gate and passed.

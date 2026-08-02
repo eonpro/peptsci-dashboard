@@ -1160,12 +1160,21 @@ model DistributorOrderLine {
   orderId     String
   productName String
   dose        String           @default("")
+  // Our catalog SKU or the supplier's Cat.No, when known (set by the PO
+  // generator). Used to match incoming units to a ProductVariant so the
+  // Inventory page can show on-order stock before batches are received.
+  sku         String?
   quantity    Int              @default(0)
+  // Units already received into inventory batches against this line. Incoming
+  // (on-order) stock is quantity - receivedQty while the order is open;
+  // maintained by the batch receive flow (lib/inventory-batches.ts).
+  receivedQty Int              @default(0)
   unitCost    Decimal          @default(0) @db.Decimal(12, 2)
   lineTotal   Decimal          @default(0) @db.Decimal(12, 2)
   createdAt   DateTime         @default(now())
 
   @@index([orderId])
+  @@index([sku])
 }
 
 // -------------------------------------------------

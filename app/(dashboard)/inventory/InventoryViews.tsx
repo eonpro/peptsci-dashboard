@@ -258,6 +258,7 @@ export function ProductsTable({
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3 text-right">On hand</th>
               <th className="px-4 py-3 text-right">Reserved</th>
+              <th className="px-4 py-3 text-right">Incoming</th>
               <th className="px-4 py-3 text-right">
                 <SortHeader
                   label="Available"
@@ -288,6 +289,9 @@ export function ProductsTable({
                 <td className="px-4 py-3 text-right">{p.onHand}</td>
                 <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400">
                   {p.reserved || 0}
+                </td>
+                <td className="px-4 py-3 text-right text-amber-600 dark:text-amber-400">
+                  {p.incoming > 0 ? p.incoming : <span className="text-muted-foreground/60">—</span>}
                 </td>
                 <td
                   className={`px-4 py-3 text-right font-semibold ${
@@ -340,6 +344,9 @@ export function ProductsTable({
                 <span>{p.onHand} on hand</span>
                 {p.reserved > 0 && (
                   <span className="text-blue-600 dark:text-blue-400">{p.reserved} reserved</span>
+                )}
+                {p.incoming > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400">{p.incoming} incoming</span>
                 )}
                 <span className="ml-auto">
                   {p.batches} batch{p.batches !== 1 ? 'es' : ''}

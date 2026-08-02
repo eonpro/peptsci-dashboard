@@ -12,15 +12,28 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Trash2, Plus, FileDown } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Trash2, Plus, FileDown, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type JsPDF from 'jspdf'
 import { SupplierPriceImportDialog } from '@/components/admin/SupplierPriceImportDialog'
+import { apiError } from '@/lib/api-error'
 
 interface POItem {
   id: string
   product: string
+  /** Product name without the dose suffix (e.g. "Tesamorelin"). */
+  name: string
   sku: string
   dose: string
   cost: number
@@ -55,6 +68,10 @@ export default function POGeneratorPage() {
   const [loading, setLoading] = useState(true)
   const [poNumber, setPONumber] = useState('')
   const [vendor, setVendor] = useState('')
+  const [poDate, setPODate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  // "Did you place the order?" confirmation shown after a PDF export.
+  const [placeDialogOpen, setPlaceDialogOpen] = useState(false)
+  const [recording, setRecording] = useState(false)
 
   // Generate PO number on mount
   useEffect(() => {
@@ -147,6 +164,7 @@ export default function POGeneratorPage() {
     const newItem: POItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       product: '',
+      name: '',
       sku: '',
       dose: '',
       cost: 0,
@@ -173,6 +191,7 @@ export default function POGeneratorPage() {
           const product = products.find((p) => `${p.Product} ${p.Dose}` === value)
           if (product) {
             updated.product = value
+            updated.name = product.Product
             updated.sku = product.SKU
             updated.dose = product.Dose
             updated.cost = product.Cost
@@ -193,6 +212,60 @@ export default function POGeneratorPage() {
 
   const getTotalCost = () => {
     return poItems.reduce((sum, item) => sum + (item.total || 0), 0)
+  }
+
+  // The date input holds yyyy-MM-dd; parse it as a local date (falling back to
+  // today when cleared) so the PDF and the recorded PO agree with the picker.
+  const parsePODate = () => {
+    const parsed = poDate ? new Date(`${poDate}T00:00:00`) : new Date()
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed
+  }
+
+  /**
+   * "Yes, order placed" — persist the PO so the spend hits Orders & Expenses /
+   * P&L and the line quantities show as incoming stock on the Inventory page
+   * until the batches are physically received.
+   */
+  const recordPlacedOrder = async () => {
+    const validItems = poItems.filter((item) => item.product && item.quantity > 0)
+    if (validItems.length === 0) return
+
+    setRecording(true)
+    try {
+      const response = await fetch('/api/admin/purchase-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poNumber,
+          vendor,
+          orderDate: poDate,
+          items: validItems.map((item) => ({
+            productName: item.name || item.product,
+            dose: item.dose,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitCost: item.cost,
+          })),
+        }),
+      })
+
+      if (response.status === 409) {
+        toast.info(`${poNumber} was already recorded`)
+        setPlaceDialogOpen(false)
+        return
+      }
+      if (!response.ok) throw await apiError(response, 'Failed to record the purchase order')
+
+      setPlaceDialogOpen(false)
+      toast.success(`${poNumber} recorded`, {
+        description:
+          'Spend added to Orders & Expenses. Items will show as incoming inventory until batches are received.',
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to record the purchase order')
+    } finally {
+      setRecording(false)
+    }
   }
 
   const exportPDF = async () => {
@@ -276,7 +349,7 @@ export default function POGeneratorPage() {
 
     doc.setFont('helvetica', 'normal')
     doc.text(poNumber, 50, 55)
-    doc.text(format(new Date(), 'MMMM dd, yyyy'), 50, 62)
+    doc.text(format(parsePODate(), 'MMMM dd, yyyy'), 50, 62)
     doc.text(vendor || 'TBD', 50, 69)
 
     // Filter out empty items
@@ -382,6 +455,9 @@ export default function POGeneratorPage() {
     try {
       // Save the PDF
       doc.save(`${poNumber}.pdf`)
+      // Follow up: if the order was actually placed with the vendor, record it
+      // (expense + incoming inventory) via the confirmation dialog.
+      setPlaceDialogOpen(true)
     } catch (error) {
       console.error('Error saving PDF:', error)
       toast.error('Error generating PDF. Please try again.')
@@ -443,10 +519,10 @@ export default function POGeneratorPage() {
             <div>
               <label className="text-sm font-medium">Date</label>
               <Input
-                value={format(new Date(), 'yyyy-MM-dd')}
+                value={poDate}
+                onChange={(e) => setPODate(e.target.value)}
                 type="date"
                 className="mt-1"
-                disabled
               />
             </div>
             <div>
@@ -587,6 +663,47 @@ export default function POGeneratorPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Post-export confirmation: record the placed order */}
+      <AlertDialog
+        open={placeDialogOpen}
+        onOpenChange={(open) => {
+          if (!recording) setPlaceDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Did you place this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Recording {poNumber} adds ${getTotalCost().toFixed(2)} to Orders &amp; Expenses and
+              marks the {poItems.reduce((sum, i) => sum + (i.product ? i.quantity : 0), 0)} ordered
+              units as incoming inventory. Stock won&apos;t be available for sale until the batches
+              are received and recorded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={recording}>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={recording}
+              onClick={(e) => {
+                // Keep the dialog open while the request is in flight.
+                e.preventDefault()
+                recordPlacedOrder()
+              }}
+              className="bg-brand-primary hover:bg-brand-primary/90"
+            >
+              {recording ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Recording…
+                </>
+              ) : (
+                'Yes, order placed'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

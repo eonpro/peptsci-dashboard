@@ -148,6 +148,74 @@ async function resolveVariant(input: CreateBatchInput): Promise<{
 }
 
 /**
+ * Apply a received quantity against open purchase-order lines (recorded via
+ * the PO generator as pending DistributorOrders). Lines are matched to the
+ * variant by our SKU / the supplier's Cat.No, falling back to product name +
+ * dose, and consumed oldest-first. When every line of an order is fully
+ * received the order flips to `delivered`, so it stops counting as incoming
+ * stock and as an outstanding order on the balance sheet. Best-effort: a
+ * receipt with no matching open PO simply allocates nothing.
+ */
+async function applyReceiptToOpenPurchaseOrdersTx(
+  tx: Prisma.TransactionClient,
+  variantId: string,
+  qtyReceived: number
+): Promise<void> {
+  if (qtyReceived <= 0) return
+
+  const variant = await tx.productVariant.findUnique({
+    where: { id: variantId },
+    select: { sku: true, supplierSku: true, dose: true, product: { select: { name: true } } },
+  })
+  if (!variant) return
+
+  const skus = [variant.sku, variant.supplierSku].filter((s): s is string => !!s)
+  const lines = await tx.distributorOrderLine.findMany({
+    where: {
+      order: { status: { not: 'delivered' } },
+      OR: [
+        ...(skus.length > 0 ? [{ sku: { in: skus, mode: 'insensitive' as const } }] : []),
+        {
+          productName: { equals: variant.product.name, mode: 'insensitive' as const },
+          dose: { equals: variant.dose ?? '', mode: 'insensitive' as const },
+        },
+      ],
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { id: true, orderId: true, quantity: true, receivedQty: true },
+  })
+
+  let remaining = qtyReceived
+  const touchedOrderIds = new Set<string>()
+  for (const line of lines) {
+    if (remaining <= 0) break
+    const open = line.quantity - line.receivedQty
+    if (open <= 0) continue
+    const take = Math.min(open, remaining)
+    await tx.distributorOrderLine.update({
+      where: { id: line.id },
+      data: { receivedQty: { increment: take } },
+    })
+    remaining -= take
+    touchedOrderIds.add(line.orderId)
+  }
+
+  // Close any touched order whose lines are now all fully received.
+  for (const orderId of touchedOrderIds) {
+    const orderLines = await tx.distributorOrderLine.findMany({
+      where: { orderId },
+      select: { quantity: true, receivedQty: true },
+    })
+    if (orderLines.every((l) => l.receivedQty >= l.quantity)) {
+      await tx.distributorOrder.update({
+        where: { id: orderId },
+        data: { status: 'delivered' },
+      })
+    }
+  }
+}
+
+/**
  * Record an inbound inventory receipt and auto-create its batch. Atomic:
  * creates the batch, increments variant on-hand, and writes the adjustment +
  * audit event. Retries the batch number with a numeric suffix on collision.
@@ -221,6 +289,11 @@ export async function createBatch(input: CreateBatchInput, actor: BatchActor) {
             },
           })
         }
+
+        // Burn the receipt against open POs so "incoming" stock converts to
+        // on-hand instead of double-counting. Damaged units still count as
+        // received against the PO (the supplier shipped them).
+        await applyReceiptToOpenPurchaseOrdersTx(tx, resolved.variantId, input.qtyReceived)
 
         return batch
       })
