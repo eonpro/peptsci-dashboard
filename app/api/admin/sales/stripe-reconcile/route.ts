@@ -98,20 +98,16 @@ export async function GET() {
     })
     const dbTotal = bySource.reduce((s, g) => s + Number(g._sum.paidAmount ?? 0), 0)
 
-    // PI ids already represented in analytics (stripe-sourced records) or by a
-    // platform order (order-sourced records carry the PI id too).
+    // PI ids already represented in analytics. Do NOT treat a bare Order link
+    // as "known" — an Order can hold stripePaymentIntentId without ever syncing
+    // a SalesRecord (amount-mismatch, partial reconcile), which hid real gaps.
     const knownRecords = await prisma.salesRecord.findMany({
       where: { stripePaymentIntentId: { not: null } },
       select: { stripePaymentIntentId: true },
     })
-    const knownOrders = await prisma.order.findMany({
-      where: { stripePaymentIntentId: { not: null } },
-      select: { stripePaymentIntentId: true },
-    })
-    const known = new Set<string>([
-      ...knownRecords.map((r) => r.stripePaymentIntentId as string),
-      ...knownOrders.map((o) => o.stripePaymentIntentId as string),
-    ])
+    const known = new Set<string>(
+      knownRecords.map((r) => r.stripePaymentIntentId as string)
+    )
 
     const missing = [...succeededPis.values()].filter((pi) => !known.has(pi.id))
     const missingAmount = missing.reduce((s, m) => s + m.amount, 0)

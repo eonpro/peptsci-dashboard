@@ -22,6 +22,10 @@ import { getConnectedAccountId } from '@/lib/stripe/connect'
 import { processStripeEvent, type ProcessResult } from '@/lib/stripe/webhook-processor'
 
 export const dynamic = 'force-dynamic'
+// Invoice enrichment (invoicePayments.list + expansions) can take 30–60s on
+// cold starts; without an explicit budget Vercel may kill the invoke mid-ingest
+// after acknowledging the event as SUCCESS on a later retry path.
+export const maxDuration = 120
 
 function isUniqueViolation(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)

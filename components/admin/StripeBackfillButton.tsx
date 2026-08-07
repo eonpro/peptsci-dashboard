@@ -20,9 +20,12 @@ interface BackfillSummary {
   created: number
   updated: number
   skippedOrder: number
+  skippedExisting?: number
+  syncedFromOrder?: number
   skippedTest: number
   skippedUnpaid: number
   failed: number
+  failedSamples?: Array<{ paymentIntentId: string; error: string }>
 }
 
 /** Admin "Backfill from Stripe" button — ingests historical succeeded PIs. */
@@ -106,9 +109,16 @@ export function StripeBackfillButton() {
               </div>
               <ul className="text-sm text-white/60 space-y-1">
                 <li>Scanned: {result.scanned}</li>
-                <li>Skipped (already an order): {result.skippedOrder}</li>
+                <li>Already in sales: {result.skippedExisting ?? 0}</li>
+                <li>Synced from linked order: {result.syncedFromOrder ?? 0}</li>
                 <li>Skipped (test/unpaid): {result.skippedTest + result.skippedUnpaid}</li>
                 {result.failed > 0 && <li className="text-amber-300">Failed: {result.failed}</li>}
+                {(result.failedSamples?.length ?? 0) > 0 && (
+                  <li className="text-amber-300/80 text-xs break-all">
+                    e.g. {result.failedSamples![0].paymentIntentId}:{' '}
+                    {result.failedSamples![0].error}
+                  </li>
+                )}
               </ul>
             </div>
           ) : (

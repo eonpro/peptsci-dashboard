@@ -1,9 +1,43 @@
+# Stripe transactions not updating platform (Aug 7, 2026)  [PLANNER — INVESTIGATING]
+
+## Background and Motivation
+Owner reports Stripe transactions seem not updating peptsci.com right now.
+
+## Key Challenges and Analysis
+- Prod webhook endpoint `POST /api/webhooks/stripe` is **alive**: continuous 200s on deployment `dpl_BWqRCusk87nUgy1mtm4kYGNYmvsH` (health ok, version `9f2c593`). No webhook runtime error clusters in 7d.
+- Handler **silently 200-skips** any Connect event where `event.account !== STRIPE_CONNECTED_ACCOUNT_ID` (expected: Como RX `acct_1S34ayDhHXlGkLX4`). Skip path does not log — flood of 200s is mostly other-account noise.
+- Stripe MCP is logged into **Eon Meds / IntakeQ** (`acct_1RPS5NGzKhM7cZeG`), which has active invoice payments today (e.g. Invoice 10533 Cindy Urena $229 @ 17:13 UTC, 10532 Emilio Cortez $329). Those are EHR/patient invoices — **not** Como RX / PeptSci B2B sales, and would never land in PeptSci under the current account filter.
+- Platform-account webhook list for Eon Meds has **no** `peptsci.com` URL (eonpro/eonmeds endpoints only). PeptSci’s Connect webhook is therefore on a different Stripe platform than the MCP session — cannot verify Como RX PI delivery from this MCP key (no permission on connected account).
+- External Stripe charges update **SalesRecord** (analytics), not Fulfillment `Order`s, unless converted.
+
+## High-level Task Breakdown
+1. Confirm which Stripe Dashboard account the owner is watching (Como RX vs Eon Meds / IntakeQ) and which PeptSci surface (Sales vs Fulfillment).
+2. Owner (signed-in admin): open Settings → Stripe diagnostics + `/settings/webhooks` DLQ counts; run `GET /api/admin/sales/stripe-reconcile`.
+3. If Como RX gap confirmed: `POST /api/admin/sales/backfill-stripe` with `{ "confirm": true }` (windowed if needed) to catch up.
+4. If owner expected Eon Meds EHR payments in PeptSci: that is out of scope by design — separate product/account; do not widen the Connect filter without an explicit product decision.
+
+## Project Status Board
+- [x] Prod health + webhook traffic check
+- [x] Trace webhook → SalesRecord/Order pipeline
+- [x] Owner showed PeptSci `/settings/webhooks` Failed tab — **25 ERROR rows, all Jun 10–17**, historical schema gap (not live outage)
+- [x] Owner evidence: Aug 4 $4,950 Como RX SUCCESS webhook + Stripe payment, dashboard August still **$0** / 0 orders — SalesRecord never landed despite WebhookEvent SUCCESS (55s processing)
+- [x] Fix (local): webhook processor — only intercept `metadata.invoiceId` when a platform Invoice exists; safety-net ensure SalesRecord for succeeded external PIs; webhook `maxDuration=120`; MTD KPIs use `nyMonthKey`
+- [ ] Owner: **Backfill from Stripe** start `2026-08-01` end `2026-08-08` (or blank end) to pull the $4,950 into Sales immediately
+- [ ] Deploy webhook fix to main so future invoice payments can't ack SUCCESS without a SalesRecord
+- [ ] Optional: Retry Aug 4 webhook from DLQ isn't needed (it's SUCCESS); backfill is the catch-up
+
+## Executor's Feedback or Assistance Requests
+Immediate owner action: Dashboard → tools → **Backfill from Stripe** with start date Aug 1. That imports `pi` for the $4,950. Deploy the webhook harden after.
+
+---
+
 # PO Generator: Date Picker + Placed-Order Recording → Incoming Inventory + Spend (Aug 1, 2026)  [EXECUTOR — ✅ DEPLOYED, MIGRATION PENDING]
 
 **Deployed Aug 1 ~11:05 PM ET** in `bca0e9b` → main → Vercel `dpl_GESTRyjZqyTwfgK59okuW4cwUCX1` READY on peptsci.com (`/api/health` 200, version `bca0e9b`, DB up).
 
 ## Owner action (prod) — URGENT
-1. **Apply prod migration** `20260802022533_add_po_line_sku_received_qty` via `POST /api/admin/db/migrate { "confirm": true }` from a signed-in super-admin session. Until it runs, the Inventory page and batch receiving will error in prod (the deployed code selects the new `DistributorOrderLine.sku` / `receivedQty` columns). Probe keys to verify: `distributorLineSkuColumn` + `distributorLineReceivedQtyColumn` both true.
+1. **Apply prod migration** `20260802022533_add_po_line_sku_received_qty` via `POST /api/admin/db/migrate { "confirm": true }` from a signed-in super-admin session (UI: Settings → Stripe → Database schema → Check → Apply pending migrations). Until it runs, the Inventory page and batch receiving will error in prod (the deployed code selects the new `DistributorOrderLine.sku` / `receivedQty` columns). Probe keys to verify: `distributorLineSkuColumn` + `distributorLineReceivedQtyColumn` both true.
+   - **Confirmed live impact (Aug 2 ~12:06–12:11 AM ET):** owner hit "Failed to record the purchase order" on PO‑20260802‑477; Vercel runtime errors show 5× `PrismaClientKnownRequestError` on `/api/admin/purchase-orders`: "The column `sku` of relation `DistributorOrderLine` does not exist in the current database." Nothing was recorded — safe to retry "Yes, order placed" after the migration is applied.
 
 ## Background and Motivation
 Owner reported the PO Generator date picker not working (it was hardcoded to today + `disabled`), and wants the flow closed: after exporting a PO the system should ask "Did you place the order?" — if yes, the units should be "pre-added" as incoming inventory (NOT sellable until batches are physically received) and the amount spent should land on the financial tabs.

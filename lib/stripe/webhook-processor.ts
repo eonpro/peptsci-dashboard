@@ -32,6 +32,37 @@ export interface ProcessResult {
   retryable?: boolean
 }
 
+async function ingestExternalSale(
+  piId: string,
+  account: string | undefined
+): Promise<boolean> {
+  const stripeClient = getStripeClient()
+  if (!stripeClient) return false
+  return ingestStripePaymentIntent(
+    stripeClient,
+    piId,
+    account ? { stripeAccount: account } : undefined
+  )
+}
+
+/**
+ * Guarantee a SalesRecord for a succeeded external PaymentIntent.
+ * Returns 'exists' | 'ingested' | 'failed'.
+ */
+async function ensureSalesRecordForExternalPi(
+  piId: string,
+  account: string | undefined
+): Promise<'exists' | 'ingested' | 'failed'> {
+  if (!prisma) return 'failed'
+  const existing = await prisma.salesRecord.findUnique({
+    where: { stripePaymentIntentId: piId },
+    select: { id: true },
+  })
+  if (existing) return 'exists'
+  const ingested = await ingestExternalSale(piId, account)
+  return ingested ? 'ingested' : 'failed'
+}
+
 export async function processStripeEvent(event: Stripe.Event): Promise<ProcessResult> {
   if (!prisma) return { success: false, error: 'DB unavailable' }
 
@@ -67,30 +98,40 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
       }
 
       // Client invoice payments (portal "pay invoice") carry metadata.invoiceId
-      // and no orderId. Record them against the invoice (idempotent on PI id)
-      // instead of falling through to order reconcile / external-sale ingest,
-      // which would double-count the revenue.
+      // pointing at a *platform* Invoice row. Only intercept when that row
+      // exists — Stripe-hosted invoices sometimes put an unrelated `invoiceId`
+      // in metadata, and treating those as platform payments would acknowledge
+      // SUCCESS without ever writing a SalesRecord (August revenue stays $0).
       if (!pi.metadata?.orderId && pi.metadata?.invoiceId) {
-        if (pi.status !== 'succeeded') {
-          return {
-            success: true,
-            details: { paymentIntentId: pi.id, skipped: 'invoice_pi_not_succeeded' },
+        const platformInvoice = await prisma.invoice.findUnique({
+          where: { id: pi.metadata.invoiceId },
+          select: { id: true },
+        })
+        if (platformInvoice) {
+          if (pi.status !== 'succeeded') {
+            return {
+              success: true,
+              details: { paymentIntentId: pi.id, skipped: 'invoice_pi_not_succeeded' },
+            }
           }
-        }
-        try {
-          await recordPayment(pi.metadata.invoiceId, {
-            amount: (pi.amount_received || pi.amount) / 100,
-            method: 'stripe',
-            stripePaymentIntentId: pi.id,
-            notes: 'Paid online via client portal',
-          })
-          return { success: true, details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId } }
-        } catch (err) {
-          return {
-            success: false,
-            retryable: true,
-            error: `Failed to record invoice payment: ${err instanceof Error ? err.message : String(err)}`,
-            details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId },
+          try {
+            await recordPayment(pi.metadata.invoiceId, {
+              amount: (pi.amount_received || pi.amount) / 100,
+              method: 'stripe',
+              stripePaymentIntentId: pi.id,
+              notes: 'Paid online via client portal',
+            })
+            return {
+              success: true,
+              details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId },
+            }
+          } catch (err) {
+            return {
+              success: false,
+              retryable: true,
+              error: `Failed to record invoice payment: ${err instanceof Error ? err.message : String(err)}`,
+              details: { paymentIntentId: pi.id, invoiceId: pi.metadata.invoiceId },
+            }
           }
         }
       }
@@ -111,14 +152,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
               details: { paymentIntentId: pi.id, skipped: 'external_pi_processing' },
             }
           }
-          const stripeClient = getStripeClient()
-          const ingested = stripeClient
-            ? await ingestStripePaymentIntent(
-                stripeClient,
-                pi.id,
-                event.account ? { stripeAccount: event.account } : undefined
-              )
-            : false
+          const ingested = await ingestExternalSale(pi.id, event.account)
           if (ingested) {
             return {
               success: true,
@@ -143,6 +177,41 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
           details: { paymentIntentId: pi.id, matched: false, paymentStatus: pi.status },
         }
       }
+
+      // Safety net: a succeeded PaymentIntent must leave a SalesRecord unless
+      // it was a retail payment or a platform invoice payment (AR path).
+      // Covers amount-mismatch order matches and any SUCCESS-without-analytics
+      // path (the Aug 2026 $0-MTD failure mode).
+      if (pi.status === 'succeeded' && !pi.metadata?.retailOrderId) {
+        const platformInvoiceId = pi.metadata?.invoiceId
+        const isPlatformInvoice = platformInvoiceId
+          ? !!(await prisma.invoice.findUnique({
+              where: { id: platformInvoiceId },
+              select: { id: true },
+            }))
+          : false
+        if (!isPlatformInvoice) {
+          const ensured = await ensureSalesRecordForExternalPi(pi.id, event.account)
+          if (ensured === 'failed') {
+            return {
+              success: false,
+              retryable: true,
+              error: `PaymentIntent ${pi.id} succeeded but SalesRecord ingest failed`,
+              details: { paymentIntentId: pi.id, matched: res.matched, ensuredSale: false },
+            }
+          }
+          return {
+            success: true,
+            details: {
+              paymentIntentId: pi.id,
+              matched: res.matched,
+              paymentStatus: res.paymentStatus,
+              ensuredSale: ensured === 'ingested',
+            },
+          }
+        }
+      }
+
       return {
         success: true,
         details: { paymentIntentId: pi.id, matched: res.matched, paymentStatus: res.paymentStatus },
@@ -186,20 +255,12 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
       // External payment (no platform order): re-ingest the PaymentIntent so
       // its SalesRecord nets out the refund (paidAmount/COGS recomputed from
       // Stripe's current state — idempotent across retries/partial refunds).
-      let salesAdjusted = false
       const piId =
         typeof charge.payment_intent === 'string'
           ? charge.payment_intent
           : charge.payment_intent?.id
       if (!order && piId) {
-        const stripeClient = getStripeClient()
-        if (stripeClient) {
-          salesAdjusted = await ingestStripePaymentIntent(
-            stripeClient,
-            piId,
-            event.account ? { stripeAccount: event.account } : undefined
-          )
-        }
+        const salesAdjusted = await ingestExternalSale(piId, event.account)
         if (!salesAdjusted) {
           return {
             success: false,
@@ -207,6 +268,16 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
             error: `Failed to apply refund to sales record for PaymentIntent ${piId}`,
             details: { chargeId: charge.id, amountRefunded: charge.amount_refunded },
           }
+        }
+        return {
+          success: true,
+          details: {
+            chargeId: charge.id,
+            orderMatched: false,
+            fullyRefunded,
+            salesAdjusted: true,
+            amountRefunded: charge.amount_refunded,
+          },
         }
       }
 
@@ -216,7 +287,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
           chargeId: charge.id,
           orderMatched: !!order,
           fullyRefunded,
-          salesAdjusted,
+          salesAdjusted: false,
           amountRefunded: charge.amount_refunded,
         },
       }

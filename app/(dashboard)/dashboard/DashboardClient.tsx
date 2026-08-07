@@ -35,6 +35,7 @@ const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
 })
 import type { Sale } from '@/lib/sales'
 import { format } from 'date-fns'
+import { nyMonthKey } from '@/lib/reports/core'
 
 type ApiSale = Omit<Sale, 'Date'> & { Date: string | Date | null }
 
@@ -149,10 +150,10 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
   // Orders placed this calendar month (unique order keys, mirrors getTotals).
   const mtdOrders = useMemo(() => {
-    const monthKey = format(new Date(), 'yyyy-MM')
+    const monthKey = nyMonthKey(new Date())
     const seen = new Set<string>()
     for (const sale of sales) {
-      if (!sale.Date || format(sale.Date, 'yyyy-MM') !== monthKey) continue
+      if (!sale.Date || nyMonthKey(sale.Date) !== monthKey) continue
       seen.add(sale.OrderID || `${sale.CustomerEmail}-${sale.Date.getTime()}`)
     }
     return seen.size

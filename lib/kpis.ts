@@ -1,7 +1,5 @@
 import { Sale } from './sales'
 import { Inventory } from './inventory'
-import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
-import { toZonedTime } from 'date-fns-tz'
 import { nyDayString, nyMonthKey } from './reports/core'
 
 /** Normalize a Sale date (Date at runtime, ISO string after JSON round-trips). */
@@ -48,10 +46,9 @@ interface InventoryMetrics {
 
 // Calculate total sales KPIs
 export function getTotals(sales: Sale[]): SalesKPIs {
-  // Use the actual current month (November 2025)
-  const now = toZonedTime(new Date(), 'America/New_York')
-  const monthStart = startOfMonth(now)
-  const monthEnd = endOfMonth(now)
+  // Bucket MTD by America/New_York calendar month (same helper as MoM charts).
+  // Avoids date-fns-tz + startOfMonth pitfalls that depend on the runtime TZ.
+  const monthKey = nyMonthKey(new Date())
 
   let totalSales = 0
   let mtdSales = 0
@@ -64,8 +61,7 @@ export function getTotals(sales: Sale[]): SalesKPIs {
   sales.forEach((sale) => {
     totalSales += sale.PaidAmount
 
-    // Check if sale is in current month (November 2025)
-    if (sale.Date && isWithinInterval(sale.Date, { start: monthStart, end: monthEnd })) {
+    if (sale.Date && nyMonthKey(toDateObj(sale.Date)) === monthKey) {
       mtdSales += sale.PaidAmount
     }
 
@@ -229,20 +225,17 @@ export function getDailyRevenue(sales: Sale[]): Array<{
   date: string
   revenue: number
 }> {
-  // Use the actual current month (November 2025)
-  const now = toZonedTime(new Date(), 'America/New_York')
-  const monthStart = startOfMonth(now)
-  const monthEnd = endOfMonth(now)
+  const monthKey = nyMonthKey(new Date())
 
   const dailyMap = new Map<string, number>()
 
   sales.forEach((sale) => {
-    // Check if sale is in current month (November 2025)
-    if (sale.Date && isWithinInterval(sale.Date, { start: monthStart, end: monthEnd })) {
-      const dateKey = nyDayString(toDateObj(sale.Date))
-      const current = dailyMap.get(dateKey) || 0
-      dailyMap.set(dateKey, current + sale.PaidAmount)
-    }
+    if (!sale.Date) return
+    const dateObj = toDateObj(sale.Date)
+    if (nyMonthKey(dateObj) !== monthKey) return
+    const dateKey = nyDayString(dateObj)
+    const current = dailyMap.get(dateKey) || 0
+    dailyMap.set(dateKey, current + sale.PaidAmount)
   })
 
   const dailyRevenue = Array.from(dailyMap.entries())
