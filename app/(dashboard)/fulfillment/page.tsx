@@ -76,6 +76,7 @@ function stripeRecordToLabelAddress(rec: StripeQueueRecord): Partial<LabelAddres
     personName: rec.customerName || '',
     phoneNumber: rec.customerPhone || '',
     address1: rec.address.address || '',
+    address2: rec.address.address2 || '',
     city: rec.address.city || '',
     state: (rec.address.state || '').toUpperCase(),
     zip: rec.address.zip || '',

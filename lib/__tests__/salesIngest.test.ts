@@ -144,6 +144,58 @@ describe('salesRecordDataFromPaymentIntent refund handling', () => {
     assert.equal(data.date.toISOString(), '2026-08-04T20:18:00.000Z')
     assert.equal(data.paidAmount, 4950)
   })
+
+  test('prefers invoice shipping over billing and keeps address2', async () => {
+    const invoice = {
+      id: 'in_ronnette',
+      number: '9A9RRPUU-0004',
+      customer_name: 'Ronnette Daulton',
+      customer_email: 'agcagle@hotmail.com',
+      customer_phone: null,
+      customer_address: {
+        line1: '1 Card Billing St',
+        line2: null,
+        city: 'Fresno',
+        state: 'CA',
+        postal_code: '93701',
+        country: 'US',
+      },
+      customer_shipping: {
+        name: 'Ronnette Daulton',
+        address: {
+          line1: '755 N Irwin',
+          line2: null,
+          city: 'Hanford',
+          state: 'CA',
+          postal_code: '93230',
+          country: 'US',
+        },
+      },
+      lines: { data: [] },
+    }
+    const pi = fakePi({ amountCents: 495_000, name: 'Cardholder' })
+    // Billing on charge differs from shipping — must not win.
+    ;(pi.latest_charge as { billing_details: { address: unknown } }).billing_details.address = {
+      line1: '1 Card Billing St',
+      line2: null,
+      city: 'Fresno',
+      state: 'CA',
+      postal_code: '93701',
+      country: 'US',
+    }
+    const data = await salesRecordDataFromPaymentIntent(
+      fakeStripe(invoice),
+      pi,
+      new Map(),
+      undefined
+    )
+    assert.equal(data.address, '755 N Irwin')
+    assert.equal(data.address2, '')
+    assert.equal(data.city, 'Hanford')
+    assert.equal(data.state, 'CA')
+    assert.equal(data.zip, '93230')
+    assert.equal(data.orderRef, '9A9RRPUU-0004')
+  })
 })
 
 describe('summarizeInvoiceLines', () => {

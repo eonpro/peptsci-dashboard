@@ -1050,6 +1050,7 @@ model SalesRecord {
   customerEmail         String    @default("")
   customerPhone         String    @default("")
   address               String    @default("")
+  address2              String    @default("") // suite / apt from Stripe address.line2
   city                  String    @default("")
   state                 String    @default("")
   zip                   String    @default("")

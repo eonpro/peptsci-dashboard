@@ -15,9 +15,18 @@ import { createManualOrder } from '@/lib/orders/create'
 import { resolveOrderCreatorId, NoOrderActorError } from '@/lib/orders/actor'
 import { ManualOrderError } from '@/lib/orders/order-core'
 import { reserveForOrder } from '@/lib/inventory/reservations'
+import { platformAddressFromSalesRecord } from '@/lib/stripe/apply-addresses'
+import { isIncompletePlatformAddress } from '@/lib/stripe/resolve-address'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+/** Order ship-to: canonical Address + optional recipient fields for FedEx. */
+const orderShippingSchema = addressSchema.extend({
+  name: z.string().trim().max(200).optional(),
+  phone: z.string().trim().max(40).optional(),
+  company: z.string().trim().max(200).optional(),
+})
 
 const bodySchema = z.object({
   salesRecordId: z.string().trim().min(1),
@@ -34,7 +43,7 @@ const bodySchema = z.object({
     .min(1, 'Map at least one product'),
   shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
   shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
-  shippingAddress: addressSchema.optional(),
+  shippingAddress: orderShippingSchema.optional(),
   notes: z.string().trim().max(2000).optional(),
 })
 
@@ -74,6 +83,13 @@ export async function POST(request: NextRequest) {
         stripePaymentIntentId: true,
         date: true,
         paidAmount: true,
+        address: true,
+        address2: true,
+        city: true,
+        state: true,
+        zip: true,
+        customerName: true,
+        customerPhone: true,
       },
     })
     if (!record) return errorResponse('Sales record not found', 404, 'NOT_FOUND')
@@ -91,6 +107,23 @@ export async function POST(request: NextRequest) {
       if (existing) return errorResponse('An order already exists for this payment', 409, 'ORDER_EXISTS')
     }
 
+    const client = await prisma.client.findUnique({
+      where: { id: input.clientId },
+      select: { id: true, shippingAddress: true, billingAddress: true },
+    })
+    if (!client) return errorResponse('Client not found', 404, 'CLIENT_NOT_FOUND')
+
+    // Prefer body shippingAddress; fall back to SalesRecord flat columns (Stripe ingest).
+    const fromRecord = platformAddressFromSalesRecord(record)
+    const shippingAddress = input.shippingAddress
+      ? {
+          ...input.shippingAddress,
+          ...(input.shippingAddress.address2 ? {} : fromRecord?.address2 ? { address2: fromRecord.address2 } : {}),
+          ...(!input.shippingAddress.name && fromRecord?.name ? { name: fromRecord.name } : {}),
+          ...(!input.shippingAddress.phone && fromRecord?.phone ? { phone: fromRecord.phone } : {}),
+        }
+      : fromRecord
+
     const createdById = await resolveOrderCreatorId(userId)
 
     const order = await createManualOrder({
@@ -99,8 +132,8 @@ export async function POST(request: NextRequest) {
       lines: input.lines,
       shipTo: input.shipTo,
       shipSpeed: input.shipSpeed,
-      shippingAddress: input.shippingAddress
-        ? (input.shippingAddress as unknown as Prisma.InputJsonValue)
+      shippingAddress: shippingAddress
+        ? (shippingAddress as unknown as Prisma.InputJsonValue)
         : null,
       notes: input.notes ?? null,
       createdById,
@@ -120,6 +153,28 @@ export async function POST(request: NextRequest) {
       where: { id: record.id },
       data: { orderId: order.id, trackingNumber: '' },
     })
+
+    // Seed Client shipping/billing when empty so invoices + later labels have an address.
+    if (shippingAddress) {
+      const coreAddr = {
+        address1: shippingAddress.address1,
+        ...(shippingAddress.address2 ? { address2: shippingAddress.address2 } : {}),
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        zip: shippingAddress.zip,
+        country: shippingAddress.country || 'US',
+      }
+      const clientPatch: Prisma.ClientUpdateInput = {}
+      if (isIncompletePlatformAddress(client.shippingAddress)) {
+        clientPatch.shippingAddress = coreAddr as unknown as Prisma.InputJsonValue
+      }
+      if (isIncompletePlatformAddress(client.billingAddress)) {
+        clientPatch.billingAddress = coreAddr as unknown as Prisma.InputJsonValue
+      }
+      if (Object.keys(clientPatch).length > 0) {
+        await prisma.client.update({ where: { id: client.id }, data: clientPatch })
+      }
+    }
 
     // Payment was captured externally, so reconcile never runs — reserve here.
     await reserveForOrder(order.id).catch((e) =>

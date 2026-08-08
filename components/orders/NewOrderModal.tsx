@@ -264,6 +264,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
     setError(null)
     if (!clientId) return setError('Select a client')
     if (lines.length === 0) return setError('Add at least one product')
+    if (lines.some((l) => l.quantity < 1)) return setError('Each line needs a quantity of at least 1')
     setSubmitting(true)
     try {
       const res = await fetch('/api/admin/orders', {
@@ -449,8 +450,19 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
                       <input
                         type="number"
                         min={1}
-                        value={l.quantity}
-                        onChange={(e) => updateLine(l.variantId, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                        value={l.quantity || ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            updateLine(l.variantId, { quantity: 0 })
+                            return
+                          }
+                          const n = Number.parseInt(raw, 10)
+                          if (!Number.isNaN(n)) updateLine(l.variantId, { quantity: Math.max(0, n) })
+                        }}
+                        onBlur={() => {
+                          if (l.quantity < 1) updateLine(l.variantId, { quantity: 1 })
+                        }}
                         className={`w-16 ${inputCls}`}
                         aria-label="Quantity"
                       />

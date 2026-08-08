@@ -1,4 +1,74 @@
-# Convert Stripe: Map products hides in-stock SKUs (Aug 8, 2026)  [EXECUTOR — FIXED]
+# Stripe address sync + platform invoicing (Aug 8, 2026)  [EXECUTOR — PHASE 1 DONE]
+
+## Background and Motivation
+Stripe had ship-to on invoices; PeptSci FedEx / Order / Client did not. Owner chose **B** (platform Invoices only).
+
+## Key Challenges and Analysis
+Ingest used billing only; convert skipped Client; Order #199 already converted empty.
+
+## High-level Task Breakdown
+### Phase 1 — Address fidelity
+1. [x] `lib/stripe/resolve-address.ts` — shipping preferred over billing; line2; completeness helpers
+2. [x] `sales-ingest` writes address + address2 from preferred ship-to
+3. [x] SalesRecord.`address2` migration `20260808143000_sales_record_address2`
+4. [x] stripe-queue / ConvertStripeModal / FedEx prefill include address2 + name/phone
+5. [x] stripe-convert writes Order.shippingAddress + seeds Client shipping/billing when empty
+6. [x] `POST /api/admin/fulfillment/refresh-stripe-address` for Order #199 backfill
+7. [x] Unit tests (`stripeAddress.test.ts` + salesIngest shipping preference)
+
+### Phase 2 — Platform invoices (B)
+5. [ ] Confirm invoice PDF bill-to uses Client.billingAddress (seeded by Phase 1)
+6. [ ] Owner: apply prod migration + refresh Order #199
+7. [x] No Stripe-hosted invoice creation
+
+## Project Status Board
+- [x] Phase 1 code + local migration applied
+- [ ] Deploy to main / prod migration
+- [ ] Owner: `POST refresh-stripe-address` `{ "orderNumber": 199, "force": true }`
+- [ ] Phase 2 invoice polish if PDF still wrong after Client seed
+
+## Executor's Feedback or Assistance Requests
+**Prod after deploy:**
+1. Apply migration `20260808143000_sales_record_address2` (Settings → Database schema, or migrate API).
+2. Signed-in admin: `POST /api/admin/fulfillment/refresh-stripe-address` with `{ "orderNumber": 199, "force": true }` — pulls 755 N Irwin onto Order + Client.
+3. Hard-refresh Fulfillment → Create Label on #199 — destination should prefill.
+4. New Stripe converts will carry address automatically; re-ingest/backfill refreshes queue rows.
+
+Invoices: use existing **Billing → Invoices**; Client.billingAddress is now filled on convert/refresh so PDF bill-to works once Client is seeded.
+
+## Lessons
+- Prefer `invoice.customer_shipping` before charge billing_details.
+- Persist recipient name/phone on Order.shippingAddress JSON — FedEx reopen does not use SalesRecord.
+
+---
+
+# Convert Stripe: quantity field can't clear "1" (Aug 8, 2026)  [EXECUTOR — FIXED]
+
+## Background and Motivation
+Owner converting Stripe payment could not edit quantity: with `1` in the field, backspace/delete did nothing and typing appended (e.g. `15` instead of `5`).
+
+## Key Challenges and Analysis
+- `ConvertStripeModal` / `NewOrderModal` used `Math.max(1, parseInt(value) || 1)` on every keystroke.
+- Empty input coerced back to `1` immediately, so the digit could never be cleared.
+
+## High-level Task Breakdown
+1. [x] Allow empty draft (`quantity: 0` → input shows `''`) while typing
+2. [x] Clamp to ≥1 on blur; block submit if any line qty < 1
+3. [x] Same fix in New Order modal
+
+## Project Status Board
+- [x] Root cause confirmed
+- [x] ConvertStripeModal + NewOrderModal fixed
+- [ ] Deploy / owner retest: clear qty `1`, type `35` (or desired vial count)
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Fulfillment → Convert → Map products qty field: delete the `1`, type the real quantity. Blurring an empty field restores `1`.
+
+## Lessons
+- Controlled number inputs must allow empty intermediate state; never force `|| min` inside `onChange`.
+
+---
+
 
 ## Background and Motivation
 Owner converting Ronnette Daulton Stripe payment ($4,950, "Tirzepatide 60mg +1 more") cannot find Tirzepatide 60mg in Map products — search "tirzepatide" only shows zero-stock doses (10–45mg).
@@ -17,10 +87,11 @@ Owner converting Ronnette Daulton Stripe payment ($4,950, "Tirzepatide 60mg +1 m
 - [x] Root cause confirmed from UI + code
 - [x] Helper + tests (`lib/catalog-variant-picker.ts`)
 - [x] ConvertStripeModal + NewOrderModal updated
-- [ ] Deploy / owner retest: open convert → expect "Tirzepatide 60mg" prefilled and in-stock 60mg at top
+- [x] Deployed `b8b6992` → main → peptsci.com `/api/health` version `b8b6992`
+- [ ] Owner retest: open convert → expect "Tirzepatide 60mg" prefilled and in-stock 60mg at top
 
 ## Executor's Feedback or Assistance Requests
-After deploy: hard-refresh Fulfillment → convert Ronnette row → Map products should list 60mg (with avail) first when stock > 0. If 60mg still missing entirely, it is not an ACTIVE catalog variant (Catalog issue, not picker).
+Live on peptsci.com. Hard-refresh Fulfillment → convert Ronnette row → Map products should list 60mg (with avail) first when stock > 0. If 60mg still missing entirely, it is not an ACTIVE catalog variant (Catalog issue, not picker).
 
 ## Lessons
 - Never hard-cap typeahead results on lexicographic dose order without ranking in-stock first; peptide catalogs have long dose families.

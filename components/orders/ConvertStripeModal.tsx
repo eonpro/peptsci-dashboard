@@ -30,7 +30,7 @@ export type StripeQueueRecord = {
   customerName: string
   customerEmail: string
   customerPhone: string
-  address: { address: string; city: string; state: string; zip: string }
+  address: { address: string; address2?: string; city: string; state: string; zip: string }
   product: string
   vials: number
   paidAmount: number
@@ -228,6 +228,33 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
           contactName: newClient.contactName.trim() || undefined,
           contactEmail: newClient.contactEmail.trim() || undefined,
           contactPhone: newClient.contactPhone.trim() || undefined,
+          ...(record?.address.address &&
+          record.address.city &&
+          record.address.state &&
+          record.address.zip
+            ? {
+                shippingAddress: {
+                  address1: record.address.address,
+                  ...(record.address.address2?.trim()
+                    ? { address2: record.address.address2.trim() }
+                    : {}),
+                  city: record.address.city,
+                  state: record.address.state,
+                  zip: record.address.zip,
+                  country: 'US',
+                },
+                billingAddress: {
+                  address1: record.address.address,
+                  ...(record.address.address2?.trim()
+                    ? { address2: record.address.address2.trim() }
+                    : {}),
+                  city: record.address.city,
+                  state: record.address.state,
+                  zip: record.address.zip,
+                  country: 'US',
+                },
+              }
+            : {}),
         }),
       })
       const data = await res.json()
@@ -241,19 +268,30 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
     } finally {
       setSavingClient(false)
     }
-  }, [newClient])
+  }, [newClient, record])
 
   const handleSubmit = async () => {
     if (!record) return
     setError(null)
     if (!clientId) return setError('Select a customer')
     if (lines.length === 0) return setError('Map at least one product')
+    if (lines.some((l) => l.quantity < 1)) return setError('Each line needs a quantity of at least 1')
     setSubmitting(true)
     try {
       const addr = record.address
-      const shippingAddress = addr.address && addr.city && addr.state && addr.zip
-        ? { address1: addr.address, city: addr.city, state: addr.state, zip: addr.zip }
-        : undefined
+      const shippingAddress =
+        addr.address && addr.city && addr.state && addr.zip
+          ? {
+              address1: addr.address,
+              ...(addr.address2?.trim() ? { address2: addr.address2.trim() } : {}),
+              city: addr.city,
+              state: addr.state,
+              zip: addr.zip,
+              country: 'US',
+              ...(record.customerName?.trim() ? { name: record.customerName.trim() } : {}),
+              ...(record.customerPhone?.trim() ? { phone: record.customerPhone.trim() } : {}),
+            }
+          : undefined
       const res = await fetch('/api/admin/fulfillment/stripe-convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -402,7 +440,25 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                             : ''}
                         </p>
                       </div>
-                      <input type="number" min={1} value={l.quantity} onChange={(e) => updateLine(l.variantId, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} className={`w-16 ${inputCls}`} aria-label="Quantity" />
+                      <input
+                        type="number"
+                        min={1}
+                        value={l.quantity || ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            updateLine(l.variantId, { quantity: 0 })
+                            return
+                          }
+                          const n = Number.parseInt(raw, 10)
+                          if (!Number.isNaN(n)) updateLine(l.variantId, { quantity: Math.max(0, n) })
+                        }}
+                        onBlur={() => {
+                          if (l.quantity < 1) updateLine(l.variantId, { quantity: 1 })
+                        }}
+                        className={`w-16 ${inputCls}`}
+                        aria-label="Quantity"
+                      />
                       <div className="relative">
                         <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">$</span>
                         <input type="number" min={0} step={0.01} value={l.unitPrice} onChange={(e) => updateLine(l.variantId, { unitPrice: Math.max(0, parseFloat(e.target.value) || 0) })} className={`w-24 pl-5 ${inputCls}`} aria-label="Unit price" />

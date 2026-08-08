@@ -16,6 +16,11 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { buildCostLookup, estimateUnitCost } from '../sales'
+import {
+  preferredShipAddress,
+  resolveStripeAddresses,
+  salesRecordAddressFields,
+} from './resolve-address'
 
 export function chargeFrom(pi: Stripe.PaymentIntent): Stripe.Charge | null {
   const latest = pi.latest_charge
@@ -146,7 +151,12 @@ export async function salesRecordDataFromPaymentIntent(
   const invoice = await invoiceForPaymentIntent(stripe, pi.id, requestOptions)
   const lines = summarizeInvoiceLines(invoice, costLookup)
 
-  const address = billing?.address || customer?.address || invoice?.customer_address
+  // Prefer Stripe shipping (invoice / PI / charge / customer) over billing so
+  // FedEx destinations match the ship-to on the hosted invoice.
+  const resolved = resolveStripeAddresses({ pi, charge, customer, invoice })
+  const shipAddr = preferredShipAddress(resolved)
+  const addrFields = salesRecordAddressFields(shipAddr)
+
   const vials = lines.quantity
   const grossCogs = lines.cogs ?? grossAmount * 0.35
   const cogs = grossCogs * netFraction
@@ -178,11 +188,23 @@ export async function salesRecordDataFromPaymentIntent(
   // sales in the wrong MTD month (e.g. July date for an August capture).
   const paidAtUnix = charge?.created || pi.created
 
+  const shippingName =
+    invoice?.customer_shipping?.name ||
+    pi.shipping?.name ||
+    charge?.shipping?.name ||
+    customer?.shipping?.name ||
+    ''
+
   return {
     date: new Date(paidAtUnix * 1000),
     orderRef: invoice?.number || pi.id,
     customerName:
-      billing?.name || customer?.name || invoice?.customer_name || pi.metadata?.customerName || '',
+      billing?.name ||
+      shippingName ||
+      customer?.name ||
+      invoice?.customer_name ||
+      pi.metadata?.customerName ||
+      '',
     customerEmail:
       billing?.email ||
       customer?.email ||
@@ -190,11 +212,19 @@ export async function salesRecordDataFromPaymentIntent(
       charge?.receipt_email ||
       pi.metadata?.customerEmail ||
       '',
-    customerPhone: billing?.phone || customer?.phone || invoice?.customer_phone || '',
-    address: address?.line1 || '',
-    city: address?.city || '',
-    state: address?.state || '',
-    zip: address?.postal_code || '',
+    customerPhone:
+      billing?.phone ||
+      customer?.phone ||
+      invoice?.customer_phone ||
+      pi.shipping?.phone ||
+      charge?.shipping?.phone ||
+      customer?.shipping?.phone ||
+      '',
+    address: addrFields.address,
+    address2: addrFields.address2,
+    city: addrFields.city,
+    state: addrFields.state,
+    zip: addrFields.zip,
     trackingNumber: '',
     invoicePaid: true,
     paidAmount,
