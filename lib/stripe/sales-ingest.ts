@@ -173,8 +173,13 @@ export async function salesRecordDataFromPaymentIntent(
         : ` — refunded $${refundedAmount.toFixed(2)}`
       : ''
 
+  // Prefer charge.created (when money moved). Invoice PaymentIntents are often
+  // created days/weeks earlier at finalize time — using pi.created parks those
+  // sales in the wrong MTD month (e.g. July date for an August capture).
+  const paidAtUnix = charge?.created || pi.created
+
   return {
-    date: new Date(pi.created * 1000),
+    date: new Date(paidAtUnix * 1000),
     orderRef: invoice?.number || pi.id,
     customerName:
       billing?.name || customer?.name || invoice?.customer_name || pi.metadata?.customerName || '',

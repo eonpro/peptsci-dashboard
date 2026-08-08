@@ -21,10 +21,14 @@ function fakePi(opts: {
   refundedCents?: number
   name?: string
   email?: string
+  piCreated?: number
+  chargeCreated?: number
 }): Stripe.PaymentIntent {
+  const piCreated = opts.piCreated ?? 1_750_000_000
+  const chargeCreated = opts.chargeCreated ?? piCreated
   return {
     id: 'pi_test_1',
-    created: 1750000000,
+    created: piCreated,
     amount: opts.amountCents,
     amount_received: opts.amountCents,
     status: 'succeeded',
@@ -32,6 +36,7 @@ function fakePi(opts: {
     customer: null,
     latest_charge: {
       id: 'ch_test_1',
+      created: chargeCreated,
       amount: opts.amountCents,
       amount_refunded: opts.refundedCents ?? 0,
       billing_details: {
@@ -125,6 +130,19 @@ describe('salesRecordDataFromPaymentIntent refund handling', () => {
     ])
     assert.match(data.notes, /invoice ERVJH84E-0042/)
     assert.match(data.notes, /refunded \$200\.00/)
+  })
+
+  test('date uses charge.created (paid time), not pi.created (invoice finalize)', async () => {
+    const piCreated = Math.floor(Date.parse('2026-07-20T12:00:00Z') / 1000)
+    const chargeCreated = Math.floor(Date.parse('2026-08-04T20:18:00Z') / 1000)
+    const data = await salesRecordDataFromPaymentIntent(
+      fakeStripe(),
+      fakePi({ amountCents: 495_000, piCreated, chargeCreated }),
+      new Map(),
+      undefined
+    )
+    assert.equal(data.date.toISOString(), '2026-08-04T20:18:00.000Z')
+    assert.equal(data.paidAmount, 4950)
   })
 })
 

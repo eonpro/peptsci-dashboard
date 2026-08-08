@@ -97,8 +97,9 @@ export function StripeGapRepairButton() {
           <DialogHeader>
             <DialogTitle className="text-white">Repair missing Stripe sales</DialogTitle>
             <DialogDescription className="text-white/60">
-              Pulls every PaymentIntent created this month on the connected account and writes /
-              fixes SalesRecords. Shows each August PI so we can see succeeded vs missing.
+              Pulls every Charge paid this month on the connected account (not PaymentIntent
+              created date — invoice PIs are often older) and writes / fixes SalesRecords with the
+              paid date.
             </DialogDescription>
           </DialogHeader>
 
@@ -153,7 +154,7 @@ export function StripeGapRepairButton() {
               {(result.monthPiSample?.length ?? 0) > 0 ? (
                 <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs space-y-1 max-h-56 overflow-auto">
                   <p className="text-white/50 uppercase tracking-wide mb-1">
-                    This month&apos;s PaymentIntents
+                    This month&apos;s charges (paid time)
                   </p>
                   {(result.monthPiSample ?? []).map((s) => (
                     <div key={s.paymentIntentId} className="text-white/80 font-mono">
@@ -169,8 +170,8 @@ export function StripeGapRepairButton() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                  No PaymentIntents found for {result.thisMonth ?? 'this month'} on this connected
-                  account. The Aug 4 charge may be on a different Stripe account than{' '}
+                  No charges found for {result.thisMonth ?? 'this month'} on this connected account.
+                  The Aug 4 payment may be on a different Stripe account than{' '}
                   <span className="font-mono text-xs">{result.connectedAccountId}</span>.
                 </div>
               )}
