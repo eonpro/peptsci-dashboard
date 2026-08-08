@@ -49,6 +49,11 @@ export interface CreateManualOrderParams {
    * never diverge from what the customer actually paid.
    */
   expectedTotal?: number | null
+  /** Shopify white-label fulfillment linkage. */
+  shopifyConnectionId?: string | null
+  shopifyOrderId?: string | null
+  shopifyOrderName?: string | null
+  shopifyFulfillmentOrderId?: string | null
 }
 
 export interface CreateManualOrderResult {
@@ -154,6 +159,10 @@ export async function createManualOrder(
       stripeChargeId: params.stripeChargeId ?? null,
       paidAt: params.paidAt ?? null,
       submittedAt: (params.status ?? 'SUBMITTED') !== 'DRAFT' ? new Date() : null,
+      shopifyConnectionId: params.shopifyConnectionId ?? null,
+      shopifyOrderId: params.shopifyOrderId ?? null,
+      shopifyOrderName: params.shopifyOrderName ?? null,
+      shopifyFulfillmentOrderId: params.shopifyFulfillmentOrderId ?? null,
       items: {
         create: resolvedLines.map((l) => ({
           variantId: l.variantId,

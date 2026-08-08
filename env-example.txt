@@ -222,3 +222,11 @@ CRON_SECRET=""
 EXPIRING_BATCH_WINDOW_DAYS="60"
 # Recipients for the weekly BI summary email (comma-separated). No-op when unset.
 REPORT_EMAIL_TO=""
+
+# ===========================================
+# SHOPIFY (per-client Custom App fulfillment)
+# ===========================================
+# AES key for encrypting Admin API tokens + webhook secrets at rest.
+# Prefer 64 hex chars (`openssl rand -hex 32`). Any non-empty string is
+# SHA-256-hashed to 32 bytes if not hex.
+SHOPIFY_TOKEN_ENCRYPTION_KEY=""

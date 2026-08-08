@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           orderNumber: true,
+          source: true,
+          shopifyOrderName: true,
           status: true,
           paymentStatus: true,
           shippingStatus: true,
@@ -85,6 +87,8 @@ export async function GET(request: NextRequest) {
     const data = orders.map((o) => ({
       id: o.id,
       orderNumber: o.orderNumber,
+      source: o.source,
+      shopifyOrderName: o.shopifyOrderName,
       status: o.status,
       paymentStatus: o.paymentStatus,
       shippingStatus: o.shippingStatus,

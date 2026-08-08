@@ -111,10 +111,59 @@ model Client {
   matchedPartnerLeads   PartnerLead[]
   backInStockSubs       BackInStockSubscription[]
   supportTickets        SupportTicket[]
+  shopifyConnection     ShopifyConnection?
 
   @@index([partnerOrgId])
   @@index([partnerRepId])
   @@index([referredByClientId])
+}
+
+// -------------------------------------------------
+// Shopify Custom App connection (per-client white-label fulfillment).
+// Shopify collects retail payment; PeptSci fulfills and pushes tracking back.
+// -------------------------------------------------
+
+enum ShopifyConnectionStatus {
+  ACTIVE
+  DISABLED
+}
+
+model ShopifyConnection {
+  id            String                  @id @default(cuid())
+  client        Client                  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId      String                  @unique
+  shopDomain    String // e.g. client.myshopify.com
+  // AES-256-GCM ciphertext (iv:tag:ciphertext hex). See lib/shopify/crypto.ts.
+  accessToken   String
+  webhookSecret String
+  apiVersion    String                  @default("2025-07")
+  status        ShopifyConnectionStatus @default(ACTIVE)
+  lastWebhookAt DateTime?
+  lastError     String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  mappings      ShopifyVariantMapping[]
+  orders        Order[]
+
+  @@index([shopDomain])
+  @@index([status])
+}
+
+model ShopifyVariantMapping {
+  id               String            @id @default(cuid())
+  connection       ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId     String
+  shopifyVariantId String // numeric id or gid://shopify/ProductVariant/...
+  shopifySku       String?
+  shopifyTitle     String?
+  variant          ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId        String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([connectionId, shopifyVariantId])
+  @@index([variantId])
+  @@index([shopifySku])
 }
 
 // -------------------------------------------------
@@ -577,6 +626,7 @@ model ProductVariant {
   partnerOrgPricing  PartnerOrgPricing[]
   coas               ProductCoa[]
   backInStockSubs    BackInStockSubscription[]
+  shopifyMappings    ShopifyVariantMapping[]
 
   @@index([status])
   @@index([productId])
@@ -831,6 +881,13 @@ model Order {
   fulfillment           OrderFulfillment?
   invoiceLineItems      InvoiceLineItem[]
   creditEntries         ClientCreditEntry[]
+  // Shopify white-label fulfillment (source SHOPIFY).
+  shopifyConnection     ShopifyConnection?     @relation(fields: [shopifyConnectionId], references: [id], onDelete: SetNull)
+  shopifyConnectionId   String?
+  shopifyOrderId        String? // Shopify order GID or numeric id as string
+  shopifyOrderName      String? // e.g. "#1042"
+  shopifyFulfillmentOrderId String?
+  shopifyFulfillmentId  String?
 
   @@index([clientId])
   @@index([stripePaymentIntentId])
@@ -839,6 +896,9 @@ model Order {
   @@index([createdAt])
   @@index([stripeChargeId])
   @@index([clientId, status, createdAt])
+  @@unique([clientId, shopifyOrderId])
+  @@index([shopifyConnectionId])
+  @@index([shopifyOrderId])
 }
 
 model OrderItem {
@@ -2034,6 +2094,7 @@ enum OrderSource {
   DIRECT
   STOREFRONT
   STRIPE_INVOICE
+  SHOPIFY
 }
 
 enum ShipTo {

@@ -19,6 +19,7 @@ import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
 import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
+import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
 import {
   ArrowLeft,
   Building2,
@@ -541,6 +542,7 @@ export default function ClientDetailPage() {
       {/* Partner attribution — manual attach for clinics that signed up
           directly but came from a partner (no referral link used). */}
       <ClientPartnerCard clientId={id} />
+      <ClientShopifyCard clientId={id} />
 
       {/* Linked users */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">

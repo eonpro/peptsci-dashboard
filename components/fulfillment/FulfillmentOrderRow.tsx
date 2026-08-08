@@ -31,6 +31,8 @@ type StoredAddress = Record<string, unknown> | null
 export type OrderRow = {
   id: string
   orderNumber: number
+  source?: string
+  shopifyOrderName?: string | null
   status: string
   paymentStatus: string
   shippingStatus: string | null
@@ -142,6 +144,15 @@ export function FulfillmentOrderRow({
             <Badge variant="outline" className="text-xs">
               {order.status}
             </Badge>
+            {order.source === 'SHOPIFY' && (
+              <Badge
+                variant="outline"
+                className="border-violet-400/40 text-xs text-violet-300"
+                title={order.shopifyOrderName || undefined}
+              >
+                Shopify{order.shopifyOrderName ? ` ${order.shopifyOrderName}` : ''}
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-xs ${payment.className}`}>
               {payment.label}
             </Badge>

@@ -35,6 +35,7 @@ import {
 import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
+import { pushShopifyTrackingAsync } from '@/lib/shopify/fulfillment-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -414,6 +415,9 @@ export async function POST(request: NextRequest) {
         })
       )
     }
+
+    // Shopify white-label: push tracking to the merchant store (non-blocking).
+    pushShopifyTrackingAsync(order?.id)
 
     return successResponse({
       id: label.id,

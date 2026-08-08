@@ -20,6 +20,7 @@ import {
 import { sendOrderShippedEmail, sendOrderDeliveredEmail } from '@/lib/email'
 import { sendOrderShippedSms, sendOrderDeliveredSms } from '@/lib/sms'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
+import { pushShopifyTrackingAsync } from '@/lib/shopify/fulfillment-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -288,6 +289,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       carrier,
       trackingNumber,
     })
+
+    if (trackingNumber) {
+      pushShopifyTrackingAsync(order.id)
+    }
 
     return successResponse({
       id: order.id,
