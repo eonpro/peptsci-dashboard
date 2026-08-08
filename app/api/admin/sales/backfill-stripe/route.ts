@@ -11,7 +11,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/stripe/config'
-import { connectRequestOptions } from '@/lib/stripe/connect'
+import { connectRequestOptions, getConnectedAccountId } from '@/lib/stripe/connect'
 import { buildCostLookup, syncSalesRecordFromOrder } from '@/lib/sales'
 import { salesRecordDataFromPaymentIntent } from '@/lib/stripe/sales-ingest'
 
@@ -92,6 +92,9 @@ export async function POST(request: NextRequest) {
     const maxScan = parsed.data.maxScan ?? 2000
 
     const summary = {
+      connectedAccountId: getConnectedAccountId() ?? null,
+      gte: gte ?? null,
+      lte: lte ?? null,
       scanned: 0,
       created: 0,
       updated: 0,
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
       syncedFromOrder: 0,
       failed: 0,
       failedSamples: [] as Array<{ paymentIntentId: string; error: string }>,
+      sampleSucceeded: [] as Array<{ id: string; amount: number; created: string }>,
     }
 
     const requestOptions = connectRequestOptions()
@@ -151,6 +155,13 @@ export async function POST(request: NextRequest) {
             summary.skippedUnpaid++
             continue
           }
+          if (summary.sampleSucceeded.length < 10) {
+            summary.sampleSucceeded.push({
+              id: pi.id,
+              amount: (pi.amount_received || pi.amount || 0) / 100,
+              created: new Date(pi.created * 1000).toISOString(),
+            })
+          }
           if (pi.metadata?.source === 'connect_test') {
             summary.skippedTest++
             continue
@@ -191,14 +202,20 @@ export async function POST(request: NextRequest) {
 
           const data = await salesRecordDataFromPaymentIntent(stripe, pi, costLookup, requestOptions)
 
-          const res = await prisma.salesRecord.upsert({
+          const existing = await prisma.salesRecord.findUnique({
             where: { stripePaymentIntentId: pi.id },
-            create: { stripePaymentIntentId: pi.id, ...data },
-            update: data,
+            select: { id: true },
           })
+          if (existing) {
+            await prisma.salesRecord.update({ where: { id: existing.id }, data })
+            summary.updated++
+          } else {
+            await prisma.salesRecord.create({
+              data: { stripePaymentIntentId: pi.id, ...data },
+            })
+            summary.created++
+          }
           salePiSet.add(pi.id)
-          if (res.createdAt.getTime() === res.updatedAt.getTime()) summary.created++
-          else summary.updated++
         } catch (rowErr) {
           summary.failed++
           const error = rowErr instanceof Error ? rowErr.message : String(rowErr)
@@ -216,6 +233,7 @@ export async function POST(request: NextRequest) {
       startingAfter = page.data[page.data.length - 1]?.id
     }
 
+    console.log('[STRIPE BACKFILL]', JSON.stringify({ by: userId, ...summary }))
     logger.info('Stripe sales backfill completed', { by: userId, ...summary })
     return successResponse(summary)
   } catch (error) {

@@ -16,6 +16,9 @@ import {
 import { CreditCard, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 interface BackfillSummary {
+  connectedAccountId?: string | null
+  gte?: number | null
+  lte?: number | null
   scanned: number
   created: number
   updated: number
@@ -26,6 +29,7 @@ interface BackfillSummary {
   skippedUnpaid: number
   failed: number
   failedSamples?: Array<{ paymentIntentId: string; error: string }>
+  sampleSucceeded?: Array<{ id: string; amount: number; created: string }>
 }
 
 /** Admin "Backfill from Stripe" button — ingests historical succeeded PIs. */
@@ -108,6 +112,12 @@ export function StripeBackfillButton() {
                 </span>
               </div>
               <ul className="text-sm text-white/60 space-y-1">
+                <li>
+                  Account:{' '}
+                  <span className="font-mono text-xs text-white/80">
+                    {result.connectedAccountId ?? 'none'}
+                  </span>
+                </li>
                 <li>Scanned: {result.scanned}</li>
                 <li>Already in sales: {result.skippedExisting ?? 0}</li>
                 <li>Synced from linked order: {result.syncedFromOrder ?? 0}</li>
@@ -117,6 +127,12 @@ export function StripeBackfillButton() {
                   <li className="text-amber-300/80 text-xs break-all">
                     e.g. {result.failedSamples![0].paymentIntentId}:{' '}
                     {result.failedSamples![0].error}
+                  </li>
+                )}
+                {(result.sampleSucceeded?.length ?? 0) > 0 && (
+                  <li className="text-xs text-white/50">
+                    Sample succeeded: {result.sampleSucceeded![0].created.slice(0, 10)} $
+                    {result.sampleSucceeded![0].amount.toFixed(2)}
                   </li>
                 )}
               </ul>

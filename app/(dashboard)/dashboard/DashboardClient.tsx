@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { SalesImportButton } from '@/components/admin/SalesImportButton'
 import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
+import { StripeGapRepairButton } from '@/components/admin/StripeGapRepairButton'
 import { OrdersBackfillButton } from '@/components/admin/OrdersBackfillButton'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -231,6 +232,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
           <SalesImportButton />
           <OrdersBackfillButton />
           <StripeBackfillButton />
+          <StripeGapRepairButton />
         </div>
       )}
 
