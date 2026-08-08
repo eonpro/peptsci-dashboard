@@ -1,3 +1,32 @@
+# Convert Stripe: Map products hides in-stock SKUs (Aug 8, 2026)  [EXECUTOR — FIXED]
+
+## Background and Motivation
+Owner converting Ronnette Daulton Stripe payment ($4,950, "Tirzepatide 60mg +1 more") cannot find Tirzepatide 60mg in Map products — search "tirzepatide" only shows zero-stock doses (10–45mg).
+
+## Key Challenges and Analysis
+- `ConvertStripeModal` / `NewOrderModal` filtered client-side then **`.slice(0, 8)`** in API dose-string order.
+- Tirzepatide families routinely have 9+ ACTIVE variants; 60mg sorts after 10/15/20/30/40/45/5/50 and was **dropped from the dropdown**.
+- Whole-string `includes(q)` also failed for queries like `"tirzepatide 60"`.
+
+## High-level Task Breakdown
+1. [x] Shared `filterCatalogVariantsForPicker` — token match, in-stock first, numeric dose, limit 25
+2. [x] Wire both order modals; seed Convert search from Stripe description (strip `+N more`)
+3. [x] Unit tests covering the Ronnette / 60mg burial case
+
+## Project Status Board
+- [x] Root cause confirmed from UI + code
+- [x] Helper + tests (`lib/catalog-variant-picker.ts`)
+- [x] ConvertStripeModal + NewOrderModal updated
+- [ ] Deploy / owner retest: open convert → expect "Tirzepatide 60mg" prefilled and in-stock 60mg at top
+
+## Executor's Feedback or Assistance Requests
+After deploy: hard-refresh Fulfillment → convert Ronnette row → Map products should list 60mg (with avail) first when stock > 0. If 60mg still missing entirely, it is not an ACTIVE catalog variant (Catalog issue, not picker).
+
+## Lessons
+- Never hard-cap typeahead results on lexicographic dose order without ranking in-stock first; peptide catalogs have long dose families.
+
+---
+
 # Stripe transactions not updating platform (Aug 7, 2026)  [PLANNER — INVESTIGATING]
 
 ## Background and Motivation
@@ -22,12 +51,16 @@ Owner reports Stripe transactions seem not updating peptsci.com right now.
 - [x] Owner showed PeptSci `/settings/webhooks` Failed tab — **25 ERROR rows, all Jun 10–17**, historical schema gap (not live outage)
 - [x] Owner evidence: Aug 4 $4,950 Como RX SUCCESS webhook + Stripe payment, dashboard August still **$0** / 0 orders — SalesRecord never landed despite WebhookEvent SUCCESS (55s processing)
 - [x] Fix (local): webhook processor — only intercept `metadata.invoiceId` when a platform Invoice exists; safety-net ensure SalesRecord for succeeded external PIs; webhook `maxDuration=120`; MTD KPIs use `nyMonthKey`
-- [ ] Owner: **Backfill from Stripe** start `2026-08-01` end `2026-08-08` (or blank end) to pull the $4,950 into Sales immediately
-- [ ] Deploy webhook fix to main so future invoice payments can't ack SUCCESS without a SalesRecord
-- [ ] Optional: Retry Aug 4 webhook from DLQ isn't needed (it's SUCCESS); backfill is the catch-up
+- [x] Root cause for "still not showing" after backfill: backfill **skipped any PI linked to an Order**, even when no SalesRecord existed; reconcile also hid those as "known"
+- [x] Fix shipped `52814a0` → main: backfill syncs/ingests order-linked gaps; reconcile only counts SalesRecords; webhook ensure broader
+- [x] Repair “newest 200” missed August: samples were July 30; August stayed `$0 → $0` / 0 added
+- [x] Fix shipped `45f7fc2` → main: **Repair Stripe gap** scans `created >= month-start` and lists every August PI (status / db / action)
+- [x] Owner re-ran month PI repair: **Succeeded this month: 0**, only unpaid $120 Aug PI — invoice PIs created before Aug missed; SalesRecord also dated by `pi.created`
+- [x] Fix shipped: ingest + repair use **charge.created** (paid time); repair lists August charges
+- [ ] Owner: hard-refresh → **Repair Stripe gap** again — expect Aug 4 $4,950 in charge list and August `$0 → $4,950`
 
 ## Executor's Feedback or Assistance Requests
-Immediate owner action: Dashboard → tools → **Backfill from Stripe** with start date Aug 1. That imports `pi` for the $4,950. Deploy the webhook harden after.
+Month-PI scan proved zero August succeeded PIs by created date. Root cause: invoice PI created earlier + SalesRecord.date = pi.created. Charge-based repair should surface and redate the $4,950.
 
 ---
 

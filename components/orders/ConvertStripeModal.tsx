@@ -13,6 +13,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { computeCartTotals } from '@/lib/checkout-core'
+import {
+  filterCatalogVariantsForPicker,
+  suggestProductQueryFromDescription,
+} from '@/lib/catalog-variant-picker'
 
 const inputCls =
   'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
@@ -87,7 +91,9 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       contactEmail: record.customerEmail || '',
       contactPhone: record.customerPhone || '',
     })
-    setProductQuery('')
+    // Seed from the Stripe line description so "Tirzepatide 60mg +1 more"
+    // immediately surfaces the matching in-stock catalog variant.
+    setProductQuery(suggestProductQueryFromDescription(record.product))
     setLines([])
     setCustomPriceMap({})
     setShipSpeed('TWO_DAY')
@@ -166,13 +172,10 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
     return list.slice(0, 8)
   }, [clients, clientQuery])
 
-  const filteredVariants = useMemo(() => {
-    const q = productQuery.trim().toLowerCase()
-    if (!q) return []
-    return variants
-      .filter((v) => v.productName.toLowerCase().includes(q) || (v.sku || '').toLowerCase().includes(q) || (v.dose || '').toLowerCase().includes(q))
-      .slice(0, 8)
-  }, [variants, productQuery])
+  const filteredVariants = useMemo(
+    () => filterCatalogVariantsForPicker(variants, productQuery),
+    [variants, productQuery]
+  )
 
   const clientPaysAtCost = clients.find((c) => c.id === clientId)?.paysAtCost ?? false
   const resolveUnitPrice = (v: VariantRow) =>

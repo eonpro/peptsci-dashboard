@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { computeCartTotals } from '@/lib/checkout-core'
+import { filterCatalogVariantsForPicker } from '@/lib/catalog-variant-picker'
 
 const inputCls =
   'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
@@ -173,18 +174,10 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
     return list.slice(0, 8)
   }, [clients, clientQuery])
 
-  const filteredVariants = useMemo(() => {
-    const q = productQuery.trim().toLowerCase()
-    if (!q) return []
-    return variants
-      .filter(
-        (v) =>
-          v.productName.toLowerCase().includes(q) ||
-          (v.sku || '').toLowerCase().includes(q) ||
-          (v.dose || '').toLowerCase().includes(q)
-      )
-      .slice(0, 8)
-  }, [variants, productQuery])
+  const filteredVariants = useMemo(
+    () => filterCatalogVariantsForPicker(variants, productQuery),
+    [variants, productQuery]
+  )
 
   const clientPaysAtCost = selectedClient?.paysAtCost ?? false
   const resolveUnitPrice = (v: VariantRow) =>
