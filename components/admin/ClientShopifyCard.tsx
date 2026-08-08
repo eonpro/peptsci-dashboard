@@ -121,7 +121,11 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
         body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.message || data.error || 'Save failed')
+      if (!res.ok) {
+        throw new Error(
+          [data.message, data.code].filter(Boolean).join(' — ') || data.error || 'Save failed'
+        )
+      }
       setConnection(data.connection)
       setAccessToken('')
       setWebhookSecret('')

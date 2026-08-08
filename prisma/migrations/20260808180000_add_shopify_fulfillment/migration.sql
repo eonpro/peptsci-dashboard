@@ -1,12 +1,12 @@
+-- Shopify white-label fulfillment (Custom App per Client).
+-- Plain statements only — the admin migrate runner splits on `;` and cannot
+-- execute dollar-quoted DO $$ ... $$ blocks.
+
 -- AlterEnum
 ALTER TYPE "OrderSource" ADD VALUE IF NOT EXISTS 'SHOPIFY';
 
--- CreateEnum
-DO $$ BEGIN
-  CREATE TYPE "ShopifyConnectionStatus" AS ENUM ('ACTIVE', 'DISABLED');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
+-- CreateEnum (re-run skips via ignorable "already exists")
+CREATE TYPE "ShopifyConnectionStatus" AS ENUM ('ACTIVE', 'DISABLED');
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "ShopifyConnection" (
@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS "ShopifyConnection" (
     CONSTRAINT "ShopifyConnection_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE IF NOT EXISTS "ShopifyVariantMapping" (
     "id" TEXT NOT NULL,
     "connectionId" TEXT NOT NULL,
@@ -46,7 +45,7 @@ ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shopifyOrderName" TEXT;
 ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shopifyFulfillmentOrderId" TEXT;
 ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shopifyFulfillmentId" TEXT;
 
--- CreateIndex
+-- Indexes
 CREATE UNIQUE INDEX IF NOT EXISTS "ShopifyConnection_clientId_key" ON "ShopifyConnection"("clientId");
 CREATE INDEX IF NOT EXISTS "ShopifyConnection_shopDomain_idx" ON "ShopifyConnection"("shopDomain");
 CREATE INDEX IF NOT EXISTS "ShopifyConnection_status_idx" ON "ShopifyConnection"("status");
@@ -59,23 +58,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Order_clientId_shopifyOrderId_key" ON "Order"
 CREATE INDEX IF NOT EXISTS "Order_shopifyConnectionId_idx" ON "Order"("shopifyConnectionId");
 CREATE INDEX IF NOT EXISTS "Order_shopifyOrderId_idx" ON "Order"("shopifyOrderId");
 
--- AddForeignKey
-DO $$ BEGIN
-  ALTER TABLE "ShopifyConnection" ADD CONSTRAINT "ShopifyConnection_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "ShopifyVariantMapping" ADD CONSTRAINT "ShopifyVariantMapping_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "ShopifyConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "ShopifyVariantMapping" ADD CONSTRAINT "ShopifyVariantMapping_variantId_fkey" FOREIGN KEY ("variantId") REFERENCES "ProductVariant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "Order" ADD CONSTRAINT "Order_shopifyConnectionId_fkey" FOREIGN KEY ("shopifyConnectionId") REFERENCES "ShopifyConnection"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
+-- Foreign keys (re-run skips via ignorable "already exists")
+ALTER TABLE "ShopifyConnection" ADD CONSTRAINT "ShopifyConnection_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ShopifyVariantMapping" ADD CONSTRAINT "ShopifyVariantMapping_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "ShopifyConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ShopifyVariantMapping" ADD CONSTRAINT "ShopifyVariantMapping_variantId_fkey" FOREIGN KEY ("variantId") REFERENCES "ProductVariant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_shopifyConnectionId_fkey" FOREIGN KEY ("shopifyConnectionId") REFERENCES "ShopifyConnection"("id") ON DELETE SET NULL ON UPDATE CASCADE;

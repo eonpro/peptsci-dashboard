@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!isEncryptionConfigured()) {
       return errorResponse(
         'SHOPIFY_TOKEN_ENCRYPTION_KEY is not configured',
-        503,
+        400,
         'ENCRYPTION_NOT_CONFIGURED'
       )
     }
@@ -157,7 +157,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info('[shopify] connection upserted', { clientId, connectionId: conn.id })
     return successResponse({ connection: serializeConnection(conn, request) })
   } catch (error) {
-    logger.error('[shopify connection PUT]', {}, error instanceof Error ? error : undefined)
+    const message = error instanceof Error ? error.message : String(error)
+    logger.error('[shopify connection PUT]', { message }, error instanceof Error ? error : undefined)
+    // Surface missing-table / migration failures clearly (common before migrate runs).
+    if (/ShopifyConnection|does not exist|P2021|P2010/i.test(message)) {
+      return errorResponse(
+        'Shopify tables missing — apply pending DB migrations (Settings → Stripe → Database schema)',
+        400,
+        'MIGRATION_REQUIRED'
+      )
+    }
     return errorResponse('Failed to save Shopify connection')
   }
 }
