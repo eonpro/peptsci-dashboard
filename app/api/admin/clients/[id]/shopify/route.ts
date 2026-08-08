@@ -137,9 +137,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       lastError?: null
     } = {
       shopDomain,
+      // Keep Admin API version on a supported release (stale dates → HTTP 404).
+      apiVersion: parsed.data.apiVersion ?? '2025-10',
       lastError: null,
     }
-    if (parsed.data.apiVersion) data.apiVersion = parsed.data.apiVersion
     if (parsed.data.status) data.status = parsed.data.status
     if (parsed.data.accessToken) data.accessToken = encryptSecret(parsed.data.accessToken)
     if (parsed.data.webhookSecret) data.webhookSecret = encryptSecret(parsed.data.webhookSecret)
@@ -156,7 +157,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             shopDomain: data.shopDomain,
             accessToken: data.accessToken!,
             webhookSecret: data.webhookSecret!,
-            apiVersion: data.apiVersion ?? '2025-07',
+            apiVersion: data.apiVersion ?? '2025-10',
             status: data.status ?? 'ACTIVE',
           },
           include: { _count: { select: { mappings: true } } },

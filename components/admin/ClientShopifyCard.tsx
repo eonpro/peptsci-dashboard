@@ -311,7 +311,7 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
               <code className="text-xs">write_merchant_managed_fulfillment_orders</code>
             </li>
             <li>
-              Webhooks (API version 2025-07): <code className="text-xs">orders/paid</code>,{' '}
+              Webhooks (API version 2025-10): <code className="text-xs">orders/paid</code>,{' '}
               <code className="text-xs">orders/cancelled</code> → URL below
             </li>
           </ol>

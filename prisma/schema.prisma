@@ -136,7 +136,7 @@ model ShopifyConnection {
   // AES-256-GCM ciphertext (iv:tag:ciphertext hex). See lib/shopify/crypto.ts.
   accessToken   String
   webhookSecret String
-  apiVersion    String                  @default("2025-07")
+  apiVersion    String                  @default("2025-10")
   status        ShopifyConnectionStatus @default(ACTIVE)
   lastWebhookAt DateTime?
   lastError     String?
