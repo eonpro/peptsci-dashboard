@@ -22,20 +22,25 @@ export const maxDuration = 300
 
 const bodySchema = z.object({
   confirm: z.boolean().optional(),
-  /** How many newest PaymentIntents to scan (default 200). */
-  maxScan: z.number().int().positive().max(2000).optional(),
 })
+
+function augustStartUnix(): number {
+  // First instant of this America/New_York calendar month, as unix seconds.
+  const month = nyMonthKey(new Date()) // YYYY-MM
+  // 00:00 ET on the 1st ≈ 04:00/05:00 UTC — use the 1st 00:00 UTC minus 1 day
+  // as a safe lower bound, then filter precisely with nyMonthKey when counting.
+  const [y, m] = month.split('-').map(Number)
+  return Math.floor(Date.UTC(y, m - 1, 1, 0, 0, 0) / 1000) - 48 * 3600
+}
 
 /**
  * POST /api/admin/sales/repair-stripe-gap
  *
- * Scans newest succeeded PaymentIntents on the connected account and:
- *  1. Creates SalesRecords that are missing
- *  2. **Re-syncs date + amount** on records that already exist (fixes the
- *     "already in sales but August shows $0" failure mode where rows were
- *     stored with a null/wrong date)
+ * Specifically targets THIS calendar month's PaymentIntents on the connected
+ * account (created >= month start), because a "newest 200" scan can sit entirely
+ * on unpaid/failed recent PIs and never reach the Aug 4 succeeded charge.
  *
- * Body: { confirm: true, maxScan?: number }
+ * Body: { confirm: true }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -59,64 +64,65 @@ export async function POST(request: NextRequest) {
       return errorResponse('Confirmation required: POST { "confirm": true }', 400, 'CONFIRM_REQUIRED')
     }
 
-    const maxScan = parsed.data.maxScan ?? 200
     const connectedAccountId = getConnectedAccountId() ?? null
     const requestOptions = connectRequestOptions()
     const costLookup = await buildCostLookup()
     const thisMonth = nyMonthKey(new Date())
+    const gte = augustStartUnix()
 
     const summary = {
       connectedAccountId,
+      thisMonth,
+      createdGte: new Date(gte * 1000).toISOString(),
       scanned: 0,
       succeededSeen: 0,
-      alreadyPresent: 0,
+      succeededThisMonth: 0,
       created: 0,
       updated: 0,
       datesFixed: 0,
       syncedFromOrder: 0,
       failed: 0,
-      ingestedSample: [] as Array<{
+      augustBefore: { count: 0, sum: 0 },
+      augustAfter: { count: 0, sum: 0 },
+      monthPiSample: [] as Array<{
         paymentIntentId: string
+        status: string
         amount: number
         created: string
-        customer: string
+        hasSalesRecord: boolean
+        dbDate: string | null
+        dbAmount: number | null
         action: string
       }>,
       failedSamples: [] as Array<{ paymentIntentId: string; error: string }>,
-      newestPiCreated: null as string | null,
-      augustBefore: { count: 0, sum: 0 },
-      augustAfter: { count: 0, sum: 0 },
-      sampleExisting: [] as Array<{
-        paymentIntentId: string
-        dbDate: string | null
-        dbAmount: number
-        piCreated: string
-        piAmount: number
-      }>,
     }
 
-    // Snapshot August revenue before repair so the dialog proves the fix.
-    const allForAugCheck = await prisma.salesRecord.findMany({
-      where: { date: { not: null } },
-      select: { date: true, paidAmount: true },
-    })
-    let augCount = 0
-    let augSum = 0
-    for (const r of allForAugCheck) {
-      if (r.date && nyMonthKey(r.date) === thisMonth) {
-        augCount++
-        augSum += Number(r.paidAmount)
+    // August snapshot before
+    {
+      const rows = await prisma.salesRecord.findMany({
+        where: { date: { not: null } },
+        select: { date: true, paidAmount: true },
+      })
+      let count = 0
+      let sum = 0
+      for (const r of rows) {
+        if (r.date && nyMonthKey(r.date) === thisMonth) {
+          count++
+          sum += Number(r.paidAmount)
+        }
       }
+      summary.augustBefore = { count, sum }
     }
-    summary.augustBefore = { count: augCount, sum: augSum }
 
     let startingAfter: string | undefined
     let keepGoing = true
+    const MAX = 2000
 
-    while (keepGoing && summary.scanned < maxScan) {
+    while (keepGoing && summary.scanned < MAX) {
       const page: Stripe.ApiList<Stripe.PaymentIntent> = await stripe.paymentIntents.list(
         {
-          limit: Math.min(100, maxScan - summary.scanned),
+          limit: 100,
+          created: { gte },
           ...(startingAfter ? { starting_after: startingAfter } : {}),
           expand: ['data.latest_charge', 'data.customer'],
         },
@@ -124,9 +130,6 @@ export async function POST(request: NextRequest) {
       )
 
       if (page.data.length === 0) break
-      if (!summary.newestPiCreated && page.data[0]) {
-        summary.newestPiCreated = new Date(page.data[0].created * 1000).toISOString()
-      }
 
       const piIds = page.data.map((p) => p.id)
       const [existingSales, existingOrders] = await Promise.all([
@@ -157,23 +160,31 @@ export async function POST(request: NextRequest) {
 
       for (const pi of page.data) {
         summary.scanned++
-        if (pi.status !== 'succeeded') continue
-        if (pi.metadata?.source === 'connect_test') continue
-        summary.succeededSeen++
-
-        const existing = saleByPi.get(pi.id)
-        const piAmount = (pi.amount_received || pi.amount || 0) / 100
         const piCreated = new Date(pi.created * 1000)
+        const inThisMonth = nyMonthKey(piCreated) === thisMonth
+        const piAmount = (pi.amount_received || pi.amount || 0) / 100
+        const existing = saleByPi.get(pi.id)
 
-        if (existing && summary.sampleExisting.length < 8) {
-          summary.sampleExisting.push({
+        if (pi.status === 'succeeded') summary.succeededSeen++
+        if (pi.status === 'succeeded' && inThisMonth) summary.succeededThisMonth++
+
+        // Always record this-month PIs in the sample (succeeded or not) so we
+        // can see why a Dashboard "Succeeded" charge might be missing.
+        if (inThisMonth && summary.monthPiSample.length < 40) {
+          summary.monthPiSample.push({
             paymentIntentId: pi.id,
-            dbDate: existing.date ? existing.date.toISOString() : null,
-            dbAmount: Number(existing.paidAmount),
-            piCreated: piCreated.toISOString(),
-            piAmount,
+            status: pi.status,
+            amount: piAmount,
+            created: piCreated.toISOString(),
+            hasSalesRecord: !!existing,
+            dbDate: existing?.date ? existing.date.toISOString() : null,
+            dbAmount: existing ? Number(existing.paidAmount) : null,
+            action: 'pending',
           })
         }
+
+        if (pi.status !== 'succeeded') continue
+        if (pi.metadata?.source === 'connect_test') continue
 
         try {
           const linkedOrder = orderByPi.get(pi.id)
@@ -183,16 +194,12 @@ export async function POST(request: NextRequest) {
               where: {
                 OR: [{ orderId: linkedOrder.id }, { stripePaymentIntentId: pi.id }],
               },
-              select: { id: true, date: true, paidAmount: true, stripePaymentIntentId: true },
+              select: { id: true },
             })
             if (after) {
               summary.syncedFromOrder++
-              saleByPi.set(pi.id, {
-                id: after.id,
-                stripePaymentIntentId: after.stripePaymentIntentId,
-                date: after.date,
-                paidAmount: after.paidAmount,
-              })
+              const sample = summary.monthPiSample.find((s) => s.paymentIntentId === pi.id)
+              if (sample) sample.action = 'synced from order'
               continue
             }
           }
@@ -216,38 +223,24 @@ export async function POST(request: NextRequest) {
             })
             summary.updated++
             if (dateWasWrong) summary.datesFixed++
-
-            if (dateWasWrong && summary.ingestedSample.length < 15) {
-              summary.ingestedSample.push({
-                paymentIntentId: pi.id,
-                amount: data.paidAmount,
-                created: piCreated.toISOString(),
-                customer: data.customerEmail || data.customerName || '',
-                action: 'date/amount fixed',
-              })
-            }
+            const sample = summary.monthPiSample.find((s) => s.paymentIntentId === pi.id)
+            if (sample) sample.action = dateWasWrong ? 'date/amount fixed' : 'refreshed'
           } else {
             await prisma.salesRecord.create({
               data: { stripePaymentIntentId: pi.id, ...data },
             })
             summary.created++
-            if (summary.ingestedSample.length < 15) {
-              summary.ingestedSample.push({
-                paymentIntentId: pi.id,
-                amount: data.paidAmount,
-                created: piCreated.toISOString(),
-                customer: data.customerEmail || data.customerName || '',
-                action: 'created',
-              })
-            }
+            const sample = summary.monthPiSample.find((s) => s.paymentIntentId === pi.id)
+            if (sample) sample.action = 'created'
           }
-          summary.alreadyPresent += existing ? 1 : 0
         } catch (rowErr) {
           summary.failed++
           const error = rowErr instanceof Error ? rowErr.message : String(rowErr)
           if (summary.failedSamples.length < 10) {
             summary.failedSamples.push({ paymentIntentId: pi.id, error })
           }
+          const sample = summary.monthPiSample.find((s) => s.paymentIntentId === pi.id)
+          if (sample) sample.action = `failed: ${error.slice(0, 80)}`
           logger.warn('Stripe gap repair row failed', { paymentIntentId: pi.id, error })
         }
       }
@@ -257,19 +250,21 @@ export async function POST(request: NextRequest) {
     }
 
     // August after
-    const afterRows = await prisma.salesRecord.findMany({
-      where: { date: { not: null } },
-      select: { date: true, paidAmount: true },
-    })
-    let augCountAfter = 0
-    let augSumAfter = 0
-    for (const r of afterRows) {
-      if (r.date && nyMonthKey(r.date) === thisMonth) {
-        augCountAfter++
-        augSumAfter += Number(r.paidAmount)
+    {
+      const rows = await prisma.salesRecord.findMany({
+        where: { date: { not: null } },
+        select: { date: true, paidAmount: true },
+      })
+      let count = 0
+      let sum = 0
+      for (const r of rows) {
+        if (r.date && nyMonthKey(r.date) === thisMonth) {
+          count++
+          sum += Number(r.paidAmount)
+        }
       }
+      summary.augustAfter = { count, sum }
     }
-    summary.augustAfter = { count: augCountAfter, sum: augSumAfter }
 
     console.log('[STRIPE GAP REPAIR]', JSON.stringify({ by: userId, ...summary }))
     logger.info('Stripe gap repair completed', { by: userId, ...summary })

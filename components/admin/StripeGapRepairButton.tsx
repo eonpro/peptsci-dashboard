@@ -15,35 +15,31 @@ import { Wrench, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 interface RepairSummary {
   connectedAccountId: string | null
+  thisMonth: string
+  createdGte: string
   scanned: number
   succeededSeen: number
-  alreadyPresent: number
+  succeededThisMonth: number
   created: number
   updated: number
   datesFixed: number
   syncedFromOrder: number
   failed: number
-  newestPiCreated: string | null
   augustBefore: { count: number; sum: number }
   augustAfter: { count: number; sum: number }
-  ingestedSample: Array<{
+  monthPiSample: Array<{
     paymentIntentId: string
+    status: string
     amount: number
     created: string
-    customer: string
-    action: string
-  }>
-  sampleExisting: Array<{
-    paymentIntentId: string
+    hasSalesRecord: boolean
     dbDate: string | null
-    dbAmount: number
-    piCreated: string
-    piAmount: number
+    dbAmount: number | null
+    action: string
   }>
   failedSamples: Array<{ paymentIntentId: string; error: string }>
 }
 
-/** One-click repair: pull newest Stripe PIs missing from SalesRecord. */
 export function StripeGapRepairButton() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -64,7 +60,7 @@ export function StripeGapRepairButton() {
       const res = await fetch('/api/admin/sales/repair-stripe-gap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: true, maxScan: 200 }),
+        body: JSON.stringify({ confirm: true }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.message || data?.error || 'Repair failed')
@@ -92,12 +88,12 @@ export function StripeGapRepairButton() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[560px]">
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Repair missing Stripe sales</DialogTitle>
             <DialogDescription className="text-white/60">
-              Scans the newest ~200 payments and creates missing sales rows. Also rewrites date and
-              amount from Stripe when a row exists but August still shows $0.
+              Pulls every PaymentIntent created this month on the connected account and writes /
+              fixes SalesRecords. Shows each August PI so we can see succeeded vs missing.
             </DialogDescription>
           </DialogHeader>
 
@@ -118,7 +114,9 @@ export function StripeGapRepairButton() {
                 </span>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm">
-                <p className="text-white/50 text-xs uppercase tracking-wide mb-1">August revenue</p>
+                <p className="text-white/50 text-xs uppercase tracking-wide mb-1">
+                  August revenue ({result.thisMonth})
+                </p>
                 <p className="text-white">
                   {usd(result.augustBefore.sum)} →{' '}
                   <span className="text-emerald-300 font-semibold">
@@ -133,39 +131,46 @@ export function StripeGapRepairButton() {
                 <li>
                   Account:{' '}
                   <span className="text-white/80 font-mono text-xs">
-                    {result.connectedAccountId ?? 'none (platform)'}
+                    {result.connectedAccountId ?? 'none'}
                   </span>
                 </li>
-                <li>Scanned: {result.scanned}</li>
-                <li>Succeeded seen: {result.succeededSeen}</li>
-                <li>Newest PI: {result.newestPiCreated ?? '—'}</li>
+                <li>Scanned since {result.createdGte.slice(0, 10)}: {result.scanned}</li>
+                <li>
+                  Succeeded this month: {result.succeededThisMonth} (all statuses succeeded:{' '}
+                  {result.succeededSeen})
+                </li>
                 {result.failed > 0 && (
                   <li className="text-amber-300">Failed: {result.failed}</li>
                 )}
               </ul>
-              {result.sampleExisting.length > 0 && (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs space-y-1 max-h-36 overflow-auto">
+              {result.monthPiSample.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs space-y-1 max-h-56 overflow-auto">
                   <p className="text-white/50 uppercase tracking-wide mb-1">
-                    Existing rows vs Stripe
+                    This month&apos;s PaymentIntents
                   </p>
-                  {result.sampleExisting.map((s) => (
+                  {result.monthPiSample.map((s) => (
                     <div key={s.paymentIntentId} className="text-white/80 font-mono">
-                      db {s.dbDate?.slice(0, 10) ?? 'null'} ${s.dbAmount.toFixed(0)} ← pi{' '}
-                      {s.piCreated.slice(0, 10)} ${s.piAmount.toFixed(0)}
+                      {s.created.slice(0, 16).replace('T', ' ')} · {s.status} · $
+                      {s.amount.toFixed(0)}
+                      {s.hasSalesRecord
+                        ? ` · db ${s.dbDate?.slice(0, 10) ?? 'null'} $${s.dbAmount?.toFixed(0)}`
+                        : ' · NO db row'}
+                      {' · '}
+                      {s.action}
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  No PaymentIntents found for {result.thisMonth} on this connected account. The Aug
+                  4 charge may be on a different Stripe account than{' '}
+                  <span className="font-mono text-xs">{result.connectedAccountId}</span>.
                 </div>
               )}
-              {result.ingestedSample.length > 0 && (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs space-y-1 max-h-36 overflow-auto">
-                  <p className="text-white/50 uppercase tracking-wide mb-1">Changes</p>
-                  {result.ingestedSample.map((s) => (
-                    <div key={s.paymentIntentId + s.action} className="text-white/80 font-mono">
-                      {s.action}: ${s.amount.toFixed(2)} · {s.created.slice(0, 10)} ·{' '}
-                      {s.customer || s.paymentIntentId.slice(0, 20)}
-                    </div>
-                  ))}
-                </div>
+              {result.failedSamples[0] && (
+                <p className="text-amber-300/80 text-xs break-all">
+                  e.g. {result.failedSamples[0].paymentIntentId}: {result.failedSamples[0].error}
+                </p>
               )}
             </div>
           ) : (
@@ -180,7 +185,6 @@ export function StripeGapRepairButton() {
                 onClick={() => {
                   setOpen(false)
                   window.location.href = '/dashboard'
-                  window.location.reload()
                 }}
                 className="bg-brand-primary hover:bg-[#1a30c0] text-white"
               >
