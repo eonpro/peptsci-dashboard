@@ -14,6 +14,7 @@ import { getStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId } from '@/lib/stripe/connect'
 import { buildCostLookup, syncSalesRecordFromOrder } from '@/lib/sales'
 import { salesRecordDataFromPaymentIntent } from '@/lib/stripe/sales-ingest'
+import { nyMonthKey } from '@/lib/reports/core'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,18 +22,18 @@ export const maxDuration = 300
 
 const bodySchema = z.object({
   confirm: z.boolean().optional(),
-  /** How many newest PaymentIntents to scan (default 150). */
+  /** How many newest PaymentIntents to scan (default 200). */
   maxScan: z.number().int().positive().max(2000).optional(),
 })
 
 /**
  * POST /api/admin/sales/repair-stripe-gap
  *
- * Scans the newest succeeded PaymentIntents on the connected account and
- * forces any that are missing from SalesRecord into analytics. Unlike the
- * dated backfill, this always starts from "now" going backward (Stripe's
- * default list order), so a recent invoice payment can't be missed because
- * of a date-filter mistake.
+ * Scans newest succeeded PaymentIntents on the connected account and:
+ *  1. Creates SalesRecords that are missing
+ *  2. **Re-syncs date + amount** on records that already exist (fixes the
+ *     "already in sales but August shows $0" failure mode where rows were
+ *     stored with a null/wrong date)
  *
  * Body: { confirm: true, maxScan?: number }
  */
@@ -58,10 +59,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Confirmation required: POST { "confirm": true }', 400, 'CONFIRM_REQUIRED')
     }
 
-    const maxScan = parsed.data.maxScan ?? 150
+    const maxScan = parsed.data.maxScan ?? 200
     const connectedAccountId = getConnectedAccountId() ?? null
     const requestOptions = connectRequestOptions()
     const costLookup = await buildCostLookup()
+    const thisMonth = nyMonthKey(new Date())
 
     const summary = {
       connectedAccountId,
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
       alreadyPresent: 0,
       created: 0,
       updated: 0,
+      datesFixed: 0,
       syncedFromOrder: 0,
       failed: 0,
       ingestedSample: [] as Array<{
@@ -77,10 +80,35 @@ export async function POST(request: NextRequest) {
         amount: number
         created: string
         customer: string
+        action: string
       }>,
       failedSamples: [] as Array<{ paymentIntentId: string; error: string }>,
       newestPiCreated: null as string | null,
+      augustBefore: { count: 0, sum: 0 },
+      augustAfter: { count: 0, sum: 0 },
+      sampleExisting: [] as Array<{
+        paymentIntentId: string
+        dbDate: string | null
+        dbAmount: number
+        piCreated: string
+        piAmount: number
+      }>,
     }
+
+    // Snapshot August revenue before repair so the dialog proves the fix.
+    const allForAugCheck = await prisma.salesRecord.findMany({
+      where: { date: { not: null } },
+      select: { date: true, paidAmount: true },
+    })
+    let augCount = 0
+    let augSum = 0
+    for (const r of allForAugCheck) {
+      if (r.date && nyMonthKey(r.date) === thisMonth) {
+        augCount++
+        augSum += Number(r.paidAmount)
+      }
+    }
+    summary.augustBefore = { count: augCount, sum: augSum }
 
     let startingAfter: string | undefined
     let keepGoing = true
@@ -104,15 +132,22 @@ export async function POST(request: NextRequest) {
       const [existingSales, existingOrders] = await Promise.all([
         prisma.salesRecord.findMany({
           where: { stripePaymentIntentId: { in: piIds } },
-          select: { stripePaymentIntentId: true },
+          select: {
+            id: true,
+            stripePaymentIntentId: true,
+            date: true,
+            paidAmount: true,
+          },
         }),
         prisma.order.findMany({
           where: { stripePaymentIntentId: { in: piIds } },
           select: { id: true, stripePaymentIntentId: true, paymentStatus: true },
         }),
       ])
-      const salePiSet = new Set(
-        existingSales.map((s) => s.stripePaymentIntentId).filter(Boolean) as string[]
+      const saleByPi = new Map(
+        existingSales
+          .filter((s) => s.stripePaymentIntentId)
+          .map((s) => [s.stripePaymentIntentId as string, s])
       )
       const orderByPi = new Map(
         existingOrders
@@ -126,24 +161,38 @@ export async function POST(request: NextRequest) {
         if (pi.metadata?.source === 'connect_test') continue
         summary.succeededSeen++
 
-        if (salePiSet.has(pi.id)) {
-          summary.alreadyPresent++
-          continue
+        const existing = saleByPi.get(pi.id)
+        const piAmount = (pi.amount_received || pi.amount || 0) / 100
+        const piCreated = new Date(pi.created * 1000)
+
+        if (existing && summary.sampleExisting.length < 8) {
+          summary.sampleExisting.push({
+            paymentIntentId: pi.id,
+            dbDate: existing.date ? existing.date.toISOString() : null,
+            dbAmount: Number(existing.paidAmount),
+            piCreated: piCreated.toISOString(),
+            piAmount,
+          })
         }
 
         try {
           const linkedOrder = orderByPi.get(pi.id)
-          if (linkedOrder?.paymentStatus === 'CAPTURED') {
+          if (!existing && linkedOrder?.paymentStatus === 'CAPTURED') {
             await syncSalesRecordFromOrder(linkedOrder.id)
             const after = await prisma.salesRecord.findFirst({
               where: {
                 OR: [{ orderId: linkedOrder.id }, { stripePaymentIntentId: pi.id }],
               },
-              select: { id: true },
+              select: { id: true, date: true, paidAmount: true, stripePaymentIntentId: true },
             })
             if (after) {
               summary.syncedFromOrder++
-              salePiSet.add(pi.id)
+              saleByPi.set(pi.id, {
+                id: after.id,
+                stripePaymentIntentId: after.stripePaymentIntentId,
+                date: after.date,
+                paidAmount: after.paidAmount,
+              })
               continue
             }
           }
@@ -155,34 +204,44 @@ export async function POST(request: NextRequest) {
             requestOptions
           )
 
-          // Prefer find+create/update over upsert: optional unique fields have
-          // historically been flaky with Prisma upsert on some versions.
-          const existing = await prisma.salesRecord.findUnique({
-            where: { stripePaymentIntentId: pi.id },
-            select: { id: true },
-          })
           if (existing) {
+            const dateWasWrong =
+              !existing.date ||
+              Math.abs(existing.date.getTime() - piCreated.getTime()) > 60_000 ||
+              Number(existing.paidAmount) !== data.paidAmount
+
             await prisma.salesRecord.update({
               where: { id: existing.id },
               data,
             })
             summary.updated++
+            if (dateWasWrong) summary.datesFixed++
+
+            if (dateWasWrong && summary.ingestedSample.length < 15) {
+              summary.ingestedSample.push({
+                paymentIntentId: pi.id,
+                amount: data.paidAmount,
+                created: piCreated.toISOString(),
+                customer: data.customerEmail || data.customerName || '',
+                action: 'date/amount fixed',
+              })
+            }
           } else {
             await prisma.salesRecord.create({
               data: { stripePaymentIntentId: pi.id, ...data },
             })
             summary.created++
+            if (summary.ingestedSample.length < 15) {
+              summary.ingestedSample.push({
+                paymentIntentId: pi.id,
+                amount: data.paidAmount,
+                created: piCreated.toISOString(),
+                customer: data.customerEmail || data.customerName || '',
+                action: 'created',
+              })
+            }
           }
-          salePiSet.add(pi.id)
-
-          if (summary.ingestedSample.length < 15) {
-            summary.ingestedSample.push({
-              paymentIntentId: pi.id,
-              amount: data.paidAmount,
-              created: new Date(pi.created * 1000).toISOString(),
-              customer: data.customerEmail || data.customerName || '',
-            })
-          }
+          summary.alreadyPresent += existing ? 1 : 0
         } catch (rowErr) {
           summary.failed++
           const error = rowErr instanceof Error ? rowErr.message : String(rowErr)
@@ -197,7 +256,21 @@ export async function POST(request: NextRequest) {
       startingAfter = page.data[page.data.length - 1]?.id
     }
 
-    // Force-visible in Vercel runtime logs (logger may only ship to Axiom).
+    // August after
+    const afterRows = await prisma.salesRecord.findMany({
+      where: { date: { not: null } },
+      select: { date: true, paidAmount: true },
+    })
+    let augCountAfter = 0
+    let augSumAfter = 0
+    for (const r of afterRows) {
+      if (r.date && nyMonthKey(r.date) === thisMonth) {
+        augCountAfter++
+        augSumAfter += Number(r.paidAmount)
+      }
+    }
+    summary.augustAfter = { count: augCountAfter, sum: augSumAfter }
+
     console.log('[STRIPE GAP REPAIR]', JSON.stringify({ by: userId, ...summary }))
     logger.info('Stripe gap repair completed', { by: userId, ...summary })
 
