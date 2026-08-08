@@ -65,7 +65,12 @@ export function StripeGapRepairButton() {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.message || data?.error || 'Repair failed')
       setResult(data as RepairSummary)
-      router.refresh()
+      // Defer refresh so a bad sales payload can't unmount this dialog mid-render.
+      try {
+        router.refresh()
+      } catch {
+        /* ignore — Reload dashboard button still works */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Repair failed')
     } finally {
@@ -109,21 +114,21 @@ export function StripeGapRepairButton() {
               <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-green-300">
                 <CheckCircle2 className="h-5 w-5 shrink-0" />
                 <span>
-                  Done — {result.created} added, {result.datesFixed} dates fixed,{' '}
-                  {result.updated} updated.
+                  Done — {result.created ?? 0} added, {result.datesFixed ?? 0} dates fixed,{' '}
+                  {result.updated ?? 0} updated.
                 </span>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm">
                 <p className="text-white/50 text-xs uppercase tracking-wide mb-1">
-                  August revenue ({result.thisMonth})
+                  August revenue ({result.thisMonth ?? '—'})
                 </p>
                 <p className="text-white">
-                  {usd(result.augustBefore.sum)} →{' '}
+                  {usd(result.augustBefore?.sum ?? 0)} →{' '}
                   <span className="text-emerald-300 font-semibold">
-                    {usd(result.augustAfter.sum)}
+                    {usd(result.augustAfter?.sum ?? 0)}
                   </span>
                   <span className="text-white/40 text-xs ml-2">
-                    ({result.augustBefore.count} → {result.augustAfter.count} rows)
+                    ({result.augustBefore?.count ?? 0} → {result.augustAfter?.count ?? 0} rows)
                   </span>
                 </p>
               </div>
@@ -134,26 +139,28 @@ export function StripeGapRepairButton() {
                     {result.connectedAccountId ?? 'none'}
                   </span>
                 </li>
-                <li>Scanned since {result.createdGte.slice(0, 10)}: {result.scanned}</li>
                 <li>
-                  Succeeded this month: {result.succeededThisMonth} (all statuses succeeded:{' '}
-                  {result.succeededSeen})
+                  Scanned since {result.createdGte?.slice(0, 10) ?? '—'}: {result.scanned ?? 0}
                 </li>
-                {result.failed > 0 && (
+                <li>
+                  Succeeded this month: {result.succeededThisMonth ?? 0} (all statuses succeeded:{' '}
+                  {result.succeededSeen ?? 0})
+                </li>
+                {(result.failed ?? 0) > 0 && (
                   <li className="text-amber-300">Failed: {result.failed}</li>
                 )}
               </ul>
-              {result.monthPiSample.length > 0 ? (
+              {(result.monthPiSample?.length ?? 0) > 0 ? (
                 <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs space-y-1 max-h-56 overflow-auto">
                   <p className="text-white/50 uppercase tracking-wide mb-1">
                     This month&apos;s PaymentIntents
                   </p>
-                  {result.monthPiSample.map((s) => (
+                  {(result.monthPiSample ?? []).map((s) => (
                     <div key={s.paymentIntentId} className="text-white/80 font-mono">
-                      {s.created.slice(0, 16).replace('T', ' ')} · {s.status} · $
-                      {s.amount.toFixed(0)}
+                      {(s.created ?? '').slice(0, 16).replace('T', ' ')} · {s.status} · $
+                      {Number(s.amount ?? 0).toFixed(0)}
                       {s.hasSalesRecord
-                        ? ` · db ${s.dbDate?.slice(0, 10) ?? 'null'} $${s.dbAmount?.toFixed(0)}`
+                        ? ` · db ${s.dbDate?.slice(0, 10) ?? 'null'} $${Number(s.dbAmount ?? 0).toFixed(0)}`
                         : ' · NO db row'}
                       {' · '}
                       {s.action}
@@ -162,12 +169,12 @@ export function StripeGapRepairButton() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                  No PaymentIntents found for {result.thisMonth} on this connected account. The Aug
-                  4 charge may be on a different Stripe account than{' '}
+                  No PaymentIntents found for {result.thisMonth ?? 'this month'} on this connected
+                  account. The Aug 4 charge may be on a different Stripe account than{' '}
                   <span className="font-mono text-xs">{result.connectedAccountId}</span>.
                 </div>
               )}
-              {result.failedSamples[0] && (
+              {result.failedSamples?.[0] && (
                 <p className="text-amber-300/80 text-xs break-all">
                   e.g. {result.failedSamples[0].paymentIntentId}: {result.failedSamples[0].error}
                 </p>

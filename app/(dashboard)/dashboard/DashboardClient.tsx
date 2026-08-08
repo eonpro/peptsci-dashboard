@@ -40,11 +40,17 @@ import { nyMonthKey } from '@/lib/reports/core'
 
 type ApiSale = Omit<Sale, 'Date'> & { Date: string | Date | null }
 
+function toValidDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null
+  const d = value instanceof Date ? value : new Date(value)
+  return Number.isFinite(d.getTime()) ? d : null
+}
+
 /** Re-hydrate Date fields that arrive as strings from JSON/serialization. */
 function withDates(data: ApiSale[]): Sale[] {
   return data.map((sale) => ({
     ...sale,
-    Date: sale.Date ? new Date(sale.Date) : null,
+    Date: toValidDate(sale.Date),
   }))
 }
 
@@ -139,7 +145,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
       buckets.set(format(d, 'yyyy-MM-dd'), 0)
     }
     for (const sale of sales) {
-      if (!sale.Date) continue
+      if (!sale.Date || !Number.isFinite(sale.Date.getTime())) continue
       const key = format(sale.Date, 'yyyy-MM-dd')
       if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + sale.PaidAmount)
     }
@@ -154,7 +160,8 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
     const monthKey = nyMonthKey(new Date())
     const seen = new Set<string>()
     for (const sale of sales) {
-      if (!sale.Date || nyMonthKey(sale.Date) !== monthKey) continue
+      if (!sale.Date || !Number.isFinite(sale.Date.getTime())) continue
+      if (nyMonthKey(sale.Date) !== monthKey) continue
       seen.add(sale.OrderID || `${sale.CustomerEmail}-${sale.Date.getTime()}`)
     }
     return seen.size
