@@ -64,6 +64,7 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
   const [peptsciVariants, setPeptsciVariants] = useState<PeptSciVariant[]>([])
   const [draftMaps, setDraftMaps] = useState<Record<string, string>>({})
   const [mapsLoading, setMapsLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
 
   const loadConnection = useCallback(async () => {
     try {
@@ -89,6 +90,7 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
       const data = await res.json()
       setShopifyVariants(data.shopifyVariants ?? [])
       setPeptsciVariants(data.peptsciVariants ?? [])
+      setCatalogError(typeof data.catalogError === 'string' ? data.catalogError : null)
       const next: Record<string, string> = {}
       for (const m of data.mappings ?? []) {
         next[m.shopifyVariantId] = m.variantId
@@ -384,10 +386,17 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog…
               </div>
             ) : shopifyVariants.length === 0 ? (
-              <p className="text-sm text-white/50">
-                No Shopify variants returned. Check token scopes (<code>read_products</code>) and
-                shop domain.
-              </p>
+              <div className="space-y-1 text-sm">
+                <p className="text-white/50">
+                  No Shopify variants returned. Check token scopes (<code>read_products</code>) and
+                  shop domain.
+                </p>
+                {catalogError && (
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 break-all">
+                    Shopify error: {catalogError}
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="max-h-80 overflow-auto rounded-xl border border-white/10">
                 <table className="w-full text-left text-sm">

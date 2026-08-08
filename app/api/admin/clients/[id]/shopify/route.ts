@@ -120,6 +120,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    if (parsed.data.accessToken && !parsed.data.accessToken.startsWith('shpat_')) {
+      return errorResponse(
+        'Admin API access token should start with shpat_ (not the API key or shpss_ secret)',
+        400,
+        'INVALID_ACCESS_TOKEN'
+      )
+    }
+
     const data: {
       shopDomain: string
       apiVersion?: string

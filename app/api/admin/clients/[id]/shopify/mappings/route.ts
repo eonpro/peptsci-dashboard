@@ -58,7 +58,29 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const conn = await getActiveConnection(clientId)
     if (!conn) return errorResponse('Connect Shopify first', 404, 'NO_CONNECTION')
 
-    const [mappings, shopifyVariants, peptsciVariants] = await Promise.all([
+    let catalogError: string | null = null
+    let shopifyVariants: Awaited<ReturnType<typeof listShopifyProductVariants>> = []
+    try {
+      shopifyVariants = await listShopifyProductVariants({
+        shopDomain: conn.shopDomain,
+        accessToken: decryptSecret(conn.accessToken),
+        apiVersion: conn.apiVersion,
+      })
+    } catch (err) {
+      catalogError = err instanceof Error ? err.message : String(err)
+      logger.warn('[shopify mappings] list variants failed', {
+        clientId,
+        error: catalogError,
+      })
+      await prisma.shopifyConnection
+        .update({
+          where: { id: conn.id },
+          data: { lastError: catalogError.slice(0, 500) },
+        })
+        .catch(() => {})
+    }
+
+    const [mappings, peptsciVariants] = await Promise.all([
       prisma.shopifyVariantMapping.findMany({
         where: { connectionId: conn.id },
         include: {
@@ -73,21 +95,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         },
         orderBy: { createdAt: 'asc' },
       }),
-      (async () => {
-        try {
-          return await listShopifyProductVariants({
-            shopDomain: conn.shopDomain,
-            accessToken: decryptSecret(conn.accessToken),
-            apiVersion: conn.apiVersion,
-          })
-        } catch (err) {
-          logger.warn('[shopify mappings] list variants failed', {
-            clientId,
-            error: err instanceof Error ? err.message : String(err),
-          })
-          return []
-        }
-      })(),
       prisma.productVariant.findMany({
         where: { status: 'ACTIVE' },
         select: {
@@ -102,6 +109,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return successResponse({
       connectionId: conn.id,
+      catalogError,
       mappings: mappings.map((m) => ({
         id: m.id,
         shopifyVariantId: m.shopifyVariantId,
