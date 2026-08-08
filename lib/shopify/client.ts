@@ -78,7 +78,6 @@ const PRODUCT_VARIANTS_QUERY = `#graphql
         id
         sku
         title
-        displayName
         product { title }
       }
     }
@@ -89,7 +88,7 @@ export type ShopifyVariantNode = {
   id: string
   sku: string | null
   title: string | null
-  displayName: string | null
+  displayName?: string | null
   product: { title: string } | null
 }
 
@@ -110,7 +109,7 @@ export async function listShopifyProductVariants(
     const data: VariantsPage = await shopifyGraphql<VariantsPage>(
       config,
       PRODUCT_VARIANTS_QUERY,
-      { cursor }
+      cursor ? { cursor } : {}
     )
     out.push(...(data.productVariants?.nodes ?? []))
     if (!data.productVariants?.pageInfo?.hasNextPage) break
