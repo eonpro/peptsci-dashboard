@@ -5,6 +5,10 @@
 import { logger } from '@/lib/logger'
 import { normalizeShopDomain } from './ids'
 
+/** Prefer a currently supported Admin API version (unsupported dates → HTTP 404). */
+export const SHOPIFY_API_VERSION = '2025-10'
+const API_VERSION_FALLBACKS = ['2025-10', '2026-01', '2026-04', '2025-07'] as const
+
 export type ShopifyGraphqlClientConfig = {
   shopDomain: string
   accessToken: string
@@ -27,20 +31,19 @@ export class ShopifyApiError extends Error {
   }
 }
 
-export async function shopifyGraphql<T = unknown>(
-  config: ShopifyGraphqlClientConfig,
+async function shopifyGraphqlOnce<T>(
+  shop: string,
+  accessToken: string,
+  version: string,
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
-  const shop = normalizeShopDomain(config.shopDomain)
-  const version = config.apiVersion || '2025-07'
   const url = `https://${shop}/admin/api/${version}/graphql.json`
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': config.accessToken,
+      'X-Shopify-Access-Token': accessToken,
     },
     body: JSON.stringify({ query, variables }),
   })
@@ -53,11 +56,12 @@ export async function shopifyGraphql<T = unknown>(
   if (!res.ok) {
     logger.warn('[shopify] GraphQL HTTP error', {
       shop,
+      version,
       status: res.status,
       errors: json.errors,
     })
     throw new ShopifyApiError(
-      `Shopify GraphQL HTTP ${res.status}`,
+      `Shopify GraphQL HTTP ${res.status} (api ${version})`,
       res.status,
       json.errors ?? []
     )
@@ -68,6 +72,30 @@ export async function shopifyGraphql<T = unknown>(
   }
 
   return json.data as T
+}
+
+export async function shopifyGraphql<T = unknown>(
+  config: ShopifyGraphqlClientConfig,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  const shop = normalizeShopDomain(config.shopDomain)
+  const preferred = config.apiVersion || SHOPIFY_API_VERSION
+  const versions = [preferred, ...API_VERSION_FALLBACKS.filter((v) => v !== preferred)]
+
+  let lastErr: unknown
+  for (const version of versions) {
+    try {
+      return await shopifyGraphqlOnce<T>(shop, config.accessToken, version, query, variables)
+    } catch (err) {
+      lastErr = err
+      if (err instanceof ShopifyApiError && err.status === 404) {
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
 const PRODUCT_VARIANTS_QUERY = `#graphql
