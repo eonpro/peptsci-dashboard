@@ -1,3 +1,30 @@
+# Account Setup: card on file  [EXECUTOR — CODE DONE]
+
+## Background and Motivation
+Account Setup on `/clients/[id]` showed pricing, billing terms, and documents — but not whether the practice had saved a card. Admins need that signal when approving card-only practices.
+
+## Key Challenges and Analysis
+- Cards live in `PaymentMethod` (`isActive`); shop UI already formats as `BRAND ···· last4`.
+- Setup snapshot is built in `GET /api/admin/clients/[id]`.
+
+## High-level Task Breakdown
+1. [x] Include active payment method count + default brand/last4 in `setup.cardOnFile`
+2. [x] Render Account Setup row (check when count > 0)
+3. [ ] Owner verify on Elevated Vitality (or any practice with/without a saved card)
+
+## Project Status Board
+- [x] API setup.cardOnFile
+- [x] Client detail checklist row
+- [ ] Deploy / owner verify
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Clients → practice → Account Setup. With a saved card: green check + brand/last4. Without: amber clock + "none yet".
+
+## Lessons
+- Card-only (`paymentTermsDays` null) is separate from card-on-file; both belong in the checklist.
+
+---
+
 # Fix billing terms save  [EXECUTOR — DONE]
 
 ## Background and Motivation
@@ -17,7 +44,8 @@ Admins could not save Billing Terms on client detail (Elevated Vitality showed P
 - [x] API coerce 0 → null
 - [x] UI hydrate + save payload
 - [x] Tests green
-- [ ] Deploy / verify on peptsci.com → Elevated Vitality → set terms or clear to blank and Save
+- [x] Deployed `25ee085` → main → peptsci.com READY (`dpl_4ppcZdX7VZuUDudd8svc2yQncJgc`)
+- [ ] Owner: verify Elevated Vitality billing terms save
 
 ## Executor's Feedback or Assistance Requests
 1. Hard-refresh Clients → Elevated Vitality Peptides.

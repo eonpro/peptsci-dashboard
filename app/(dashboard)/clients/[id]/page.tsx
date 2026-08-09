@@ -62,6 +62,11 @@ interface PendingInvite {
 interface SetupSnapshot {
   customPricingCount: number
   termsSet: boolean
+  cardOnFile: {
+    count: number
+    cardBrand: string | null
+    cardLast4: string | null
+  }
   documents: { total: number; pendingReview: number; approved: number; rejected: number }
 }
 
@@ -167,7 +172,18 @@ export default function ClientDetailPage() {
         setUsers(data.users ?? [])
         setPendingInvites(data.pendingInvites ?? [])
         setCounts(data.counts ?? null)
-        setSetup(data.setup ?? null)
+        setSetup(
+          data.setup
+            ? {
+                ...data.setup,
+                cardOnFile: data.setup.cardOnFile ?? {
+                  count: 0,
+                  cardBrand: null,
+                  cardLast4: null,
+                },
+              }
+            : null
+        )
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -393,6 +409,29 @@ export default function ClientDetailPage() {
                     {setup.termsSet
                       ? `— Net ${paymentTermsDays || profile.paymentTermsDays}`
                       : '— card-only (set terms below to enable bill-to-account)'}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 p-3">
+              <div className="flex items-center gap-2">
+                {(setup.cardOnFile?.count ?? 0) > 0 ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Clock className="h-4 w-4 text-amber-400" />
+                )}
+                <span className="text-white">
+                  Card on file{' '}
+                  <span className="text-white/50">
+                    {(setup.cardOnFile?.count ?? 0) > 0
+                      ? `— ${(setup.cardOnFile.cardBrand ?? 'Card').toUpperCase()} ···· ${
+                          setup.cardOnFile.cardLast4 ?? '????'
+                        }${
+                          setup.cardOnFile.count > 1
+                            ? ` (+${setup.cardOnFile.count - 1} more)`
+                            : ''
+                        }`
+                      : '— none yet (practice adds via shop payment methods)'}
                   </span>
                 </span>
               </div>

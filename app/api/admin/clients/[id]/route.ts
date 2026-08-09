@@ -87,14 +87,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             orders: true,
             patients: true,
             customPricing: { where: { isActive: true } },
+            paymentMethods: { where: { isActive: true } },
           },
+        },
+        paymentMethods: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' as const }, { lastUsedAt: 'desc' as const }],
+          take: 1,
+          select: { cardBrand: true, cardLast4: true },
         },
       },
     })
     if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
 
     // Onboarding setup snapshot: what an admin still needs to configure for
-    // this practice to be fully operational (pricing / terms / documents).
+    // this practice to be fully operational (pricing / terms / card / documents).
     const docGroups = await prisma.clientDocument.groupBy({
       by: ['status'],
       where: { clientId: id },
@@ -102,9 +109,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
     const docCount = (status: string) =>
       docGroups.find((g) => g.status === status)?._count._all ?? 0
+    const defaultCard = client.paymentMethods[0] ?? null
     const setup = {
       customPricingCount: client._count.customPricing,
       termsSet: client.paymentTermsDays != null,
+      cardOnFile: {
+        count: client._count.paymentMethods,
+        cardBrand: defaultCard?.cardBrand ?? null,
+        cardLast4: defaultCard?.cardLast4 ?? null,
+      },
       documents: {
         total: docGroups.reduce((sum, g) => sum + g._count._all, 0),
         pendingReview: docCount('PENDING_REVIEW'),
