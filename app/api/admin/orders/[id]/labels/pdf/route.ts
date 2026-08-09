@@ -15,7 +15,11 @@ import {
   PAYMENT_GATE_MESSAGE,
   PAYMENT_GATE_REFUNDED_MESSAGE,
 } from '@/lib/fulfillment/payment-gate'
-import { generatePeptSciLabelsPdf, type PeptSciLabelGroup } from '@/lib/labels/peptsciLabelPdf'
+import {
+  generateVialLabelsPdf,
+  resolveLabelBrandKey,
+  type VialLabelGroup,
+} from '@/lib/labels/generateVialLabelsPdf'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
 
 export const runtime = 'nodejs'
@@ -27,7 +31,13 @@ export const dynamic = 'force-dynamic'
  * required vial count from inventory batches FIFO (soonest BUD first) and emit a
  * label per vial. Pass `?consume=true` to decrement stock as fulfilled; default
  * is a non-consuming preview.
+ *
+ * GET — same as POST without consume (fulfillment menu download link).
  */
+export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return POST(request, ctx)
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { isAuthenticated, isAdmin, userId } = await requireAdmin()
@@ -47,10 +57,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       where: { id },
       include: {
         items: { include: { variant: true } },
+        client: { select: { whiteLabelEnabled: true, labelBrandKey: true } },
         _count: { select: { invoiceLineItems: true } },
       },
     })
     if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
+
+    const brandKey = resolveLabelBrandKey(order.client)
 
     // Pay-before-consume gate: previews are always allowed, but drawing down
     // stock for an unpaid, un-invoiced order requires an explicit override.
@@ -90,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const groups: PeptSciLabelGroup[] = []
+    const groups: VialLabelGroup[] = []
     const shortfalls: Array<{ variantId: string; needed: number; short: number }> = []
 
     // Fetch eligible batches for every line item's variant in one query
@@ -125,14 +138,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       for (const draw of plan.draws) {
         const batch = batches.find((b) => b.id === draw.batchId)!
         groups.push({
-          req: {
-            productName: batch.productName,
-            dose: batch.dose,
-            purity: batch.purity,
-            batchNumber: batch.batchNumber,
-            budIsoDate: batch.bud.toISOString().slice(0, 10),
-            accentColor: batch.yearColor || undefined,
-          },
+          productName: batch.productName,
+          dose: batch.dose,
+          purity: batch.purity,
+          batchNumber: batch.batchNumber,
+          budIsoDate: batch.bud.toISOString().slice(0, 10),
+          accentColor: batch.yearColor || undefined,
           quantity: draw.qty,
         })
       }
@@ -205,14 +216,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             if (!batch) return []
             return [
               {
-                req: {
-                  productName: batch.productName,
-                  dose: batch.dose,
-                  purity: batch.purity,
-                  batchNumber: batch.batchNumber,
-                  budIsoDate: batch.bud.toISOString().slice(0, 10),
-                  accentColor: batch.yearColor || undefined,
-                },
+                productName: batch.productName,
+                dose: batch.dose,
+                purity: batch.purity,
+                batchNumber: batch.batchNumber,
+                budIsoDate: batch.bud.toISOString().slice(0, 10),
+                accentColor: batch.yearColor || undefined,
                 quantity: d.qty,
               },
             ]
@@ -234,13 +243,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const pdf = await generatePeptSciLabelsPdf(labelGroups)
+    const { pdf, brand } = await generateVialLabelsPdf(brandKey, labelGroups)
+    const brandSlug = brand === 'peptsci' ? 'peptsci' : brand.replace(/_/g, '-')
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="peptsci-order-${order.orderNumber}-labels.pdf"`,
+        'Content-Disposition': `attachment; filename="${brandSlug}-order-${order.orderNumber}-labels.pdf"`,
         'Cache-Control': 'no-store',
+        'X-Label-Brand': brand,
         'X-Label-Shortfall': shortfalls.length > 0 ? JSON.stringify(shortfalls) : '',
       },
     })

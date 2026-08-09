@@ -38,6 +38,8 @@ const clientSelect = {
   // shippingRate* loaded via loadClientShippingRates() so missing columns
   // (pre-migration) do not 500 the whole client profile.
   paysAtCost: true,
+  whiteLabelEnabled: true,
+  labelBrandKey: true,
 } as const
 
 const adminUpdateSchema = z.object({
@@ -59,6 +61,12 @@ const adminUpdateSchema = z.object({
   shippingRateOvernight: z.number().min(0).max(10_000).nullable().optional(),
   // At-cost pricing: this clinic pays ProductVariant.unitCost per vial.
   paysAtCost: z.boolean().optional(),
+  // White-label vial labels (built-in brand key required when enabling).
+  whiteLabelEnabled: z.boolean().optional(),
+  labelBrandKey: z
+    .enum(['elevated_vitality'])
+    .nullable()
+    .optional(),
 })
 
 /** GET /api/admin/clients/[id] — full client profile + linked users. */
@@ -173,6 +181,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return successResponse({
       profile: serializeClientProfile(profileClient),
       paysAtCost: client.paysAtCost,
+      whiteLabelEnabled: client.whiteLabelEnabled,
+      labelBrandKey: client.labelBrandKey,
       users: client.users,
       pendingInvites,
       counts: { orders: client._count.orders, patients: client._count.patients },
@@ -229,6 +239,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
     if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
     if (input.paysAtCost !== undefined) data.paysAtCost = input.paysAtCost
+    if (input.labelBrandKey !== undefined) data.labelBrandKey = input.labelBrandKey
+    if (input.whiteLabelEnabled !== undefined) {
+      // Enabling requires a known brand key (existing or in this same PATCH).
+      if (input.whiteLabelEnabled) {
+        const nextBrand =
+          input.labelBrandKey !== undefined
+            ? input.labelBrandKey
+            : (
+                await prisma.client.findUnique({
+                  where: { id },
+                  select: { labelBrandKey: true },
+                })
+              )?.labelBrandKey
+        if (!nextBrand) {
+          return errorResponse(
+            'Select a label brand before enabling white-label vial labels.',
+            400,
+            'LABEL_BRAND_REQUIRED'
+          )
+        }
+      }
+      data.whiteLabelEnabled = input.whiteLabelEnabled
+    }
 
     // Shipping rates require the migration; fail clearly if columns are missing.
     if (input.shippingRateTwoDay !== undefined || input.shippingRateOvernight !== undefined) {
@@ -324,6 +357,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return successResponse({
       profile: serializeClientProfile({ ...client, ...(await loadClientShippingRates(id)) }),
+      paysAtCost: client.paysAtCost,
+      whiteLabelEnabled: client.whiteLabelEnabled,
+      labelBrandKey: client.labelBrandKey,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update client'

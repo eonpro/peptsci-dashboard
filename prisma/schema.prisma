@@ -90,6 +90,11 @@ model Client {
   // (ProductVariant.unitCost). Takes precedence over ClientPricing and SRP;
   // vials with no cost set (unitCost <= 0) fall back to custom price / SRP.
   paysAtCost            Boolean                   @default(false)
+  // White-label vial labels: when enabled, order label PDFs use the client's
+  // brand layout (labelBrandKey) instead of PeptSci artwork.
+  whiteLabelEnabled     Boolean                   @default(false)
+  // Built-in brand profile key, e.g. "elevated_vitality". Null = PeptSci.
+  labelBrandKey         String?
   // Stripe Customer for this B2B account. Saved cards are shared across the
   // client's users. Stripe never holds our product catalog (Model A).
   stripeCustomerId      String?                   @unique

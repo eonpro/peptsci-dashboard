@@ -1,3 +1,277 @@
+# Client white-label vial labels  [EXECUTOR — SHIPPING]
+
+## Background and Motivation
+Super-admin switch + Elevated Vitality brand layout for order vial label PDFs.
+
+## Done
+- [x] Schema: `Client.whiteLabelEnabled`, `Client.labelBrandKey` + migration
+- [x] EV engine (`elevatedVitalityLabelPdf.ts`) + embedded template/fonts
+- [x] Dispatcher `generateVialLabelsPdf` / order labels route brand resolve
+- [x] Admin card + proof PDF API; fulfillment "Vial Labels (PDF)"
+- [x] Unit tests (name/dose split + brand resolve)
+
+## Owner after deploy
+1. Settings → Database → Apply pending migrations
+2. Clients → Elevated Vitality Peptides → White-label vial labels → brand Elevated Vitality → Enable
+3. Fulfillment → order menu → Vial Labels (PDF)
+
+## Project Status Board
+- [x] Implementation
+- [ ] Push main → Vercel
+- [ ] Prod migrate
+- [ ] Enable on Elevated Vitality client
+
+---
+
+# COA backfill from Nexus screenshots  [EXECUTOR]
+
+## Background and Motivation
+User provided 16 Nexus Scientific COA screenshots to backfill product certificates. Most were already seeded (Jul 2026); catalog SKUs had drifted from the old manifest.
+
+## Findings
+- Prod had ~45 COA rows; 13/16 screenshot tasks already present.
+- **Missing in prod:** Tirzepatide 60mg `#100315`, MOTS-c 10mg `#100575`, Klow-GHK-Cu `#100555` (KLOW had TB/BPC/KPV only — GHK is required for the 4-component blend).
+- Glow-GHK `#100552` had wrong CAS `49557-75-7` → corrected to `89030-95-5`.
+
+## Done (prod live — no deploy required for data)
+- [x] Created COAs on `TR60`, `MS10`, `KLOW` via admin API (structured + source PNG attached)
+- [x] Fixed GLOW `#100552` CAS
+- [x] Extended `scripts/coa-manifest.json` + `lib/content/coa-manifest.json` with the 3 new tasks
+- [x] Extended KLOW blend reorg tasks to include `100555`
+- [x] Added durable `POST /api/admin/products/backfill-coas` (local, not deployed yet)
+
+## Still without COA (no certificates provided)
+5-Amino-1MQ, AOD-9604, DSIP, Sermorelin, Kisspeptin, Thymosin α-1, Ipamorelin, LL-37, Hexarelin, blends BPC/TB & Tesamorelin/Ipa, plus other catalog SKUs — need new Nexus certs when available.
+
+## Success criteria
+- [x] TR60 / MS10 show published COA on shop API
+- [x] KLOW has all 4 component COAs (GHK + BPC + TB + KPV)
+
+---
+
+# Empty shop cards — missing compound info  [PLANNER + RESEARCH]
+
+## Background and Motivation
+Shop cards omit CAS / Formula / MW when Product sci fields are null. Screenshots (2026-08-09) show many empties. No checked-in singles chemistry map exists; Jul 19–20 PubChem enrichments were written only to prod DB.
+
+## Research deliverable (2026-08-09)
+Verified fill values below for compounds that appear empty/partial on cards + Crest catalog extras. Sources: PubChem PUG REST + primary datasheets. Confidence tags: **HIGH** (CAS→PubChem match + literature agree), **MED** (formula/MW agree across suppliers; CAS quirks), **SKIP** (mixture / no single molecule).
+
+### A. Screenshot empties — READY TO FILL (HIGH)
+
+| Product | CAS | Formula | MW (g/mol) | CID | Notes |
+|---------|-----|---------|------------|-----|-------|
+| 5-Amino-1MQ | 42464-96-0 | C10H11N2+ | 159.21 | 950107 | Small-molecule NNMT inhibitor (not a peptide). Catalog CAS is iodide salt; display **cation** MW/formula (industry norm). Salt MW=286.11 if ever needed. |
+| AOD-9604 | 221231-10-3 | C78H123N23O23S2 | 1815.1 | 71300630 | = Fragment 176-191 analog |
+| DSIP | 62568-57-4 | C35H48N10O15 | 848.8 | 68816 | Emideltide |
+| Kisspeptin / Kisspeptin-10 | **374675-21-5** | C63H83N17O14 | 1302.4 | 25240297 | Correct CAS is 374675-**21**-5 (not …72-2) |
+| Thymosin alpha-1 | 62304-98-7 | C129H215N33O55 | 3108.3 | 16130571 | Thymalfasin; N-acetylated 28-mer |
+| Sermorelin | 86168-78-7 | C149H246N44O42S | 3357.9 | 16132413 | Was in Jul import as "Sermorelin Acetate" — card empty ⇒ name/SKU mismatch or wiped row |
+| Ipamorelin | 170851-70-4 | C38H49N9O5 | 711.9 | 9831659 | Same — Jul-enriched; if card empty, DB gap / name mismatch |
+
+### B. Blends — CODE MAP (not product-level CAS)
+
+| Blend | Components (reuse verified blocks) |
+|-------|-------------------------------------|
+| BPC-157 + TB-500 (any "and"/"/" naming) | BPC-157 + TB-500 — add fingerprint like CJC |
+| Tesamorelin + Ipamorelin | Tesamorelin `218949-48-5` / `C221H366N72O67S` / `5135.9` + Ipamorelin above |
+| Glow / Klow / CJC+Ipa | Already in `blend-compositions.ts` |
+
+### C. Special cases — DO NOT FABRICATE SINGLE MW
+
+| Product | Action |
+|---------|--------|
+| Thymalin | Keep mixture note (polypeptide complex). PubChem "Thymalin" hit is a different small peptide — **do not** stamp that CAS/MW. |
+| Cerebrolysin | Mixture — CAS 12656-61-0 only (already set Jul); no MW |
+| HCG | Glycoprotein — CAS ok; no fixed MW |
+| Bacteriostatic Water | Not a peptide — omit sci block / different card treatment |
+
+### D. Jul 19–20 verified set (recover into code map) — already written to prod once
+
+LL-37, BPC-157, TB-500, GHK-Cu, Ipamorelin, GHRP-2, GHRP-6, Hexarelin, KPV, Epithalon, Glutathione, Alprostadil, CJC-1295 no DAC, Tesamorelin, Semaglutide, Tirzepatide, Retatrutide, Mazdutide, Cagrilintide, MOTS-c, Selank, Semax, Sermorelin, PT-141, MT-2, SS-31, SNAP-8, NAD+, Oxytocin, CJC w/ DAC, IGF-1 LR3 (9117.6 / C400H625N111O115S9 — **do not** use CAS→PubChem 1332 false hit), FOXO4-DRI (5358 / C228H388N86O64), SLU-PP-332, hGH (22124.12; formula optional).
+
+### E. Crest extras — researched if stocked later
+
+| Product | CAS | Formula | MW | Conf |
+|---------|-----|---------|-----|------|
+| Ara-290 (Cibinetide) | 1208243-50-8 | C51H84N16O21 | 1257.3 | HIGH |
+| Pinealon | 175175-23-2 | C15H26N6O8 | 418.40 | HIGH |
+| VIP | 37221-79-7 | C147H237N43O43S | 3326.8 | HIGH |
+| Survodutide | 2805997-46-8 | C192H289N47O61 | 4232 | HIGH |
+| Melanotan I (Afamelanotide) | 75921-69-6 | C78H111N21O19 | 1646.8 | HIGH |
+| IGF-DES | 112603-35-7 | C319H501N91O96S7 (lit. variance) | ~7371.4 | MED — formula varies by source; CAS solid |
+| hGH / Somatropin | 12629-01-5 | C990H1529N263O299S7 (lit. variance) | 22124.12 | MED — CAS+MW solid; H-count varies |
+
+### F. Data-quality traps found while researching
+1. IGF-1 LR3 CAS `946870-92-4` → PubChem returns **wrong** small molecule (~1332). Use sequence-derived 9117.6 / C400H625N111O115S9.
+2. Kisspeptin wrong CAS typo `…72-2` vs correct `…21-5`.
+3. Ara-290 CAS is `1208243-50-8` (not `1200443-42-4`).
+4. 5-Amino-1MQ: CAS 42464-96-0 is iodide salt; show cation formula/MW on cards.
+5. Seed historically used PubChem CID 91810664 for GHK-Cu — that CID is **Cibinetide**. GHK-Cu remains CAS 89030-95-5 / C14H22CuN6O4 / 401.9.
+
+## High-level Task Breakdown (Executor next)
+1. [x] Create `lib/content/compound-chemistry.ts` from tables A+D+E (normalizeKey lookup)
+2. [x] Expand `blend-compositions.ts`: BPC+TB fingerprint; Tesamorelin+Ipamorelin composition
+3. [x] Wire fallback in `lib/catalog.ts` `toShopProduct`
+4. [x] Soft-collapse empty specs in ProductCard when still unknown
+5. [ ] Optional prod CSV backfill via admin import
+6. [x] Tests for chemistry lookup + blend fingerprints
+
+## Success criteria
+- Screenshot empties (5-Amino-1MQ, AOD-9604, DSIP, Kisspeptin, Thymosin α-1, Sermorelin, Ipamorelin, BPC/TB, Tesamorelin/Ipa) show full compound info.
+- No fabricated MW for Thymalin/Cerebrolysin/HCG.
+- IGF-1 LR3 keeps 9117.6 (not PubChem false hit).
+
+## Project Status Board
+- [x] Diagnosed empty cards (data gap + blend mismatch)
+- [x] Searched for existing chemistry map — none in repo; Jul set in prod only
+- [x] Researched missing chemistry (PubChem + datasheets) — tables above
+- [x] Executor: `lib/content/compound-chemistry.ts` + catalog fallback
+- [x] Executor: blend fingerprints (BPC/TB, Tesamorelin/Ipa)
+- [x] Executor: ProductCard purity + tighter spacing when no sci specs
+- [x] Executor: unit tests (`compoundChemistry.test.ts`) — 14 pass with namedBlends
+- [x] Deployed `01643d3` → peptsci.com READY; prod CSV backfill 38 singles updated (blends/mixtures skipped)
+
+## Executor's Feedback or Assistance Requests
+Deploy to main for shop cards to fill. Optional prod DB backfill still available if you want admin/export to match the map.
+
+## Lessons
+- Never trust blind CAS→PubChem for large peptides (IGF-1 LR3 false hit).
+- Verified chemistry must live in versioned code (`compound-chemistry.ts`), not only prod DB writes.
+
+---
+
+# Client white-label vial labels  [PLANNER]
+
+## Background and Motivation
+Super admins need to turn on **white-label vial branding** per client and upload that client's brand label artwork (same OL4891LP / SVG→PNG pipeline as PeptSci). When fulfilling orders for that client, label PDFs must print with the client's brand instead of PeptSci.
+
+Today:
+- Vial labels are PeptSci-only (`lib/labels/peptsciLabelPdf.ts` + `public/labels/PEPTSCI LABEL SAMPLE.svg` + embedded assets).
+- "White-label" in the product already means storefront branding + Shopify fulfillment — **not** custom vial labels.
+- Super-admin Clients → `[id]` has Shopify/docs/partner cards; **no** white-label label switch or artwork upload.
+
+## Key Challenges and Analysis
+1. **Artwork contract** — PeptSci labels bake static brand into SVG; dynamic overlays (BUD, dose, product name, barcode, batch) sit at fixed SVG coords. Client artwork must follow the same `0 0 144 54` template with the same placeholder layers, or overlays will misalign.
+2. **Runtime assets on Vercel** — PeptSci embeds template/fonts at build time (`embeddedAssets.ts`) because `public/` is not in serverless bundles. Per-client artwork must live in blob/DB storage (`lib/storage.ts`) and be loaded at print time.
+3. **When to use which brand** — Order label print is the natural switch point (`/api/admin/orders/[id]/labels/pdf` already loads the order). Inventory batch print is brand-agnostic stock; white-label should apply when printing **for a client's order**, with optional preview from the client admin card.
+4. **Enable gate** — Switch alone is not enough: enabling without an uploaded ready template must not break fulfillment (block enable, or fall back to PeptSci with a clear warning).
+5. **Scope clarity** — This is **vial label branding**, separate from storefront `brandingConfig` and Shopify connection.
+
+## Proposed design (v1)
+
+### Data model (`Client`)
+- `whiteLabelEnabled Boolean @default(false)` — super-admin switch
+- `labelTemplateUrl String?` / `labelTemplateBase64 String?` — raster PNG used by the PDF engine (same dual-backend as docs/photos)
+- `labelArtworkUrl String?` / `labelArtworkBase64 String?` — optional source SVG (or uploaded PNG) for re-processing / download
+- `labelArtworkContentType String?`, `labelArtworkFileName String?`
+- `labelAccentColor String?` — optional hex for BUD day / accent overlays (default PeptSci indigo if null)
+- Optional later: `labelBrandName String?` if vector fallback needs a wordmark string
+
+### Admin UI (`Clients → [id]`)
+New card **White-label labels** (alongside Shopify):
+1. Switch: **White-label vial labels** on/off (PATCH client).
+2. When on (or always visible): upload zone for brand label sample (SVG preferred, PNG accepted if already template-shaped).
+3. Preview thumbnail of current template + **Download proof PDF** (sample vial fields).
+4. Copy: artwork must match OL4891LP 2.0"×0.75" with PeptSci placeholder layout (BUD / dose / barcode / batch wells).
+
+### Upload / processing API
+- `POST /api/admin/clients/[id]/label-artwork` — multipart upload
+  - Auth: super admin
+  - If SVG: rasterize with same approach as `scripts/build-label-template.ts` (`@resvg/resvg-js`) → store PNG template via `putObject`
+  - If PNG: validate roughly 2:0.75 aspect (or exact template size) and store
+  - Persist URLs/base64 on Client; return preview metadata
+- `DELETE` same route — clear artwork (and optionally force `whiteLabelEnabled=false`)
+- `PATCH /api/admin/clients/[id]` — allow `whiteLabelEnabled` (+ optional accent); reject enabling when no template ready
+
+### Label generation
+- Introduce a **label brand profile** (PeptSci | ElevatedVitality | …) with: template PNG bytes, overlay coordinate map, fonts, and field layout rules.
+- PeptSci keeps current overlay map (BUD left, dose in band, barcode, product above dose).
+- Elevated Vitality overlay map: white Inter ExtraBold Italic **product name + dose inside black card**; vertical **batch number** + **EXP/BUD** on right rail (no barcode in EV mock).
+- Refactor generator to dispatch by brand profile rather than only swapping PNG.
+- Order labels route: if `order.client.whiteLabelEnabled` and template present → load bytes from storage and generate with client brand; else PeptSci.
+- Inventory batch print stays PeptSci unless an explicit `clientId` is passed later (out of v1 unless requested).
+- Client card "proof" endpoint: `POST /api/admin/clients/[id]/labels/proof` using sample fields + client template.
+
+### Fulfillment UX
+- Wire **Print vial labels** on order detail (API already exists; UI was deferred) so white-label brands are actually usable in the fulfill flow.
+- Filename / audit metadata should note brand (`peptsci` vs `client:<id>`).
+
+## High-level Task Breakdown
+1. [ ] Schema + migration for Client white-label label fields
+2. [ ] PATCH client + serialize profile fields for `whiteLabelEnabled` / template present
+3. [ ] Upload/delete artwork API (SVG→PNG + storage)
+4. [ ] `ClientWhiteLabelLabelsCard` on client detail (switch + upload + proof)
+5. [ ] Parameterize label PDF engine for external template bytes
+6. [ ] Order labels PDF: resolve client brand when enabled
+7. [ ] Order detail "Print labels" button (fulfillment path)
+8. [ ] Tests: enable gate, SVG raster path mock, order route brand selection
+9. [ ] Docs: `public/labels/README.md` white-label artwork contract + scratchpad lessons
+
+## Success criteria
+- Super admin can toggle white-label on a client only when artwork is uploaded (or with explicit fallback policy agreed below).
+- Uploaded sample produces print-ready OL4891LP sheets with client brand + correct dynamic fields.
+- Orders for white-label clients print client labels; others still print PeptSci.
+- No change to storefront branding or Shopify flows.
+
+## Owner decisions (2026-08-09)
+1. **Pilot client:** Elevated Vitality Peptides
+2. **Stock:** OL4891LP 2.0"×0.75" (same physical stock as PeptSci)
+3. **Layouts vary by brand** — not a logo swap on PeptSci artwork. Each client gets their own SVG template + overlay map.
+4. **Elevated Vitality dynamic fields:**
+   - **Black card (center):** compound/product name + milligram/dose (both overlaid; empty black rectangle in source SVG)
+   - **Right vertical rail:** `BATCH#` value from inventory batch number; `EXP:` value from batch BUD
+   - Static baked in SVG: crown mark, MADE IN USA, 99%+ PURE, elevated/Vitality wordmark, watermark, RESEARCH USE ONLY, NOT FOR HUMAN CONSUMPTION, storage bar, BATCH#/EXP labels
+5. **Font for EV dynamic text:** Inter ExtraBold Italic (Illustrator: Inter 18pt / ExtraBold Italic @ 3.81pt for the sample text size — engine will auto-fit to card width)
+6. **Assets drop folder:** `public/labels/clients/elevated-vitality/` — owner uploading empty SVG here
+7. **Reference screenshots:** `.cursor` assets / chat images — filled sample + empty template + Character panel
+
+## Open questions (remaining)
+1. **Enable without artwork?** Block toggle until template uploaded, or allow on with PeptSci fallback + warning?
+2. **Inventory batch Print labels?** Keep PeptSci-only, or add client picker for pre-printing white-label stock?
+3. In the *filled* mock, compound name sits *above* the black card and only dose is inside. Confirm for print: **both name + dose inside the black card** (stacked white Inter ExtraBold Italic), matching the empty SVG?
+4. Should empty SVG hide sample compound/dose with `display:none` placeholders (PeptSci pattern), or leave a blank black rect and we place overlays by measured coords from the SVG?
+
+
+
+## Elevated Vitality name/dose overlay rules (owner locked)
+- Product name: **9pt** Inter ExtraBold Italic, horizontally centered on black card, **vertically centered between wordmark bottom (~y=21) and black card top (y=35.46)**
+- Single compound → one line (e.g. `TESAMORELIN`)
+- Two compounds → **two lines** (e.g. `BPC-157` / `TB-500`), leading ~10pt, block still centered in that band
+- Black card dose: single `10MG` or blend `10MG/10MG`
+- Sample proofs: `elevated-vitality-sample-TESAMORELIN-10mg.png`, `elevated-vitality-sample-BPC157-TB500-10mg.png`
+
+## Elevated Vitality SVG geometry (from uploaded empty art)
+- File: `public/labels/clients/elevated-vitality/elevated-vitality-label-empty.svg`
+- viewBox `0 0 144.47 58.28` (slightly oversized vs PeptSci `144×54`) — printable content rect ≈ `x=3.87 y=0.22 w=135.14 h=54`; normalize/crop to OL4891LP 144×54 at template build
+- **Black card (dose + possibly name):** `<rect>` at `(52.71, 35.46)` size `29.73×9.07` — empty, no sample text
+- **BATCH# label:** text at `translate(132.89 49.81) rotate(-90)` Inter Black 2.67px
+- **EXP: label:** text at `translate(132.89 24.35) rotate(-90)`
+- Overlay values: continue after each label along the same -90° axis in the white rail (x≈128–135)
+- Fonts referenced in SVG: Inter 18pt ExtraBold Italic (RUO / MADE IN USA), Inter Black (BATCH/EXP labels), Inter Bold, Inter ExtraBold, Inter Medium — need to vendor Inter files for PDF embedding
+- Leftover hidden PeptSci `Plus` text (display:none) — ignore
+- No barcode well on this brand
+
+## Project Status Board
+- [x] Codebase exploration (labels engine, client admin, storage, storefront vs vial gap)
+- [x] Owner provided EV layout screenshots + Inter ExtraBold Italic
+- [x] Created `public/labels/clients/elevated-vitality/` drop folder
+- [x] Owner dropped empty SVG (`elevated-vitality-label-empty.svg`)
+- [ ] Confirm black-card text stacking + remaining open questions
+- [ ] Executor implementation
+
+## Executor's Feedback or Assistance Requests
+1. Drop empty Elevated Vitality SVG into `public/labels/clients/elevated-vitality/` (Finder opened).
+2. Prefer filename: `ELEVATED-VITALITY-LABEL-EMPTY.svg` (or similar).
+3. Confirm remaining open questions, then say **Executor** to implement.
+4. Need Inter ExtraBold Italic TTF/OTF licensed for embedding (or confirm we may vendor from Google Fonts / fontsource).
+
+## Lessons
+- Vial white-label ≠ storefront `brandingConfig` ≠ Shopify white-label fulfillment — three separate concepts; name the UI "White-label vial labels" to avoid confusion.
+- Per-client templates cannot use `embeddedAssets.ts`; must use runtime storage like ClientDocument.
+
+---
+
 # Invited client users hit clinic onboarding  [EXECUTOR]
 
 ## Background and Motivation
@@ -20,10 +294,11 @@ Admin "Invite user" on an existing client (Linked Users) sends a Clerk invitatio
 
 ## Project Status Board
 - [x] Fix implemented locally
-- [ ] Deploy / verify: invite `tracking@…` style user → accept → password → lands on `/shop`, not practice profile form
+- [x] Deployed `ef9ff9b` → main → peptsci.com
+- [ ] Owner verify: invite accept → password → `/shop` (not practice profile form)
 
 ## Executor's Feedback or Assistance Requests
-1. Re-test the invite for `tracking@eonmedicalcenter.com` (or a fresh invite email) after deploy.
+1. Re-test the invite for `tracking@eonmedicalcenter.com` (sign out/in or fresh invite). Should land on `/shop`.
 2. If they already submitted onboarding and created a duplicate Client, admin may need to clean that up and re-link `User.clientId` to the real practice.
 
 ## Lessons
@@ -31,7 +306,7 @@ Admin "Invite user" on an existing client (Linked Users) sends a Clerk invitatio
 
 ---
 
-# Shopify invoice-first + unmapped matching  [EXECUTOR — DEPLOYED b1e0a2b]
+# Shopify invoice-first + unmapped matching  [EXECUTOR — DEPLOYED b1e0a2b · SCHEMA APPLIED]
 
 ## Background and Motivation
 Shopify paid orders must create an Invoice at client pricing + shipping, charge card on file, then create the fulfillment Order. Unmapped products queue by Shopify product name for admin matching.
@@ -41,15 +316,16 @@ Shopify paid orders must create an Invoice at client pricing + shipping, charge 
 2. [x] Ingest upsert → NEEDS_MAPPING or processShopifyInbound
 3. [x] Invoice + chargeInvoiceWithSavedCard + Order after PAID
 4. [x] Admin Needs mapping UI + match/process APIs
-5. [ ] Deploy + prod migrate
+5. [x] Deploy + prod migrate
 
 ## Project Status Board
-- [x] Implementation complete locally
-- [ ] Deploy `main` + Settings DB migrate
+- [x] Implementation complete
+- [x] Deployed `b1e0a2b` → peptsci.com
+- [x] Prod schema applied (ShopifyInbound*)
 
 ## Executor's Feedback or Assistance Requests
-1. After deploy: Settings → Run DB migrate (ShopifyInbound* tables).
-2. Clients → Elevated Vitality → Shopify: Needs mapping appears for unmapped titles; Save match → invoice/charge/fulfill.
+1. Clients → Elevated Vitality → Shopify: Needs mapping shows unmapped titles; Save match → invoice/charge/fulfill.
+2. Fully mapped paid Shopify orders should auto-invoice and charge card on file.
 
 ## Lessons
 - Invoice-first: do not create Order until invoice PAID (payment gate + AR stay aligned).

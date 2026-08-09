@@ -275,6 +275,15 @@ export function FulfillmentOrderRow({
                 <FileText className="mr-2 h-4 w-4" /> Packing Slip (PDF)
               </a>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a
+                href={`/api/admin/orders/${order.id}/labels/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Printer className="mr-2 h-4 w-4" /> Vial Labels (PDF)
+              </a>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {order.fulfillmentStage === 'PICKED' && (
               <DropdownMenuItem onClick={onPack}>

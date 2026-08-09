@@ -63,8 +63,19 @@ falls back to a fully programmatic vector label (`drawLabelVector`) so label
 generation never throws. The optional `peptsci-logo-vertical.png` is only used by
 that path.
 
-## Label stock
+## White-label client brands
 
-Designed for **OnlineLabels OL4891LP** — 2.0" × 0.75", 36 labels per US-Letter
-sheet (3 cols × 12 rows). Print at **100% scale** on the highest-quality setting
-(600 DPI+).
+Per-client vial brands live under `public/labels/clients/<slug>/`.
+
+### Elevated Vitality (`elevated_vitality`)
+
+- Source SVG: `clients/elevated-vitality/elevated-vitality-label-empty.svg`
+- Raster template: `clients/elevated-vitality/elevated-vitality-label-template.png`
+- Engine: `lib/labels/elevatedVitalityLabelPdf.ts`
+- Dynamic overlays: compound name(s) @ 9pt Inter ExtraBold Italic (centered between
+  wordmark and black card; two compounds → two lines), dose in black card
+  (`10MG` or `10MG/10MG`), `BATCH#` / `EXP` values on the right rail
+- Enable on **Clients → [practice] → White-label vial labels**
+
+Fonts: `public/fonts/labels/Inter-ExtraBoldItalic.ttf`, `Inter-Black.ttf` (also
+embedded in `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).

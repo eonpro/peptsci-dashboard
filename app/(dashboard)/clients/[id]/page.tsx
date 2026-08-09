@@ -27,6 +27,7 @@ import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
 import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
 import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
+import { ClientWhiteLabelLabelsCard } from '@/components/admin/ClientWhiteLabelLabelsCard'
 import {
   Select,
   SelectContent,
@@ -147,6 +148,8 @@ export default function ClientDetailPage() {
   const [creditLimit, setCreditLimit] = useState('')
   const [shippingRateTwoDay, setShippingRateTwoDay] = useState('')
   const [shippingRateOvernight, setShippingRateOvernight] = useState('')
+  const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(false)
+  const [labelBrandKey, setLabelBrandKey] = useState<string | null>(null)
 
   const hydrate = (p: ClientProfile) => {
     setProfile(p)
@@ -197,6 +200,8 @@ export default function ClientDetailPage() {
           return
         }
         hydrate(data.profile)
+        setWhiteLabelEnabled(Boolean(data.whiteLabelEnabled))
+        setLabelBrandKey(data.labelBrandKey ?? null)
         setUsers(data.users ?? [])
         setPendingInvites(data.pendingInvites ?? [])
         setCounts(data.counts ?? null)
@@ -752,6 +757,15 @@ export default function ClientDetailPage() {
           directly but came from a partner (no referral link used). */}
       <ClientPartnerCard clientId={id} />
       <ClientShopifyCard clientId={id} />
+      <ClientWhiteLabelLabelsCard
+        clientId={id}
+        initialEnabled={whiteLabelEnabled}
+        initialBrandKey={labelBrandKey}
+        onChanged={({ whiteLabelEnabled: nextEnabled, labelBrandKey: nextBrand }) => {
+          setWhiteLabelEnabled(nextEnabled)
+          setLabelBrandKey(nextBrand)
+        }}
+      />
 
       {/* Linked users */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
