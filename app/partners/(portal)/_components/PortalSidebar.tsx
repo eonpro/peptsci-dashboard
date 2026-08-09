@@ -2,13 +2,31 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LogOut } from 'lucide-react'
+import { useClerk } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
+import { isClerkConfigured } from '@/lib/clerk-config'
 import { visibleSections, isNavItemActive, type PortalNavContext } from './nav'
 
 export interface PortalIdentity {
   orgName: string
   /** e.g. "Org owner", "Rep — Jane Doe" */
   roleLabel: string
+}
+
+/** Isolated so useClerk only runs when ClerkProvider is present. */
+function SignOutButton() {
+  const { signOut } = useClerk()
+  return (
+    <button
+      type="button"
+      onClick={() => signOut({ redirectUrl: '/sign-in' })}
+      className="mt-3 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-white/50 transition hover:bg-white/5 hover:text-white"
+    >
+      <LogOut className="h-4 w-4 shrink-0" />
+      Log out
+    </button>
+  )
 }
 
 /**
@@ -99,6 +117,7 @@ export function SidebarNav({
             <p className="truncate text-xs text-white/50">{identity.roleLabel}</p>
           </div>
         </div>
+        {isClerkConfigured ? <SignOutButton /> : null}
       </div>
     </div>
   )

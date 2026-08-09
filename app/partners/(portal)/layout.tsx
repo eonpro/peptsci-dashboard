@@ -4,6 +4,7 @@ import { getPartnerContext } from '@/lib/partners/auth'
 import { Button } from '@/components/ui/button'
 import { PortalSidebar } from './_components/PortalSidebar'
 import { PortalTopbar } from './_components/PortalTopbar'
+import { PartnerSignOutButton } from './_components/PartnerSignOutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +25,7 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
           This account doesn&rsquo;t have partner access. If your organization was approved,
           accept the sign-up invitation email first — or apply to the program below.
         </p>
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button asChild className="font-semibold">
             <Link href="/partners/apply">Apply to the program</Link>
           </Button>
@@ -35,6 +36,10 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
           >
             <Link href="/">Back home</Link>
           </Button>
+          <PartnerSignOutButton
+            variant="ghost"
+            className="font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+          />
         </div>
       </div>
     )
