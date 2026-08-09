@@ -77,38 +77,37 @@ async function main() {
       ],
     },
     {
-      // "Glow 70" blend: BPC-157 10mg + TB-500 10mg + GHK-Cu 50mg (70mg total).
-      // Component doses are ordered to match BLEND_COMPOSITIONS.glow and the label.
-      name: 'Glow',
-      description: 'Research blend of BPC-157, TB-500, and GHK-Cu.',
+      // "GLOW 70" blend: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg (70mg total).
+      name: 'GLOW',
+      description: 'Research blend of GHK-Cu, BPC-157, and TB-500.',
       category: 'Blends',
       casNumber: null,
       molecularFormula: null,
       molecularWeight: null,
       pubchemCid: null,
       peptideLength: null,
-      aka: 'Glow 70',
+      aka: 'GHK-Cu / BPC-157 / TB-500',
       intendedUse: 'Research use only',
       // Pricing is provisional until confirmed.
       variants: [
-        { sku: 'GLOW-70', dose: '10mg/10mg/50mg', unitCost: 70, srp: 189, inventoryOnHand: 10 },
+        { sku: 'GLOW-70', dose: '50mg/10mg/10mg', unitCost: 70, srp: 189, inventoryOnHand: 10 },
       ],
     },
     {
-      // "Klow 80" blend: BPC-157 10mg + TB-500 10mg + GHK-Cu 50mg + KPV 10mg (80mg total).
-      name: 'Klow',
-      description: 'Research blend of BPC-157, TB-500, GHK-Cu, and KPV.',
+      // "KLOW 80" blend: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg + KPV 10mg (80mg total).
+      name: 'KLOW',
+      description: 'Research blend of GHK-Cu, BPC-157, TB-500, and KPV.',
       category: 'Blends',
       casNumber: null,
       molecularFormula: null,
       molecularWeight: null,
       pubchemCid: null,
       peptideLength: null,
-      aka: 'Klow 80',
+      aka: 'GHK-Cu / BPC-157 / TB-500 / KPV',
       intendedUse: 'Research use only',
       // Pricing is provisional until confirmed.
       variants: [
-        { sku: 'KLOW-80', dose: '10mg/10mg/50mg/10mg', unitCost: 85, srp: 219, inventoryOnHand: 10 },
+        { sku: 'KLOW-80', dose: '50mg/10mg/10mg/10mg', unitCost: 85, srp: 219, inventoryOnHand: 10 },
       ],
     },
   ]

@@ -8,6 +8,7 @@
 import { prisma } from './prisma'
 import { logger } from './logger'
 import { availableQty } from './inventory/reservations-core'
+import { displayProductName } from './products/named-blends'
 
 export interface Inventory {
   SKU: string
@@ -111,7 +112,7 @@ export async function listCatalogStock(): Promise<CatalogStockRow[]> {
   return variants.map((v) => ({
     variantId: v.id,
     sku: v.sku,
-    productName: v.product.name,
+    productName: displayProductName(v.product.name, v.sku),
     dose: v.dose,
     onHand: v.inventoryOnHand,
     reserved: v.inventoryReserved,

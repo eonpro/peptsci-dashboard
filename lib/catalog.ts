@@ -11,6 +11,7 @@ import { logger } from './logger'
 import type { ShopProduct, ProductImage, CompoundInfo } from './types/shop'
 import { parseMonograph } from './types/monograph'
 import { getBlendComposition } from './content/blend-compositions'
+import { displayProductAka, displayProductName } from './products/named-blends'
 
 /** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
 export const CATALOG_TAG = 'catalog'
@@ -86,12 +87,13 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
   // the entire catalog "Out of Stock".
   const enforceStock = stockEnforcementEnabled()
   const available = Math.max(0, v.inventoryOnHand - (v.inventoryReserved || 0))
-  const compounds = blendCompounds(v.product.name, v.dose)
+  const displayName = displayProductName(v.product.name, v.sku)
+  const compounds = blendCompounds(displayName, v.dose) ?? blendCompounds(v.product.name, v.dose)
   return {
     id: v.sku || v.id,
     sku: v.sku || v.id,
     parentProductId: v.productId,
-    name: v.product.name,
+    name: displayName,
     dose: v.dose || v.unitSize || '',
     ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
     description: v.product.description,
@@ -106,7 +108,7 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     pubchemCid: v.product.pubchemCid,
     monograph: parseMonograph(v.product.monograph),
     purity: v.product.purity,
-    aka: v.product.aka,
+    aka: displayProductAka(v.product.name, v.sku, v.product.aka),
     images: toImages(v.product.media),
     inventoryOnHand: enforceStock ? available : undefined,
     inStock: enforceStock ? available > 0 : true,

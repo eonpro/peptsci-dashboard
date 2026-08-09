@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveInventoryActor } from '@/lib/inventory-log'
+import { displayProductAka, displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +69,7 @@ export async function GET(_request: NextRequest) {
       variants: variants.map((v) => ({
         id: v.id,
         sku: v.sku,
-        productName: v.product.name,
+        productName: displayProductName(v.product.name, v.sku),
         category: v.product.category,
         dose: v.dose,
         srp: Number(v.srp),
@@ -81,7 +82,7 @@ export async function GET(_request: NextRequest) {
         reorderLevel: v.reorderLevel,
         imageUrl: v.product.media[0]?.url ?? null,
         coaCount: v._count.coas,
-        aka: v.product.aka ?? null,
+        aka: displayProductAka(v.product.name, v.sku, v.product.aka),
         purity: v.product.purity ?? null,
         monograph: v.product.monograph ?? null,
       })),

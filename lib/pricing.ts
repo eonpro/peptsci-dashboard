@@ -5,6 +5,7 @@
 
 import { prisma } from './prisma'
 import { logger } from './logger'
+import { displayProductName } from './products/named-blends'
 
 /**
  * Price-sheet row shape (relocated from the former lib/sheets.ts). Used by the
@@ -66,7 +67,7 @@ export async function getPricing(): Promise<{
     const prices: ProductPrice[] = variants.map((v) => ({
       id: v.id,
       sku: v.sku || `${v.product.name.substring(0, 3).toUpperCase()}-${v.dose}`,
-      productName: v.product.name,
+      productName: displayProductName(v.product.name, v.sku),
       dose: v.dose || '',
       unitCost: Number(v.unitCost),
       srp: Number(v.srp),
@@ -180,7 +181,7 @@ export async function getProductPriceBySku(sku: string): Promise<ProductPrice | 
         return {
           id: v.id,
           sku: v.sku || `${v.product.name.substring(0, 3).toUpperCase()}-${v.dose}`,
-          productName: v.product.name,
+          productName: displayProductName(v.product.name, v.sku),
           dose: v.dose || '',
           unitCost: Number(v.unitCost),
           srp: Number(v.srp),

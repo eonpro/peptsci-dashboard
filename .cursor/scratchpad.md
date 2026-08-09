@@ -1,4 +1,87 @@
-# Stripe address sync + platform invoicing (Aug 8, 2026)  [EXECUTOR — PHASE 1 DONE]
+# Client login create + password reset  [EXECUTOR — IMPLEMENTED]
+
+## Background and Motivation
+Admins need to create a practice user's email/password from the client detail page and reset it later. Invite-only left no way to set credentials for clinics like Elevated Vitality.
+
+## Key Challenges and Analysis
+- Clinic auth is Clerk; passwords are not stored in Prisma.
+- Login identifier is email (Clerk sign-in); UI labels it as email (login).
+
+## High-level Task Breakdown
+1. [x] `POST /api/admin/users` — Clerk `createUser` + Prisma upsert linked to client
+2. [x] `POST /api/admin/users/[id]/password` — Clerk `updateUser` password + sign out other sessions
+3. [x] Include `clerkUserId` on client detail linked users
+4. [x] Create login + Reset password dialogs on Linked Users card
+
+## Project Status Board
+- [x] Backend create + reset APIs
+- [x] Client detail UI wired
+- [ ] Owner: verify on Clients → Elevated Vitality → Linked Users (Create login / Reset)
+
+## Executor's Feedback or Assistance Requests
+1. Open Clients → [practice] → Linked Users.
+2. **Create login**: set email + password; user can sign in at peptsci.com (share password out-of-band).
+3. **Reset** on an existing linked user: set a new password; existing sessions are signed out.
+
+## Lessons
+- Prefer admin `createUser` when the practice needs credentials immediately; keep invite for self-serve password setup.
+- Never log or return passwords; use Clerk Backend API only.
+
+---
+
+# GLOW / KLOW display as trade names (not compound lists)  [EXECUTOR — READY TO DEPLOY]
+
+## Background and Motivation
+Client Custom Pricing showed SKU `GLOW` / `KLOW` as compound chains. Named blends must show **GLOW** / **KLOW**.
+
+## Canonical stock
+- **GLOW 70:** GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg → dose `50mg/10mg/10mg`
+- **KLOW 80:** GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg + KPV 10mg → dose `50mg/10mg/10mg/10mg`
+
+## Project Status Board
+- [x] `lib/products/named-blends.ts` — SKU + compound fingerprint → GLOW/KLOW
+- [x] Wired into pricing, catalog, shop, fulfillment, orders, inventory
+- [x] Blend composition order aligned GHK-first
+- [x] Migration `20260809010000_normalize_named_blend_display_names` (name + dose fix)
+- [x] Unit tests pass
+- [ ] Deploy + apply migration
+
+## Executor's Feedback or Assistance Requests
+1. Deploy, then apply migration `20260809010000_normalize_named_blend_display_names`.
+2. Hard-refresh Client Custom Pricing — GLOW and KLOW rows should show trade names.
+
+## Lessons
+- Always set blend name (GLOW/KLOW) when creating 3+ compound blends.
+
+---
+
+# Shopify store → PeptSci fulfillment (1A+2A)  [EXECUTOR — IMPLEMENTED]
+
+## Background and Motivation
+White-label client keeps Shopify storefront; PeptSci fulfills and pushes tracking back. Connection model: per-client Custom App credentials. Billing: Shopify collects retail; PeptSci Order is fulfillment-only (`paymentStatus: CAPTURED`).
+
+## Project Status Board
+- [x] Schema: ShopifyConnection, ShopifyVariantMapping, OrderSource.SHOPIFY, Order Shopify IDs + migration `20260808180000_add_shopify_fulfillment`
+- [x] lib/shopify: crypto, hmac, client, ingest, fulfillment-sync
+- [x] Webhook `POST /api/webhooks/shopify/[connectionId]` (orders/paid, orders/cancelled)
+- [x] Admin APIs + ClientShopifyCard on client detail
+- [x] FedEx label + disposition push tracking (non-blocking)
+- [x] Unit tests `lib/__tests__/shopify.test.ts` (12 pass)
+- [ ] Owner: set `SHOPIFY_TOKEN_ENCRYPTION_KEY`, apply migration, connect client Custom App + map SKUs
+
+## Executor's Feedback or Assistance Requests
+1. Add `SHOPIFY_TOKEN_ENCRYPTION_KEY` to env (`openssl rand -hex 32`).
+2. Apply migration `20260808180000_add_shopify_fulfillment`.
+3. Clients → [client] → Shopify fulfillment: paste shop domain, Admin API token, webhook secret; copy webhook URL into Custom App for `orders/paid` + `orders/cancelled`.
+4. Map variants (Suggest/Apply by SKU) then place a paid test order.
+
+## Lessons
+- Warehouse ship must never await Shopify; use `pushShopifyTrackingAsync`.
+- Unmapped SKUs → WebhookEvent ERROR with HTTP 200 (no retry storm).
+
+---
+
+# Stripe address sync + platform invoicing (Aug 8, 2026)  [EXECUTOR — DEPLOYED 91a941c]
 
 ## Background and Motivation
 Stripe had ship-to on invoices; PeptSci FedEx / Order / Client did not. Owner chose **B** (platform Invoices only).
@@ -23,8 +106,9 @@ Ingest used billing only; convert skipped Client; Order #199 already converted e
 
 ## Project Status Board
 - [x] Phase 1 code + local migration applied
-- [ ] Deploy to main / prod migration
-- [ ] Owner: `POST refresh-stripe-address` `{ "orderNumber": 199, "force": true }`
+- [x] Deployed `91a941c` → main → peptsci.com READY (`dpl_51i5GzdoHq76cwZ59LJS7XRiY8Lf`)
+- [ ] Prod migration `20260808143000_sales_record_address2`
+- [x] Owner refreshed Order #199 (`orderUpdated: true`, salesRecordId cmsf3qcmx000204llrfzxlix5)
 - [ ] Phase 2 invoice polish if PDF still wrong after Client seed
 
 ## Executor's Feedback or Assistance Requests

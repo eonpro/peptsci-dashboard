@@ -30,13 +30,14 @@ const KPV: BlendComponent = { name: 'KPV', casNumber: '67727-97-3', molecularFor
 const CJC_1295_NO_DAC: BlendComponent = { name: 'CJC-1295 (no DAC)', casNumber: '863288-34-0', molecularFormula: 'C152H252N44O42', molecularWeight: '3367.9 g/mol', purity: P }
 const IPAMORELIN: BlendComponent = { name: 'Ipamorelin', casNumber: '170851-70-4', molecularFormula: 'C38H49N9O5', molecularWeight: '711.9 g/mol', purity: P }
 
-// Component order matches the printed label artwork (BPC-157 / TB-500 first,
-// then GHK-Cu, then KPV) so per-component doses parsed from the variant dose
-// string line up positionally.
+// Component order matches how GLOW / KLOW are stocked and priced:
+//   GLOW 70: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg
+//   KLOW 80: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg + KPV 10mg
+// Dose strings are slash-separated in the same order so PDP / labels line up.
 export const BLEND_COMPOSITIONS: Record<string, BlendComponent[]> = {
   'bpc-157-tb-500-blend': [BPC_157, TB_500],
-  glow: [BPC_157, TB_500, GHK_CU],
-  klow: [BPC_157, TB_500, GHK_CU, KPV],
+  glow: [GHK_CU, BPC_157, TB_500],
+  klow: [GHK_CU, BPC_157, TB_500, KPV],
   'cjc-1295-no-dac-ipamorelin': [CJC_1295_NO_DAC, IPAMORELIN],
 }
 
@@ -48,6 +49,17 @@ const ALIASES: Record<string, string> = {
   'klow-80': 'klow',
   'glow-blend': 'glow',
   'klow-blend': 'klow',
+  // Compound-list Product.name values (blend form saved without a trade name).
+  'ghk-cu-and-bpc-157-and-tb-500': 'glow',
+  'bpc-157-and-tb-500-and-ghk-cu': 'glow',
+  'bpc-157-and-ghk-cu-and-tb-500': 'glow',
+  'ghk-cu-bpc-157-tb-500': 'glow',
+  'bpc-157-tb-500-ghk-cu': 'glow',
+  'ghk-cu-and-bpc-157-and-tb-500-and-kpv': 'klow',
+  'bpc-157-and-tb-500-and-ghk-cu-and-kpv': 'klow',
+  'bpc-157-tb-500-ghk-cu-kpv': 'klow',
+  'ghk-cu-bpc-157-tb-500-kpv': 'klow',
+  'ghk-cu-and-bpc-157-and-tb-500-and-kpv-blend': 'klow',
 }
 
 /** Resolve a blend's component list by product name, or null if not a known blend. */
@@ -60,6 +72,14 @@ export function getBlendComposition(name: string): BlendComponent[] | null {
   // "CJC-1295 (no DAC) + Ipamorelin" style names.
   if (key.includes('cjc-1295') && key.includes('ipamorelin')) {
     return BLEND_COMPOSITIONS['cjc-1295-no-dac-ipamorelin']
+  }
+  // Fingerprint compound-list names that weren't added as explicit aliases.
+  const has = (token: string) => key.includes(token)
+  if (has('ghk') && has('bpc') && has('tb') && has('kpv')) {
+    return BLEND_COMPOSITIONS.klow
+  }
+  if (has('ghk') && has('bpc') && has('tb') && !has('kpv')) {
+    return BLEND_COMPOSITIONS.glow
   }
   return null
 }

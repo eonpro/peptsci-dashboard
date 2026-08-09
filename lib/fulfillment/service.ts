@@ -13,6 +13,7 @@
 import { Prisma, type FulfillmentStage } from '@prisma/client'
 import { prisma } from '../prisma'
 import { logger } from '../logger'
+import { displayProductName } from '../products/named-blends'
 import {
   allocatableBatchesForVariants,
   minAllocatableBud,
@@ -329,7 +330,7 @@ function toPickListItems(
 ): PickListItemInput[] {
   return items.map((it) => ({
     variantId: it.variantId,
-    productName: it.variant.product.name,
+    productName: displayProductName(it.variant.product.name, it.variant.sku),
     dose: it.variant.dose,
     sku: it.variant.sku,
     quantity: it.quantity,
@@ -374,7 +375,7 @@ export async function buildPackingSlipData(orderId: string): Promise<PackingSlip
   if (!order) throw new Error('Order not found')
 
   const lines = order.items.map((it) => ({
-    productName: it.variant.product.name,
+    productName: displayProductName(it.variant.product.name, it.variant.sku),
     dose: it.variant.dose ?? '',
     sku: it.variant.sku ?? '',
     quantity: it.quantity,
