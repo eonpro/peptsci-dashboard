@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { clerkClient } from '@clerk/nextjs/server'
 import {
   requireAdmin,
@@ -7,6 +8,7 @@ import {
   errorResponse,
   successResponse,
 } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +16,14 @@ export const dynamic = 'force-dynamic'
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
 type Metadata = { role?: string; status?: string; clientId?: string }
+
+const createUserSchema = z.object({
+  email: z.string().trim().email('Enter a valid email').max(200),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  firstName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().max(100).optional(),
+  clientId: z.string().trim().min(1, 'Practice is required'),
+})
 
 /**
  * GET /api/admin/users
@@ -72,5 +82,131 @@ export async function GET(request: NextRequest) {
       error instanceof Error ? error : new Error(String(error))
     )
     return errorResponse('Failed to list users')
+  }
+}
+
+/**
+ * POST /api/admin/users
+ * Create a Clerk login with an admin-chosen password and link it to a practice.
+ * Admin only. Password is never logged or returned.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const { isAuthenticated, isAdmin } = await requireAdmin()
+    if (!isAuthenticated) return unauthorizedResponse()
+    if (!isAdmin) return forbiddenResponse('Admin access required')
+
+    const parsed = createUserSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return errorResponse(
+        parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+        400,
+        'VALIDATION_ERROR'
+      )
+    }
+    const { email, password, firstName, lastName, clientId } = parsed.data
+
+    if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
+
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { id: true, organizationName: true },
+    })
+    if (!client) return errorResponse('Selected client not found', 400, 'CLIENT_NOT_FOUND')
+
+    if (!isClerkConfigured) {
+      return errorResponse('Clerk is not configured; cannot create users.', 503, 'CLERK_UNAVAILABLE')
+    }
+
+    const clerk = await clerkClient()
+
+    let clerkUser
+    try {
+      clerkUser = await clerk.users.createUser({
+        emailAddress: [email],
+        password,
+        ...(firstName ? { firstName } : {}),
+        ...(lastName ? { lastName } : {}),
+        publicMetadata: {
+          role: 'CLIENT',
+          // Admin-provisioned logins are pre-vetted (same as invite).
+          status: 'ACTIVE',
+          clientId,
+        },
+      })
+    } catch (err) {
+      const clerkErr = err as { errors?: Array<{ message?: string; code?: string }>; status?: number }
+      const first = clerkErr.errors?.[0]
+      if (first) {
+        const code = first.code || ''
+        if (code === 'form_identifier_exists' || code === 'duplicate_record') {
+          return errorResponse('A user with that email already exists.', 409, 'USER_EXISTS')
+        }
+        if (code.startsWith('form_password') || code.includes('password')) {
+          return errorResponse(first.message || 'Password does not meet requirements.', 400, 'WEAK_PASSWORD')
+        }
+        return errorResponse(first.message || 'Could not create user.', 400, 'CREATE_FAILED')
+      }
+      throw err
+    }
+
+    const dbUser = await prisma.user.upsert({
+      where: { clerkUserId: clerkUser.id },
+      update: {
+        email,
+        firstName: firstName || clerkUser.firstName || undefined,
+        lastName: lastName || clerkUser.lastName || undefined,
+        role: 'CLIENT',
+        status: 'ACTIVE',
+        clientId,
+      },
+      create: {
+        clerkUserId: clerkUser.id,
+        email,
+        firstName: firstName || clerkUser.firstName || undefined,
+        lastName: lastName || clerkUser.lastName || undefined,
+        role: 'CLIENT',
+        status: 'ACTIVE',
+        clientId,
+      },
+      select: {
+        id: true,
+        clerkUserId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+      },
+    })
+
+    logger.info('Admin created client login', {
+      clerkUserId: clerkUser.id,
+      email,
+      clientId,
+      organizationName: client.organizationName,
+    })
+
+    return successResponse(
+      {
+        user: {
+          id: dbUser.id,
+          clerkUserId: dbUser.clerkUserId,
+          email: dbUser.email,
+          firstName: dbUser.firstName,
+          lastName: dbUser.lastName,
+          role: dbUser.role,
+          status: dbUser.status,
+        },
+      },
+      201
+    )
+  } catch (error) {
+    logger.error(
+      'Error creating user',
+      {},
+      error instanceof Error ? error : new Error(String(error))
+    )
+    return errorResponse('Failed to create user')
   }
 }

@@ -71,7 +71,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         partnerOrg: { select: { id: true, name: true } },
         partnerRep: { select: { id: true, name: true } },
         users: {
-          select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true },
+          select: {
+            id: true,
+            clerkUserId: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            status: true,
+          },
         },
         _count: {
           select: {

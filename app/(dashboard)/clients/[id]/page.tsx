@@ -14,6 +14,8 @@ import { AddressFields } from '@/components/AddressFields'
 import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
+import CreateClientUserDialog from '../../users/CreateClientUserDialog'
+import ResetPasswordDialog from '../../users/ResetPasswordDialog'
 import DeleteClientButton from '../DeleteClientButton'
 import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
@@ -32,10 +34,12 @@ import {
   Clock,
   Users as UsersIcon,
   UserPlus,
+  KeyRound,
 } from 'lucide-react'
 
 interface LinkedUser {
   id: string
+  clerkUserId: string
   email: string | null
   firstName: string | null
   lastName: string | null
@@ -73,6 +77,8 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [createLoginOpen, setCreateLoginOpen] = useState(false)
+  const [resetUser, setResetUser] = useState<LinkedUser | null>(null)
 
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [users, setUsers] = useState<LinkedUser[]>([])
@@ -554,13 +560,23 @@ export default function ClientDetailPage() {
                 <span className="text-white/40 font-normal">· {counts.orders} orders</span>
               ) : null}
             </CardTitle>
-            <Button
-              size="sm"
-              onClick={() => setInviteOpen(true)}
-              className="bg-brand-primary hover:bg-[#1a30c0] text-white"
-            >
-              <UserPlus className="h-4 w-4 mr-1.5" /> Invite user
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCreateLoginOpen(true)}
+                className="border-white/20 text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                <KeyRound className="h-4 w-4 mr-1.5" /> Create login
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setInviteOpen(true)}
+                className="bg-brand-primary hover:bg-[#1a30c0] text-white"
+              >
+                <UserPlus className="h-4 w-4 mr-1.5" /> Invite user
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -570,21 +586,31 @@ export default function ClientDetailPage() {
             users.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between rounded-lg border border-white/10 p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-lg border border-white/10 p-3 text-sm"
               >
-                <div>
-                  <p className="font-medium text-white">
+                <div className="min-w-0">
+                  <p className="font-medium text-white truncate">
                     {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
                   </p>
-                  <p className="text-white/50">{u.email}</p>
+                  <p className="text-white/50 truncate">{u.email}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="text-white/70 border-white/20">
                     {u.role}
                   </Badge>
                   <Badge variant="outline" className={statusStyles[u.status] ?? 'text-white/70'}>
                     {u.status}
                   </Badge>
+                  {u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setResetUser(u)}
+                      className="h-8 border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+                    >
+                      <KeyRound className="h-3.5 w-3.5 mr-1" /> Reset
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))
@@ -600,6 +626,31 @@ export default function ClientDetailPage() {
         defaultClientId={id}
         lockClient
         onInvited={refetchUsers}
+      />
+
+      <CreateClientUserDialog
+        open={createLoginOpen}
+        onOpenChange={setCreateLoginOpen}
+        clientId={id}
+        organizationName={profile.organizationName}
+        onCreated={refetchUsers}
+      />
+
+      <ResetPasswordDialog
+        open={Boolean(resetUser)}
+        onOpenChange={(open) => {
+          if (!open) setResetUser(null)
+        }}
+        clerkUserId={resetUser?.clerkUserId ?? null}
+        clientId={id}
+        email={resetUser?.email ?? null}
+        displayName={
+          resetUser
+            ? [resetUser.firstName, resetUser.lastName].filter(Boolean).join(' ') ||
+              resetUser.email ||
+              'user'
+            : 'user'
+        }
       />
     </div>
   )
