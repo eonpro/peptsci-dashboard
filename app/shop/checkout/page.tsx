@@ -79,6 +79,10 @@ export default function CheckoutPage() {
   const [prefillFailed, setPrefillFailed] = useState(false)
   // Field errors shown after the user tries to continue with invalid input.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [shippingOverrides, setShippingOverrides] = useState<{
+    twoDay: number | null
+    overnight: number | null
+  }>({ twoDay: null, overnight: null })
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
@@ -100,6 +104,10 @@ export default function CheckoutPage() {
         setContactPhone(p.contactPhone ?? '')
         const addr = p.shippingAddress ?? p.billingAddress
         if (addr) setPracticeAddr(addr)
+        setShippingOverrides({
+          twoDay: p.shippingRateTwoDay ?? null,
+          overnight: p.shippingRateOvernight ?? null,
+        })
       })
       .catch(() => {
         if (active) setPrefillFailed(true)
@@ -120,7 +128,7 @@ export default function CheckoutPage() {
     loadPatients()
   }, [])
 
-  const shipping = computeShipping(subtotal, shipSpeed)
+  const shipping = computeShipping(subtotal, shipSpeed, shippingOverrides)
   const total = subtotal + shipping // No tax (Model A)
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId)
@@ -259,13 +267,13 @@ export default function CheckoutPage() {
       id: 'TWO_DAY',
       label: '2-Day Shipping',
       desc: 'Delivered in 2 business days',
-      price: computeShipping(subtotal, 'TWO_DAY'),
+      price: computeShipping(subtotal, 'TWO_DAY', shippingOverrides),
     },
     {
       id: 'OVERNIGHT',
       label: 'Overnight Shipping',
       desc: 'Next business day',
-      price: computeShipping(subtotal, 'OVERNIGHT'),
+      price: computeShipping(subtotal, 'OVERNIGHT', shippingOverrides),
     },
   ]
 

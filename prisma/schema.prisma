@@ -81,6 +81,11 @@ model Client {
   // only. creditLimit (dollars) caps open AR + the new order; NULL = no cap.
   paymentTermsDays      Int?
   creditLimit           Decimal?                  @db.Decimal(12, 2)
+  // Per-practice flat shipping rates (dollars). NULL = global checkout matrix
+  // ($25/$35 under $500; free/$20 at $500+). When set, the flat rate applies
+  // with no free-shipping threshold (Shopify + shop + manual orders).
+  shippingRateTwoDay    Decimal?                  @db.Decimal(12, 2)
+  shippingRateOvernight Decimal?                  @db.Decimal(12, 2)
   // At-cost pricing: this clinic pays exactly what we pay per vial
   // (ProductVariant.unitCost). Takes precedence over ClientPricing and SRP;
   // vials with no cost set (unitCost <= 0) fall back to custom price / SRP.
@@ -120,7 +125,8 @@ model Client {
 
 // -------------------------------------------------
 // Shopify Custom App connection (per-client white-label fulfillment).
-// Shopify collects retail payment; PeptSci fulfills and pushes tracking back.
+// Shopify collects retail from the end buyer; PeptSci charges the practice
+// B2B (account pricing + shipping) via card on file, then fulfills + syncs tracking.
 // -------------------------------------------------
 
 enum ShopifyConnectionStatus {

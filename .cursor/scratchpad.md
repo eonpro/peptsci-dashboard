@@ -1,4 +1,31 @@
-# Payment terms select (net 0 / 7 / 14 / 30)  [EXECUTOR — DEPLOYING]
+# Shopify auto-charge + practice shipping rates  [EXECUTOR — CODE DONE]
+
+## Background and Motivation
+Charge practice card on file when Shopify paid orders ingest (PeptSci B2B pricing), and support per-practice 2-day / next-day shipping rates on all order sources.
+
+## High-level Task Breakdown
+1. [x] Client.shippingRateTwoDay / Overnight + migration
+2. [x] computeShipping overrides + createManualOrder / resolveCart / shop checkout UI
+3. [x] Admin Billing Terms fields + profile serialize + PATCH
+4. [x] mapShopifyShipSpeed + ingest PENDING + chargeOrderWithSavedCard
+5. [ ] Owner: run Settings migrate SQL, set Elevated Vitality shipping rates, verify next Shopify order
+
+## Project Status Board
+- [x] Schema + math + UI + Shopify auto-charge
+- [ ] Deploy + prod migrate
+
+## Executor's Feedback or Assistance Requests
+1. After deploy: Settings → DB migrate (or POST migrate confirm) for `shippingRateTwoDay` / `shippingRateOvernight`.
+2. Clients → practice → Billing Terms: set 2-day / next-day $ rates; Save.
+3. Next Shopify paid order should create PeptSci order at account pricing + shipping and attempt card charge; unpaid orders stay PENDING for admin Charge.
+
+## Lessons
+- Shopify retail ≠ PeptSci B2B: ingest must PENDING + Stripe off-session, not CAPTURED without charge.
+- Flat practice rates skip the global $500 free-shipping tier by design.
+
+---
+
+# Payment terms select (net 0 / 7 / 14 / 30)  [EXECUTOR — DEPLOYED abf774d]
 
 ## Background and Motivation
 Billing Terms UI was a free-text days field; operators need presets: pay as billed (net 0), net 7, net 14, net 30. Prior fix wrongly coerced 0 → null (card-only), so pay-as-billed could not be saved or used at checkout.
@@ -13,11 +40,18 @@ Billing Terms UI was a free-text days field; operators need presets: pay as bill
 2. [x] Admin Select presets + Card only
 3. [x] Checkout / invoices / emails use formatPaymentTermsLabel; eligibility uses != null
 4. [x] Unit tests
-5. [ ] Deploy to main / peptsci.com
+5. [x] Deployed `abf774d` → peptsci.com READY (`dpl_5CpWKZGFVV7fi4pSGGo5tnima8vd`)
 
 ## Project Status Board
 - [x] Semantics + UI + tests
-- [ ] Prod deploy
+- [x] Prod deploy
+- [ ] Owner: hard-refresh Elevated Vitality → pick Net 30 (or pay as billed), clear credit limit if 0, Save
+
+## Executor's Feedback or Assistance Requests
+1. Hard-refresh Clients → Elevated Vitality → Billing Terms.
+2. Select **Pay as billed (net 0)**, **Net 7**, **Net 14**, or **Net 30** (or Card only).
+3. If Credit Limit shows `0`, clear it (blank = no cap) — a $0 limit blocks every bill-to-account order.
+4. Save Changes.
 
 ## Lessons
 - Never equate net 0 with card-only; only `null` disables bill-to-account.

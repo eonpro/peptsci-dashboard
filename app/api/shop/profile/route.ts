@@ -21,6 +21,8 @@ const clientSelect = {
   shippingAddress: true,
   onboardingStatus: true,
   smsOptIn: true,
+  shippingRateTwoDay: true,
+  shippingRateOvernight: true,
 } as const
 
 /** GET /api/shop/profile — the caller's own practice profile. */

@@ -1,7 +1,8 @@
 /**
  * Ingest a paid Shopify order into a PeptSci fulfillment Order (source SHOPIFY).
- * Billing: Shopify already collected retail — we mark CAPTURED so the warehouse
- * payment gate allows ship without Stripe/invoice.
+ * Billing: PeptSci B2B account pricing + practice shipping; attempt off-session
+ * charge of the practice card on file. Order stays PENDING/FAILED if charge
+ * cannot run so admins can collect later (payment gate blocks ship until CAPTURED).
  */
 
 import { Prisma } from '@prisma/client'
@@ -10,8 +11,10 @@ import { logger } from '@/lib/logger'
 import { createManualOrder, type CreateManualOrderResult } from '@/lib/orders/create'
 import { ManualOrderError } from '@/lib/orders/order-core'
 import { reserveForOrder } from '@/lib/inventory/reservations'
+import { chargeOrderWithSavedCard } from '@/lib/stripe/charge-saved-card'
 import { fromShopifyShippingAddress, type ShopifyAddressLike } from './address'
 import { shopifyGidToNumeric } from './ids'
+import { mapShopifyShipSpeed } from './ship-speed'
 
 export type ShopifyLineItem = {
   id?: number | string
@@ -38,12 +41,18 @@ export type ShopifyOrderPayload = {
   total_shipping_price_set?: { shop_money?: { amount?: string } } | null
   shipping_address?: ShopifyAddressLike | null
   billing_address?: ShopifyAddressLike | null
+  shipping_lines?: Array<{ title?: string | null; code?: string | null }>
   line_items?: ShopifyLineItem[]
   fulfillment_orders?: Array<{ id?: number | string; admin_graphql_api_id?: string }>
 }
 
 export type IngestShopifyOrderResult =
-  | { status: 'created'; order: CreateManualOrderResult; shopifyOrderId: string }
+  | {
+      status: 'created'
+      order: CreateManualOrderResult
+      shopifyOrderId: string
+      chargeStatus: string
+    }
   | { status: 'duplicate'; orderId: string; orderNumber: number }
   | { status: 'skipped'; reason: string }
   | { status: 'error'; code: string; message: string }
@@ -175,11 +184,13 @@ export async function ingestShopifyPaidOrder(params: {
     null
 
   const orderName = payload.name?.trim() || `#${shopifyOrderId}`
+  const shipSpeed = mapShopifyShipSpeed(payload.shipping_lines)
   const internalNotes = [
     `Shopify order ${orderName}`,
     payload.email ? `buyer: ${payload.email}` : null,
     payload.financial_status ? `financial_status: ${payload.financial_status}` : null,
-    'Paid on Shopify — PeptSci fulfillment only',
+    `shipSpeed: ${shipSpeed}`,
+    'Shopify retail paid by buyer — PeptSci B2B charge attempted on card on file',
   ]
     .filter(Boolean)
     .join(' | ')
@@ -191,9 +202,9 @@ export async function ingestShopifyPaidOrder(params: {
       lines: mapped.lines,
       source: 'SHOPIFY',
       status: 'SUBMITTED',
-      paymentStatus: 'CAPTURED',
-      paidAt: new Date(),
+      paymentStatus: 'PENDING',
       shipTo: 'PATIENT',
+      shipSpeed,
       shippingAddress: shipping
         ? (shipping as unknown as Prisma.InputJsonValue)
         : null,
@@ -204,6 +215,52 @@ export async function ingestShopifyPaidOrder(params: {
       shopifyOrderName: orderName,
       shopifyFulfillmentOrderId: foId,
     })
+
+    let chargeStatus = 'pending'
+    try {
+      const charged = await chargeOrderWithSavedCard({
+        orderId: order.id,
+        idempotencyKey: `pi_shopify_${order.id}`,
+        metadata: { source: 'shopify', shopifyOrderId },
+      })
+      chargeStatus = charged.status
+      if (charged.status === 'no_card') {
+        logger.info('[shopify] shopify_charge_skipped_no_card', {
+          orderId: order.id,
+          shopifyOrderId,
+          clientId,
+        })
+      } else if (charged.status === 'captured') {
+        logger.info('[shopify] shopify_charge_captured', {
+          orderId: order.id,
+          shopifyOrderId,
+          paymentIntentId: charged.paymentIntentId,
+        })
+      } else if (charged.status === 'failed' || charged.status === 'requires_action') {
+        logger.warn('[shopify] shopify_charge_unpaid', {
+          orderId: order.id,
+          shopifyOrderId,
+          chargeStatus: charged.status,
+          message: 'message' in charged ? charged.message : undefined,
+        })
+      } else if (charged.status === 'stripe_unconfigured') {
+        logger.warn('[shopify] shopify_charge_skipped_stripe', {
+          orderId: order.id,
+          message: charged.message,
+        })
+      }
+    } catch (chargeErr) {
+      chargeStatus = 'error'
+      logger.error(
+        '[shopify] shopify_charge_exception — order left unpaid',
+        {
+          orderId: order.id,
+          shopifyOrderId,
+          error: chargeErr instanceof Error ? chargeErr.message : String(chargeErr),
+        },
+        chargeErr instanceof Error ? chargeErr : undefined
+      )
+    }
 
     try {
       await reserveForOrder(order.id)
@@ -230,9 +287,11 @@ export async function ingestShopifyPaidOrder(params: {
       orderNumber: order.orderNumber,
       shopifyOrderId,
       clientId,
+      shipSpeed,
+      chargeStatus,
     })
 
-    return { status: 'created', order, shopifyOrderId }
+    return { status: 'created', order, shopifyOrderId, chargeStatus }
   } catch (err) {
     if (err instanceof ManualOrderError) {
       return { status: 'error', code: err.code, message: err.message }

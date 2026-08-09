@@ -121,6 +121,10 @@ export interface ClientProfile {
   /** Net-terms billing (admin-managed). Null = card-only checkout. */
   paymentTermsDays: number | null
   creditLimit: number | null
+  /** Flat 2-day shipping override (dollars). Null = global matrix. */
+  shippingRateTwoDay: number | null
+  /** Flat next-day / overnight shipping override (dollars). Null = global matrix. */
+  shippingRateOvernight: number | null
   /** TCPA SMS consent (null when the caller didn't select it). */
   smsOptIn: boolean | null
 }
@@ -144,6 +148,8 @@ export function serializeClientProfile(client: {
   onboardingStatus: string
   paymentTermsDays?: number | null
   creditLimit?: unknown
+  shippingRateTwoDay?: unknown
+  shippingRateOvernight?: unknown
   smsOptIn?: boolean
 }): ClientProfile {
   return {
@@ -161,6 +167,10 @@ export function serializeClientProfile(client: {
     npiLocked: client.onboardingStatus === 'APPROVED',
     paymentTermsDays: client.paymentTermsDays ?? null,
     creditLimit: client.creditLimit != null ? Number(client.creditLimit) : null,
+    shippingRateTwoDay:
+      client.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
+    shippingRateOvernight:
+      client.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
     smsOptIn: client.smsOptIn ?? null,
   }
 }

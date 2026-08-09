@@ -145,6 +145,8 @@ export default function ClientDetailPage() {
   const [shipping, setShipping] = useState<Partial<Address>>(emptyAddress)
   const [paymentTermsDays, setPaymentTermsDays] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
+  const [shippingRateTwoDay, setShippingRateTwoDay] = useState('')
+  const [shippingRateOvernight, setShippingRateOvernight] = useState('')
 
   const hydrate = (p: ClientProfile) => {
     setProfile(p)
@@ -160,6 +162,12 @@ export default function ClientDetailPage() {
     // null = card-only; 0 = pay as billed (valid terms).
     setPaymentTermsDays(p.paymentTermsDays != null ? String(p.paymentTermsDays) : '')
     setCreditLimit(p.creditLimit != null ? String(p.creditLimit) : '')
+    setShippingRateTwoDay(
+      p.shippingRateTwoDay != null ? String(p.shippingRateTwoDay) : ''
+    )
+    setShippingRateOvernight(
+      p.shippingRateOvernight != null ? String(p.shippingRateOvernight) : ''
+    )
   }
 
   const refetchUsers = useCallback(async () => {
@@ -265,6 +273,10 @@ export default function ClientDetailPage() {
       contactPhone,
       paymentTermsDays: paymentTermsPayload,
       creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
+      shippingRateTwoDay:
+        shippingRateTwoDay.trim() === '' ? null : Number(shippingRateTwoDay),
+      shippingRateOvernight:
+        shippingRateOvernight.trim() === '' ? null : Number(shippingRateOvernight),
     }
     if (billingPatch.value) body.billingAddress = billingPatch.value
     if (shippingPatch.value) body.shippingAddress = shippingPatch.value
@@ -549,6 +561,8 @@ export default function ClientDetailPage() {
           <CardDescription className="text-white/50">
             Choose terms to enable &ldquo;Bill to account&rdquo; at checkout. Card only keeps
             checkout on card. Credit limit caps open balance + new orders (blank = no cap).
+            Shipping rates below override the global matrix for every order (shop, Shopify,
+            manual); blank = defaults ($25 / $35 under $500).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -593,6 +607,28 @@ export default function ClientDetailPage() {
                 value={creditLimit}
                 onChange={(e) => setCreditLimit(e.target.value.replace(/[^\d.]/g, ''))}
                 placeholder="e.g. 10000 — blank = no cap"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className={labelClass}>2-Day Shipping (USD)</Label>
+              <Input
+                className={inputClass}
+                value={shippingRateTwoDay}
+                onChange={(e) => setShippingRateTwoDay(e.target.value.replace(/[^\d.]/g, ''))}
+                placeholder="blank = global default"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className={labelClass}>Next-Day Shipping (USD)</Label>
+              <Input
+                className={inputClass}
+                value={shippingRateOvernight}
+                onChange={(e) =>
+                  setShippingRateOvernight(e.target.value.replace(/[^\d.]/g, ''))
+                }
+                placeholder="blank = global default"
                 inputMode="decimal"
               />
             </div>

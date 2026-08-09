@@ -103,6 +103,29 @@ describe('computeShipping (tiered matrix)', () => {
     assert.equal(computeShipping(0, 'OVERNIGHT'), 0)
     assert.equal(computeShipping(-5, 'TWO_DAY'), 0)
   })
+
+  test('practice flat overrides ignore the $500 free-shipping tier', () => {
+    const rates = { twoDay: 18, overnight: 42 }
+    assert.equal(computeShipping(100, 'TWO_DAY', rates), 18)
+    assert.equal(computeShipping(100, 'OVERNIGHT', rates), 42)
+    assert.equal(computeShipping(600, 'TWO_DAY', rates), 18)
+    assert.equal(computeShipping(600, 'OVERNIGHT', rates), 42)
+  })
+
+  test('null/undefined overrides fall back to the global matrix', () => {
+    assert.equal(computeShipping(100, 'TWO_DAY', { twoDay: null, overnight: 50 }), 25)
+    assert.equal(computeShipping(100, 'OVERNIGHT', { twoDay: 10, overnight: null }), 35)
+    assert.equal(computeShipping(100, 'TWO_DAY', null), 25)
+  })
+
+  test('zero is a valid flat override (free shipping for that speed)', () => {
+    assert.equal(computeShipping(100, 'TWO_DAY', { twoDay: 0 }), 0)
+    assert.equal(computeShipping(600, 'OVERNIGHT', { overnight: 0 }), 0)
+  })
+
+  test('negative overrides are ignored', () => {
+    assert.equal(computeShipping(100, 'TWO_DAY', { twoDay: -5 }), 25)
+  })
 })
 
 describe('computeCartTotals', () => {
@@ -135,6 +158,14 @@ describe('computeCartTotals', () => {
     const totals = computeCartTotals([{ lineTotal: 19.99 }, { lineTotal: 0.02 }], 'TWO_DAY')
     assert.equal(totals.subtotal, 20.01)
     assert.equal(totals.total, round2(20.01 + 25))
+  })
+
+  test('applies practice shipping overrides to the order total', () => {
+    const totals = computeCartTotals([{ lineTotal: 200 }], 'OVERNIGHT', {
+      twoDay: 12,
+      overnight: 29.5,
+    })
+    assert.deepEqual(totals, { subtotal: 200, taxTotal: 0, shippingTotal: 29.5, total: 229.5 })
   })
 })
 

@@ -83,7 +83,12 @@ export async function createManualOrder(
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    select: { id: true, paysAtCost: true },
+    select: {
+      id: true,
+      paysAtCost: true,
+      shippingRateTwoDay: true,
+      shippingRateOvernight: true,
+    },
   })
   if (!client) throw new ManualOrderError('Selected client was not found', 'CLIENT_UNKNOWN')
 
@@ -129,7 +134,11 @@ export async function createManualOrder(
 
   const resolvedLines = buildManualOrderLines(lines, info, { paysAtCost: client.paysAtCost })
   const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
-  const totals = computeCartTotals(resolvedLines, shipSpeed)
+  const shippingOverrides = {
+    twoDay: client.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
+    overnight: client.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
+  }
+  const totals = computeCartTotals(resolvedLines, shipSpeed, shippingOverrides)
 
   if (params.expectedTotal != null && Math.abs(totals.total - params.expectedTotal) > 0.005) {
     throw new ManualOrderError(

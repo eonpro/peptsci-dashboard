@@ -34,6 +34,8 @@ const clientSelect = {
   onboardingStatus: true,
   paymentTermsDays: true,
   creditLimit: true,
+  shippingRateTwoDay: true,
+  shippingRateOvernight: true,
   paysAtCost: true,
 } as const
 
@@ -51,6 +53,9 @@ const adminUpdateSchema = z.object({
   // Net-terms: null = card-only; 0 = pay as billed; >0 = net days. creditLimit null = no cap.
   paymentTermsDays: paymentTermsDaysSchema,
   creditLimit: z.number().min(0).max(10_000_000).nullable().optional(),
+  // Flat practice shipping rates (dollars). null = global matrix.
+  shippingRateTwoDay: z.number().min(0).max(10_000).nullable().optional(),
+  shippingRateOvernight: z.number().min(0).max(10_000).nullable().optional(),
   // At-cost pricing: this clinic pays ProductVariant.unitCost per vial.
   paysAtCost: z.boolean().optional(),
 })
@@ -219,6 +224,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
     if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
     if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
+    if (input.shippingRateTwoDay !== undefined) data.shippingRateTwoDay = input.shippingRateTwoDay
+    if (input.shippingRateOvernight !== undefined)
+      data.shippingRateOvernight = input.shippingRateOvernight
     if (input.paysAtCost !== undefined) data.paysAtCost = input.paysAtCost
 
     let client

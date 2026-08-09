@@ -15,6 +15,7 @@ import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId, applicationFeeAmount } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { reconcileOrderFromPaymentIntent, persistPaymentMethodFromStripe } from '@/lib/stripe/payments'
+import { chargeOrderWithSavedCard } from '@/lib/stripe/charge-saved-card'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -135,52 +136,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // ── Saved-card path: charge off-session immediately ──
     if (savedPaymentMethodId) {
-      const saved = await prisma.paymentMethod.findFirst({
-        where: { id: savedPaymentMethodId, clientId: order.clientId, isActive: true },
+      const charged = await chargeOrderWithSavedCard({
+        orderId: order.id,
+        paymentMethodId: savedPaymentMethodId,
+        idempotencyKey: `pi_admin_saved_${order.id}`,
+        metadata: { source: 'admin_charge' },
       })
-      if (!saved) return errorResponse('Saved payment method not found', 404, 'PM_NOT_FOUND')
-
-      let intent: Stripe.PaymentIntent
-      try {
-        intent = await stripe.paymentIntents.create(
-          { ...baseParams, payment_method: saved.stripePaymentMethodId, confirm: true, off_session: true },
-          connectRequestOptions({ idempotencyKey: `pi_admin_saved_${order.id}` })
-        )
-      } catch (err) {
-        const stripeErr = err as { message?: string; payment_intent?: Stripe.PaymentIntent }
-        const message = stripeErr.message ?? 'Payment failed'
-        await prisma.order.update({
-          where: { id: order.id },
-          data: { paymentStatus: 'FAILED', paymentFailureReason: message, stripePaymentIntentId: stripeErr.payment_intent?.id },
-        })
-        return NextResponse.json(
-          { error: 'Payment failed', message, code: 'PAYMENT_FAILED', orderId: order.id },
-          { status: 402 }
-        )
+      if (charged.status === 'no_card' || charged.status === 'not_found') {
+        return errorResponse('Saved payment method not found', 404, 'PM_NOT_FOUND')
       }
-
-      await prisma.paymentMethod.update({ where: { id: saved.id }, data: { lastUsedAt: new Date() } })
-      await prisma.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: intent.id, paymentMethodId: saved.id } })
-
-      if (intent.status === 'requires_action') {
+      if (charged.status === 'stripe_unconfigured') {
+        return errorResponse('Payments are not configured', 503, 'STRIPE_UNCONFIGURED')
+      }
+      if (charged.status === 'already_paid') {
+        return errorResponse('This order is already paid', 400, 'ALREADY_PAID')
+      }
+      if (charged.status === 'requires_action') {
         return successResponse({
           requiresAction: true,
-          clientSecret: intent.client_secret,
-          paymentIntentId: intent.id,
+          clientSecret: charged.clientSecret,
+          paymentIntentId: charged.paymentIntentId,
           orderId: order.id,
           publishableKey: getStripePublishableKey(),
           connectedAccountId: getConnectedAccountId(),
         })
       }
-
-      const result = await reconcileOrderFromPaymentIntent(intent)
-      if (result.paymentStatus !== 'CAPTURED') {
+      if (charged.status === 'failed') {
         return NextResponse.json(
-          { error: 'Payment not completed', message: `Payment ${intent.status}`, code: 'PAYMENT_NOT_COMPLETED', orderId: order.id },
+          {
+            error: 'Payment failed',
+            message: charged.message,
+            code: 'PAYMENT_FAILED',
+            orderId: order.id,
+          },
           { status: 402 }
         )
       }
-      return successResponse({ success: true, orderId: order.id, paymentStatus: result.paymentStatus, paymentIntentId: intent.id })
+      return successResponse({
+        success: true,
+        orderId: order.id,
+        paymentStatus: charged.paymentStatus,
+        paymentIntentId: charged.paymentIntentId,
+      })
     }
 
     // ── New-card path: create unconfirmed PI; admin confirms via Elements ──

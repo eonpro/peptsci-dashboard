@@ -150,11 +150,38 @@ export function qualifiesForFreeShipping(subtotal: number): boolean {
 }
 
 /**
- * Shipping cost for the chosen speed, tiered by order subtotal.
+ * Optional per-practice flat shipping overrides (dollars).
+ * When the chosen speed's override is a finite number ≥ 0, that flat rate is
+ * used and the global $500 free-shipping tier does not apply.
+ */
+export interface ShippingRateOverrides {
+  twoDay?: number | null
+  overnight?: number | null
+}
+
+function overrideForSpeed(
+  speed: ShipSpeed,
+  overrides?: ShippingRateOverrides | null
+): number | null {
+  if (!overrides) return null
+  const raw = speed === 'OVERNIGHT' ? overrides.overnight : overrides.twoDay
+  if (raw == null || !Number.isFinite(raw) || raw < 0) return null
+  return round2(raw)
+}
+
+/**
+ * Shipping cost for the chosen speed, tiered by order subtotal — or a flat
+ * per-practice override when provided.
  * Empty/zero carts ship for free.
  */
-export function computeShipping(subtotal: number, speed: ShipSpeed = 'TWO_DAY'): number {
+export function computeShipping(
+  subtotal: number,
+  speed: ShipSpeed = 'TWO_DAY',
+  overrides?: ShippingRateOverrides | null
+): number {
   if (subtotal <= 0) return 0
+  const override = overrideForSpeed(speed, overrides)
+  if (override != null) return override
   const tier = qualifiesForFreeShipping(subtotal) ? 'QUALIFIED' : 'STANDARD'
   return SHIPPING_RATES[tier][speed]
 }
@@ -165,11 +192,12 @@ export function computeShipping(subtotal: number, speed: ShipSpeed = 'TWO_DAY'):
  */
 export function computeCartTotals(
   lines: Pick<ResolvedLine, 'lineTotal'>[],
-  speed: ShipSpeed = 'TWO_DAY'
+  speed: ShipSpeed = 'TWO_DAY',
+  overrides?: ShippingRateOverrides | null
 ): CartTotals {
   const subtotal = round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
   const taxTotal = 0
-  const shippingTotal = computeShipping(subtotal, speed)
+  const shippingTotal = computeShipping(subtotal, speed, overrides)
   const total = round2(subtotal + taxTotal + shippingTotal)
   return { subtotal, taxTotal, shippingTotal, total }
 }

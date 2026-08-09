@@ -57,7 +57,11 @@ export async function resolveCart(params: {
   const client = params.clientId
     ? await prisma.client.findUnique({
         where: { id: params.clientId },
-        select: { paysAtCost: true },
+        select: {
+          paysAtCost: true,
+          shippingRateTwoDay: true,
+          shippingRateOvernight: true,
+        },
       })
     : null
 
@@ -143,7 +147,11 @@ export async function resolveCart(params: {
     }
   }
 
-  return { lines, totals: computeCartTotals(lines, params.speed ?? 'TWO_DAY') }
+  const shippingOverrides = {
+    twoDay: client?.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
+    overnight: client?.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
+  }
+  return { lines, totals: computeCartTotals(lines, params.speed ?? 'TWO_DAY', shippingOverrides) }
 }
 
 /**
