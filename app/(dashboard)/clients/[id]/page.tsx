@@ -35,6 +35,8 @@ import {
   Users as UsersIcon,
   UserPlus,
   KeyRound,
+  X,
+  Mail,
 } from 'lucide-react'
 
 interface LinkedUser {
@@ -45,6 +47,14 @@ interface LinkedUser {
   lastName: string | null
   role: string
   status: string
+}
+
+interface PendingInvite {
+  id: string
+  email: string
+  role: string
+  status: string
+  createdAt: number
 }
 
 interface SetupSnapshot {
@@ -64,6 +74,7 @@ const statusStyles: Record<string, string> = {
   NEEDS_INFO: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
   REJECTED: 'border-red-500/30 text-red-400 bg-red-500/10',
   SUSPENDED: 'border-red-500/30 text-red-400 bg-red-500/10',
+  INVITE_SENT: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
 }
 
 export default function ClientDetailPage() {
@@ -79,6 +90,8 @@ export default function ClientDetailPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [createLoginOpen, setCreateLoginOpen] = useState(false)
   const [resetUser, setResetUser] = useState<LinkedUser | null>(null)
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
+  const [revokingId, setRevokingId] = useState<string | null>(null)
 
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [users, setUsers] = useState<LinkedUser[]>([])
@@ -117,6 +130,7 @@ export default function ClientDetailPage() {
     if (res.ok) {
       const data = await res.json()
       setUsers(data.users ?? [])
+      setPendingInvites(data.pendingInvites ?? [])
     }
   }, [id])
 
@@ -127,12 +141,29 @@ export default function ClientDetailPage() {
         if (!data?.profile) return
         hydrate(data.profile)
         setUsers(data.users ?? [])
+        setPendingInvites(data.pendingInvites ?? [])
         setCounts(data.counts ?? null)
         setSetup(data.setup ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [id])
+
+  const revokeInvite = async (invitationId: string) => {
+    setRevokingId(invitationId)
+    try {
+      const res = await fetch(`/api/admin/users/invite?id=${encodeURIComponent(invitationId)}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.message || 'Could not revoke invitation')
+      await refetchUsers()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not revoke invitation')
+    } finally {
+      setRevokingId(null)
+    }
+  }
 
   const patch = async (body: Record<string, unknown>, opts?: { flash?: boolean }) => {
     setSaving(true)
@@ -580,40 +611,78 @@ export default function ClientDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          {users.length === 0 ? (
+          {users.length === 0 && pendingInvites.length === 0 ? (
             <p className="text-sm text-white/50">No users linked to this practice.</p>
           ) : (
-            users.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-white/10 p-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-white truncate">
-                    {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
-                  </p>
-                  <p className="text-white/50 truncate">{u.email}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="outline" className="text-white/70 border-white/20">
-                    {u.role}
-                  </Badge>
-                  <Badge variant="outline" className={statusStyles[u.status] ?? 'text-white/70'}>
-                    {u.status}
-                  </Badge>
-                  {u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN' ? (
+            <>
+              {pendingInvites.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm"
+                >
+                  <div className="min-w-0 flex items-start gap-2">
+                    <Mail className="h-4 w-4 mt-0.5 text-amber-400 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-white truncate">{inv.email}</p>
+                      <p className="text-white/50 text-xs">Awaiting sign-up</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="text-white/70 border-white/20">
+                      {inv.role}
+                    </Badge>
+                    <Badge variant="outline" className={statusStyles.INVITE_SENT}>
+                      INVITE SENT
+                    </Badge>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setResetUser(u)}
-                      className="h-8 border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+                      disabled={revokingId === inv.id}
+                      onClick={() => revokeInvite(inv.id)}
+                      className="h-8 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                     >
-                      <KeyRound className="h-3.5 w-3.5 mr-1" /> Reset
+                      {revokingId === inv.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Revoke
                     </Button>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-white/10 p-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-white truncate">
+                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
+                    </p>
+                    <p className="text-white/50 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="text-white/70 border-white/20">
+                      {u.role}
+                    </Badge>
+                    <Badge variant="outline" className={statusStyles[u.status] ?? 'text-white/70'}>
+                      {u.status}
+                    </Badge>
+                    {u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setResetUser(u)}
+                        className="h-8 border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        <KeyRound className="h-3.5 w-3.5 mr-1" /> Reset
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </>
           )}
         </CardContent>
       </Card>

@@ -112,10 +112,46 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       },
     }
 
+    // Pending Clerk invitations for this practice — shown on Linked Users as
+    // "invite sent" until the recipient signs up (then they become a User row).
+    type InvitationMetadata = { role?: string; status?: string; clientId?: string }
+    let pendingInvites: Array<{
+      id: string
+      email: string
+      role: string
+      status: string
+      createdAt: number
+    }> = []
+    if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')) {
+      try {
+        const clerk = await clerkClient()
+        const list = await clerk.invitations.getInvitationList({ status: 'pending' })
+        pendingInvites = list.data
+          .filter((inv) => (inv.publicMetadata as InvitationMetadata | null)?.clientId === id)
+          .map((inv) => {
+            const metadata = (inv.publicMetadata || {}) as InvitationMetadata
+            return {
+              id: inv.id,
+              email: inv.emailAddress,
+              role: metadata.role || 'CLIENT',
+              status: 'INVITE_SENT',
+              createdAt: inv.createdAt,
+            }
+          })
+      } catch (inviteErr) {
+        logger.error(
+          '[ADMIN CLIENTS] Failed to list pending invitations',
+          { clientId: id },
+          inviteErr instanceof Error ? inviteErr : new Error(String(inviteErr))
+        )
+      }
+    }
+
     return successResponse({
       profile: serializeClientProfile(client),
       paysAtCost: client.paysAtCost,
       users: client.users,
+      pendingInvites,
       counts: { orders: client._count.orders, patients: client._count.patients },
       setup,
       // Affiliate attribution (which partner org/rep referred this practice),
