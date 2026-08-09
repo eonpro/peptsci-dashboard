@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatElevatedVitalityDose,
+  parseBudUs,
   splitElevatedVitalityNameLines,
 } from '../labels/elevatedVitalityLabelPdf'
 import { isLabelBrandKey, resolveLabelBrandKey } from '../labels/brandKeys'
@@ -34,6 +35,12 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
     assert.equal(formatElevatedVitalityDose('10mg', ['BPC-157', 'TB-500']), '10MG/10MG')
     assert.equal(formatElevatedVitalityDose('10mg/5mg', ['A', 'B']), '10MG/5MG')
     assert.equal(formatElevatedVitalityDose('10mg', ['TESAMORELIN']), '10MG')
+  })
+
+  it('formats EXP as MM/DD/YY so the year fits the rail box', () => {
+    assert.equal(parseBudUs('2027-07-21'), '07/21/27')
+    assert.equal(parseBudUs('07/21/2027'), '07/21/27')
+    assert.equal(parseBudUs('07/21/27'), '07/21/27')
   })
 })
 

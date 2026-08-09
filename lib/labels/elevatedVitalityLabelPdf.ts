@@ -118,12 +118,15 @@ export function formatElevatedVitalityDose(dose: string, nameLines: string[]): s
   return `${normalized}/${normalized}`
 }
 
-function parseBudUs(isoOrUs: string): string {
+/** EXP rail value — MM/DD/YY (two-digit year so it fits the white rail box). */
+export function parseBudUs(isoOrUs: string): string {
   const v = isoOrUs.trim()
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v)
-  if (iso) return `${iso[2]}/${iso[3]}/${iso[1]}`
-  const us = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec(v)
-  if (us) return `${us[1]}/${us[2]}/${us[3]}`
+  if (iso) return `${iso[2]}/${iso[3]}/${iso[1].slice(-2)}`
+  const us4 = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec(v)
+  if (us4) return `${us4[1]}/${us4[2]}/${us4[3].slice(-2)}`
+  const us2 = /^(\d{2})[-/](\d{2})[-/](\d{2})$/.exec(v)
+  if (us2) return `${us2[1]}/${us2[2]}/${us2[3]}`
   return v
 }
 
