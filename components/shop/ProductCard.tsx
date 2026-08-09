@@ -130,7 +130,8 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
     product.dose ||
     (product.milligrams ? `${product.milligrams}mg` : null)
 
-  const purityDisplay = product.compounds?.[0]?.purity || '99%'
+  const purityDisplay = product.purity || product.compounds?.[0]?.purity || '99%'
+  const hasSciSpecs = !!(product.casNumber || product.molecularFormula || product.molecularWeight)
 
   // Compact dose pills shown in the footer / list row
   const renderSizePills = () => (
@@ -323,7 +324,13 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                 </p>
               )}
 
-              <div className="mt-3 space-y-1 text-[13px] @[16rem]:text-sm tracking-tight text-white/90 pr-20 @[18rem]:pr-24">
+              <div
+                className={
+                  hasSciSpecs
+                    ? 'mt-3 space-y-1 text-[13px] @[16rem]:text-sm tracking-tight text-white/90 pr-20 @[18rem]:pr-24'
+                    : 'mt-1.5 space-y-1 text-[13px] @[16rem]:text-sm tracking-tight text-white/90 pr-20 @[18rem]:pr-24'
+                }
+              >
                 {product.casNumber && <p className="truncate">CAS #: {product.casNumber}</p>}
                 {product.molecularFormula && (
                   <p className="truncate">Formula: {formatMolecularFormula(product.molecularFormula)}</p>

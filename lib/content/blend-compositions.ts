@@ -29,6 +29,7 @@ const TB_500: BlendComponent = { name: 'TB-500', casNumber: '77591-33-4', molecu
 const KPV: BlendComponent = { name: 'KPV', casNumber: '67727-97-3', molecularFormula: 'C16H30N4O4', molecularWeight: '342.43 g/mol', purity: P }
 const CJC_1295_NO_DAC: BlendComponent = { name: 'CJC-1295 (no DAC)', casNumber: '863288-34-0', molecularFormula: 'C152H252N44O42', molecularWeight: '3367.9 g/mol', purity: P }
 const IPAMORELIN: BlendComponent = { name: 'Ipamorelin', casNumber: '170851-70-4', molecularFormula: 'C38H49N9O5', molecularWeight: '711.9 g/mol', purity: P }
+const TESAMORELIN: BlendComponent = { name: 'Tesamorelin', casNumber: '218949-48-5', molecularFormula: 'C221H366N72O67S', molecularWeight: '5135.9 g/mol', purity: P }
 
 // Component order matches how GLOW / KLOW are stocked and priced:
 //   GLOW 70: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg
@@ -39,6 +40,7 @@ export const BLEND_COMPOSITIONS: Record<string, BlendComponent[]> = {
   glow: [GHK_CU, BPC_157, TB_500],
   klow: [GHK_CU, BPC_157, TB_500, KPV],
   'cjc-1295-no-dac-ipamorelin': [CJC_1295_NO_DAC, IPAMORELIN],
+  'tesamorelin-ipamorelin': [TESAMORELIN, IPAMORELIN],
 }
 
 const ALIASES: Record<string, string> = {
@@ -60,6 +62,16 @@ const ALIASES: Record<string, string> = {
   'bpc-157-tb-500-ghk-cu-kpv': 'klow',
   'ghk-cu-bpc-157-tb-500-kpv': 'klow',
   'ghk-cu-and-bpc-157-and-tb-500-and-kpv-blend': 'klow',
+  // BPC / TB without the trailing "blend" word (shop cards use "and" / "/").
+  'bpc-157-and-tb-500': 'bpc-157-tb-500-blend',
+  'bpc-157-tb-500': 'bpc-157-tb-500-blend',
+  'bpc-157-tb500': 'bpc-157-tb-500-blend',
+  'bpc-tb-blend': 'bpc-157-tb-500-blend',
+  'tb-500-and-bpc-157': 'bpc-157-tb-500-blend',
+  // Tesamorelin / Ipamorelin stocked as 10mg/5mg blend.
+  'tesamorelin-and-ipamorelin': 'tesamorelin-ipamorelin',
+  'tesamorelin-ipamorelin-blend': 'tesamorelin-ipamorelin',
+  'tesamorelin-10mg-ipamorelin-5mg-blend': 'tesamorelin-ipamorelin',
 }
 
 /** Resolve a blend's component list by product name, or null if not a known blend. */
@@ -73,6 +85,9 @@ export function getBlendComposition(name: string): BlendComponent[] | null {
   if (key.includes('cjc-1295') && key.includes('ipamorelin')) {
     return BLEND_COMPOSITIONS['cjc-1295-no-dac-ipamorelin']
   }
+  if (key.includes('tesamorelin') && key.includes('ipamorelin')) {
+    return BLEND_COMPOSITIONS['tesamorelin-ipamorelin']
+  }
   // Fingerprint compound-list names that weren't added as explicit aliases.
   const has = (token: string) => key.includes(token)
   if (has('ghk') && has('bpc') && has('tb') && has('kpv')) {
@@ -80,6 +95,10 @@ export function getBlendComposition(name: string): BlendComponent[] | null {
   }
   if (has('ghk') && has('bpc') && has('tb') && !has('kpv')) {
     return BLEND_COMPOSITIONS.glow
+  }
+  // "BPC-157 and TB-500" / "BPC-157 / TB-500" without GHK (not Glow).
+  if (has('bpc') && (has('tb-500') || has('tb500') || /(?:^|-)tb(?:-|$)/.test(key)) && !has('ghk') && !has('kpv')) {
+    return BLEND_COMPOSITIONS['bpc-157-tb-500-blend']
   }
   return null
 }

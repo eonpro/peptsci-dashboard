@@ -11,6 +11,7 @@ import { logger } from './logger'
 import type { ShopProduct, ProductImage, CompoundInfo } from './types/shop'
 import { parseMonograph } from './types/monograph'
 import { getBlendComposition } from './content/blend-compositions'
+import { getCompoundChemistry } from './content/compound-chemistry'
 import { displayProductAka, displayProductName } from './products/named-blends'
 
 /** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
@@ -89,6 +90,16 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
   const available = Math.max(0, v.inventoryOnHand - (v.inventoryReserved || 0))
   const displayName = displayProductName(v.product.name, v.sku)
   const compounds = blendCompounds(displayName, v.dose) ?? blendCompounds(v.product.name, v.dose)
+  // Singles: fill missing sci fields from the verified chemistry map so cards
+  // don't render empty CAS/Formula/MW gaps. Never override DB values. Blends
+  // use per-component chemistry via `compounds` instead.
+  const chem = compounds ? null : getCompoundChemistry(displayName) ?? getCompoundChemistry(v.product.name)
+  const molecularWeight =
+    v.product.molecularWeight != null
+      ? `${v.product.molecularWeight} g/mol`
+      : chem?.molecularWeight != null
+        ? `${chem.molecularWeight} g/mol`
+        : null
   return {
     id: v.sku || v.id,
     sku: v.sku || v.id,
@@ -97,17 +108,16 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     dose: v.dose || v.unitSize || '',
     ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
     description: v.product.description,
-    category: v.product.category,
+    category: v.product.category ?? chem?.category ?? null,
     displayPrice: srp,
     // SECURITY: never include unitCost here — ShopProduct is serialized into
     // client-facing pages (/shop, /sf) and would expose our margins.
-    casNumber: v.product.casNumber,
-    molecularFormula: v.product.molecularFormula,
-    molecularWeight:
-      v.product.molecularWeight != null ? `${v.product.molecularWeight} g/mol` : null,
-    pubchemCid: v.product.pubchemCid,
+    casNumber: v.product.casNumber ?? chem?.casNumber ?? null,
+    molecularFormula: v.product.molecularFormula ?? chem?.molecularFormula ?? null,
+    molecularWeight,
+    pubchemCid: v.product.pubchemCid ?? chem?.pubchemCid ?? null,
     monograph: parseMonograph(v.product.monograph),
-    purity: v.product.purity,
+    purity: v.product.purity ?? chem?.purity ?? null,
     aka: displayProductAka(v.product.name, v.sku, v.product.aka),
     images: toImages(v.product.media),
     inventoryOnHand: enforceStock ? available : undefined,
