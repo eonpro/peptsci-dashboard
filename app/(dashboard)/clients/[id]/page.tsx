@@ -13,7 +13,10 @@ import { Separator } from '@/components/ui/separator'
 import { AddressFields } from '@/components/AddressFields'
 import type { Address } from '@/lib/address'
 import { addressSchema } from '@/lib/address'
-import { normalizePaymentTermsDays } from '@/lib/checkout-terms'
+import {
+  normalizePaymentTermsDays,
+  PAYMENT_TERMS_OPTIONS,
+} from '@/lib/checkout-terms'
 import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
 import CreateClientUserDialog from '../../users/CreateClientUserDialog'
@@ -24,6 +27,13 @@ import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
 import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
 import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   ArrowLeft,
   Building2,
@@ -147,10 +157,8 @@ export default function ClientDetailPage() {
     setContactPhone(p.contactPhone ?? '')
     setBilling(p.billingAddress ?? emptyAddress)
     setShipping(p.shippingAddress ?? emptyAddress)
-    // 0 is card-only (same as null) — show blank so admins don't re-save an invalid 0.
-    setPaymentTermsDays(
-      p.paymentTermsDays != null && p.paymentTermsDays > 0 ? String(p.paymentTermsDays) : ''
-    )
+    // null = card-only; 0 = pay as billed (valid terms).
+    setPaymentTermsDays(p.paymentTermsDays != null ? String(p.paymentTermsDays) : '')
     setCreditLimit(p.creditLimit != null ? String(p.creditLimit) : '')
   }
 
@@ -245,7 +253,6 @@ export default function ClientDetailPage() {
 
     const termsRaw = paymentTermsDays.trim() === '' ? null : Number(paymentTermsDays)
     const termsNormalized = normalizePaymentTermsDays(termsRaw)
-    // normalize returns undefined only when input is undefined; here we always send a value.
     const paymentTermsPayload = termsNormalized === undefined ? null : termsNormalized
 
     const body: Record<string, unknown> = {
@@ -407,7 +414,16 @@ export default function ClientDetailPage() {
                   Billing terms{' '}
                   <span className="text-white/50">
                     {setup.termsSet
-                      ? `— Net ${paymentTermsDays || profile.paymentTermsDays}`
+                      ? `— ${
+                          PAYMENT_TERMS_OPTIONS.find(
+                            (o) =>
+                              o.value ===
+                              (paymentTermsDays === ''
+                                ? null
+                                : Number(paymentTermsDays || profile.paymentTermsDays))
+                          )?.label ??
+                          `Net ${paymentTermsDays || profile.paymentTermsDays}`
+                        }`
                       : '— card-only (set terms below to enable bill-to-account)'}
                   </span>
                 </span>
@@ -531,22 +547,44 @@ export default function ClientDetailPage() {
             </a>
           </div>
           <CardDescription className="text-white/50">
-            Grant net terms to enable &ldquo;Bill to account&rdquo; at checkout. Leave payment
-            terms blank for card-only. Credit limit caps open balance + new orders (blank = no
-            cap).
+            Choose terms to enable &ldquo;Bill to account&rdquo; at checkout. Card only keeps
+            checkout on card. Credit limit caps open balance + new orders (blank = no cap).
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className={labelClass}>Payment Terms (days)</Label>
-              <Input
-                className={inputClass}
-                value={paymentTermsDays}
-                onChange={(e) => setPaymentTermsDays(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder="e.g. 30 — blank = card only"
-                inputMode="numeric"
-              />
+              <Label className={labelClass}>Payment Terms</Label>
+              <Select
+                value={paymentTermsDays === '' ? 'none' : paymentTermsDays}
+                onValueChange={(v) => setPaymentTermsDays(v === 'none' ? '' : v)}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue placeholder="Select terms" />
+                </SelectTrigger>
+                <SelectContent className="bg-brand-onyx border-white/10">
+                  {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt.value == null ? 'none' : String(opt.value)}
+                      value={opt.value == null ? 'none' : String(opt.value)}
+                      className="text-white focus:bg-white/10 focus:text-white"
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                  {paymentTermsDays !== '' &&
+                    !PAYMENT_TERMS_OPTIONS.some(
+                      (o) => o.value != null && String(o.value) === paymentTermsDays
+                    ) && (
+                      <SelectItem
+                        value={paymentTermsDays}
+                        className="text-white focus:bg-white/10 focus:text-white"
+                      >
+                        Net {paymentTermsDays} (custom)
+                      </SelectItem>
+                    )}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label className={labelClass}>Credit Limit (USD)</Label>

@@ -48,7 +48,7 @@ const adminUpdateSchema = z.object({
   billingAddress: addressSchema.optional(),
   shippingAddress: addressSchema.optional(),
   onboardingStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_INFO']).optional(),
-  // Net-terms billing: null/0 disables "bill to account"; creditLimit null = no cap.
+  // Net-terms: null = card-only; 0 = pay as billed; >0 = net days. creditLimit null = no cap.
   paymentTermsDays: paymentTermsDaysSchema,
   creditLimit: z.number().min(0).max(10_000_000).nullable().optional(),
   // At-cost pricing: this clinic pays ProductVariant.unitCost per vial.

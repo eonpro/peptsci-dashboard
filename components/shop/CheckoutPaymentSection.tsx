@@ -11,6 +11,7 @@ import type { Appearance } from '@stripe/stripe-js'
 import { getStripePromise } from '@/lib/stripe-client'
 import { Button } from '@/components/ui/button'
 import { Loader2, Lock, CreditCard, Plus, CheckCircle2, FileText } from 'lucide-react'
+import { formatPaymentTermsLabel } from '@/lib/checkout-terms'
 
 interface CheckoutItem {
   sku: string
@@ -185,11 +186,12 @@ export function CheckoutPaymentSection({
   const estDueCents = totalCents - estCreditCents
   const fullyCovered = applyCredit && estDueCents === 0
 
+  const termsConfigured = billing?.paymentTermsDays != null
   const termsDays = billing?.paymentTermsDays ?? 0
   const availableCredit =
     billing?.creditLimit != null ? Math.max(0, billing.creditLimit - billing.openBalance) : null
   const termsEligible =
-    termsDays > 0 &&
+    termsConfigured &&
     !billing?.hasOverdue &&
     (availableCredit == null || total <= availableCredit)
 
@@ -408,7 +410,7 @@ export function CheckoutPaymentSection({
       )}
 
       {/* Credit-hold notice: terms account with a past-due invoice */}
-      {termsDays > 0 && billing?.hasOverdue && (
+      {termsConfigured && billing?.hasOverdue && (
         <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm p-3">
           Billing to account is paused while an invoice is past due.{' '}
           <a href="/shop/invoices" className="underline hover:text-amber-200">
@@ -483,7 +485,7 @@ export function CheckoutPaymentSection({
           <FileText className="h-5 w-5 text-white/70" />
           <span className="flex-1">
             <span className="block text-white text-sm font-medium">
-              Bill to account — Net {termsDays}
+              Bill to account — {formatPaymentTermsLabel(termsDays)}
             </span>
             <span className="block text-white/50 text-xs">
               No card needed. We&rsquo;ll invoice your practice
@@ -564,7 +566,7 @@ export function CheckoutPaymentSection({
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Placing order…
             </>
           ) : (
-            <>Place Order — {formatPrice(total)} on Net {termsDays}</>
+            <>Place Order — {formatPrice(total)} on {formatPaymentTermsLabel(termsDays)}</>
           )}
         </Button>
       )}

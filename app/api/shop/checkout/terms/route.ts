@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
-import { assessTermsCheckout, type TermsCheckoutResult } from '@/lib/checkout-terms'
+import { assessTermsCheckout, formatPaymentTermsLabel, type TermsCheckoutResult } from '@/lib/checkout-terms'
 import { createInvoiceTx, getClientBillingSnapshot, recomputeStatus } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { InsufficientStockError, reserveForOrderTx } from '@/lib/inventory/reservations'
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
 
     // Notifications (fire-and-forget; never fail the checkout).
     void sendOrderConfirmationForOrder(order.id, {
-      paymentLabel: `Billed to account — Net ${gate.termsDays}`,
+      paymentLabel: `Billed to account — ${formatPaymentTermsLabel(gate.termsDays)}`,
     })
     if (client.contactEmail) {
       void sendInvoiceIssuedEmail({
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
     notifyAdmins({
       category: 'ORDER',
       priority: 'HIGH',
-      title: `New order #${order.orderNumber} — ${usd(cart.totals.total)} (Net ${gate.termsDays})`,
+      title: `New order #${order.orderNumber} — ${usd(cart.totals.total)} (${formatPaymentTermsLabel(gate.termsDays)})`,
       message: `${client.organizationName} placed order #${order.orderNumber} billed to account (invoice ${formatInvoiceNumber(invoiceView.invoice.invoiceNumber)}).`,
       actionUrl: '/fulfillment',
       sourceType: 'order:placed',

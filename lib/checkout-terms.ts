@@ -2,33 +2,48 @@
  * Pure eligibility check for "bill to account" (net-terms) checkout.
  *
  * A client may check out on terms only when an admin has set
- * `Client.paymentTermsDays` (> 0). When `creditLimit` is set, the client's
- * open AR balance plus the new order total must stay within it. Dollars as
- * plain numbers at this boundary; no Prisma imports so it unit-tests in
- * isolation (mirrors lib/invoicing/core.ts).
+ * `Client.paymentTermsDays` (including 0 = pay as billed / due on receipt).
+ * `null` means card-only. When `creditLimit` is set, the client's open AR
+ * balance plus the new order total must stay within it. Dollars as plain
+ * numbers at this boundary; no Prisma imports so it unit-tests in isolation
+ * (mirrors lib/invoicing/core.ts).
  */
 import { z } from 'zod'
 
+/** Admin UI presets for Client.paymentTermsDays (null = card-only). */
+export const PAYMENT_TERMS_OPTIONS = [
+  { value: null, label: 'Card only' },
+  { value: 0, label: 'Pay as billed (net 0)' },
+  { value: 7, label: 'Net 7' },
+  { value: 14, label: 'Net 14' },
+  { value: 30, label: 'Net 30' },
+] as const
+
 /**
- * Admin PATCH / UI: blank or 0 means card-only (store null). Valid net terms
- * are 1–365 days. `undefined` means "field omitted from this update".
+ * Admin PATCH / UI: `null` = card-only; `0` = pay as billed (bill-to-account,
+ * due on receipt); positive days = net terms. `undefined` = field omitted.
  */
 export function normalizePaymentTermsDays(
   value: number | null | undefined
 ): number | null | undefined {
   if (value === undefined) return undefined
-  if (value === null || value === 0) return null
-  return value
+  if (value === null) return null
+  if (!Number.isFinite(value) || value < 0) return null
+  return Math.trunc(value)
 }
 
-/** Zod field for Client.paymentTermsDays — coerces 0 → null before write. */
-export const paymentTermsDaysSchema = z.preprocess(
-  (v) => (v === 0 ? null : v),
-  z.number().int().min(1).max(365).nullable().optional()
-)
+/** Zod field for Client.paymentTermsDays — 0 is valid (pay as billed). */
+export const paymentTermsDaysSchema = z.number().int().min(0).max(365).nullable().optional()
+
+/** Human-readable label for admin/checkout display. */
+export function formatPaymentTermsLabel(days: number | null | undefined): string {
+  if (days == null) return 'Card only'
+  if (days === 0) return 'Pay as billed (net 0)'
+  return `Net ${days}`
+}
 
 export interface TermsCheckoutInput {
-  /** Client.paymentTermsDays — null/0/negative means terms are not enabled. */
+  /** Client.paymentTermsDays — null means card-only; 0+ enables bill-to-account. */
   paymentTermsDays: number | null
   /** Client.creditLimit in dollars — null means no cap. */
   creditLimit: number | null
@@ -49,8 +64,11 @@ export type TermsCheckoutResult =
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 export function assessTermsCheckout(input: TermsCheckoutInput): TermsCheckoutResult {
-  const termsDays = input.paymentTermsDays ?? 0
-  if (!Number.isFinite(termsDays) || termsDays <= 0) {
+  if (input.paymentTermsDays == null) {
+    return { allowed: false, reason: 'NO_TERMS' }
+  }
+  const termsDays = input.paymentTermsDays
+  if (!Number.isFinite(termsDays) || termsDays < 0) {
     return { allowed: false, reason: 'NO_TERMS' }
   }
   if (input.hasOverdue) {

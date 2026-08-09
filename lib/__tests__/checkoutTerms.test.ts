@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   assessTermsCheckout,
+  formatPaymentTermsLabel,
   normalizePaymentTermsDays,
   paymentTermsDaysSchema,
 } from '../checkout-terms.ts'
@@ -11,23 +12,30 @@ describe('normalizePaymentTermsDays', () => {
     assert.equal(normalizePaymentTermsDays(undefined), undefined)
   })
 
-  test('null and 0 become null (card-only)', () => {
+  test('null stays null (card-only)', () => {
     assert.equal(normalizePaymentTermsDays(null), null)
-    assert.equal(normalizePaymentTermsDays(0), null)
+  })
+
+  test('0 stays 0 (pay as billed)', () => {
+    assert.equal(normalizePaymentTermsDays(0), 0)
   })
 
   test('positive days pass through', () => {
     assert.equal(normalizePaymentTermsDays(30), 30)
-    assert.equal(normalizePaymentTermsDays(1), 1)
-    assert.equal(normalizePaymentTermsDays(365), 365)
+    assert.equal(normalizePaymentTermsDays(7), 7)
+    assert.equal(normalizePaymentTermsDays(14), 14)
+  })
+
+  test('negative becomes null', () => {
+    assert.equal(normalizePaymentTermsDays(-5), null)
   })
 })
 
 describe('paymentTermsDaysSchema', () => {
-  test('coerces 0 to null', () => {
+  test('accepts 0 (pay as billed)', () => {
     const parsed = paymentTermsDaysSchema.safeParse(0)
     assert.equal(parsed.success, true)
-    if (parsed.success) assert.equal(parsed.data, null)
+    if (parsed.success) assert.equal(parsed.data, 0)
   })
 
   test('accepts null', () => {
@@ -37,9 +45,11 @@ describe('paymentTermsDaysSchema', () => {
   })
 
   test('accepts valid net terms', () => {
-    const parsed = paymentTermsDaysSchema.safeParse(30)
-    assert.equal(parsed.success, true)
-    if (parsed.success) assert.equal(parsed.data, 30)
+    for (const days of [7, 14, 30]) {
+      const parsed = paymentTermsDaysSchema.safeParse(days)
+      assert.equal(parsed.success, true)
+      if (parsed.success) assert.equal(parsed.data, days)
+    }
   })
 
   test('rejects fractional days', () => {
@@ -59,6 +69,14 @@ describe('paymentTermsDaysSchema', () => {
   })
 })
 
+describe('formatPaymentTermsLabel', () => {
+  test('formats card-only, pay as billed, and net days', () => {
+    assert.equal(formatPaymentTermsLabel(null), 'Card only')
+    assert.equal(formatPaymentTermsLabel(0), 'Pay as billed (net 0)')
+    assert.equal(formatPaymentTermsLabel(30), 'Net 30')
+  })
+})
+
 describe('assessTermsCheckout', () => {
   test('denies when the client has no terms configured', () => {
     const res = assessTermsCheckout({
@@ -69,6 +87,16 @@ describe('assessTermsCheckout', () => {
     })
     assert.equal(res.allowed, false)
     if (!res.allowed) assert.equal(res.reason, 'NO_TERMS')
+  })
+
+  test('allows pay as billed (net 0)', () => {
+    const res = assessTermsCheckout({
+      paymentTermsDays: 0,
+      creditLimit: null,
+      openBalance: 0,
+      orderTotal: 100,
+    })
+    assert.deepEqual(res, { allowed: true, termsDays: 0 })
   })
 
   test('allows with terms and no credit limit', () => {
@@ -105,16 +133,15 @@ describe('assessTermsCheckout', () => {
     }
   })
 
-  test('a zero or negative terms value is treated as no terms', () => {
-    for (const days of [0, -5]) {
-      const res = assessTermsCheckout({
-        paymentTermsDays: days,
-        creditLimit: null,
-        openBalance: 0,
-        orderTotal: 100,
-      })
-      assert.equal(res.allowed, false)
-    }
+  test('a negative terms value is treated as no terms', () => {
+    const res = assessTermsCheckout({
+      paymentTermsDays: -5,
+      creditLimit: null,
+      openBalance: 0,
+      orderTotal: 100,
+    })
+    assert.equal(res.allowed, false)
+    if (!res.allowed) assert.equal(res.reason, 'NO_TERMS')
   })
 
   test('availableCredit never reports negative', () => {

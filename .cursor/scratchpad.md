@@ -1,4 +1,30 @@
-# Account Setup: card on file  [EXECUTOR — CODE DONE]
+# Payment terms select (net 0 / 7 / 14 / 30)  [EXECUTOR — DEPLOYING]
+
+## Background and Motivation
+Billing Terms UI was a free-text days field; operators need presets: pay as billed (net 0), net 7, net 14, net 30. Prior fix wrongly coerced 0 → null (card-only), so pay-as-billed could not be saved or used at checkout.
+
+## Key Challenges and Analysis
+- `null` = card-only; `0` = bill-to-account due on receipt; `7|14|30` = net days.
+- Checkout UI gated on `termsDays > 0`, which hid bill-to-account for net 0.
+- Credit limit `0` blocks all terms orders (over limit) — blank = no cap.
+
+## High-level Task Breakdown
+1. [x] Allow paymentTermsDays 0 in schema + assessTermsCheckout
+2. [x] Admin Select presets + Card only
+3. [x] Checkout / invoices / emails use formatPaymentTermsLabel; eligibility uses != null
+4. [x] Unit tests
+5. [ ] Deploy to main / peptsci.com
+
+## Project Status Board
+- [x] Semantics + UI + tests
+- [ ] Prod deploy
+
+## Lessons
+- Never equate net 0 with card-only; only `null` disables bill-to-account.
+
+---
+
+# Account Setup: card on file  [EXECUTOR — DEPLOYED b9337cc]
 
 ## Background and Motivation
 Account Setup on `/clients/[id]` showed pricing, billing terms, and documents — but not whether the practice had saved a card. Admins need that signal when approving card-only practices.
@@ -15,7 +41,8 @@ Account Setup on `/clients/[id]` showed pricing, billing terms, and documents �
 ## Project Status Board
 - [x] API setup.cardOnFile
 - [x] Client detail checklist row
-- [ ] Deploy / owner verify
+- [x] Deployed `b9337cc` → main → peptsci.com READY (`dpl_Fx7Q51ZppS58Zm8Ys9iCAhvmiNJy`)
+- [ ] Owner verify
 
 ## Executor's Feedback or Assistance Requests
 Hard-refresh Clients → practice → Account Setup. With a saved card: green check + brand/last4. Without: amber clock + "none yet".

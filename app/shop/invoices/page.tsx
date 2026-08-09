@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { InvoicePayDialog } from '@/components/shop/InvoicePayDialog'
+import { formatPaymentTermsLabel } from '@/lib/checkout-terms'
 import {
   FileText,
   Download,
@@ -133,7 +134,9 @@ export default function ShopInvoicesPage() {
           <CardContent className="p-4">
             <p className="text-xs text-white/50 mb-1">Account terms</p>
             <p className="text-xl font-bold text-white">
-              {summary?.paymentTermsDays ? `Net ${summary.paymentTermsDays}` : 'Card only'}
+              {summary?.paymentTermsDays != null
+                ? formatPaymentTermsLabel(summary.paymentTermsDays)
+                : 'Card only'}
             </p>
             {summary?.creditLimit != null && (
               <p className="text-xs text-white/40 mt-1">
