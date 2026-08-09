@@ -835,6 +835,41 @@ export const PEPTIDE_MONOGRAPHS: Record<string, PeptideMonograph> = {
     references: [pubmed('CJC-1295'), pubmed('ipamorelin')],
     disclaimer: RUO_DISCLAIMER,
   },
+
+  '5-amino-1mq': {
+    overview: [
+      '5-Amino-1MQ (5-amino-1-methylquinolinium) is a cell-permeable small-molecule inhibitor of nicotinamide N-methyltransferase (NNMT), studied in metabolic and adipocyte research.',
+      'It is not a peptide and is not an approved medicine. Evidence is primarily preclinical. Educational reference only.',
+    ],
+    mechanismOfAction: [
+      'NNMT inhibition: competitively interferes with methylation of nicotinamide, a reaction that consumes SAM and produces 1-methylnicotinamide in research models.',
+      'NAD+ pathway context: NNMT activity is studied for its influence on nicotinamide availability for NAD+ salvage in adipocytes.',
+      'Lipid metabolism signaling: preclinical work examines effects on lipogenesis markers and adipocyte lipid accumulation.',
+    ],
+    observations: [
+      { title: 'Metabolic Research', detail: 'Diet-induced obese mouse studies report reduced body weight and white-adipose mass without a clear change in food intake.' },
+      { title: 'Adipocyte Models', detail: 'In vitro research describes reduced lipid accumulation and shifts in NAD+/NNMT-related markers in adipocytes.' },
+    ],
+    references: [pubmed('5-amino-1-methylquinolinium NNMT'), pubmed('NNMT inhibitor obesity')],
+    disclaimer: RUO_DISCLAIMER,
+  },
+
+  'tesamorelin-ipamorelin-blend': {
+    overview: [
+      'This research blend pairs Tesamorelin, a GHRH analog, with Ipamorelin, a selective ghrelin-receptor agonist, on the premise of complementary growth-hormone-release pathways.',
+      'Tesamorelin has FDA-approved labeled uses as a single agent under clinician care; Ipamorelin is not an approved medicine for performance or anti-aging use. This blend profile is educational reference only.',
+    ],
+    mechanismOfAction: [
+      'Tesamorelin (GHRH analog): binds pituitary GHRH receptors to stimulate endogenous growth-hormone secretion.',
+      'Ipamorelin (GHRP): activates the ghrelin receptor to promote GH release with a relatively selective profile in research models.',
+      'Combined rationale: paired in research to study additive stimulation of endogenous GH release.',
+    ],
+    observations: [
+      { title: 'Growth Hormone Research', detail: 'Component peptides are studied individually for effects on pulsatile GH release; controlled blend-specific human data is limited.' },
+    ],
+    references: [pubmed('tesamorelin'), pubmed('ipamorelin'), dailymed('tesamorelin')],
+    disclaimer: RUO_DISCLAIMER,
+  },
 }
 
 /** Normalize a product/peptide name into a lookup key. */
@@ -921,6 +956,17 @@ const ALIASES: Record<string, string> = {
   'sermorelin-acetate': 'sermorelin',
   somatropin: 'hgh',
   'human-growth-hormone': 'hgh',
+  // Live-catalog gaps (Aug 2026 dry-run).
+  '5-amino-1-mq': '5-amino-1mq',
+  '5amino1mq': '5-amino-1mq',
+  '5-amino-1-methylquinolinium': '5-amino-1mq',
+  'tesamorelin-and-ipamorelin': 'tesamorelin-ipamorelin-blend',
+  'tesamorelin-ipamorelin': 'tesamorelin-ipamorelin-blend',
+  'tesamorelin-10mg-ipamorelin-5mg-blend': 'tesamorelin-ipamorelin-blend',
+  // Compound-list display names for named blends.
+  'ghk-cu-and-bpc-157-and-tb-500': 'glow',
+  'bpc-157-and-tb-500': 'bpc-157-tb-500-blend',
+  'ghk-cu-and-bpc-157-and-tb-500-and-kpv': 'klow',
 }
 
 /**
@@ -936,9 +982,24 @@ export function getMonographForName(name: string): PeptideMonograph | null {
   const aliasKey = ALIASES[key] || ALIASES[key.replace(/-/g, '')]
   if (aliasKey && PEPTIDE_MONOGRAPHS[aliasKey]) return PEPTIDE_MONOGRAPHS[aliasKey]
 
+  // Named multi-compound blends — prefer the most specific match first.
+  const hasGhk = key.includes('ghk')
+  const hasBpc = key.includes('bpc-157') || key.includes('bpc157')
+  const hasTb = key.includes('tb-500') || key.includes('tb500')
+  const hasKpv = key.includes('kpv')
+  if (hasGhk && hasBpc && hasTb && hasKpv) return PEPTIDE_MONOGRAPHS.klow
+  if (hasGhk && hasBpc && hasTb) return PEPTIDE_MONOGRAPHS.glow
+
   // Blend names like "BPC-157 / TB-500 Blend" — match if both parts are present.
-  if (key.includes('bpc-157') && key.includes('tb-500')) {
+  if (hasBpc && hasTb) {
     return PEPTIDE_MONOGRAPHS['bpc-157-tb-500-blend']
+  }
+
+  if (
+    (key.includes('tesamorelin') && key.includes('ipamorelin')) ||
+    (key.includes('tesamorelin') && key.includes('ipa'))
+  ) {
+    return PEPTIDE_MONOGRAPHS['tesamorelin-ipamorelin-blend']
   }
 
   return null
