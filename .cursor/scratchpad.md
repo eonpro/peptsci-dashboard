@@ -1,4 +1,37 @@
-# Shopify invoice-first + unmapped matching  [EXECUTOR — CODE DONE]
+# Invited client users hit clinic onboarding  [EXECUTOR]
+
+## Background and Motivation
+Admin "Invite user" on an existing client (Linked Users) sends a Clerk invitation. After accept + username/password, invitees landed on `/onboarding` ("Complete your practice profile") even though the practice is already configured. They should go straight to the client shop (`/shop`).
+
+## Key Challenges and Analysis
+- Sign-up `forceRedirectUrl` was hard-coded to `/onboarding` for everyone.
+- Middleware only bounced PARTNER invitees off onboarding, not CLIENT + `clientId`.
+- Onboarding skip was DB-only (`User.client`); webhook lag → form shown.
+- Submitting the form could create a *second* Client and detach the invitee.
+- ACTIVE invitees with JWT lag must not loop: `/onboarding` ↔ `/shop`.
+
+## High-level Task Breakdown
+1. [x] Middleware: bounce CLIENT+clientId off `/onboarding`; don't force ACTIVE invitees without JWT clientId back to onboarding
+2. [x] Sign-up: `forceRedirectUrl="/"` so middleware routes by claims
+3. [x] `lib/link-client-from-invite.ts` self-heal from session/Clerk metadata
+4. [x] Onboarding GET/POST: heal + refuse new practice when already invited
+5. [x] Onboarding page: skip via `publicMetadata.clientId` → `/shop`
+6. [x] `resolveShopActor` self-heal for shop API access after invite
+
+## Project Status Board
+- [x] Fix implemented locally
+- [ ] Deploy / verify: invite `tracking@…` style user → accept → password → lands on `/shop`, not practice profile form
+
+## Executor's Feedback or Assistance Requests
+1. Re-test the invite for `tracking@eonmedicalcenter.com` (or a fresh invite email) after deploy.
+2. If they already submitted onboarding and created a duplicate Client, admin may need to clean that up and re-link `User.clientId` to the real practice.
+
+## Lessons
+- Partner invites already had the onboarding escape hatch; CLIENT invites needed the same pattern plus DB self-heal (partners use `linkFromClaims`).
+
+---
+
+# Shopify invoice-first + unmapped matching  [EXECUTOR — DEPLOYED b1e0a2b]
 
 ## Background and Motivation
 Shopify paid orders must create an Invoice at client pricing + shipping, charge card on file, then create the fulfillment Order. Unmapped products queue by Shopify product name for admin matching.
@@ -24,7 +57,7 @@ Shopify paid orders must create an Invoice at client pricing + shipping, charge 
 
 ---
 
-# Partners portal missing Log out  [EXECUTOR]
+# Partners portal missing Log out  [EXECUTOR — DEPLOYED]
 
 ## Background and Motivation
 Partners dashboard sidebar showed org identity (EonMeds / Org owner) with no way to sign out — shop/onboarding already use Clerk `signOut`.
@@ -32,11 +65,11 @@ Partners dashboard sidebar showed org identity (EonMeds / Org owner) with no way
 ## High-level Task Breakdown
 1. [x] Add Log out under sidebar identity (desktop + mobile drawer)
 2. [x] Add Log out on partner no-access screen (wrong-account switch)
-3. [ ] Deploy / hard-refresh to verify on peptsci.com/partners
+3. [x] Deployed `5f4125e` (live via `a9b796b`) → peptsci.com READY (`dpl_81afRWikwJe9S9wqA3JiDkPwwz8k`)
 
 ## Project Status Board
 - [x] Sidebar + no-access SignOut via Clerk
-- [ ] Owner verify after deploy
+- [x] Prod deploy READY; `/api/health` version `a9b796b` (includes logout commit)
 
 ## Lessons
 - Partner portal shell had identity footer but never wired Clerk sign-out (unlike shop ClientHeader).

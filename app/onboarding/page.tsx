@@ -36,7 +36,7 @@ const emptyAddress: Partial<Address> = { country: 'US' }
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { user } = useUser()
+  const { user, isLoaded } = useUser()
   const { signOut } = useClerk()
 
   const [checking, setChecking] = useState(true)
@@ -71,21 +71,49 @@ export default function OnboardingPage() {
     setContactEmail((prev) => prev || user.primaryEmailAddress?.emailAddress || '')
   }, [user])
 
-  // If already onboarded, skip the form.
+  // Invited users already carry clientId in Clerk metadata — skip the clinic
+  // practice form and go straight to the shop (or pending if still PENDING).
   useEffect(() => {
+    if (!isLoaded || !user) return
+    const meta = user.publicMetadata as
+      | { role?: string; status?: string; clientId?: string }
+      | undefined
+    if (meta?.role === 'PARTNER') {
+      router.replace('/partners')
+      return
+    }
+    if (meta?.clientId) {
+      router.replace(meta.status === 'ACTIVE' ? '/shop' : '/pending-approval')
+    }
+  }, [isLoaded, user, router])
+
+  // If already onboarded in DB, skip the form.
+  useEffect(() => {
+    if (!isLoaded) return
     let active = true
     fetch('/api/onboarding')
       .then((r) => (r.ok ? r.json() : { hasClient: false }))
       .then((data) => {
         if (!active) return
-        if (data.hasClient) router.replace('/pending-approval')
-        else setChecking(false)
+        if (data.hasClient) {
+          router.replace(
+            typeof data.redirectTo === 'string' ? data.redirectTo : '/shop'
+          )
+          return
+        }
+        const meta = user?.publicMetadata as { clientId?: string } | undefined
+        // Keep the spinner while an invite redirect is in flight.
+        if (!meta?.clientId) setChecking(false)
       })
-      .catch(() => active && setChecking(false))
+      .catch(() => {
+        if (!active) return
+        const meta = user?.publicMetadata as { clientId?: string } | undefined
+        if (!meta?.clientId) setChecking(false)
+      })
     return () => {
       active = false
     }
-  }, [router])
+  }, [isLoaded, router, user])
 
   const applyProvider = (p: NormalizedProvider) => {
     if (p.npiNumber === NPI_BYPASS) {

@@ -19,6 +19,11 @@ import { CLINIC_REF_COOKIE } from '@/lib/referrals/credit'
 import { applicationReference } from '@/lib/application-reference'
 import { matchLeadForNewClient, convertLead } from '@/lib/partners/leads'
 import { sendPartnerClinicAttributedEmail } from '@/lib/email'
+import {
+  ensureUserLinkedToInviteClient,
+  readInviteClientClaims,
+} from '@/lib/link-client-from-invite'
+import { getRedirectUrl, type UserStatus } from '@/lib/roles'
 
 /**
  * Resolve clinic-to-clinic referral attribution from the /refer/<code>
@@ -76,19 +81,45 @@ const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsW
 /**
  * GET /api/onboarding
  * Returns whether the caller already has a linked practice (so the page can
- * skip the form / redirect appropriately).
+ * skip the form / redirect appropriately). Invited users joining an existing
+ * client self-heal from Clerk invite metadata when the webhook hasn't linked
+ * User.clientId yet.
  */
 export async function GET() {
-  const { userId, isAuthenticated } = await requireAuth()
+  const { userId, isAuthenticated, status } = await requireAuth()
   if (!isAuthenticated || !userId) return unauthorizedResponse()
   if (!prisma) return successResponse({ hasClient: false })
 
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { clerkUserId: userId },
     include: { client: true },
   })
+
+  // Invite self-heal: session/Clerk metadata has clientId but DB link lagged.
+  if (!user?.client) {
+    const claims = await readInviteClientClaims()
+    if (claims.clientId) {
+      const linkedId = await ensureUserLinkedToInviteClient(userId, claims)
+      if (linkedId) {
+        user = await prisma.user.findUnique({
+          where: { clerkUserId: userId },
+          include: { client: true },
+        })
+      }
+    }
+  }
+
   if (!user?.client) return successResponse({ hasClient: false })
-  return successResponse({ hasClient: true, profile: serializeClientProfile(user.client) })
+
+  const accountStatus = (status ?? user.status) as UserStatus
+  const redirectTo =
+    accountStatus === 'ACTIVE' ? getRedirectUrl(user.role) : '/pending-approval'
+
+  return successResponse({
+    hasClient: true,
+    redirectTo,
+    profile: serializeClientProfile(user.client),
+  })
 }
 
 /**
@@ -133,6 +164,28 @@ export async function POST(request: NextRequest) {
     // Idempotent: already onboarded.
     if (user.client) {
       return successResponse({ success: true, profile: serializeClientProfile(user.client) })
+    }
+
+    // Invited to an existing practice — never create a second Client. Link
+    // from Clerk invite metadata and return that practice instead.
+    const inviteClaims = await readInviteClientClaims()
+    if (inviteClaims.clientId) {
+      const linkedId = await ensureUserLinkedToInviteClient(userId, inviteClaims)
+      if (linkedId) {
+        const linked = await prisma.client.findUnique({ where: { id: linkedId } })
+        if (linked) {
+          return successResponse({
+            success: true,
+            alreadyLinked: true,
+            profile: serializeClientProfile(linked),
+          })
+        }
+      }
+      return errorResponse(
+        'You were invited to an existing practice. Contact support if you cannot access it.',
+        409,
+        'INVITE_CLIENT_EXISTS'
+      )
     }
 
     // Non-provider bypass: the all-zeros sentinel is never stored (npiNumber

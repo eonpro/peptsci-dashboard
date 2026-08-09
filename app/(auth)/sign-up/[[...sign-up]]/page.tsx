@@ -6,7 +6,9 @@ import { SmsOptInConsent } from '@/components/auth/SmsOptInConsent'
 export default function SignUpPage() {
   return (
     <div className="w-full">
-      <SignUp appearance={authAppearance} signInUrl="/sign-in" forceRedirectUrl="/onboarding" />
+      {/* Land on `/` so middleware routes by Clerk invite metadata:
+          CLIENT+clientId → /shop, PARTNER → /partners, bare CLIENT → /onboarding. */}
+      <SignUp appearance={authAppearance} signInUrl="/sign-in" forceRedirectUrl="/" />
 
       {/* SMS opt-in (TCPA / Twilio A2P): un-prechecked checkbox directly under
           the form's phone field. Choice carries into onboarding for persistence. */}

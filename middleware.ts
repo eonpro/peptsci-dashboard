@@ -209,19 +209,33 @@ const middleware = isClerkConfigured
       const pathname = request.nextUrl.pathname
 
       // Onboarding + its supporting APIs are always allowed for signed-in users.
-      // Except partners: invited partner accounts (role seeded via Clerk
-      // invitation metadata) land on /sign-up whose forceRedirectUrl points at
-      // /onboarding — that form is the CLINIC practice profile, so send them
-      // to their portal instead.
+      // Except invitees who already carry a practice (or partner identity) in
+      // Clerk invitation metadata: they land on /sign-up whose default redirect
+      // can still hit /onboarding — that form is for NEW clinic self-serve
+      // signups only, so bounce them to their real home.
       if (isOnboardingRoute(request)) {
-        if (role === 'PARTNER' && !pathname.startsWith('/api/')) {
-          return NextResponse.redirect(new URL('/partners', request.url))
+        if (!pathname.startsWith('/api/')) {
+          if (role === 'PARTNER') {
+            return NextResponse.redirect(new URL('/partners', request.url))
+          }
+          if (role === 'CLIENT' && clientId) {
+            return NextResponse.redirect(new URL(homeForRole(role), request.url))
+          }
         }
         return NextResponse.next()
       }
 
       // New CLIENTs without a linked practice must finish onboarding first.
-      if (role === 'CLIENT' && !clientId && (isProtectedRoute(request) || pathname === '/')) {
+      // Invited users are seeded ACTIVE (+ clientId). If the JWT briefly lacks
+      // clientId after signup, do not bounce ACTIVE accounts to /onboarding —
+      // that loops with the page's invite skip → /shop redirect. Shop APIs
+      // self-heal the DB link from Clerk metadata.
+      if (
+        role === 'CLIENT' &&
+        !clientId &&
+        status !== 'ACTIVE' &&
+        (isProtectedRoute(request) || pathname === '/')
+      ) {
         return NextResponse.redirect(new URL('/onboarding', request.url))
       }
 
