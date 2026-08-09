@@ -1,6 +1,63 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { assessTermsCheckout } from '../checkout-terms.ts'
+import {
+  assessTermsCheckout,
+  normalizePaymentTermsDays,
+  paymentTermsDaysSchema,
+} from '../checkout-terms.ts'
+
+describe('normalizePaymentTermsDays', () => {
+  test('undefined stays omitted', () => {
+    assert.equal(normalizePaymentTermsDays(undefined), undefined)
+  })
+
+  test('null and 0 become null (card-only)', () => {
+    assert.equal(normalizePaymentTermsDays(null), null)
+    assert.equal(normalizePaymentTermsDays(0), null)
+  })
+
+  test('positive days pass through', () => {
+    assert.equal(normalizePaymentTermsDays(30), 30)
+    assert.equal(normalizePaymentTermsDays(1), 1)
+    assert.equal(normalizePaymentTermsDays(365), 365)
+  })
+})
+
+describe('paymentTermsDaysSchema', () => {
+  test('coerces 0 to null', () => {
+    const parsed = paymentTermsDaysSchema.safeParse(0)
+    assert.equal(parsed.success, true)
+    if (parsed.success) assert.equal(parsed.data, null)
+  })
+
+  test('accepts null', () => {
+    const parsed = paymentTermsDaysSchema.safeParse(null)
+    assert.equal(parsed.success, true)
+    if (parsed.success) assert.equal(parsed.data, null)
+  })
+
+  test('accepts valid net terms', () => {
+    const parsed = paymentTermsDaysSchema.safeParse(30)
+    assert.equal(parsed.success, true)
+    if (parsed.success) assert.equal(parsed.data, 30)
+  })
+
+  test('rejects fractional days', () => {
+    const parsed = paymentTermsDaysSchema.safeParse(0.5)
+    assert.equal(parsed.success, false)
+  })
+
+  test('rejects out of range', () => {
+    assert.equal(paymentTermsDaysSchema.safeParse(366).success, false)
+    assert.equal(paymentTermsDaysSchema.safeParse(-1).success, false)
+  })
+
+  test('omitted stays undefined', () => {
+    const parsed = paymentTermsDaysSchema.safeParse(undefined)
+    assert.equal(parsed.success, true)
+    if (parsed.success) assert.equal(parsed.data, undefined)
+  })
+})
 
 describe('assessTermsCheckout', () => {
   test('denies when the client has no terms configured', () => {

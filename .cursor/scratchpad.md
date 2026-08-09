@@ -1,4 +1,60 @@
-# Client login create + password reset  [EXECUTOR — IMPLEMENTED]
+# Fix billing terms save  [EXECUTOR — DONE]
+
+## Background and Motivation
+Admins could not save Billing Terms on client detail (Elevated Vitality showed Payment Terms / Credit Limit as `0`). Save failed validation and incomplete addresses blocked the whole PATCH.
+
+## Key Challenges and Analysis
+- API required `paymentTermsDays` `min(1)` but UI/checkout treat `0` as card-only (same as null).
+- Single Save always sent billing/shipping addresses; empty street failed `addressSchema` and blocked terms/contact updates.
+
+## High-level Task Breakdown
+1. [x] Shared `normalizePaymentTermsDays` + `paymentTermsDaysSchema` (0 → null) in `lib/checkout-terms.ts`
+2. [x] Wire schema into `PATCH /api/admin/clients/[id]`
+3. [x] Client detail: hydrate 0 as blank; omit incomplete addresses; clear error for partial address edits
+4. [x] Unit tests (18 pass in `checkoutTerms.test.ts`)
+
+## Project Status Board
+- [x] API coerce 0 → null
+- [x] UI hydrate + save payload
+- [x] Tests green
+- [ ] Deploy / verify on peptsci.com → Elevated Vitality → set terms or clear to blank and Save
+
+## Executor's Feedback or Assistance Requests
+1. Hard-refresh Clients → Elevated Vitality Peptides.
+2. Leave Payment Terms blank (card-only) or set e.g. 30 + credit limit; Save Changes — should succeed even if billing street is empty.
+3. To enable bill-to-account: Payment Terms ≥ 1 (e.g. 30), optional credit limit.
+
+## Lessons
+- Card-only must be `null` in DB, never `0`, so Zod `min(1)` and checkout `> 0` stay aligned; coerce 0→null at the API boundary.
+- Admin profile Save should omit incomplete addresses rather than re-validating empty address JSON on every terms edit.
+
+---
+
+# Fill missing product monographs  [EXECUTOR — DONE]
+
+## Background and Motivation
+Products edit modal Monograph fields (Purity / Overview / MoA / Observations / References) were empty for some live catalog compounds.
+
+## Key Challenges and Analysis
+- Authored content lives in `lib/content/peptide-monographs.ts`; prod writes go through `GET/POST /api/admin/products/backfill-monographs` (RDS IAM only in Vercel runtime).
+- Dry-run: 48 scanned, 46 matched, 2 unmatched (`5-Amino-1MQ`, `Tesamorelin and Ipamorelin`); 7 matched rows still had empty DB JSON.
+
+## High-level Task Breakdown
+1. [x] Production dry-run
+2. [x] Author gaps + Glow/Klow blend matching + unit tests
+3. [x] Ship PR #11, wait for prod Ready (`ac87d72`)
+4. [x] POST backfill — scanned 48, updated 48, unmatched []
+5. [x] Verified admin empty=0 and PDPs render Overview for previously empty products
+
+## Project Status Board
+- [x] Complete in production
+
+## Lessons
+- Crest SKUs ≠ live catalog SKUs (e.g. Ipamorelin is `IPAMORELIN-10MG`, not `IP5`). Spot-check with admin products API SKUs.
+
+---
+
+# Client login create + password reset  [EXECUTOR — DEPLOYED fd0a2dc]
 
 ## Background and Motivation
 Admins need to create a practice user's email/password from the client detail page and reset it later. Invite-only left no way to set credentials for clinics like Elevated Vitality.
@@ -16,6 +72,7 @@ Admins need to create a practice user's email/password from the client detail pa
 ## Project Status Board
 - [x] Backend create + reset APIs
 - [x] Client detail UI wired
+- [x] Deployed `fd0a2dc` → main → peptsci.com READY (`dpl_7bbCeDf2arRXcsfP7a2QAJbbhKK5`)
 - [ ] Owner: verify on Clients → Elevated Vitality → Linked Users (Create login / Reset)
 
 ## Executor's Feedback or Assistance Requests
@@ -29,7 +86,7 @@ Admins need to create a practice user's email/password from the client detail pa
 
 ---
 
-# GLOW / KLOW display as trade names (not compound lists)  [EXECUTOR — READY TO DEPLOY]
+# GLOW / KLOW display as trade names (not compound lists)  [EXECUTOR — DEPLOYED c397409]
 
 ## Background and Motivation
 Client Custom Pricing showed SKU `GLOW` / `KLOW` as compound chains. Named blends must show **GLOW** / **KLOW**.
@@ -39,16 +96,13 @@ Client Custom Pricing showed SKU `GLOW` / `KLOW` as compound chains. Named blend
 - **KLOW 80:** GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg + KPV 10mg → dose `50mg/10mg/10mg/10mg`
 
 ## Project Status Board
-- [x] `lib/products/named-blends.ts` — SKU + compound fingerprint → GLOW/KLOW
-- [x] Wired into pricing, catalog, shop, fulfillment, orders, inventory
-- [x] Blend composition order aligned GHK-first
-- [x] Migration `20260809010000_normalize_named_blend_display_names` (name + dose fix)
-- [x] Unit tests pass
-- [ ] Deploy + apply migration
+- [x] Code merged to main via PR #12 (`c397409`)
+- [x] Vercel production deploy triggered
+- [ ] Owner: apply migration `20260809010000_normalize_named_blend_display_names`
 
 ## Executor's Feedback or Assistance Requests
-1. Deploy, then apply migration `20260809010000_normalize_named_blend_display_names`.
-2. Hard-refresh Client Custom Pricing — GLOW and KLOW rows should show trade names.
+1. Apply migration (Settings → Database schema, or migrate API).
+2. Hard-refresh Client Custom Pricing — GLOW and KLOW should show trade names (display layer works even before migration; migration persists names in DB).
 
 ## Lessons
 - Always set blend name (GLOW/KLOW) when creating 3+ compound blends.

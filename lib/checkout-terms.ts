@@ -7,6 +7,25 @@
  * plain numbers at this boundary; no Prisma imports so it unit-tests in
  * isolation (mirrors lib/invoicing/core.ts).
  */
+import { z } from 'zod'
+
+/**
+ * Admin PATCH / UI: blank or 0 means card-only (store null). Valid net terms
+ * are 1–365 days. `undefined` means "field omitted from this update".
+ */
+export function normalizePaymentTermsDays(
+  value: number | null | undefined
+): number | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null || value === 0) return null
+  return value
+}
+
+/** Zod field for Client.paymentTermsDays — coerces 0 → null before write. */
+export const paymentTermsDaysSchema = z.preprocess(
+  (v) => (v === 0 ? null : v),
+  z.number().int().min(1).max(365).nullable().optional()
+)
 
 export interface TermsCheckoutInput {
   /** Client.paymentTermsDays — null/0/negative means terms are not enabled. */

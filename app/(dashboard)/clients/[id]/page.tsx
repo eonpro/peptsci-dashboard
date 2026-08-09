@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AddressFields } from '@/components/AddressFields'
 import type { Address } from '@/lib/address'
+import { addressSchema } from '@/lib/address'
+import { normalizePaymentTermsDays } from '@/lib/checkout-terms'
 import type { ClientProfile } from '@/lib/profile'
 import InviteUserDialog from '../../users/InviteUserDialog'
 import CreateClientUserDialog from '../../users/CreateClientUserDialog'
@@ -67,6 +69,25 @@ const emptyAddress: Partial<Address> = { country: 'US' }
 const inputClass = 'h-12 bg-white/5 border-white/10 text-white rounded-xl'
 const labelClass = 'text-white/70'
 
+/** Include a complete address in PATCH; omit empty; reject partial edits. */
+function addressForPatch(
+  addr: Partial<Address>,
+  label: string
+): { ok: true; value?: Address } | { ok: false; message: string } {
+  const hasAny = Boolean(
+    addr.address1?.trim() || addr.city?.trim() || addr.state?.trim() || addr.zip?.trim()
+  )
+  if (!hasAny) return { ok: true }
+  const parsed = addressSchema.safeParse(addr)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: `Complete the ${label} (street, city, state, ZIP) or clear the fields before saving.`,
+    }
+  }
+  return { ok: true, value: parsed.data }
+}
+
 const statusStyles: Record<string, string> = {
   APPROVED: 'border-green-500/30 text-green-400 bg-green-500/10',
   ACTIVE: 'border-green-500/30 text-green-400 bg-green-500/10',
@@ -121,7 +142,10 @@ export default function ClientDetailPage() {
     setContactPhone(p.contactPhone ?? '')
     setBilling(p.billingAddress ?? emptyAddress)
     setShipping(p.shippingAddress ?? emptyAddress)
-    setPaymentTermsDays(p.paymentTermsDays != null ? String(p.paymentTermsDays) : '')
+    // 0 is card-only (same as null) — show blank so admins don't re-save an invalid 0.
+    setPaymentTermsDays(
+      p.paymentTermsDays != null && p.paymentTermsDays > 0 ? String(p.paymentTermsDays) : ''
+    )
     setCreditLimit(p.creditLimit != null ? String(p.creditLimit) : '')
   }
 
@@ -191,23 +215,39 @@ export default function ClientDetailPage() {
     }
   }
 
-  const handleSave = () =>
-    patch(
-      {
-        organizationName,
-        providerName,
-        npiNumber,
-        ein,
-        contactName,
-        contactEmail,
-        contactPhone,
-        billingAddress: billing,
-        shippingAddress: shipping,
-        paymentTermsDays: paymentTermsDays.trim() === '' ? null : Number(paymentTermsDays),
-        creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
-      },
-      { flash: true }
-    )
+  const handleSave = () => {
+    const billingPatch = addressForPatch(billing, 'billing address')
+    if (!billingPatch.ok) {
+      setError(billingPatch.message)
+      return
+    }
+    const shippingPatch = addressForPatch(shipping, 'shipping address')
+    if (!shippingPatch.ok) {
+      setError(shippingPatch.message)
+      return
+    }
+
+    const termsRaw = paymentTermsDays.trim() === '' ? null : Number(paymentTermsDays)
+    const termsNormalized = normalizePaymentTermsDays(termsRaw)
+    // normalize returns undefined only when input is undefined; here we always send a value.
+    const paymentTermsPayload = termsNormalized === undefined ? null : termsNormalized
+
+    const body: Record<string, unknown> = {
+      organizationName,
+      providerName,
+      npiNumber,
+      ein,
+      contactName,
+      contactEmail,
+      contactPhone,
+      paymentTermsDays: paymentTermsPayload,
+      creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
+    }
+    if (billingPatch.value) body.billingAddress = billingPatch.value
+    if (shippingPatch.value) body.shippingAddress = shippingPatch.value
+
+    return patch(body, { flash: true })
+  }
 
   const setStatus = async (onboardingStatus: string) => {
     const ok = await patch({ onboardingStatus })
