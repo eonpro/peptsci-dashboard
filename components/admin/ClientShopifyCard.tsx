@@ -42,6 +42,28 @@ type PeptSciVariant = {
   label: string
 }
 
+type InboundLine = {
+  id: string
+  shopifyVariantId: string | null
+  shopifySku: string | null
+  shopifyTitle: string
+  quantity: number
+  variantId: string | null
+  mappedLabel: string | null
+}
+
+type InboundOrder = {
+  id: string
+  shopifyOrderId: string
+  shopifyOrderName: string | null
+  status: string
+  shipSpeed: string
+  lastError: string | null
+  createdAt: string
+  invoice: { id: string; invoiceNumber: number; status: string } | null
+  lines: InboundLine[]
+}
+
 const inputClass = 'h-12 bg-white/5 border-white/10 text-white rounded-xl'
 const labelClass = 'text-white/70'
 const selectClass =
@@ -49,7 +71,8 @@ const selectClass =
 
 /**
  * Per-client Shopify Custom App connection + variant mapping for white-label
- * fulfillment (Shopify collects payment; PeptSci ships and pushes tracking).
+ * fulfillment. Paid Shopify orders become invoices at client pricing, charge
+ * card on file, then queue PeptSci fulfillment.
  */
 export function ClientShopifyCard({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true)
@@ -65,6 +88,8 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
   const [draftMaps, setDraftMaps] = useState<Record<string, string>>({})
   const [mapsLoading, setMapsLoading] = useState(false)
   const [catalogError, setCatalogError] = useState<string | null>(null)
+  const [inbounds, setInbounds] = useState<InboundOrder[]>([])
+  const [lineDrafts, setLineDrafts] = useState<Record<string, string>>({})
 
   const loadConnection = useCallback(async () => {
     try {
@@ -78,6 +103,17 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
       // non-critical card
     } finally {
       setLoading(false)
+    }
+  }, [clientId])
+
+  const loadInbounds = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/clients/${clientId}/shopify/inbounds`)
+      if (!res.ok) return
+      const data = await res.json()
+      setInbounds(data.inbounds ?? [])
+    } catch {
+      // non-critical
     }
   }, [clientId])
 
@@ -108,8 +144,67 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
   }, [loadConnection])
 
   useEffect(() => {
-    if (connection) void loadMappings()
-  }, [connection, loadMappings])
+    if (connection) {
+      void loadMappings()
+      void loadInbounds()
+    }
+  }, [connection, loadMappings, loadInbounds])
+
+  const matchInboundLine = async (inboundId: string, lineId: string) => {
+    const variantId = lineDrafts[lineId]
+    if (!variantId) {
+      toast.error('Select a PeptSci product first')
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch(
+        `/api/admin/clients/${clientId}/shopify/inbounds/${inboundId}/match`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lineId, variantId }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Match failed')
+      if (data.fullyMapped) {
+        toast.success(
+          data.processResult?.status === 'fulfillment_queued'
+            ? 'Matched — invoice charged and order queued'
+            : data.processResult?.status === 'invoiced_unpaid'
+              ? 'Matched — invoice created (charge pending)'
+              : 'Fully mapped — processing'
+        )
+      } else {
+        toast.success('Product matched')
+      }
+      await loadInbounds()
+      await loadMappings()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Match failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reprocessInbound = async (inboundId: string) => {
+    setBusy(true)
+    try {
+      const res = await fetch(
+        `/api/admin/clients/${clientId}/shopify/inbounds/${inboundId}/process`,
+        { method: 'POST' }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Process failed')
+      toast.success(`Processed: ${data.result?.status ?? 'ok'}`)
+      await loadInbounds()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Process failed')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const saveConnection = async () => {
     setBusy(true)
@@ -245,8 +340,8 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
               Shopify fulfillment
             </CardTitle>
             <CardDescription className="mt-1 text-white/50">
-              Custom App: paid Shopify orders ingest under this client; tracking is pushed back on
-              ship. Retail payment stays on Shopify.
+              Paid Shopify orders create a PeptSci invoice at this client&apos;s pricing, charge the
+              card on file, then queue fulfillment. Unmapped products wait here to be matched.
             </CardDescription>
           </div>
           {connection && (
@@ -346,6 +441,107 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
             </Button>
           )}
         </div>
+
+        {connection && (
+          <div className="space-y-4 border-t border-white/10 pt-6">
+            <div>
+              <h3 className="text-sm font-medium text-white">Needs mapping / pending invoices</h3>
+              <p className="text-xs text-white/50">
+                Unmapped Shopify product names from paid orders. Match each to a PeptSci SKU — when
+                all lines are matched we invoice, charge the card on file, and queue fulfillment.
+              </p>
+            </div>
+            {inbounds.length === 0 ? (
+              <p className="text-sm text-white/40">No pending Shopify inbounds.</p>
+            ) : (
+              <div className="space-y-4">
+                {inbounds.map((ib) => (
+                  <div
+                    key={ib.id}
+                    className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm text-white">
+                        <span className="font-medium">
+                          {ib.shopifyOrderName || `#${ib.shopifyOrderId}`}
+                        </span>
+                        <span className="ml-2 text-xs text-white/50">{ib.status}</span>
+                        {ib.invoice && (
+                          <a
+                            href={`/invoices/${ib.invoice.id}`}
+                            className="ml-2 text-xs text-brand-primary underline"
+                          >
+                            Invoice #{ib.invoice.invoiceNumber} ({ib.invoice.status})
+                          </a>
+                        )}
+                      </div>
+                      {(ib.status === 'READY' || ib.status === 'INVOICED') && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => reprocessInbound(ib.id)}
+                        >
+                          Retry charge / process
+                        </Button>
+                      )}
+                    </div>
+                    {ib.lastError && (
+                      <p className="text-xs text-amber-400">{ib.lastError}</p>
+                    )}
+                    <ul className="space-y-2">
+                      {ib.lines.map((line) => (
+                        <li
+                          key={line.id}
+                          className="flex flex-col gap-2 rounded-lg border border-white/5 p-3 sm:flex-row sm:items-center"
+                        >
+                          <div className="flex-1 text-sm">
+                            <p className="text-white font-medium">{line.shopifyTitle}</p>
+                            <p className="text-xs text-white/50">
+                              qty {line.quantity}
+                              {line.shopifySku ? ` · SKU ${line.shopifySku}` : ''}
+                              {line.mappedLabel ? ` · → ${line.mappedLabel}` : ' · unmapped'}
+                            </p>
+                          </div>
+                          {!line.variantId && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                className={`${selectClass} min-w-[200px]`}
+                                value={lineDrafts[line.id] || ''}
+                                onChange={(e) =>
+                                  setLineDrafts((prev) => ({
+                                    ...prev,
+                                    [line.id]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">— match to PeptSci —</option>
+                                {peptsciVariants.map((pv) => (
+                                  <option key={pv.id} value={pv.id}>
+                                    {pv.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={busy || !lineDrafts[line.id]}
+                                onClick={() => matchInboundLine(ib.id, line.id)}
+                              >
+                                Save match
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {connection && (
           <div className="space-y-4 border-t border-white/10 pt-6">

@@ -117,6 +117,7 @@ model Client {
   backInStockSubs       BackInStockSubscription[]
   supportTickets        SupportTicket[]
   shopifyConnection     ShopifyConnection?
+  shopifyInboundOrders  ShopifyInboundOrder[]
 
   @@index([partnerOrgId])
   @@index([partnerRepId])
@@ -150,6 +151,7 @@ model ShopifyConnection {
   updatedAt     DateTime                @updatedAt
   mappings      ShopifyVariantMapping[]
   orders        Order[]
+  inboundOrders ShopifyInboundOrder[]
 
   @@index([shopDomain])
   @@index([status])
@@ -170,6 +172,62 @@ model ShopifyVariantMapping {
   @@unique([connectionId, shopifyVariantId])
   @@index([variantId])
   @@index([shopifySku])
+}
+
+enum ShopifyInboundStatus {
+  NEEDS_MAPPING
+  READY
+  INVOICED
+  FULFILLMENT_QUEUED
+  CANCELLED
+}
+
+/// Shopify paid order held until variants are mapped, then invoiced & charged
+/// before a PeptSci fulfillment Order is created.
+model ShopifyInboundOrder {
+  id               String               @id @default(cuid())
+  connection       ShopifyConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId     String
+  client           Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId         String
+  shopifyOrderId   String
+  shopifyOrderName String?
+  status           ShopifyInboundStatus @default(NEEDS_MAPPING)
+  shipSpeed        ShipSpeed            @default(TWO_DAY)
+  shippingAddress  Json?
+  buyerEmail       String?
+  buyerNote        String?
+  shopifyFoId      String?
+  invoice          Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceId        String?              @unique
+  order            Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId          String?              @unique
+  lastError        String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  lines            ShopifyInboundLine[]
+
+  @@unique([clientId, shopifyOrderId])
+  @@index([connectionId, status])
+  @@index([status])
+}
+
+model ShopifyInboundLine {
+  id               String              @id @default(cuid())
+  inbound          ShopifyInboundOrder @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
+  inboundOrderId   String
+  shopifyVariantId String?
+  shopifySku       String?
+  /// Product name from Shopify — shown in the admin match queue.
+  shopifyTitle     String
+  quantity         Int
+  variant          ProductVariant?     @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([inboundOrderId])
+  @@index([variantId])
 }
 
 // -------------------------------------------------
@@ -633,6 +691,7 @@ model ProductVariant {
   coas               ProductCoa[]
   backInStockSubs    BackInStockSubscription[]
   shopifyMappings    ShopifyVariantMapping[]
+  shopifyInboundLines ShopifyInboundLine[]
 
   @@index([status])
   @@index([productId])
@@ -894,6 +953,7 @@ model Order {
   shopifyOrderName      String? // e.g. "#1042"
   shopifyFulfillmentOrderId String?
   shopifyFulfillmentId  String?
+  shopifyInbound        ShopifyInboundOrder?
 
   @@index([clientId])
   @@index([stripePaymentIntentId])
@@ -957,6 +1017,7 @@ model Invoice {
   lineItems        InvoiceLineItem[]
   payments         InvoicePayment[]
   adjustments      InvoiceAdjustment[]
+  shopifyInbound   ShopifyInboundOrder?
 
   @@index([clientId])
   @@index([status])

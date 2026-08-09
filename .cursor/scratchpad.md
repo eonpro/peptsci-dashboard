@@ -1,3 +1,98 @@
+# Shopify invoice-first + unmapped matching  [EXECUTOR — CODE DONE]
+
+## Background and Motivation
+Shopify paid orders must create an Invoice at client pricing + shipping, charge card on file, then create the fulfillment Order. Unmapped products queue by Shopify product name for admin matching.
+
+## High-level Task Breakdown
+1. [x] ShopifyInboundOrder/Line schema + migration
+2. [x] Ingest upsert → NEEDS_MAPPING or processShopifyInbound
+3. [x] Invoice + chargeInvoiceWithSavedCard + Order after PAID
+4. [x] Admin Needs mapping UI + match/process APIs
+5. [ ] Deploy + prod migrate
+
+## Project Status Board
+- [x] Implementation complete locally
+- [ ] Deploy `main` + Settings DB migrate
+
+## Executor's Feedback or Assistance Requests
+1. After deploy: Settings → Run DB migrate (ShopifyInbound* tables).
+2. Clients → Elevated Vitality → Shopify: Needs mapping appears for unmapped titles; Save match → invoice/charge/fulfill.
+
+## Lessons
+- Invoice-first: do not create Order until invoice PAID (payment gate + AR stay aligned).
+- Persist ShopifyVariantMapping on match so future webhooks auto-map.
+
+---
+
+# Partners portal missing Log out  [EXECUTOR]
+
+## Background and Motivation
+Partners dashboard sidebar showed org identity (EonMeds / Org owner) with no way to sign out — shop/onboarding already use Clerk `signOut`.
+
+## High-level Task Breakdown
+1. [x] Add Log out under sidebar identity (desktop + mobile drawer)
+2. [x] Add Log out on partner no-access screen (wrong-account switch)
+3. [ ] Deploy / hard-refresh to verify on peptsci.com/partners
+
+## Project Status Board
+- [x] Sidebar + no-access SignOut via Clerk
+- [ ] Owner verify after deploy
+
+## Lessons
+- Partner portal shell had identity footer but never wired Clerk sign-out (unlike shop ClientHeader).
+
+---
+
+# Clerk invite email white-on-white logo  [PLANNER → OWNER ACTION]
+
+## Background and Motivation
+Clerk invitation emails show the PeptSci wordmark as white-on-white (only the blue molecule icon + the blue "i" dot visible). Cause: Clerk Dashboard branding is using the **light** logo (white letters for dark UI), which is invisible on Clerk's white email canvas.
+
+## Key Challenges and Analysis
+- App `Logo` component already has light/dark variants (Wix URLs); emails cannot auto-switch — Clerk uses a single uploaded app logo for `{{> app_logo}}`.
+- Our SES templates do **not** use this image (navy header + white "PEPTSCI" text) — this bug is Clerk-only.
+- Correct asset already in repo/prod: `public/brand/peptsci-logo-dark.png` (navy letters + blue icon) and email-sized `public/brand/peptsci-logo-email.png`.
+- Live URL: https://peptsci.com/brand/peptsci-logo-dark.png
+
+## High-level Task Breakdown
+1. [x] Confirm screenshot = Clerk invite template + white wordmark
+2. [x] Confirm dark logo has navy letters suitable for white email bg
+3. [x] Add `public/brand/peptsci-logo-email.png` (800px wide)
+4. [ ] **Owner:** Clerk Dashboard → Settings → Branding → replace Application logo with dark/email logo
+5. [ ] **Owner:** Customization → Emails → Invitation → Preview (wordmark must be readable)
+6. [ ] Optional: send a test invite to verify in inbox
+
+## Project Status Board
+- [x] Diagnosis + asset ready
+- [ ] Owner uploads dark logo in Clerk (cannot be done from this repo)
+
+## Executor's Feedback or Assistance Requests
+Upload file from disk: `public/brand/peptsci-logo-email.png` (or `peptsci-logo-dark.png`). Do **not** re-upload the white/light wordmark used on dark UI.
+
+## Lessons
+- Clerk email logos must work on a **white** background; never set the app branding logo to the light (white-letter) variant.
+
+---
+
+# Client profiles blank after shipping-rates deploy  [EXECUTOR — HOTFIX]
+
+## Background and Motivation
+After `84b0ca9`, admin client detail showed "Client not found" because Prisma selected `shippingRateTwoDay`/`Overnight` before prod migration ran (P2022 → API 500 → UI treated as not found).
+
+## Fix
+1. [x] Load shipping rates via raw SQL helper (`loadClientShippingRates`) that returns nulls if columns missing
+2. [x] Migration SQL uses `ADD COLUMN IF NOT EXISTS`; migrate probes extended
+3. [x] Client detail shows real API error instead of fake not-found
+4. [ ] Deploy hotfix + owner runs Settings → Database migrate
+
+## Project Status Board
+- [x] Code hotfix
+- [x] Deployed `868288e` → peptsci.com READY
+- [ ] Owner: Settings → Database schema → Apply pending migrations (shipping rates)
+- [ ] Owner: hard-refresh Clients → open a practice (profiles should load again)
+
+---
+
 # Shopify auto-charge + practice shipping rates  [EXECUTOR — DEPLOYED 84b0ca9]
 
 ## Background and Motivation

@@ -386,6 +386,14 @@ export async function recordPayment(
         error: e instanceof Error ? e.message : String(e),
       })
     )
+    // Shopify invoice-first: create the fulfillment Order only after PAID.
+    const { maybeFulfillShopifyInboundForInvoice } = await import('@/lib/shopify/process-inbound')
+    await maybeFulfillShopifyInboundForInvoice(invoiceId).catch((e) =>
+      logger.warn('[INVOICING] maybeFulfillShopifyInboundForInvoice failed (non-blocking)', {
+        invoiceId,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
   }
   return view
 }
