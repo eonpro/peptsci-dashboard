@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { setClientPricing, removeClientPricing, getClientPricing } from '@/lib/pricing'
 import { writeAudit } from '@/lib/audit'
+import { displayProductName } from '@/lib/products/named-blends'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
         clientName: p.client.organizationName,
         variantId: p.variantId,
         variantSku: p.variant.sku,
-        productName: p.variant.product.name,
+        productName: displayProductName(p.variant.product.name, p.variant.sku),
         dose: p.variant.dose,
         standardPrice: Number(p.variant.srp),
         customPrice: Number(p.customPrice),

@@ -41,6 +41,7 @@ import {
   type SortDir,
 } from './inventory-workspace-core'
 import { resolveInventoryActor } from './inventory-log'
+import { displayProductName } from './products/named-blends'
 
 // Re-export the pure helpers so callers can import everything from one module.
 export {
@@ -108,7 +109,8 @@ async function resolveVariant(input: CreateBatchInput): Promise<{
     if (!variant) throw new BatchValidationError('Selected product variant was not found', 'variantId')
     return {
       variantId: variant.id,
-      productName: input.name?.trim() || variant.product.name,
+      productName:
+        input.name?.trim() || displayProductName(variant.product.name, variant.sku),
       dose: input.dose?.trim() || variant.dose || '',
       vialSize: input.vialSize?.trim() || variant.unitSize || null,
     }

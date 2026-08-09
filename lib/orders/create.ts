@@ -14,6 +14,7 @@
 import { Prisma, type OrderSource, type OrderStatus, type PaymentStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { displayProductName } from '@/lib/products/named-blends'
 import { computeCartTotals, type ShipSpeed, type ShipTo } from '@/lib/checkout-core'
 import {
   buildManualOrderLines,
@@ -118,7 +119,7 @@ export async function createManualOrder(
     info.set(v.id, {
       variantId: v.id,
       sku: v.sku,
-      productName: v.product.name,
+      productName: displayProductName(v.product.name, v.sku),
       dose: v.dose,
       srp: Number(v.srp),
       customPrice: v.clientPricing[0] ? Number(v.clientPricing[0].customPrice) : null,

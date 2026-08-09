@@ -5,6 +5,7 @@ import { reserveForOrder } from './inventory/reservations'
 import { resolveEffectiveUnitPrice } from './access'
 import { stockEnforcementEnabled } from './stock-enforcement'
 import type { BrandingConfig, StorefrontProductItem, StorefrontPublicConfig } from './types/storefront'
+import { displayProductName } from './products/named-blends'
 
 function toJsonInput(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   if (value === null || value === undefined) return Prisma.JsonNull
@@ -184,7 +185,7 @@ export async function getStorefrontProducts(
     return {
       id: p.id,
       variantId: p.variantId,
-      productName: p.variant.product.name,
+      productName: displayProductName(p.variant.product.name, p.variant.sku),
       displayName: p.displayName,
       displayDescription: p.displayDescription,
       sku: p.variant.sku,
