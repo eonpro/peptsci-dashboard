@@ -55,14 +55,18 @@ export async function resolveCart(params: {
   // At-cost clinics pay ProductVariant.unitCost per vial (overrides
   // ClientPricing and SRP) — see resolveEffectiveUnitPrice.
   const client = params.clientId
-    ? await prisma.client.findUnique({
-        where: { id: params.clientId },
-        select: {
-          paysAtCost: true,
-          shippingRateTwoDay: true,
-          shippingRateOvernight: true,
-        },
-      })
+    ? await prisma.client
+        .findUnique({
+          where: { id: params.clientId },
+          select: {
+            paysAtCost: true,
+          },
+        })
+        .then(async (row) => {
+          if (!row) return null
+          const { loadClientShippingRates } = await import('@/lib/db-compat')
+          return { ...row, ...(await loadClientShippingRates(params.clientId!)) }
+        })
     : null
 
   const variants = await prisma.productVariant.findMany({

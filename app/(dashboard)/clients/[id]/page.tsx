@@ -180,10 +180,22 @@ export default function ClientDetailPage() {
   }, [id])
 
   useEffect(() => {
+    let cancelled = false
+    setError(null)
     fetch(`/api/admin/clients/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.message || `Could not load client (${r.status})`)
+        }
+        return data
+      })
       .then((data) => {
-        if (!data?.profile) return
+        if (cancelled) return
+        if (!data?.profile) {
+          setError('Client not found.')
+          return
+        }
         hydrate(data.profile)
         setUsers(data.users ?? [])
         setPendingInvites(data.pendingInvites ?? [])
@@ -201,8 +213,15 @@ export default function ClientDetailPage() {
             : null
         )
       })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load client')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   const revokeInvite = async (invitationId: string) => {
@@ -299,8 +318,8 @@ export default function ClientDetailPage() {
 
   if (!profile) {
     return (
-      <div className="container mx-auto p-6">
-        <p className="text-white/60">Client not found.</p>
+      <div className="container mx-auto p-6 space-y-3">
+        <p className="text-white/60">{error || 'Client not found.'}</p>
         <Link href="/clients" className="text-sm text-brand-primary underline">
           Back to clients
         </Link>

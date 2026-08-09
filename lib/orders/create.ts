@@ -81,15 +81,19 @@ export async function createManualOrder(
 
   const lines = validateManualLines(params.lines)
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: {
-      id: true,
-      paysAtCost: true,
-      shippingRateTwoDay: true,
-      shippingRateOvernight: true,
-    },
-  })
+  const client = await prisma.client
+    .findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        paysAtCost: true,
+      },
+    })
+    .then(async (row) => {
+      if (!row) return null
+      const { loadClientShippingRates } = await import('@/lib/db-compat')
+      return { ...row, ...(await loadClientShippingRates(clientId)) }
+    })
   if (!client) throw new ManualOrderError('Selected client was not found', 'CLIENT_UNKNOWN')
 
   if (params.patientId) {

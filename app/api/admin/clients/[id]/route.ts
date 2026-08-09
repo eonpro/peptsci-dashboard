@@ -17,6 +17,7 @@ import { einSchema, npiSchema, serializeClientProfile } from '@/lib/profile'
 import { deleteClientForce } from '@/lib/clients/delete-client'
 import { cascadeOnboardingDecision } from '@/lib/clients/approval'
 import { writeAudit } from '@/lib/audit'
+import { isMissingDbColumnError, loadClientShippingRates } from '@/lib/db-compat'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +35,8 @@ const clientSelect = {
   onboardingStatus: true,
   paymentTermsDays: true,
   creditLimit: true,
-  shippingRateTwoDay: true,
-  shippingRateOvernight: true,
+  // shippingRate* loaded via loadClientShippingRates() so missing columns
+  // (pre-migration) do not 500 the whole client profile.
   paysAtCost: true,
 } as const
 
@@ -105,6 +106,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
     if (!client) return errorResponse('Client not found', 404, 'NOT_FOUND')
 
+    const shippingRates = await loadClientShippingRates(id)
+    const profileClient = { ...client, ...shippingRates }
+
     // Onboarding setup snapshot: what an admin still needs to configure for
     // this practice to be fully operational (pricing / terms / card / documents).
     const docGroups = await prisma.clientDocument.groupBy({
@@ -167,7 +171,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
 
     return successResponse({
-      profile: serializeClientProfile(client),
+      profile: serializeClientProfile(profileClient),
       paysAtCost: client.paysAtCost,
       users: client.users,
       pendingInvites,
@@ -224,10 +228,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data.shippingAddress = input.shippingAddress as unknown as Prisma.InputJsonValue
     if (input.paymentTermsDays !== undefined) data.paymentTermsDays = input.paymentTermsDays
     if (input.creditLimit !== undefined) data.creditLimit = input.creditLimit
-    if (input.shippingRateTwoDay !== undefined) data.shippingRateTwoDay = input.shippingRateTwoDay
-    if (input.shippingRateOvernight !== undefined)
-      data.shippingRateOvernight = input.shippingRateOvernight
     if (input.paysAtCost !== undefined) data.paysAtCost = input.paysAtCost
+
+    // Shipping rates require the migration; fail clearly if columns are missing.
+    if (input.shippingRateTwoDay !== undefined || input.shippingRateOvernight !== undefined) {
+      try {
+        await prisma.client.update({
+          where: { id },
+          data: {
+            ...(input.shippingRateTwoDay !== undefined
+              ? { shippingRateTwoDay: input.shippingRateTwoDay }
+              : {}),
+            ...(input.shippingRateOvernight !== undefined
+              ? { shippingRateOvernight: input.shippingRateOvernight }
+              : {}),
+          },
+          select: { id: true },
+        })
+      } catch (err) {
+        if (isMissingDbColumnError(err)) {
+          return errorResponse(
+            'Shipping rate columns are missing — run Settings → Database migrate, then retry.',
+            503,
+            'SCHEMA_MIGRATION_REQUIRED'
+          )
+        }
+        throw err
+      }
+    }
 
     let client
     try {
@@ -294,7 +322,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       client = { ...client, onboardingStatus: input.onboardingStatus }
     }
 
-    return successResponse({ profile: serializeClientProfile(client) })
+    return successResponse({
+      profile: serializeClientProfile({ ...client, ...(await loadClientShippingRates(id)) }),
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update client'
     logger.error('[ADMIN CLIENTS] patch error', { message }, error as Error)

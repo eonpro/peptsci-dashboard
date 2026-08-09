@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
 import { profileUpdateSchema, serializeClientProfile } from '@/lib/profile'
+import { loadClientShippingRates } from '@/lib/db-compat'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +22,6 @@ const clientSelect = {
   shippingAddress: true,
   onboardingStatus: true,
   smsOptIn: true,
-  shippingRateTwoDay: true,
-  shippingRateOvernight: true,
 } as const
 
 /** GET /api/shop/profile — the caller's own practice profile. */
@@ -37,7 +36,8 @@ export async function GET(request: NextRequest) {
 
     const client = await prisma.client.findUnique({ where: { id: clientId }, select: clientSelect })
     if (!client) return errorResponse('Profile not found', 404, 'NOT_FOUND')
-    return successResponse({ profile: serializeClientProfile(client) })
+    const shippingRates = await loadClientShippingRates(clientId)
+    return successResponse({ profile: serializeClientProfile({ ...client, ...shippingRates }) })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load profile'
     logger.error('[PROFILE] get error', { message }, error as Error)
@@ -118,7 +118,11 @@ export async function PATCH(request: NextRequest) {
       throw err
     }
 
-    return successResponse({ profile: serializeClientProfile(client), locked })
+    const shippingRates = await loadClientShippingRates(clientId)
+    return successResponse({
+      profile: serializeClientProfile({ ...client, ...shippingRates }),
+      locked,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update profile'
     logger.error('[PROFILE] patch error', { message }, error as Error)

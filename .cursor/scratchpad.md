@@ -1,4 +1,4 @@
-# Shopify auto-charge + practice shipping rates  [EXECUTOR — CODE DONE]
+# Shopify auto-charge + practice shipping rates  [EXECUTOR — DEPLOYED 84b0ca9]
 
 ## Background and Motivation
 Charge practice card on file when Shopify paid orders ingest (PeptSci B2B pricing), and support per-practice 2-day / next-day shipping rates on all order sources.
@@ -12,7 +12,8 @@ Charge practice card on file when Shopify paid orders ingest (PeptSci B2B pricin
 
 ## Project Status Board
 - [x] Schema + math + UI + Shopify auto-charge
-- [ ] Deploy + prod migrate
+- [x] Deployed `84b0ca9` → main → peptsci.com READY (`dpl_EckLPV6nUCKVcUdoSbaAGJebDqRs`)
+- [ ] Owner: run Settings migrate for `shippingRateTwoDay` / `shippingRateOvernight`
 
 ## Executor's Feedback or Assistance Requests
 1. After deploy: Settings → DB migrate (or POST migrate confirm) for `shippingRateTwoDay` / `shippingRateOvernight`.

@@ -129,6 +129,8 @@ interface SchemaProbe {
   supplierPriceItemTable: boolean
   distributorLineSkuColumn: boolean
   distributorLineReceivedQtyColumn: boolean
+  clientShippingRateTwoDayColumn: boolean
+  clientShippingRateOvernightColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -174,7 +176,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'paysAtCost')
         OR (table_name = 'SalesRecord' AND column_name = 'lineItems')
         OR (table_name = 'DistributorOrderLine' AND column_name = 'sku')
-        OR (table_name = 'DistributorOrderLine' AND column_name = 'receivedQty'))
+        OR (table_name = 'DistributorOrderLine' AND column_name = 'receivedQty')
+        OR (table_name = 'Client' AND column_name = 'shippingRateTwoDay')
+        OR (table_name = 'Client' AND column_name = 'shippingRateOvernight'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -250,6 +254,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     supplierPriceItemTable: tableNames.has('SupplierPriceItem'),
     distributorLineSkuColumn: colKeys.has('DistributorOrderLine.sku'),
     distributorLineReceivedQtyColumn: colKeys.has('DistributorOrderLine.receivedQty'),
+    clientShippingRateTwoDayColumn: colKeys.has('Client.shippingRateTwoDay'),
+    clientShippingRateOvernightColumn: colKeys.has('Client.shippingRateOvernight'),
   }
 }
 
