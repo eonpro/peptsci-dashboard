@@ -1,15 +1,24 @@
 /**
  * Pure (DB-free) helpers for per-client custom pricing CSV import.
- * Columns: sku, custom_price, optional notes.
- * Blank custom_price clears the override (clinic falls back to SRP).
+ *
+ * Expected columns (clinic offer sheets):
+ *   sku, Strength, custom_price
+ *
+ * `sku` is the product name (e.g. Semaglutide) — the same name may appear on
+ * multiple rows with different Strengths. Blank custom_price clears the
+ * override (clinic falls back to SRP). Optional `notes` is still accepted.
  */
 
 import { parseCsv } from './product-import'
 import { parseLocaleNumber } from './csv-coerce'
+import { normalizeDoseLabel } from './labels/peptsciLabelPdf'
 
 export interface ClientPricingImportRow {
   rowNumber: number
+  /** Product name as supplied in the sku column (or a real catalog SKU). */
   sku: string
+  /** Dose / strength (e.g. 5mg, 10iu). Required for name+strength matching. */
+  strength: string
   /** Positive price to set, or null to clear the custom override. */
   customPrice: number | null
   notes?: string
@@ -27,14 +36,25 @@ export interface ClientPricingParseResult {
   errors: RowError[]
 }
 
-export const CLIENT_PRICING_IMPORT_HEADERS = ['sku', 'custom_price', 'notes'] as const
+/** Canonical headers matching clinic offer sheets. */
+export const CLIENT_PRICING_IMPORT_HEADERS = ['sku', 'Strength', 'custom_price'] as const
 
-type Field = 'sku' | 'customPrice' | 'notes'
+type Field = 'sku' | 'strength' | 'customPrice' | 'notes'
 
 function classifyHeader(raw: string): Field | undefined {
   const h = raw.trim().toLowerCase().replace(/[\s-]+/g, '_')
   if (!h) return undefined
-  if (h === 'sku' || h === 'variant_sku' || h === 'product_sku' || h === 'item_sku') return 'sku'
+  if (
+    h === 'sku' ||
+    h === 'variant_sku' ||
+    h === 'product_sku' ||
+    h === 'item_sku' ||
+    h === 'product' ||
+    h === 'product_name' ||
+    h === 'name'
+  )
+    return 'sku'
+  if (h === 'strength' || h === 'dose' || h === 'size' || h === 'specification') return 'strength'
   if (
     h === 'custom_price' ||
     h === 'customprice' ||
@@ -46,6 +66,21 @@ function classifyHeader(raw: string): Field | undefined {
     return 'customPrice'
   if (h === 'notes' || h === 'note' || h === 'price_notes') return 'notes'
   return undefined
+}
+
+/** Normalize dose/strength for matching ("5 mg" / "5.0mg" → "5mg"). */
+export function normalizeClientPricingDose(value: string): string {
+  return normalizeDoseLabel(value).replace(/\s+/g, '').toLowerCase()
+}
+
+/** Case/whitespace-normalized product name. */
+export function normalizeClientPricingProduct(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+/** Alphanumeric-only key for fuzzy name match (AOD 9604 ≈ AOD-9604). */
+export function looseClientPricingProduct(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 /** Parse client custom-pricing CSV into validated rows + per-row errors. */
@@ -76,6 +111,17 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
       ],
     }
   }
+  if (colIndex.strength === undefined) {
+    return {
+      rows,
+      errors: [
+        {
+          rowNumber: 1,
+          message: `Missing required column: Strength. Expected headers: ${CLIENT_PRICING_IMPORT_HEADERS.join(', ')}`,
+        },
+      ],
+    }
+  }
   if (colIndex.customPrice === undefined) {
     return {
       rows,
@@ -95,7 +141,7 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
     return v === undefined ? undefined : v.trim()
   }
 
-  const seenSkus = new Set<string>()
+  const seenKeys = new Set<string>()
 
   for (let r = 1; r < matrix.length; r++) {
     const rowNumber = r + 1
@@ -103,13 +149,17 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
     const rowErrors: string[] = []
 
     const sku = cell(cols, 'sku') || ''
+    const strength = cell(cols, 'strength') || ''
     const priceRaw = cell(cols, 'customPrice')
     const notesRaw = cell(cols, 'notes')
     const notes = notesRaw || undefined
 
     if (!sku) rowErrors.push('sku is required')
-    if (sku && seenSkus.has(sku.toLowerCase())) {
-      rowErrors.push(`duplicate sku "${sku}" within file`)
+    if (!strength) rowErrors.push('Strength is required')
+
+    const dedupeKey = `${normalizeClientPricingProduct(sku)}::${normalizeClientPricingDose(strength)}`
+    if (sku && strength && seenKeys.has(dedupeKey)) {
+      rowErrors.push(`duplicate sku+Strength "${sku}" / "${strength}" within file`)
     }
 
     let customPrice: number | null = null
@@ -134,10 +184,11 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
       continue
     }
 
-    seenSkus.add(sku.toLowerCase())
+    seenKeys.add(dedupeKey)
     rows.push({
       rowNumber,
       sku,
+      strength,
       customPrice,
       notes,
       clear,
@@ -147,9 +198,13 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
   return { rows, errors }
 }
 
-/** CSV template text (header + one example row) for the download button. */
+/** CSV template text (header + example rows) for the download button. */
 export function clientPricingImportTemplate(): string {
   const header = CLIENT_PRICING_IMPORT_HEADERS.join(',')
-  const example = ['BPC-157-10', '45.00', 'Clinic offer'].join(',')
-  return `${header}\n${example}\n`
+  const examples = [
+    ['Semaglutide', '5mg', '$30'].join(','),
+    ['Semaglutide', '10mg', '$40'].join(','),
+    ['Tirzepatide', '10mg', '$60'].join(','),
+  ]
+  return `${header}\n${examples.join('\n')}\n`
 }

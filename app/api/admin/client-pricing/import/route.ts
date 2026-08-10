@@ -11,8 +11,12 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { writeAudit } from '@/lib/audit'
 import { setClientPricing, removeClientPricing } from '@/lib/pricing'
+import { displayProductName } from '@/lib/products/named-blends'
 import {
   parseClientPricingCsv,
+  normalizeClientPricingDose,
+  normalizeClientPricingProduct,
+  looseClientPricingProduct,
   type RowError,
 } from '@/lib/client-pricing-import'
 
@@ -37,13 +41,39 @@ interface ImportSummary {
   errors: RowError[]
 }
 
+type VariantHit = { id: string; sku: string | null }
+
+/**
+ * Resolve a CSV row to a ProductVariant:
+ * 1. Exact catalog SKU (sku column)
+ * 2. Product name + Strength (normalized dose)
+ * 3. Loose name (alphanumeric) + Strength
+ */
+function resolveVariant(
+  row: { sku: string; strength: string },
+  bySku: Map<string, VariantHit>,
+  byNameDose: Map<string, VariantHit>,
+  byLooseNameDose: Map<string, VariantHit>
+): VariantHit | null {
+  const skuHit = bySku.get(row.sku.toLowerCase())
+  if (skuHit) return skuHit
+
+  const doseKey = normalizeClientPricingDose(row.strength)
+  const nameKey = normalizeClientPricingProduct(row.sku)
+  const nameDose = byNameDose.get(`${nameKey}::${doseKey}`)
+  if (nameDose) return nameDose
+
+  const loose = byLooseNameDose.get(`${looseClientPricingProduct(row.sku)}::${doseKey}`)
+  return loose ?? null
+}
+
 /**
  * POST /api/admin/client-pricing/import
  *
  * Bulk-set (or clear) custom prices for one client from CSV.
  * Body: { clientId, csv, validateOnly? }
- * Headers: sku, custom_price, notes (optional). Blank custom_price clears.
- * SUPER_ADMIN only.
+ * Headers: sku, Strength, custom_price (sku = product name; Strength = dose).
+ * Blank custom_price clears. SUPER_ADMIN only.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -96,30 +126,52 @@ export async function POST(request: NextRequest) {
       return successResponse(summary)
     }
 
-    // Resolve SKUs → variant ids once for the whole file.
-    const skus = [...new Set(rows.map((r) => r.sku))]
     const variants = await prisma.productVariant.findMany({
-      where: { sku: { in: skus } },
-      select: { id: true, sku: true },
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        sku: true,
+        dose: true,
+        product: { select: { name: true } },
+      },
     })
-    const variantBySku = new Map(
-      variants.filter((v) => v.sku).map((v) => [v.sku!.toLowerCase(), v])
-    )
+
+    const bySku = new Map<string, VariantHit>()
+    const byNameDose = new Map<string, VariantHit>()
+    const byLooseNameDose = new Map<string, VariantHit>()
+
+    for (const v of variants) {
+      const hit: VariantHit = { id: v.id, sku: v.sku }
+      if (v.sku) bySku.set(v.sku.toLowerCase(), hit)
+
+      const doseKey = normalizeClientPricingDose(v.dose || '')
+      const rawName = normalizeClientPricingProduct(v.product.name)
+      const displayName = normalizeClientPricingProduct(
+        displayProductName(v.product.name, v.sku)
+      )
+      byNameDose.set(`${rawName}::${doseKey}`, hit)
+      byNameDose.set(`${displayName}::${doseKey}`, hit)
+      byLooseNameDose.set(`${looseClientPricingProduct(v.product.name)}::${doseKey}`, hit)
+      byLooseNameDose.set(
+        `${looseClientPricingProduct(displayProductName(v.product.name, v.sku))}::${doseKey}`,
+        hit
+      )
+    }
 
     const existing = await prisma.clientPricing.findMany({
-      where: { clientId, variantId: { in: variants.map((v) => v.id) } },
+      where: { clientId },
       select: { variantId: true, isActive: true },
     })
     const existingByVariant = new Map(existing.map((e) => [e.variantId, e]))
 
     for (const row of rows) {
       try {
-        const variant = variantBySku.get(row.sku.toLowerCase())
+        const variant = resolveVariant(row, bySku, byNameDose, byLooseNameDose)
         if (!variant) {
           summary.failed++
           summary.errors.push({
             rowNumber: row.rowNumber,
-            message: `Unknown SKU "${row.sku}"`,
+            message: `No catalog match for "${row.sku}" / ${row.strength}`,
           })
           continue
         }

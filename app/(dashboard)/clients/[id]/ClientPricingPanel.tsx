@@ -269,17 +269,15 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
   }
 
   const exportCsv = () => {
-    const header = ['sku', 'product', 'dose', 'retail', 'custom_price', 'notes']
+    // Same columns clinics upload: sku (product name), Strength, custom_price
+    const header = ['sku', 'Strength', 'custom_price']
     const lines = [
       header.join(','),
       ...prices.map((p) =>
         [
-          p.variantSku,
           `"${p.productName.replace(/"/g, '""')}"`,
           p.dose || '',
-          p.standardPrice.toFixed(2),
-          p.customPrice != null ? p.customPrice.toFixed(2) : '',
-          p.notes ? `"${p.notes.replace(/"/g, '""')}"` : '',
+          p.customPrice != null ? `$${p.customPrice.toFixed(0)}` : '',
         ].join(',')
       ),
     ]
@@ -613,7 +611,9 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
           <DialogHeader>
             <DialogTitle className="text-white">Upload Client Pricing (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
-              Columns: <span className="text-white/80">sku, custom_price, notes</span>. Leave{' '}
+              Columns:{' '}
+              <span className="text-white/80">sku, Strength, custom_price</span> (sku = product
+              name, e.g. Semaglutide + 5mg). Leave{' '}
               <span className="text-white/80">custom_price</span> blank to clear an override.
               Prices apply to {organizationName}.
             </DialogDescription>
@@ -715,16 +715,17 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
                       <Table>
                         <TableHeader>
                           <TableRow className="border-white/10 hover:bg-transparent">
-                            <TableHead className="text-white/60">SKU</TableHead>
-                            <TableHead className="text-white/60">Price</TableHead>
-                            <TableHead className="text-white/60">Notes</TableHead>
+                            <TableHead className="text-white/60">sku</TableHead>
+                            <TableHead className="text-white/60">Strength</TableHead>
+                            <TableHead className="text-white/60">custom_price</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {previewRows.slice(0, 20).map((r) => (
                             <TableRow key={r.rowNumber} className="border-white/10">
-                              <TableCell className="text-white font-mono text-xs">
-                                {r.sku}
+                              <TableCell className="text-white text-sm">{r.sku}</TableCell>
+                              <TableCell className="text-white/80 text-sm">
+                                {r.strength}
                               </TableCell>
                               <TableCell className="text-white">
                                 {r.clear
@@ -732,9 +733,6 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
                                   : r.customPrice != null
                                     ? formatMoney(r.customPrice)
                                     : '—'}
-                              </TableCell>
-                              <TableCell className="text-white/60 text-sm">
-                                {r.notes || '—'}
                               </TableCell>
                             </TableRow>
                           ))}
