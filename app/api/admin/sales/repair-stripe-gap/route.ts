@@ -13,7 +13,10 @@ import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId } from '@/lib/stripe/connect'
 import { buildCostLookup, syncSalesRecordFromOrder } from '@/lib/sales'
-import { salesRecordDataFromPaymentIntent } from '@/lib/stripe/sales-ingest'
+import {
+  salesRecordDataFromPaymentIntent,
+  shouldSkipSalesIngestForPlatformInvoice,
+} from '@/lib/stripe/sales-ingest'
 import { nyMonthKey } from '@/lib/reports/core'
 
 export const runtime = 'nodejs'
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
       updated: 0,
       datesFixed: 0,
       syncedFromOrder: 0,
+      skippedPlatformInvoice: 0,
       failed: 0,
       augustBefore: { count: 0, sum: 0 },
       augustAfter: { count: 0, sum: 0 },
@@ -244,6 +248,16 @@ export async function POST(request: NextRequest) {
             requestOptions
           )
           if (pi.metadata?.source === 'connect_test') continue
+
+          const platformSkip = await shouldSkipSalesIngestForPlatformInvoice(pi)
+          if (platformSkip.skip) {
+            summary.skippedPlatformInvoice++
+            const sample = summary.monthPiSample.find((s) => s.paymentIntentId === sampleKey)
+            if (sample) {
+              sample.action = 'skipped platform invoice'
+            }
+            continue
+          }
 
           const data = await salesRecordDataFromPaymentIntent(
             stripe,

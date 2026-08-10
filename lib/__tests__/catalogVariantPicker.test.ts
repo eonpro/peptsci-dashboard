@@ -49,6 +49,13 @@ describe('suggestProductQueryFromDescription', () => {
     assert.equal(suggestProductQueryFromDescription(null), '')
     assert.equal(suggestProductQueryFromDescription(''), '')
   })
+
+  test('does not seed platform invoice labels into the product search', () => {
+    assert.equal(suggestProductQueryFromDescription('PeptSci invoice INV-00001'), '')
+    assert.equal(suggestProductQueryFromDescription('invoice INV-00042'), '')
+    // Bare INV refs can be external Stripe Billing — still allow seeding if somehow used
+    assert.equal(suggestProductQueryFromDescription('INV-00001'), 'INV-00001')
+  })
 })
 
 describe('filterCatalogVariantsForPicker', () => {

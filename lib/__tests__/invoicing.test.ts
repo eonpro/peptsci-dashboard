@@ -10,6 +10,8 @@ import {
   agingBucket,
   deriveInvoiceStatus,
   formatInvoiceNumber,
+  isPlatformInvoiceDescription,
+  parseInvoiceNumberFromLabel,
   isTerminalInvoiceStatus,
 } from '../invoicing/core.ts'
 
@@ -125,6 +127,17 @@ describe('formatting + helpers', () => {
   test('pads invoice number', () => {
     assert.equal(formatInvoiceNumber(42), 'INV-00042')
     assert.equal(formatInvoiceNumber(123456), 'INV-123456')
+  })
+  test('parses INV labels from Stripe product fluff', () => {
+    assert.equal(parseInvoiceNumberFromLabel('PeptSci invoice INV-00001'), 1)
+    assert.equal(parseInvoiceNumberFromLabel('INV-00042'), 42)
+    assert.equal(parseInvoiceNumberFromLabel('Tirzepatide 60mg'), null)
+  })
+  test('detects platform invoice descriptions', () => {
+    assert.equal(isPlatformInvoiceDescription('PeptSci invoice INV-00001'), true)
+    assert.equal(isPlatformInvoiceDescription('invoice INV-00001'), true)
+    assert.equal(isPlatformInvoiceDescription('INV-00001'), false)
+    assert.equal(isPlatformInvoiceDescription('Tirzepatide 60mg +1 more'), false)
   })
   test('terminal statuses', () => {
     assert.equal(isTerminalInvoiceStatus('PAID'), true)

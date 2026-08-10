@@ -31,14 +31,17 @@ export function parseDoseMg(dose: string | null | undefined): number {
 
 /**
  * Strip Stripe/sales fluff like "+1 more" so a payment description can seed
- * the product search box.
+ * the product search box. Platform invoice labels (`PeptSci invoice INV-00001`)
+ * are not catalog queries — return empty so the picker isn't filled with junk.
  */
 export function suggestProductQueryFromDescription(product: string | null | undefined): string {
   if (!product) return ''
-  return product
-    .replace(/\s*\+\d+\s+more\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const trimmed = product.replace(/\s+/g, ' ').trim()
+  // Avoid circular import with invoicing/core — keep the same match here.
+  if (/\binvoice\s+INV-\d+\b/i.test(trimmed) || /\bpeptsci\s+invoice\b/i.test(trimmed)) {
+    return ''
+  }
+  return trimmed.replace(/\s*\+\d+\s+more\b/gi, '').replace(/\s+/g, ' ').trim()
 }
 
 /**

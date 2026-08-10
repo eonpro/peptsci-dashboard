@@ -149,6 +149,29 @@ export function formatInvoiceNumber(n: number): string {
   return `INV-${String(Math.max(0, Math.trunc(n))).padStart(5, '0')}`
 }
 
+/**
+ * Parse `INV-00001` or fluff like `PeptSci invoice INV-00001` → invoiceNumber.
+ * Used to divert Stripe Convert away from platform invoice payments.
+ */
+export function parseInvoiceNumberFromLabel(text: string | null | undefined): number | null {
+  if (!text) return null
+  const m = String(text).match(/\bINV-(\d+)\b/i)
+  if (!m) return null
+  const n = Number.parseInt(m[1], 10)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** True when a Stripe product/description is a platform invoice label, not a catalog SKU. */
+export function isPlatformInvoiceDescription(text: string | null | undefined): boolean {
+  if (!text) return false
+  const s = String(text).trim()
+  if (!s) return false
+  // Charge-invoice-saved-card / shop pay set description to "PeptSci invoice INV-#####".
+  if (/\bpeptsci\s+invoice\b/i.test(s)) return true
+  if (/\binvoice\s+INV-\d+\b/i.test(s)) return true
+  return false
+}
+
 export function isTerminalInvoiceStatus(status: InvoiceStatus): boolean {
   return status === 'PAID' || status === 'VOID'
 }

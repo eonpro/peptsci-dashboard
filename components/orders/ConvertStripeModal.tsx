@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Search, Trash2, Zap, UserPlus, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Plus, Search, Trash2, Zap, UserPlus, AlertCircle, Package } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,11 @@ import {
   filterCatalogVariantsForPicker,
   suggestProductQueryFromDescription,
 } from '@/lib/catalog-variant-picker'
+import {
+  formatInvoiceNumber,
+  isPlatformInvoiceDescription,
+  parseInvoiceNumberFromLabel,
+} from '@/lib/invoicing/core'
 
 const inputCls =
   'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
@@ -80,6 +86,29 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [platformInvoice, setPlatformInvoice] = useState<{
+    id: string
+    label: string
+  } | null>(null)
+  const [resolvingInvoice, setResolvingInvoice] = useState(false)
+
+  const invoiceHintNumber = useMemo(() => {
+    if (!record) return null
+    return (
+      parseInvoiceNumberFromLabel(record.product) ??
+      parseInvoiceNumberFromLabel(record.orderRef) ??
+      null
+    )
+  }, [record])
+
+  const looksLikePlatformInvoice = useMemo(() => {
+    if (!record) return false
+    return (
+      isPlatformInvoiceDescription(record.product) ||
+      isPlatformInvoiceDescription(record.orderRef)
+    )
+  }, [record])
+
   useEffect(() => {
     if (!open || !record) return
     setClientId(record.matchedClient?.id ?? '')
@@ -98,6 +127,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
     setCustomPriceMap({})
     setShipSpeed('TWO_DAY')
     setError(null)
+    setPlatformInvoice(null)
 
     setLoadingRefs(true)
     Promise.all([
@@ -110,6 +140,50 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       })
       .finally(() => setLoadingRefs(false))
   }, [open, record])
+
+  // Resolve platform invoice so we can divert Convert → Queue fulfillment.
+  useEffect(() => {
+    if (!open || !record || !looksLikePlatformInvoice) {
+      setPlatformInvoice(null)
+      return
+    }
+    let cancelled = false
+    setResolvingInvoice(true)
+    const search =
+      invoiceHintNumber != null
+        ? formatInvoiceNumber(invoiceHintNumber)
+        : record.product || record.orderRef
+    fetch(`/api/admin/invoices?search=${encodeURIComponent(search)}&limit=5`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return
+        // listInvoices returns InvoiceView[]: { invoice: { id, invoiceNumber }, ... }
+        const views: Array<{ invoice?: { id: string; invoiceNumber: number } }> =
+          data.invoices ?? []
+        const invoices = views
+          .map((v) => v.invoice)
+          .filter((inv): inv is { id: string; invoiceNumber: number } => !!inv?.id)
+        const match =
+          (invoiceHintNumber != null
+            ? invoices.find((i) => i.invoiceNumber === invoiceHintNumber)
+            : null) ?? invoices[0]
+        if (match) {
+          setPlatformInvoice({
+            id: match.id,
+            label: formatInvoiceNumber(match.invoiceNumber),
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPlatformInvoice(null)
+      })
+      .finally(() => {
+        if (!cancelled) setResolvingInvoice(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, record, looksLikePlatformInvoice, invoiceHintNumber])
 
   // Load clinic custom prices whenever the selected client changes; re-price auto lines.
   useEffect(() => {
@@ -273,6 +347,11 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
   const handleSubmit = async () => {
     if (!record) return
     setError(null)
+    if (looksLikePlatformInvoice) {
+      return setError(
+        'This is a platform invoice payment. Open the invoice and use Queue fulfillment instead of Convert.'
+      )
+    }
     if (!clientId) return setError('Select a customer')
     if (lines.length === 0) return setError('Map at least one product')
     if (lines.some((l) => l.quantity < 1)) return setError('Each line needs a quantity of at least 1')
@@ -336,8 +415,43 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
           <p className="mt-1 text-xs text-blue-400">{record.orderRef} · {record.product || 'No line detail'}{record.vials ? ` · ${record.vials} vials` : ''}</p>
         </div>
 
+        {looksLikePlatformInvoice && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
+            <Package className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div className="space-y-2 text-sm text-amber-100">
+              <p>
+                This is a <span className="font-medium">platform invoice</span> payment
+                {platformInvoice ? ` (${platformInvoice.label})` : invoiceHintNumber != null ? ` (${formatInvoiceNumber(invoiceHintNumber)})` : ''}
+                . Products are on the invoice — do not map them here. Stripe already captured payment;{' '}
+                <span className="font-medium">$0 below would only mean no Convert lines</span>, not unpaid.
+              </p>
+              {resolvingInvoice ? (
+                <p className="flex items-center text-xs text-amber-200/80">
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Looking up invoice…
+                </p>
+              ) : platformInvoice ? (
+                <Button size="sm" asChild>
+                  <Link href={`/invoices/${platformInvoice.id}`} onClick={() => onOpenChange(false)}>
+                    Open {platformInvoice.label} → Queue fulfillment
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" asChild>
+                  <Link href="/invoices" onClick={() => onOpenChange(false)}>
+                    Open Billing / Invoices
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         {loadingRefs ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading catalog…</div>
+        ) : looksLikePlatformInvoice ? (
+          <div className="flex items-center justify-end gap-3 border-t pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          </div>
         ) : (
           <div className="space-y-6">
             {error && (
@@ -400,6 +514,10 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
             {/* Products */}
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-foreground/90">Map products</legend>
+              <p className="text-xs text-muted-foreground">
+                Add catalog products to build the fulfillment order. Stripe already captured payment — the
+                mapped total below is not an unpaid balance.
+              </p>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                 <input className={`w-full pl-9 ${inputCls}`} placeholder="Search products to add…" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
@@ -423,7 +541,12 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                   </div>
                 )}
               </div>
-              {lines.length > 0 && (
+              {lines.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+                  No products mapped yet. Search and click a catalog row to add it — Convert stays disabled until
+                  at least one line is added.
+                </p>
+              ) : (
                 <div className="divide-y divide-border rounded-lg border border-border">
                   {lines.map((l) => (
                     <div key={l.variantId} className="flex items-center gap-2 p-2">
@@ -482,8 +605,19 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
             </div>
 
             <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-sm">
-              <div className="flex justify-between text-muted-foreground"><span>Order total (fulfillment)</span><span>{formatPrice(totals.total)}</span></div>
-              <div className="flex justify-between text-muted-foreground"><span>Stripe captured</span><span>{formatPrice(record.paidAmount)}</span></div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Mapped lines total</span>
+                <span>{formatPrice(totals.total)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Stripe captured (already paid)</span>
+                <span>{formatPrice(record.paidAmount)}</span>
+              </div>
+              {lines.length === 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  $0 mapped lines means you have not added products yet — not that the customer still owes money.
+                </p>
+              )}
               {lines.length > 0 && Math.abs(totals.total - record.paidAmount) > 0.5 && (
                 <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-400/30 bg-amber-500/10 p-2 text-xs text-amber-300">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

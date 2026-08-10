@@ -240,6 +240,36 @@ export async function salesRecordDataFromPaymentIntent(
 }
 
 /**
+ * Platform invoice PIs are owned by the AR path (recordPayment → optional
+ * Order mint). Ingesting them into orphan `source: stripe` SalesRecords parks
+ * revenue under a PI description with 0 vials and traps admins in Convert.
+ * Skip when metadata.invoiceId points at a platform Invoice, or when an
+ * InvoicePayment already records this PI.
+ */
+export async function shouldSkipSalesIngestForPlatformInvoice(
+  pi: Pick<Stripe.PaymentIntent, 'id' | 'metadata'>
+): Promise<{ skip: boolean; invoiceId?: string }> {
+  if (!prisma) return { skip: false }
+
+  const metaInvoiceId = pi.metadata?.invoiceId
+  if (metaInvoiceId && !pi.metadata?.orderId) {
+    const platformInvoice = await prisma.invoice.findUnique({
+      where: { id: metaInvoiceId },
+      select: { id: true },
+    })
+    if (platformInvoice) return { skip: true, invoiceId: platformInvoice.id }
+  }
+
+  const payment = await prisma.invoicePayment.findUnique({
+    where: { stripePaymentIntentId: pi.id },
+    select: { invoiceId: true },
+  })
+  if (payment) return { skip: true, invoiceId: payment.invoiceId }
+
+  return { skip: false }
+}
+
+/**
  * Ingest a single succeeded PaymentIntent into SalesRecord (live webhook path).
  * Re-retrieves the PI with the expansions the enrichment needs (webhook
  * payloads carry bare ids). Returns true when a record was written.
@@ -259,23 +289,13 @@ export async function ingestStripePaymentIntent(
     if (pi.status !== 'succeeded') return false
     if (pi.metadata?.source === 'connect_test') return false
 
-    // Platform invoice PIs are owned by the AR path (recordPayment → optional
-    // Order mint). Ingesting them here parks revenue under orderRef=pi_… with
-    // 0 vials — skip so fulfillPlatformInvoiceProducts / syncSalesRecordFromOrder
-    // can own the SalesRecord with an internal #orderNumber.
-    const platformInvoiceId = pi.metadata?.invoiceId
-    if (platformInvoiceId && !pi.metadata?.orderId) {
-      const platformInvoice = await prisma.invoice.findUnique({
-        where: { id: platformInvoiceId },
-        select: { id: true },
+    const platformSkip = await shouldSkipSalesIngestForPlatformInvoice(pi)
+    if (platformSkip.skip) {
+      logger.info('[STRIPE] Skipping SalesRecord ingest for platform invoice PI', {
+        paymentIntentId: pi.id,
+        invoiceId: platformSkip.invoiceId,
       })
-      if (platformInvoice) {
-        logger.info('[STRIPE] Skipping SalesRecord ingest for platform invoice PI', {
-          paymentIntentId: pi.id,
-          invoiceId: platformInvoiceId,
-        })
-        return false
-      }
+      return false
     }
 
     const costLookup = await buildCostLookup()

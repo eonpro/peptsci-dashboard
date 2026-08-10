@@ -13,7 +13,10 @@ import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId } from '@/lib/stripe/connect'
 import { buildCostLookup, syncSalesRecordFromOrder } from '@/lib/sales'
-import { salesRecordDataFromPaymentIntent } from '@/lib/stripe/sales-ingest'
+import {
+  salesRecordDataFromPaymentIntent,
+  shouldSkipSalesIngestForPlatformInvoice,
+} from '@/lib/stripe/sales-ingest'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -101,6 +104,7 @@ export async function POST(request: NextRequest) {
       skippedOrder: 0,
       skippedExisting: 0,
       skippedTest: 0,
+      skippedPlatformInvoice: 0,
       skippedUnpaid: 0,
       syncedFromOrder: 0,
       failed: 0,
@@ -164,6 +168,12 @@ export async function POST(request: NextRequest) {
           }
           if (pi.metadata?.source === 'connect_test') {
             summary.skippedTest++
+            continue
+          }
+
+          const platformSkip = await shouldSkipSalesIngestForPlatformInvoice(pi)
+          if (platformSkip.skip) {
+            summary.skippedPlatformInvoice++
             continue
           }
 
