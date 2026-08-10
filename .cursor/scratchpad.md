@@ -1,3 +1,40 @@
+# PDP Reconstitution Calculator (crestpep-style)  [EXECUTOR — 2026-08-09]
+
+## Background and Motivation
+Owner wants crestpep-style reconstitution calculator on each peptide PDP, plus **recommended reconstitution** and **daily/weekly dosage** protocol cards.
+
+## What shipped
+1. `lib/reconstitution.ts` — concentration / U-100 units / doses-per-vial math; `parseTotalVialMg` for blends; skip BAC water / accessories
+2. `lib/content/peptide-protocols.ts` — authored recommended BAC water + daily/weekly ranges for catalog peptides (RUO-framed)
+3. `components/shop/ReconstitutionCalculator.tsx` — dark PDP UI: protocol strip + 3 sliders + results card + disclaimer
+4. Wired on `/shop/product/[sku]` below hero, above monograph
+5. Unit tests: `reconstitution.test.ts`, `peptideProtocols.test.ts` (7/7 pass)
+
+## Success criteria
+- [x] Peptide PDPs show calculator seeded from SKU dose
+- [x] Recommended recon + daily + weekly shown when protocol authored (defaults otherwise)
+- [x] Math matches crestpep 10mg/2ml/250mcg → 5 units
+- [x] BAC water / accessories skipped
+- [x] RUO disclaimer visible
+- [ ] Owner visual verify on a live/local PDP (e.g. BPC-157/TB-500 blend)
+
+## Project Status Board
+- [x] Math lib + tests
+- [x] Protocol content (recommended recon + daily/weekly)
+- [x] Calculator UI
+- [x] PDP wiring
+- [ ] Deploy (await owner)
+
+## Executor's Feedback or Assistance Requests
+Ready for owner review on any peptide PDP under `/shop/product/[sku]`. Protocol ranges are research-literature references (not medical advice) — say if any compound needs different defaults. Storefront `/sf` not wired yet.
+
+## Lessons
+- Crestpep "injection volume" = U-100 syringe units (ml × 100), not ml.
+- Category filter must match `accessories` via `accessor` prefix (`includes('accessory')` fails).
+
+---
+---
+
 # Client profile custom pricing  [EXECUTOR — 2026-08-09]
 
 ## Background and Motivation
@@ -24,10 +61,11 @@ Custom B2B pricing lived on the global `/pricing/client-pricing` page and as a c
 - [x] CSV parser + import route + tests
 - [x] ClientPricingPanel UI
 - [x] Wired on client profile + checklist deep-link
-- [ ] Deploy / owner verify on LIVBETR (or similar)
+- [x] Deploy `ff39a77` → peptsci.com READY (`dpl_GkGvqdLBA5khBRWBVU9T4RmkMGFG`)
+- [ ] Owner verify on LIVBETR (or similar)
 
 ## Executor's Feedback or Assistance Requests
-Ready for owner review on a client profile. Global `/pricing/client-pricing` still works for cross-client view; mutations now require SUPER_ADMIN.
+Live on peptsci.com. Open a client profile → Custom Pricing section. SUPER_ADMIN can edit/CSV; other admins read-only. Global `/pricing/client-pricing` mutations also require SUPER_ADMIN now.
 
 ## Lessons
 - Prefer `getClientPricing()` for profile grids; list-only `ClientPricing` rows hide the majority of the catalog.

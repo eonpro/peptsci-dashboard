@@ -11,7 +11,9 @@ import { ProductDetailCard, type ProductDetailData } from '@/components/shop/Pro
 import { ProductCard } from '@/components/shop/ProductCard'
 import { ProductVial } from '@/components/shop/ProductVial'
 import { ProductMonograph } from '@/components/shop/ProductMonograph'
+import { ReconstitutionCalculator } from '@/components/shop/ReconstitutionCalculator'
 import { getBlendComposition } from '@/lib/content/blend-compositions'
+import { isReconstitutableProduct } from '@/lib/reconstitution'
 import { PdpAddToCart } from '@/components/shop/PdpAddToCart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -294,6 +296,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
           )}
         </div>
       </div>
+
+      {/* Reconstitution calculator + recommended protocol ranges */}
+      {isReconstitutableProduct(product.name, product.category) && (
+        <ReconstitutionCalculator productName={product.name} doseLabel={product.dose} />
+      )}
 
       {/* Monograph: Overview, Mechanism of Action, Observations, References */}
       {product.monograph && <ProductMonograph monograph={product.monograph} product={product} />}
