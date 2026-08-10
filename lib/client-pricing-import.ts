@@ -11,7 +11,6 @@
 
 import { parseCsv } from './product-import'
 import { parseLocaleNumber } from './csv-coerce'
-import { normalizeDoseLabel } from './labels/peptsciLabelPdf'
 
 export interface ClientPricingImportRow {
   rowNumber: number
@@ -68,9 +67,22 @@ function classifyHeader(raw: string): Field | undefined {
   return undefined
 }
 
-/** Normalize dose/strength for matching ("5 mg" / "5.0mg" → "5mg"). */
+/**
+ * Normalize dose/strength for matching ("5 mg" / "5.0mg" → "5mg").
+ * Kept local (not imported from label PDF helpers) so this module stays
+ * browser-safe for ClientPricingPanel preview parsing.
+ */
 export function normalizeClientPricingDose(value: string): string {
-  return normalizeDoseLabel(value).replace(/\s+/g, '').toLowerCase()
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return `${Number(trimmed)}mg`
+  return trimmed
+    .replace(
+      /(\d+(?:\.\d+)?)\s*(mg|mcg|iu|ml|g)\b/gi,
+      (_m, num: string, unit: string) => `${Number(num)}${unit.toLowerCase()}`
+    )
+    .replace(/\s+/g, '')
+    .toLowerCase()
 }
 
 /** Case/whitespace-normalized product name. */
