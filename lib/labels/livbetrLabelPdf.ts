@@ -90,17 +90,22 @@ const NAME_LINE1_SIZE_MAX = 6.5
 const NAME_LINE2_SIZE_MAX = 5.5
 const NAME_LINE2_SIZE_MIN = 4.2
 
-// Barcode well between warning outlines (~88–99) and BATCH rail (~126)
-const BARCODE_LEFT = 100.0
-const BARCODE_RIGHT = 124.0
+// Barcode well — leave a clear rail to the right for BATCH: + value
+const BARCODE_LEFT = 99.5
+const BARCODE_RIGHT = 121.5
 const BARCODE_TOP = 1.8
 const BARCODE_BOTTOM = 45.3
 
-// BATCH: outlined glyphs span ~x[126.3,129.1] y[31.2,41.9] — value above, same rail
-const BATCH_X = 127.7
-const BATCH_BOTTOM = 30.0
+// BATCH rail: center "BATCH:" + value between barcode and right die-cut.
+// Outlined BATCH: in the SVG sits flush-right; we white it out and redraw so the
+// pair is optically centered in this strip (within the red proof / print limits).
+const BATCH_RAIL_LEFT = 122.2
+const BATCH_RAIL_RIGHT = 128.4
+const BATCH_LABEL_SIZE = 3.85
+const BATCH_LABEL_BOTTOM = 43.6 // near bottom; reading upward
 const BATCH_TOP = 3.5
 const BATCH_SIZE_MAX = 4.0
+const BATCH_GAP = 1.2 // SVG units between "BATCH:" and the value above it
 
 const FONT_DIR = path.join(process.cwd(), 'public', 'fonts', 'labels')
 const TEMPLATE_CANDIDATES = [
@@ -384,8 +389,34 @@ function drawLabel(
     (BARCODE_BOTTOM - BARCODE_TOP) * SCALE
   )
 
-  // Batch value above baked BATCH: — Sofia Pro, teal
-  const batchAvail = (BATCH_BOTTOM - BATCH_TOP) * SCALE
+  // BATCH rail: clear outlined flush-right "BATCH:", then redraw label + value
+  // centered between barcode and the right print/die-cut edge.
+  page.drawRectangle({
+    x: toX(BATCH_RAIL_LEFT - 0.4),
+    y: toY(46.5),
+    width: (SVG_W - (BATCH_RAIL_LEFT - 0.4)) * SCALE,
+    height: 45.5 * SCALE,
+    color: COLOR_WHITE,
+  })
+  const batchRailCenter = (BATCH_RAIL_LEFT + BATCH_RAIL_RIGHT) / 2
+  // rotate(90): glyph bodies grow toward -x from baseline → put baseline on the
+  // right half of the glyph so the optical center lands on batchRailCenter.
+  const batchBaselineX = batchRailCenter + BATCH_LABEL_SIZE * 0.38
+
+  const batchLabelSize = sz(BATCH_LABEL_SIZE)
+  const batchLabelRunSvg =
+    nameFont.widthOfTextAtSize('BATCH:', batchLabelSize) / SCALE
+  page.drawText('BATCH:', {
+    x: toX(batchBaselineX),
+    y: toY(BATCH_LABEL_BOTTOM),
+    size: batchLabelSize,
+    font: nameFont, // Neuething — matches brand face used for RUO / wordmark
+    color: COLOR_TEXT,
+    rotate: degrees(90),
+  })
+
+  const batchValueBottom = BATCH_LABEL_BOTTOM - batchLabelRunSvg - BATCH_GAP
+  const batchAvail = (batchValueBottom - BATCH_TOP) * SCALE
   let batchSizeSvg = BATCH_SIZE_MAX
   while (
     batchSizeSvg > 2.8 &&
@@ -394,14 +425,15 @@ function drawLabel(
     batchSizeSvg -= 0.15
   }
   page.drawText(req.batchNumber, {
-    x: toX(BATCH_X),
-    y: toY(BATCH_BOTTOM),
+    x: toX(batchBaselineX),
+    y: toY(batchValueBottom),
     size: sz(batchSizeSvg),
     font: sofia,
     color: COLOR_TEAL,
     rotate: degrees(90),
   })
 
+  // Red outline = proof-only die-cut / label edge (OL4891LP). Not printed on stock.
   if (proofMode) {
     page.drawRectangle({
       x: ox + 0.75,
