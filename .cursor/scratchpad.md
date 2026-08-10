@@ -6,7 +6,7 @@ Second white-label brand after Elevated Vitality. Same PeptSci-style OL4891LP la
 ## Follow-up (owner feedback on live proof)
 - [x] Sofia Pro for date, mg, HPLC, batch (product name stays Neuething)
 - [x] Code 128 barcode between warning column and BATCH rail
-- [ ] Deploy + re-download proof
+- [x] Deployed `19e0c4c` → peptsci.com ok
 
 ## Typography
 - Sofia Pro — BUD / dose / purity / batch (reuse `SOFIA_PRO_REGULAR_B64` + disk font)
@@ -15,7 +15,8 @@ Second white-label brand after Elevated Vitality. Same PeptSci-style OL4891LP la
 ## Project Status Board
 - [x] Initial LIVBETR brand live (`48c368d` / scale fix `86050f5`)
 - [x] Sofia + barcode engine update
-- [ ] Push + verify prod health
+- [x] Push + verify prod health (`19e0c4c`)
+- [ ] Owner: re-download LIVBETR proof
 
 ---
 

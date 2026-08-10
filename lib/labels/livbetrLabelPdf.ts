@@ -5,9 +5,12 @@
  * box, Code 128 barcode, batch on the rail. Artwork viewBox is 130.11×47.58 —
  * fitted into 144×54 with **uniform** scale and vertical letterboxing.
  *
- * Typography (matches artwork CSS):
- *   - Sofia Pro — BUD date, dose, HPLC purity, batch value
- *   - Neuething Sans Medium Expanded — product name
+ * Typography:
+ *   - Sofia Pro Regular — BUD date, batch value
+ *   - Sofia Pro SemiBold — dose (mg) + HPLC (same weight as PeptSci dose)
+ *   - Neuething Sans Medium Expanded — product name only
+ * Static baked type (BUD:, RUO, PROVIDER USE ONLY…, BATCH:) stays on the
+ * uploaded Neuething face in the template PNG — never re-drawn here.
  */
 
 import {
@@ -27,6 +30,7 @@ import { SOFIA_PRO_REGULAR_B64 } from './embeddedAssets'
 import {
   LIVBETR_TEMPLATE_PNG_B64,
   NEUETHING_SANS_MEDIUM_EXPANDED_B64,
+  SOFIA_PRO_SEMIBOLD_B64,
 } from './livbetrEmbeddedAssets'
 import { normalizeDoseLabel, splitProductNameLines } from './peptsciLabelPdf'
 
@@ -67,11 +71,13 @@ const DOSE_BOX_MID = 31.18
 const DOSE_BOX_TEAL_H = 6.86
 const DOSE_SIZE = 5.79 // Sofia Pro size from artwork (.st2)
 const PURITY_SIZE = 5.79
-const PURITY_BASELINE = 37.04
 
-// BUD date after baked "BUD:" at (24.95, 4.81)
-const BUD_START_X = 37.2
-const BUD_BASELINE = 7.4
+// BUD date continues baked "BUD:" at (24.95, 4.81) size 3.72 — same optical line.
+// Neuething "BUD:" ends ~35.4; small gap then Sofia date. Sofia metrics sit slightly
+// lower than Neuething at the same baseline, so we pull the date up a hair.
+const BUD_START_X = 36.9
+const BUD_BASELINE = 4.88
+const BUD_BASELINE_DAY = 5.3
 const BUD_SIZE = 3.85
 const BUD_SIZE_DAY = 4.6
 
@@ -93,9 +99,10 @@ const BARCODE_RIGHT = 122.2
 const BARCODE_TOP = 2.0
 const BARCODE_BOTTOM = 45.5
 
-// BATCH: baked at (129.07, 43.73) rotate(-90); value starts above that label.
-const BATCH_X = 126.8
-const BATCH_BOTTOM = 22.5
+// BATCH: baked at (129.07, 43.73) rotate(-90) scale(1.22,1) — share that baseline X
+// so the value is centered on the same rail as "BATCH:".
+const BATCH_X = 129.07
+const BATCH_BOTTOM = 22.5 // just above top of baked "BATCH:" run
 const BATCH_TOP = 4
 const BATCH_SIZE_MAX = 4.0
 
@@ -110,6 +117,12 @@ const NEUETHING_CANDIDATES = [
 const SOFIA_CANDIDATES = [
   path.join(FONT_DIR, 'SofiaPro-Regular.ttf'),
   path.join(FONT_DIR, 'SofiaPro-Regular.otf'),
+]
+const SOFIA_SEMIBOLD_CANDIDATES = [
+  path.join(FONT_DIR, 'SofiaPro-SemiBold.otf'),
+  path.join(FONT_DIR, 'SofiaPro-SemiBold.ttf'),
+  path.join(FONT_DIR, 'SofiaPro-Bold.otf'),
+  path.join(FONT_DIR, 'SofiaPro-Bold.ttf'),
 ]
 
 export type LivbetrLabelRequest = {
@@ -131,6 +144,7 @@ export type LivbetrLabelGroup = {
 type LivbetrFonts = {
   name: PDFFont
   sofia: PDFFont
+  sofiaBold: PDFFont
 }
 
 function parseBudParts(value: string): { month: string; day: string; year: string } {
@@ -229,7 +243,7 @@ function drawLabel(
   const toX = (svgX: number) => ox + svgX * SCALE
   const toY = (svgY: number) => oy + PAD_Y + (SVG_H - svgY) * SCALE
   const sz = (svgPt: number) => svgPt * SCALE
-  const { name: nameFont, sofia } = fonts
+  const { name: nameFont, sofia, sofiaBold } = fonts
 
   // White label stock, then artwork letterboxed (uniform scale).
   page.drawRectangle({
@@ -246,23 +260,28 @@ function drawLabel(
     height: CONTENT_H,
   })
 
-  // BUD date MM/DD/YY — Sofia Pro; day in teal
+  // BUD date MM/DD/YY — Sofia Pro, optically centered on baked "BUD:" baseline
   const { month, day, year } = parseBudParts(req.budIsoDate)
   let cursorX = BUD_START_X
-  const drawBud = (text: string, sizeSvg: number, color: ReturnType<typeof rgb>) => {
+  const drawBud = (
+    text: string,
+    sizeSvg: number,
+    baselineSvg: number,
+    color: ReturnType<typeof rgb>
+  ) => {
     const size = sz(sizeSvg)
     page.drawText(text, {
       x: toX(cursorX),
-      y: toY(BUD_BASELINE),
+      y: toY(baselineSvg),
       size,
       font: sofia,
       color,
     })
     cursorX += sofia.widthOfTextAtSize(text, size) / SCALE
   }
-  drawBud(`${month}/`, BUD_SIZE, COLOR_TEXT)
-  drawBud(day, BUD_SIZE_DAY, COLOR_TEAL)
-  drawBud(`/${year}`, BUD_SIZE, COLOR_TEXT)
+  drawBud(`${month}/`, BUD_SIZE, BUD_BASELINE, COLOR_TEXT)
+  drawBud(day, BUD_SIZE_DAY, BUD_BASELINE_DAY, COLOR_TEAL)
+  drawBud(`/${year}`, BUD_SIZE, BUD_BASELINE, COLOR_TEXT)
 
   // Product name — Neuething Expanded (brand face)
   const nameMaxWidth = (NAME_RIGHT - NAME_LEFT) * SCALE
@@ -309,7 +328,7 @@ function drawLabel(
     drawName(nameLines[0], fitSize(nameLines[0], NAME_SIZE_MAX, NAME_SIZE_MIN), NAME_BASELINE)
   }
 
-  // Dose centered in black band — Sofia Pro
+  // Dose centered in black band — Sofia Pro SemiBold (PeptSci dose weight)
   const doseParts = doseNormalized
     .split(/\s*\/\s*/)
     .map((p) => p.trim())
@@ -317,21 +336,26 @@ function drawLabel(
   const primaryDose = (doseParts[0] ?? doseNormalized).toUpperCase().replace(/\s+/g, '')
   const doseMaxW = (DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 2.5) * SCALE
   let doseSizeSvg = DOSE_SIZE
-  while (doseSizeSvg > 3.2 && sofia.widthOfTextAtSize(primaryDose, sz(doseSizeSvg)) > doseMaxW) {
+  while (
+    doseSizeSvg > 3.2 &&
+    sofiaBold.widthOfTextAtSize(primaryDose, sz(doseSizeSvg)) > doseMaxW
+  ) {
     doseSizeSvg -= 0.2
   }
   const doseCx = (DOSE_BOX_LEFT + DOSE_BOX_RIGHT) / 2
-  const doseBaseline = DOSE_BOX_BLACK_TOP + DOSE_BOX_BLACK_H * 0.72
-  const doseW = sofia.widthOfTextAtSize(primaryDose, sz(doseSizeSvg))
+  // Optical vertical center of black band → baseline for SemiBold caps
+  const doseBaseline =
+    DOSE_BOX_BLACK_TOP + DOSE_BOX_BLACK_H / 2 + doseSizeSvg * 0.35
+  const doseW = sofiaBold.widthOfTextAtSize(primaryDose, sz(doseSizeSvg))
   page.drawText(primaryDose, {
     x: toX(doseCx) - doseW / 2,
     y: toY(doseBaseline),
     size: sz(doseSizeSvg),
-    font: sofia,
+    font: sofiaBold,
     color: COLOR_WHITE,
   })
 
-  // Purity (HPLC) — repaint teal band + Sofia Pro so it always matches PeptSci type
+  // Purity (HPLC) — cover baked glyphs + Sofia SemiBold (warning column untouched)
   const purityText = (req.purity || '99%HPLC').trim().toUpperCase().replace(/\s+/g, '')
   page.drawRectangle({
     x: toX(DOSE_BOX_TEAL_LEFT),
@@ -342,32 +366,33 @@ function drawLabel(
   })
 
   if (doseParts.length >= 2) {
-    // Blend: second dose in teal band (Sofia), purity stays out of band for now
     const secondary = doseParts[1].toUpperCase().replace(/\s+/g, '')
     let s2 = DOSE_SIZE * 0.9
-    while (s2 > 3 && sofia.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
-    const w2 = sofia.widthOfTextAtSize(secondary, sz(s2))
+    while (s2 > 3 && sofiaBold.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
+    const w2 = sofiaBold.widthOfTextAtSize(secondary, sz(s2))
     page.drawText(secondary, {
       x: toX(doseCx) - w2 / 2,
-      y: toY(DOSE_BOX_MID + 4.8),
+      y: toY(DOSE_BOX_MID + DOSE_BOX_TEAL_H / 2 + s2 * 0.35),
       size: sz(s2),
-      font: sofia,
+      font: sofiaBold,
       color: COLOR_WHITE,
     })
   } else {
     let puritySizeSvg = PURITY_SIZE
     while (
       puritySizeSvg > 3.2 &&
-      sofia.widthOfTextAtSize(purityText, sz(puritySizeSvg)) > doseMaxW
+      sofiaBold.widthOfTextAtSize(purityText, sz(puritySizeSvg)) > doseMaxW
     ) {
       puritySizeSvg -= 0.2
     }
-    const purityW = sofia.widthOfTextAtSize(purityText, sz(puritySizeSvg))
+    const purityW = sofiaBold.widthOfTextAtSize(purityText, sz(puritySizeSvg))
+    const purityBaseline =
+      DOSE_BOX_MID + DOSE_BOX_TEAL_H / 2 + puritySizeSvg * 0.35
     page.drawText(purityText, {
       x: toX(doseCx) - purityW / 2,
-      y: toY(PURITY_BASELINE),
+      y: toY(purityBaseline),
       size: sz(puritySizeSvg),
-      font: sofia,
+      font: sofiaBold,
       color: COLOR_WHITE,
     })
   }
@@ -438,7 +463,17 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
     sofia = await doc.embedFont(StandardFonts.Helvetica)
   }
 
-  const fonts: LivbetrFonts = { name: nameFont, sofia }
+  let sofiaBold: PDFFont
+  try {
+    sofiaBold = await doc.embedFont(
+      await loadFontBytes(SOFIA_SEMIBOLD_CANDIDATES, SOFIA_PRO_SEMIBOLD_B64),
+      { subset: true }
+    )
+  } catch {
+    sofiaBold = sofia
+  }
+
+  const fonts: LivbetrFonts = { name: nameFont, sofia, sofiaBold }
 
   let drew = false
   for (const group of groups) {
