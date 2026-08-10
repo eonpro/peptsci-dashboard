@@ -205,6 +205,51 @@ export default function InvoiceDetailPage() {
               Issue
             </Button>
           )}
+          {!isVoid &&
+            totals.amountDue > 0 &&
+            ['OPEN', 'PARTIAL', 'OVERDUE'].includes(invoice.status) && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy === 'charge'}
+                onClick={async () => {
+                  setBusy('charge')
+                  try {
+                    const r = await fetch(`/api/admin/invoices/${id}/charge`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: '{}',
+                    })
+                    const data = await r.json().catch(() => ({}))
+                    if (!r.ok) throw new Error(data.message || data.error || 'Charge failed')
+                    const status = data.charge?.status as string | undefined
+                    if (status === 'paid' || status === 'nothing_due') {
+                      toast.success('Card charged successfully')
+                      load()
+                      return
+                    }
+                    if (status === 'no_card') throw new Error('No card on file for this client')
+                    if (status === 'requires_action') {
+                      throw new Error(
+                        'Card requires authentication — ask the client to pay in the portal'
+                      )
+                    }
+                    throw new Error(data.charge?.message || `Charge ${status || 'failed'}`)
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : 'Charge failed')
+                  } finally {
+                    setBusy(null)
+                  }
+                }}
+              >
+                {busy === 'charge' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                )}
+                Charge card
+              </Button>
+            )}
           {!isVoid && invoice.status !== 'PAID' && (
             <Button size="sm" onClick={() => setPayOpen(true)}>
               <CreditCard className="mr-2 h-4 w-4" /> Record Payment

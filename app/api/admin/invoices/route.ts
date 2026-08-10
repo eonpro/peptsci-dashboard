@@ -9,7 +9,8 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { createInvoice, listInvoices } from '@/lib/invoicing/service'
+import { createInvoice, listInvoices, getInvoice } from '@/lib/invoicing/service'
+import { chargeInvoiceWithSavedCard } from '@/lib/stripe/charge-invoice-saved-card'
 import type { InvoiceStatus } from '@prisma/client'
 
 export const runtime = 'nodejs'
@@ -43,6 +44,8 @@ const createBody = z.object({
   balanceForward: z.number().optional(),
   notes: z.string().optional(),
   issue: z.boolean().optional(),
+  /** After create, charge the client's default saved card (forces issue). */
+  chargeSavedCard: z.boolean().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -77,7 +80,10 @@ export async function POST(request: NextRequest) {
     const parsed = createBody.safeParse(await request.json().catch(() => ({})))
     if (!parsed.success) return errorResponse('Invalid request body', 400, 'INVALID_BODY')
 
-    const view = await createInvoice({
+    const chargeSavedCard = parsed.data.chargeSavedCard === true
+    const issue = chargeSavedCard ? true : parsed.data.issue
+
+    let view = await createInvoice({
       clientId: parsed.data.clientId,
       orderIds: parsed.data.orderIds,
       lineItems: parsed.data.lineItems,
@@ -87,10 +93,23 @@ export async function POST(request: NextRequest) {
       periodEnd: parsed.data.periodEnd ? new Date(parsed.data.periodEnd) : null,
       balanceForward: parsed.data.balanceForward,
       notes: parsed.data.notes,
-      issue: parsed.data.issue,
+      issue,
       createdById: userId ?? undefined,
     })
-    return successResponse({ invoice: view }, 201)
+
+    let charge: Awaited<ReturnType<typeof chargeInvoiceWithSavedCard>> | null = null
+    if (chargeSavedCard) {
+      charge = await chargeInvoiceWithSavedCard({
+        invoiceId: view.invoice.id,
+        metadata: { source: 'admin_create' },
+        notes: 'Charged saved card (admin invoice create)',
+      })
+      // Refresh so the client sees PAID + payments when charge succeeded.
+      const refreshed = await getInvoice(view.invoice.id)
+      if (refreshed) view = refreshed
+    }
+
+    return successResponse({ invoice: view, charge }, 201)
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to create invoice'
     if (msg.includes('at least one line item')) return errorResponse(msg, 400, 'NO_LINES')

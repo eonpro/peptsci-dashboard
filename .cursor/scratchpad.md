@@ -1,3 +1,35 @@
+# New invoice: products + charge card on file  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+New invoice modal only selected unbilled orders. Clients like LIVBETR with no unbilled orders could not be billed, and there was no way to charge a card on file at create time.
+
+## What shipped
+1. POST `/api/admin/invoices` accepts `chargeSavedCard` (forces issue, then `chargeInvoiceWithSavedCard`)
+2. POST `/api/admin/invoices/[id]/charge` for retry from invoice detail
+3. `NewInvoiceDialog` — catalog product picker (client pricing), custom lines, unbilled orders, charge-card checkbox
+4. Invoice detail — **Charge card** button for OPEN/PARTIAL/OVERDUE with amount due
+
+## Success criteria
+- [x] Invoice with catalog products only (no unbilled orders)
+- [x] Prices from client custom / at-cost / SRP
+- [x] Charge card on file at create when checked
+- [x] Charge retry from invoice detail
+- [ ] Owner verify on LIVBETR (or similar) in prod
+
+## Project Status Board
+- [x] API create + charge
+- [x] New invoice UI
+- [x] Detail charge button
+- [ ] Deploy / owner verify
+
+## Executor's Feedback or Assistance Requests
+Ready for review: Billing → New invoice → pick client → search/add products → Charge card on file (if synced) → Create & charge.
+
+## Lessons
+- Manual `lineItems` + `chargeInvoiceWithSavedCard` already existed; gap was admin UI + create-time charge flag.
+
+---
+
 # PDP Reconstitution Calculator (crestpep-style)  [EXECUTOR — 2026-08-09]
 
 ## Background and Motivation
@@ -16,14 +48,14 @@ Owner wants crestpep-style reconstitution calculator on each peptide PDP, plus *
 - [x] Math matches crestpep 10mg/2ml/250mcg → 5 units
 - [x] BAC water / accessories skipped
 - [x] RUO disclaimer visible
-- [ ] Owner visual verify on a live/local PDP (e.g. BPC-157/TB-500 blend)
+- [ ] Owner visual verify on live PDP (e.g. BPC-157/TB-500 blend)
 
 ## Project Status Board
 - [x] Math lib + tests
 - [x] Protocol content (recommended recon + daily/weekly)
 - [x] Calculator UI
 - [x] PDP wiring
-- [ ] Deploy (await owner)
+- [x] Deployed `ea8b020` → peptsci.com READY (`dpl_4r6psPKRnCMbZ2TN4Vx1b9BXeFZF`)
 
 ## Executor's Feedback or Assistance Requests
 Ready for owner review on any peptide PDP under `/shop/product/[sku]`. Protocol ranges are research-literature references (not medical advice) — say if any compound needs different defaults. Storefront `/sf` not wired yet.
