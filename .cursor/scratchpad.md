@@ -1,3 +1,39 @@
+# Client profile custom pricing  [EXECUTOR — 2026-08-09]
+
+## Background and Motivation
+Custom B2B pricing lived on the global `/pricing/client-pricing` page and as a checklist link on `/clients/[id]`. Owners need the full catalog (retail + offer) on each practice profile, with SUPER_ADMIN inline edits and CSV bulk upload.
+
+## Key Challenges and Analysis
+- Existing `ClientPricing` + `getClientPricing()` already merge full catalog; UI only showed custom rows.
+- Writes gated to SUPER_ADMIN (was any admin).
+- No client-pricing CSV import existed; reuse supplier/product CSV patterns.
+
+## High-level Task Breakdown
+1. [x] GET `full=1` on `/api/admin/client-pricing`; POST/DELETE require SUPER_ADMIN
+2. [x] `/api/admin/client-pricing/import` + `lib/client-pricing-import.ts` + unit tests
+3. [x] `ClientPricingPanel` on `/clients/[id]` (full grid, paysAtCost, CSV import/export)
+4. [x] Account Setup "Manage" → `#client-pricing`
+
+## Success criteria
+- `/clients/{id}` shows all active products with Retail + Custom/Offer
+- SUPER_ADMIN can edit/clear prices and upload CSV; other admins read-only
+- Shop precedence unchanged: at-cost → custom → SRP
+
+## Project Status Board
+- [x] API full catalog + SUPER_ADMIN writes
+- [x] CSV parser + import route + tests
+- [x] ClientPricingPanel UI
+- [x] Wired on client profile + checklist deep-link
+- [ ] Deploy / owner verify on LIVBETR (or similar)
+
+## Executor's Feedback or Assistance Requests
+Ready for owner review on a client profile. Global `/pricing/client-pricing` still works for cross-client view; mutations now require SUPER_ADMIN.
+
+## Lessons
+- Prefer `getClientPricing()` for profile grids; list-only `ClientPricing` rows hide the majority of the catalog.
+
+---
+
 # LIVBETR white-label vial labels  [EXECUTOR — 2026-08-09]
 
 ## Background

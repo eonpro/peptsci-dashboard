@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   requireAdmin,
+  requireSuperAdmin,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -40,8 +41,61 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('clientId')
+    const full = searchParams.get('full') === '1' || searchParams.get('full') === 'true'
 
-    // If database is connected, use Prisma
+    // Full catalog merge (all active products + custom overlay) for a single client.
+    if (full) {
+      if (!clientId) {
+        return NextResponse.json(
+          {
+            error: 'Bad Request',
+            message: 'clientId is required when full=1',
+            code: 'MISSING_PARAMS',
+          },
+          { status: 400 }
+        )
+      }
+
+      const [client, { prices }] = await Promise.all([
+        prisma
+          ? prisma.client.findUnique({
+              where: { id: clientId },
+              select: { id: true, organizationName: true, paysAtCost: true },
+            })
+          : Promise.resolve(null),
+        getClientPricing(clientId),
+      ])
+
+      if (prisma && !client) {
+        return NextResponse.json(
+          { error: 'Not Found', message: 'Client not found', code: 'NOT_FOUND' },
+          { status: 404 }
+        )
+      }
+
+      const enriched = prices.map((p) => ({
+        variantId: p.id,
+        variantSku: p.sku,
+        productName: p.productName,
+        dose: p.dose,
+        unitCost: p.unitCost,
+        standardPrice: p.srp,
+        customPrice: p.customPrice,
+        discountPercent: p.discountPercent,
+        notes: p.priceNotes,
+        inventoryOnHand: p.inventoryOnHand,
+        status: p.status,
+      }))
+
+      return successResponse({
+        clientId,
+        clientName: client?.organizationName ?? null,
+        paysAtCost: client?.paysAtCost ?? false,
+        prices: enriched,
+      })
+    }
+
+    // If database is connected, use Prisma (custom rows only)
     if (prisma) {
       const pricing = await prisma.clientPricing.findMany({
         where: clientId ? { clientId, isActive: true } : { isActive: true },
@@ -108,15 +162,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create or update custom pricing for a client
+// POST - Create or update custom pricing for a client (SUPER_ADMIN only)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
+    const { isAuthenticated, isAdmin, isSuperAdmin, userId } = await requireSuperAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
     }
-    if (!isAdmin) {
-      return forbiddenResponse('Admin access required')
+    if (!isAdmin || !isSuperAdmin) {
+      return forbiddenResponse('Super admin access required')
     }
 
     const body = await request.json()
@@ -198,15 +252,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Remove custom pricing
+// DELETE - Remove custom pricing (SUPER_ADMIN only)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuthenticated, isAdmin, userId } = await requireAdmin()
+    const { isAuthenticated, isAdmin, isSuperAdmin, userId } = await requireSuperAdmin()
     if (!isAuthenticated) {
       return unauthorizedResponse()
     }
-    if (!isAdmin) {
-      return forbiddenResponse('Admin access required')
+    if (!isAdmin || !isSuperAdmin) {
+      return forbiddenResponse('Super admin access required')
     }
 
     const { searchParams } = new URL(request.url)

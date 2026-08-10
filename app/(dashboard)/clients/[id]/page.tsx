@@ -29,6 +29,7 @@ import { ClientStripeCard } from '@/components/admin/ClientStripeCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
 import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
 import { ClientWhiteLabelLabelsCard } from '@/components/admin/ClientWhiteLabelLabelsCard'
+import { ClientPricingPanel } from './ClientPricingPanel'
 import {
   Select,
   SelectContent,
@@ -433,12 +434,12 @@ export default function ClientDetailPage() {
                   </span>
                 </span>
               </div>
-              <Link
-                href="/pricing/client-pricing"
+              <a
+                href="#client-pricing"
                 className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
               >
                 Manage
-              </Link>
+              </a>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-white/10 p-3">
               <div className="flex items-center gap-2">
@@ -568,6 +569,13 @@ export default function ClientDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {profile && (
+        <ClientPricingPanel
+          clientId={id}
+          organizationName={profile.organizationName || 'Client'}
+        />
+      )}
 
       {/* Billing terms */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
