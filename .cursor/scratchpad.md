@@ -1,3 +1,77 @@
+# Order #267 LL-37 → Retatrutide 20mg  [EXECUTOR — 2026-08-10]
+
+## What shipped
+- One-shot `POST /api/admin/ops/fix-order-267` corrected Order #267 / Shopify #1284 line item from LL-37 (`375`) to Retatrutide 20mg (`RT20`), moved reservation, wrote internal note.
+- Verified via admin orders API: items now NAD+ ×3, BPC/TB 5/5, Tesamorelin 10mg, **Retatrutide 20mg**.
+- Clean prod deploy `dpl_Gh3Qhkcgwv88Yp2XeHAsTH8ih4BC` → peptsci.com (ops route only; rolled back accidental backorder WIP deploy).
+
+## Note
+- Same order still has Wolverine as BB10 (5mg/5mg); mapping fix for future orders uses BB20. Owner did not ask to rewrite that line on #267.
+
+---
+
+# Elevated Vitality Shopify → PeptSci SKU Mapping  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Wire Elevated Vitality Shopify SKUs to PeptSci catalog variants via existing `ShopifyVariantMapping` (UI/API only; no alias code).
+
+## What shipped
+- Client: `cmsknhwra000004jlj41yi0l8` (Elevated Vitality Peptides) · Shopify `0n0iy0-fq.myshopify.com` ACTIVE
+- Persisted **36** mappings via `PUT /api/admin/clients/.../shopify/mappings`
+- **28/28 plan SKUs** verified against live PeptSci variants (title-dose wins)
+- Fixes vs prior partial map: `WOLV-10` → **BB20** (10mg/10mg, was BB10 5/5); `RT-20` → **RT20** (was mislabeled LL37); added `2XB-105`→TSIP, `DSP-10`→DSIP-10MG, `SEMAX-10`→XA10
+- Live Shopify SKU codes sometimes differ from export (`AOD9604-5`, `CJC-DAC-5`, `GHKCU-50`, `NAD-1000`, `SEMAX-10`) — mapped by variant id + current SKU
+
+## Project Status Board
+- [x] Resolve EV client + connection
+- [x] Pull live catalogs
+- [x] Resolve 28 plan SKUs
+- [x] Persist mappings
+- [x] Verify 28/28
+
+## Executor's Feedback or Assistance Requests
+Owner: Clients → Elevated Vitality → Shopify should show mappings. Next paid Shopify order with these SKUs should auto-map (no Needs mapping).
+
+## Lessons
+- Prod RDS IAM from laptop blocked (OIDC AssumeRole); used Clerk sign-in token on peptsci.com (not accounts.*) then admin APIs in-browser.
+- PUT mappings replaces the full set — preserve non-plan extras when rewriting.
+- Wolverine = BPC-157/TB-500 blend; BACWATER = Bacteriostatic water (`BAC-H2O`).
+
+---
+
+# Sold-out backorder (min 20, 2–3 weeks)  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Zero-inventory SKUs must show as **Sold Out** on the client shop, but clinics can still place an order with a **minimum of 20 vials** and a warning that fulfillment may take **2–3 weeks**.
+
+## Key Challenges and Analysis
+1. Catalog currently **hides** OOS SKUs when `CHECKOUT_ENFORCE_STOCK` is on.
+2. PDP / ATC hard-blocks OOS (Notify Me only); checkout rejects `INSUFFICIENT_STOCK` and reservation fails at qty>0 available.
+3. No MOQ or backorder lead-time messaging exists today.
+
+## High-level Task Breakdown
+1. [x] Shared backorder constants + helpers (`lib/shop/backorder.ts`)
+2. [x] Catalog: show OOS as sold-out (incl. siblings / related)
+3. [x] Checkout: allow qty≥20 when available=0; skip stock gate + reservation for those lines; note on order
+4. [x] UI: Sold Out badge, warning, min-20 ATC/cart controls
+5. [x] Unit tests for backorder helpers + stock shortage exemption
+6. [x] Update scratchpad status
+
+## Project Status Board
+- [x] Core helpers + catalog + checkout/reservation
+- [x] Shop UI
+- [x] Tests (31 pass: backorder + checkout-core)
+- [ ] Deploy when owner asks
+
+## Executor's Feedback or Assistance Requests
+Ready for owner review on `/shop`: zero-inventory SKUs show Sold Out, Request Backorder (min 20), amber 2–3 week warning through cart/checkout. Order notes get a `BACKORDER` line for fulfillment.
+
+## Lessons
+- Backorder = available===0 only; partial stock still cannot oversell.
+- Skip inventory reservation for zero-stock lines under enforced checkout so payment isn't blocked.
+
+---
+
 # Order line item vial thumbnails  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation

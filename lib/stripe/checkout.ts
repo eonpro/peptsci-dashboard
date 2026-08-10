@@ -24,9 +24,15 @@ import {
   type ShipSpeed,
   type ShipTo,
 } from '@/lib/checkout-core'
+import {
+  BACKORDER_LEAD_TIME,
+  BACKORDER_MIN_QUANTITY,
+  isZeroStock,
+  validateBackorderQuantity,
+} from '@/lib/shop/backorder'
 
 export interface ResolvedCart {
-  lines: ResolvedLine[]
+  lines: Array<ResolvedLine & { isBackorder?: boolean }>
   totals: CartTotals
 }
 
@@ -116,6 +122,17 @@ export async function resolveCart(params: {
         'CART_PRICE_UNSET'
       )
     }
+    const available = variant.inventoryOnHand - variant.inventoryReserved
+    const backorder = isZeroStock(available)
+    if (params.enforceStock && backorder) {
+      const moqError = validateBackorderQuantity(item.quantity, available)
+      if (moqError) {
+        throw new CartValidationError(
+          `"${variant.product.name}" (${variant.sku}): ${moqError}`,
+          'BACKORDER_MOQ'
+        )
+      }
+    }
     return {
       variantId: variant.id,
       sku: variant.sku!,
@@ -125,21 +142,26 @@ export async function resolveCart(params: {
       unitPrice,
       lineTotal: round2(unitPrice * item.quantity),
       isCustomPrice: isCustom,
+      isBackorder: backorder,
     }
   })
 
   // Oversell gate: block checkout when a line exceeds sellable stock. Checked
   // pre-payment so a card is never charged for goods we cannot ship. (The
   // reservation at capture remains non-blocking as a last resort.)
+  // Zero-stock backorder lines (qty ≥ BACKORDER_MIN_QUANTITY) are exempt —
+  // they ship after restock (~2–3 weeks) and are not reserved against on-hand.
   if (params.enforceStock) {
     const shortages = findStockShortages(
       items.map((item) => {
         const v = bySku.get(item.sku)!
+        const available = v.inventoryOnHand - v.inventoryReserved
         return {
           sku: item.sku,
           productName: v.product.name,
           quantity: item.quantity,
-          available: v.inventoryOnHand - v.inventoryReserved,
+          available,
+          allowBackorder: isZeroStock(available),
         }
       })
     )
@@ -249,11 +271,20 @@ export async function createDraftOrder(params: {
       // Same cart, but the shopper may have edited the shipping address or
       // notes since the draft was created — refresh them so fulfillment ships
       // to what the buyer last confirmed, not the first attempt's snapshot.
+      const backorderLines = cart.lines.filter((l) => l.isBackorder)
+      const backorderNote =
+        backorderLines.length > 0
+          ? `BACKORDER (min ${BACKORDER_MIN_QUANTITY}, ~${BACKORDER_LEAD_TIME}): ${backorderLines
+              .map((l) => `${l.sku}×${l.quantity}`)
+              .join(', ')}`
+          : null
+      const mergedNotes =
+        [params.notes?.trim() || null, backorderNote].filter(Boolean).join('\n') || null
       const refreshed = await tx.order.update({
         where: { id: reusable.id },
         data: {
           shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
-          notes: params.notes ?? null,
+          notes: mergedNotes,
         },
       })
       return { order: refreshed, reused: true }
@@ -294,6 +325,15 @@ export async function createDraftOrder(params: {
     }
     const effectiveTotal = round2((totalCents - appliedCreditCents) / 100)
 
+    const backorderLines = cart.lines.filter((l) => l.isBackorder)
+    const backorderNote =
+      backorderLines.length > 0
+        ? `BACKORDER (min ${BACKORDER_MIN_QUANTITY}, ~${BACKORDER_LEAD_TIME}): ${backorderLines
+            .map((l) => `${l.sku}×${l.quantity}`)
+            .join(', ')}`
+        : null
+    const mergedNotes = [params.notes?.trim() || null, backorderNote].filter(Boolean).join('\n') || null
+
     const created = await tx.order.create({
       data: {
         clientId: params.clientId,
@@ -306,7 +346,7 @@ export async function createDraftOrder(params: {
         total: effectiveTotal,
         creditApplied: round2(appliedCreditCents / 100),
         currency: 'USD',
-        notes: params.notes,
+        notes: mergedNotes,
         shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
         shipTo,
         shipSpeed,

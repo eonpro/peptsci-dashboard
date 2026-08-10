@@ -174,13 +174,10 @@ export async function getProductCatalog(): Promise<{
       select: variantSelect,
       orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
     })
-    // Clients may only see what we can actually ship: SKUs with zero sellable
-    // availability (onHand − reserved) are hidden from the listing. `inStock`
-    // is always true when stock enforcement is off, so the
-    // CHECKOUT_ENFORCE_STOCK=false escape hatch keeps the full catalog visible.
-    const products = (variants as unknown as VariantWithProduct[])
-      .map(toShopProduct)
-      .filter((p) => p.inStock !== false)
+    // Sold-out SKUs stay in the catalog as "Sold Out" so clinics can place
+    // backorders (min qty + lead-time warning on the PDP). Inactive/discontinued
+    // are already excluded by the ACTIVE status filter above.
+    const products = (variants as unknown as VariantWithProduct[]).map(toShopProduct)
     logger.info('Loaded shop catalog from Postgres', { count: products.length })
     return { source: 'postgres', products }
   } catch (error) {
@@ -209,21 +206,16 @@ export async function getShopProductBySku(sku: string): Promise<ShopProduct | nu
     const typed = variant as unknown as VariantWithProduct
     const product = toShopProduct(typed)
 
-    // "Available in: 5mg, 10mg" — the sellable doses of the same compound.
-    // Sizes with no sellable stock are omitted (they're hidden from the
-    // catalog too), unless stock enforcement is off.
-    const enforceStock = stockEnforcementEnabled()
+    // "Available in: 5mg, 10mg" — sibling doses of the same compound, including
+    // sold-out sizes so the PDP size picker can offer backorder.
     const siblings = await prisma.productVariant.findMany({
       where: { productId: typed.productId, status: 'ACTIVE' },
       select: { dose: true, unitSize: true, inventoryOnHand: true, inventoryReserved: true },
       orderBy: { dose: 'asc' },
     })
-    const sellableSiblings = enforceStock
-      ? siblings.filter((s) => s.inventoryOnHand - (s.inventoryReserved || 0) > 0)
-      : siblings
     const doses = Array.from(
       new Set(
-        sellableSiblings
+        siblings
           .map((s) => (s.dose || s.unitSize || '').trim())
           .filter((d) => d.length > 0)
       )
@@ -249,11 +241,8 @@ export async function getSiblingShopProducts(productId: string): Promise<ShopPro
       select: variantSelect,
       orderBy: { dose: 'asc' },
     })
-    // Out-of-stock sizes aren't offered in the size selector (mirrors the
-    // catalog listing; no-op when stock enforcement is off).
-    return (variants as unknown as VariantWithProduct[])
-      .map(toShopProduct)
-      .filter((p) => p.inStock !== false)
+    // Include sold-out sizes so clinics can backorder a specific mg.
+    return (variants as unknown as VariantWithProduct[]).map(toShopProduct)
   } catch (error) {
     logger.warn('Error fetching sibling variants', { productId, error: String(error) })
     return []
@@ -284,10 +273,8 @@ export async function getRelatedShopProducts(
       // Enough variants to yield `limit` distinct parents after grouping.
       take: limit * 6,
     })
-    // Mirror the catalog listing: only sellable (in-stock) SKUs are shown.
-    return (variants as unknown as VariantWithProduct[])
-      .map(toShopProduct)
-      .filter((p) => p.inStock !== false)
+    // Related products include sold-out SKUs (shown as Sold Out / backorder).
+    return (variants as unknown as VariantWithProduct[]).map(toShopProduct)
   } catch (error) {
     logger.warn('Error fetching related products', { category, error: String(error) })
     return []

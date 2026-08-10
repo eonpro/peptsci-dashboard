@@ -202,6 +202,18 @@ describe('findStockShortages (oversell gate)', () => {
     assert.match(msg, /Semaglutide \(SEMA-10\): requested 2, 0 available/)
   })
 
+  test('zero-stock backorder lines are exempt when allowBackorder is set', () => {
+    assert.deepEqual(
+      findStockShortages([{ ...line(20, 0), allowBackorder: true }]),
+      []
+    )
+  })
+
+  test('partial stock still shortages even with allowBackorder', () => {
+    const shortages = findStockShortages([{ ...line(20, 5), allowBackorder: true }])
+    assert.equal(shortages.length, 1)
+  })
+
   test('describes multiple shortages joined with semicolons', () => {
     const msg = describeStockShortages(
       findStockShortages([line(3, 1), line(5, 0, 'TIRZ-5')])

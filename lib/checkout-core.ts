@@ -123,15 +123,28 @@ export interface StockCheckLine {
   quantity: number
   /** Sellable units: onHand - reserved (can be negative when oversold). */
   available: number
+  /**
+   * When true, zero-stock lines are treated as allowed backorders (caller must
+   * have already enforced the backorder MOQ). Non-zero stock still shortages
+   * if qty exceeds available.
+   */
+  allowBackorder?: boolean
 }
 
 /**
  * Lines whose requested quantity exceeds sellable stock. Pure so the oversell
  * gate is unit-testable; callers decide whether shortages hard-block (clinic
  * checkout) or only warn (admin manual orders).
+ *
+ * Zero-stock lines marked `allowBackorder` are excluded (sold-out backorder
+ * path); partial stock still cannot oversell.
  */
 export function findStockShortages(lines: StockCheckLine[]): StockCheckLine[] {
-  return lines.filter((l) => l.quantity > Math.max(0, l.available))
+  return lines.filter((l) => {
+    const available = Math.max(0, l.available)
+    if (l.allowBackorder && available === 0) return false
+    return l.quantity > available
+  })
 }
 
 /** Human-readable summary of stock shortages for error messages. */

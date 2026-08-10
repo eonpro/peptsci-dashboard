@@ -93,6 +93,21 @@ export async function reserveForOrderTx(
       skipped += 1
       continue
     }
+
+    // Sold-out backorders: clinic checkout allows qty when sellable is 0
+    // (MOQ enforced in resolveCart). Do not create a reservation or inflate
+    // inventoryReserved — there is nothing to hold until stock arrives.
+    if (opts.enforce) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: line.variantId },
+        select: { inventoryOnHand: true, inventoryReserved: true },
+      })
+      if (variant && availableQty(variant.inventoryOnHand, variant.inventoryReserved) <= 0) {
+        skipped += 1
+        continue
+      }
+    }
+
     const releasedId = releasedByVariant.get(line.variantId)
     if (releasedId) {
       // (orderId, variantId) is unique — reactivate the released row.

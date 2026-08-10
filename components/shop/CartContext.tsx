@@ -3,11 +3,13 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useRef, ReactNode } from 'react'
 import { toast } from 'sonner'
 
+import { BACKORDER_MIN_QUANTITY } from '@/lib/shop/backorder'
+
 /** Maximum vials of a single product per order. */
 export const MAX_ITEM_QUANTITY = 100
 
-function clampQuantity(quantity: number): number {
-  return Math.min(Math.max(1, Math.floor(quantity)), MAX_ITEM_QUANTITY)
+function clampQuantity(quantity: number, minQty = 1): number {
+  return Math.min(Math.max(minQty, Math.floor(quantity)), MAX_ITEM_QUANTITY)
 }
 
 export interface CartItem {
@@ -19,6 +21,8 @@ export interface CartItem {
   price: number
   quantity: number
   image?: string
+  /** True when the line was added while the SKU had zero sellable stock. */
+  isBackorder?: boolean
 }
 
 interface CartState {
@@ -59,12 +63,21 @@ function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
       const existingItem = state.items.find((item) => item.id === action.payload.id)
+      const isBackorder = Boolean(action.payload.isBackorder ?? existingItem?.isBackorder)
+      const minQty = isBackorder ? BACKORDER_MIN_QUANTITY : 1
       if (existingItem) {
         return {
           ...state,
           items: state.items.map((item) =>
             item.id === action.payload.id
-              ? { ...item, quantity: clampQuantity(item.quantity + (action.payload.quantity || 1)) }
+              ? {
+                  ...item,
+                  isBackorder: item.isBackorder || action.payload.isBackorder,
+                  quantity: clampQuantity(
+                    item.quantity + (action.payload.quantity || minQty),
+                    item.isBackorder || action.payload.isBackorder ? BACKORDER_MIN_QUANTITY : 1
+                  ),
+                }
               : item
           ),
         }
@@ -73,7 +86,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: [
           ...state.items,
-          { ...action.payload, quantity: clampQuantity(action.payload.quantity || 1) },
+          {
+            ...action.payload,
+            isBackorder,
+            quantity: clampQuantity(action.payload.quantity || minQty, minQty),
+          },
         ],
       }
     }
@@ -82,8 +99,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: state.items.filter((item) => item.id !== action.payload),
       }
-    case 'UPDATE_QUANTITY':
-      if (action.payload.quantity <= 0) {
+    case 'UPDATE_QUANTITY': {
+      const target = state.items.find((item) => item.id === action.payload.id)
+      const minQty = target?.isBackorder ? BACKORDER_MIN_QUANTITY : 1
+      // Drop the line when qty falls below the line minimum (1, or 20 for backorder).
+      if (action.payload.quantity < minQty) {
         return {
           ...state,
           items: state.items.filter((item) => item.id !== action.payload.id),
@@ -93,10 +113,17 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: state.items.map((item) =>
           item.id === action.payload.id
-            ? { ...item, quantity: clampQuantity(action.payload.quantity) }
+            ? {
+                ...item,
+                quantity: clampQuantity(
+                  action.payload.quantity,
+                  item.isBackorder ? BACKORDER_MIN_QUANTITY : 1
+                ),
+              }
             : item
         ),
       }
+    }
     case 'CLEAR_CART':
       return { ...state, items: [] }
     case 'TOGGLE_CART':
@@ -108,7 +135,14 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case 'LOAD_CART':
       return {
         ...state,
-        items: action.payload.map((item) => ({ ...item, quantity: clampQuantity(item.quantity) })),
+        items: action.payload.map((item) => {
+          const minQty = item.isBackorder ? BACKORDER_MIN_QUANTITY : 1
+          return {
+            ...item,
+            isBackorder: Boolean(item.isBackorder),
+            quantity: clampQuantity(item.quantity, minQty),
+          }
+        }),
       }
     case 'REFRESH_PRICES': {
       const priceBySku = new Map(action.payload.map((p) => [p.sku, p.price]))

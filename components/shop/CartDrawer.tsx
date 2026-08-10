@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { ShoppingCart, Minus, Plus, Trash2, ArrowRight, X, Package } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, ArrowRight, X, Package, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { FREE_SHIPPING_THRESHOLD } from '@/lib/checkout-core'
+import { BACKORDER_LEAD_TIME, BACKORDER_MIN_QUANTITY } from '@/lib/shop/backorder'
 
 export function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, clearCart, totalItems } =
@@ -26,6 +27,8 @@ export function CartDrawer() {
   const freeShippingThreshold = FREE_SHIPPING_THRESHOLD
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal)
   const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100)
+
+  const hasBackorder = items.some((item) => item.isBackorder)
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
@@ -110,6 +113,15 @@ export function CartDrawer() {
             {/* Scrollable items area */}
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-3">
+                {hasBackorder && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200/90">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span>
+                      Cart includes sold-out backorder items (min {BACKORDER_MIN_QUANTITY} vials
+                      each). Fulfillment may take {BACKORDER_LEAD_TIME}.
+                    </span>
+                  </div>
+                )}
                 {items.map((item) => (
                   <div
                     key={item.id}
@@ -141,6 +153,11 @@ export function CartDrawer() {
                             {item.name}
                           </h3>
                           <p className="text-sm text-white/60 mt-0.5">{item.dose}</p>
+                          {item.isBackorder && (
+                            <p className="mt-1 text-[11px] font-medium text-amber-300/90">
+                              Sold Out · backorder · min {BACKORDER_MIN_QUANTITY}
+                            </p>
+                          )}
                         </div>
                         {/* Delete button - larger touch target */}
                         <Button
@@ -167,7 +184,7 @@ export function CartDrawer() {
                           <input
                             type="number"
                             inputMode="numeric"
-                            min={1}
+                            min={item.isBackorder ? BACKORDER_MIN_QUANTITY : 1}
                             max={MAX_ITEM_QUANTITY}
                             value={item.quantity}
                             aria-label={`Quantity for ${item.name}`}

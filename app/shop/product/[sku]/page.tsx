@@ -234,10 +234,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {/* Stock status */}
             <div className="flex items-center gap-2 mb-6">
               <div
-                className={`w-2 h-2 rounded-full ${product.inStock !== false ? 'bg-green-500' : 'bg-red-500'}`}
+                className={`w-2 h-2 rounded-full ${product.inStock !== false ? 'bg-green-500' : 'bg-amber-400'}`}
               />
               <span className="text-sm text-white/70">
-                {product.inStock !== false ? 'In Stock' : 'Out of Stock'}
+                {product.inStock !== false
+                  ? 'In Stock'
+                  : 'Sold Out — backorder available (min 20 vials, 2–3 weeks)'}
               </span>
             </div>
 
@@ -246,7 +248,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
             {/* Volume pricing note */}
             <p className="text-xs text-white/40 text-center mt-4">
-              Contact us for volume pricing on orders of 10+ units
+              {product.inStock === false
+                ? 'Backorders typically fulfill in 2–3 weeks once stock arrives'
+                : 'Contact us for volume pricing on orders of 10+ units'}
             </p>
           </div>
 

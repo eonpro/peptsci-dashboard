@@ -47,7 +47,7 @@ export function PdpSizeSelector({ options, currentSku }: PdpSizeSelectorProps) {
               <span className="text-sm font-bold">{option.dose}</span>
               <span className={cn('text-xs', active ? 'text-white/80' : 'text-white/50')}>
                 {soldOut
-                  ? 'Out of stock'
+                  ? 'Sold Out'
                   : option.displayPrice > 0
                     ? formatPrice(option.displayPrice)
                     : 'Call'}

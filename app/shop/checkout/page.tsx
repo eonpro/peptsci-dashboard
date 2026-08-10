@@ -22,6 +22,7 @@ import {
   Plus,
   Zap,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -33,6 +34,10 @@ import {
   type ShipSpeed,
   type ShipTo,
 } from '@/lib/checkout-core'
+import {
+  BACKORDER_LEAD_TIME,
+  BACKORDER_MIN_QUANTITY,
+} from '@/lib/shop/backorder'
 import type { Address } from '@/lib/address'
 
 type CheckoutStep = 'shipping' | 'payment'
@@ -51,6 +56,7 @@ const emptyAddress: Partial<Address> = { country: 'US' }
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, subtotal, clearCart, totalItems } = useCart()
+  const hasBackorder = items.some((item) => item.isBackorder)
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping')
 
   const [shipTo, setShipTo] = useState<ShipTo>('PRACTICE')
@@ -669,6 +675,15 @@ export default function CheckoutPage() {
                 <CardTitle className="text-white">Order Summary</CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
+                {hasBackorder && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200/90">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span>
+                      Includes sold-out backorder items (min {BACKORDER_MIN_QUANTITY} vials).
+                      Fulfillment may take {BACKORDER_LEAD_TIME}.
+                    </span>
+                  </div>
+                )}
                 <div className="space-y-3 max-h-48 overflow-y-auto">
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-3">
@@ -691,6 +706,7 @@ export default function CheckoutPage() {
                         <p className="text-sm font-medium text-white truncate">{item.name}</p>
                         <p className="text-xs text-white/50">
                           {item.dose} × {item.quantity}
+                          {item.isBackorder ? ' · Sold Out backorder' : ''}
                         </p>
                       </div>
                       <p className="text-sm font-medium text-white">

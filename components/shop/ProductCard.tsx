@@ -208,7 +208,11 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               </Link>
             </h3>
             <p className="text-white/60 text-sm truncate">{doseDisplay}</p>
-            {outOfStock && <p className="text-white/40 text-xs mt-1">Out of Stock</p>}
+            {outOfStock && (
+              <p className="text-amber-400/80 text-xs mt-1">
+                Sold Out · backorder available
+              </p>
+            )}
           </div>
 
           {/* Price and chevron */}
@@ -389,9 +393,16 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         <div className="flex items-center justify-between gap-2">
           {priceBlock}
           {outOfStock ? (
-            <span className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-white/40">
-              Out of Stock
-            </span>
+            <Link
+              href={pdpHref}
+              className={cn(
+                'relative z-10 inline-flex h-10 shrink-0 items-center gap-1 rounded-xl px-4 text-sm font-semibold',
+                'border border-amber-500/40 bg-amber-500/10 text-amber-200 transition-colors hover:bg-amber-500/20'
+              )}
+            >
+              Backorder
+              <ChevronRight className="h-4 w-4" />
+            </Link>
           ) : (
             <Link
               href={pdpHref}
