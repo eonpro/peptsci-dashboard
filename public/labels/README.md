@@ -79,3 +79,13 @@ Per-client vial brands live under `public/labels/clients/<slug>/`.
 
 Fonts: `public/fonts/labels/Inter-ExtraBoldItalic.ttf`, `Inter-Black.ttf` (also
 embedded in `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
+
+### LIVBETR (`livbetr`)
+
+- Source SVG: `clients/livbetr/livbetr-label-empty.svg` (viewBox 130.11×47.58)
+- Raster template: `clients/livbetr/livbetr-label-template.png`
+- Engine: `lib/labels/livbetrLabelPdf.ts` — **PeptSci overlay family** (BUD date,
+  product name, dose in black band, batch on rail; no barcode)
+- Font: Neuething Sans Medium Expanded
+  (`public/fonts/labels/NeuethingSans-MediumExpanded.ttf` + embedded assets)
+- Teal accent `#28646c` on BUD day + batch

@@ -60,6 +60,14 @@ describe('resolveLabelBrandKey', () => {
 
   it('validates brand keys', () => {
     assert.equal(isLabelBrandKey('elevated_vitality'), true)
+    assert.equal(isLabelBrandKey('livbetr'), true)
     assert.equal(isLabelBrandKey('peptsci'), false)
+  })
+
+  it('resolves LIVBETR when enabled', () => {
+    assert.equal(
+      resolveLabelBrandKey({ whiteLabelEnabled: true, labelBrandKey: 'livbetr' }),
+      'livbetr'
+    )
   })
 })

@@ -1,3 +1,36 @@
+# LIVBETR white-label vial labels  [PLANNER]
+
+## Background
+Second white-label brand after Elevated Vitality. Same PeptSci-style OL4891LP layout (BUD / dose box / RUO / warning / BATCH), different brand artwork + font.
+
+## Assets
+- SVG: `public/labels/clients/livbetr/livbetr-label-empty.svg` (renamed from `LIVBETR LABEL SAMPLE.svg`)
+- viewBox `0 0 130.11 47.58` (slightly tighter than PeptSci `144×54` — normalize/scale at template build)
+- Font: **Neuething Sans Medium Expanded** @ 6.1pt (RUO uses 6.1; BUD label 3.72; warnings 3.37)
+  - Staged: `public/fonts/labels/NeuethingSans-MediumExpanded.otf`
+- Teal accent on dose-box bottom: `#28646c` (vs PeptSci indigo)
+
+## Dynamic overlays (PeptSci map family)
+- BUD date after baked `BUD:`
+- Dose in black top band of dose box
+- Product name above dose box
+- Batch value continuing baked `BATCH:`
+- Barcode well if geometry matches (confirm in empty art — no explicit barcode placeholder in SVG; may add like PeptSci or omit)
+
+## Admin
+- Add `livbetr` to `LABEL_BRAND_KEYS` / options
+- Same client switch: brand = LIVBETR
+
+## Project Status Board
+- [x] SVG uploaded + renamed
+- [x] Font located + copied into `public/fonts/labels/`
+- [ ] Executor: template PNG + engine + brand key + deploy
+
+## Executor's Feedback
+Say **Executor** to implement + deploy LIVBETR like Elevated Vitality (PeptSci overlay family + Neuething Sans).
+
+---
+
 # Link Stripe customer + saved cards to Client  [EXECUTOR — 2026-08-09]
 
 ## Background and Motivation
@@ -25,12 +58,13 @@ New practice **LIVBETR** (Victor Cruz MD, NPI 1861622060) was created separately
 
 ## Project Status Board
 - [x] Link library + API + UI
-- [ ] Deploy
-- [ ] Execute link for LIVBETR
+- [x] Deploy `4190a00` → peptsci.com READY
+- [ ] Execute link for LIVBETR (`cus_TapwP4jv1FVREl`)
 - [ ] Verify card on file
+- [ ] Owner: Settings → Database migrate (`20260809200000_client_npi_non_unique`)
 
 ## Executor's Feedback or Assistance Requests
-Need commit+push (or `vercel --prod`) to ship the link UI, then one click on the LIVBETR client page with `cus_TapwP4jv1FVREl`. Confirm if I should commit the Stripe link work together with the pending NPI non-unique changes already on the working tree.
+Deployed with NPI non-unique. Owner must apply prod migration, then link Stripe customer on LIVBETR client page.
 
 ## Lessons
 - Existing Stripe Dashboard customers must be linked + PaymentMethods synced; creating a new Stripe Customer via getOrCreate would orphan the saved card and payment history.
@@ -67,10 +101,11 @@ Admin "Create Client" fails with `That NPI number is already registered to anoth
 - [x] API guard removal
 - [x] Comment cleanup
 - [x] Local migrate
-- [ ] Deploy + owner prod migrate (Settings → Database)
+- [x] Deploy `4190a00` → peptsci.com READY (health version matches)
+- [ ] Owner prod migrate (Settings → Database → Apply pending)
 
 ## Executor's Feedback or Assistance Requests
-Code ready. Needs deploy + prod migrate before Create Client with a shared NPI works on peptsci.com.
+Live code is up. Shared-NPI create still needs the prod migration applied once.
 
 ## Lessons
 - NPI identifies a provider, not a practice — uniqueness belonged on practice identity (Client row), not credential ID.

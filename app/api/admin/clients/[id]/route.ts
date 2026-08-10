@@ -63,10 +63,7 @@ const adminUpdateSchema = z.object({
   paysAtCost: z.boolean().optional(),
   // White-label vial labels (built-in brand key required when enabling).
   whiteLabelEnabled: z.boolean().optional(),
-  labelBrandKey: z
-    .enum(['elevated_vitality'])
-    .nullable()
-    .optional(),
+  labelBrandKey: z.enum(['elevated_vitality', 'livbetr']).nullable().optional(),
 })
 
 /** GET /api/admin/clients/[id] — full client profile + linked users. */

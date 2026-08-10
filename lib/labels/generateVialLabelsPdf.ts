@@ -1,6 +1,6 @@
 /**
  * Vial-label brand dispatcher.
- * PeptSci is the default; white-label clients select a brand key (e.g. elevated_vitality).
+ * PeptSci is the default; white-label clients select a brand key.
  */
 
 import {
@@ -11,13 +11,16 @@ import {
   generateElevatedVitalityLabelsPdf,
   type ElevatedVitalityLabelGroup,
 } from './elevatedVitalityLabelPdf'
+import { generateLivbetrLabelsPdf, type LivbetrLabelGroup } from './livbetrLabelPdf'
 import {
   ELEVATED_VITALITY_BRAND_KEY,
+  LIVBETR_BRAND_KEY,
   type LabelBrandKey,
 } from './brandKeys'
 
 export {
   ELEVATED_VITALITY_BRAND_KEY,
+  LIVBETR_BRAND_KEY,
   LABEL_BRAND_KEYS,
   LABEL_BRAND_OPTIONS,
   isLabelBrandKey,
@@ -52,6 +55,23 @@ export async function generateVialLabelsPdf(
     return {
       pdf: await generateElevatedVitalityLabelsPdf(evGroups),
       brand: ELEVATED_VITALITY_BRAND_KEY,
+    }
+  }
+
+  if (brandKey === LIVBETR_BRAND_KEY) {
+    const livGroups: LivbetrLabelGroup[] = groups.map((g) => ({
+      req: {
+        productName: g.productName,
+        dose: g.dose,
+        purity: g.purity,
+        batchNumber: g.batchNumber,
+        budIsoDate: g.budIsoDate,
+      },
+      quantity: g.quantity,
+    }))
+    return {
+      pdf: await generateLivbetrLabelsPdf(livGroups),
+      brand: LIVBETR_BRAND_KEY,
     }
   }
 
