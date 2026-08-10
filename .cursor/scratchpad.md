@@ -1,33 +1,21 @@
-# LIVBETR white-label vial labels  [PLANNER]
+# LIVBETR white-label vial labels  [EXECUTOR — 2026-08-09]
 
 ## Background
-Second white-label brand after Elevated Vitality. Same PeptSci-style OL4891LP layout (BUD / dose box / RUO / warning / BATCH), different brand artwork + font.
+Second white-label brand after Elevated Vitality. Same PeptSci-style OL4891LP layout (BUD / dose box / RUO / warning / barcode / BATCH).
 
-## Assets
-- SVG: `public/labels/clients/livbetr/livbetr-label-empty.svg` (renamed from `LIVBETR LABEL SAMPLE.svg`)
-- viewBox `0 0 130.11 47.58` (slightly tighter than PeptSci `144×54` — normalize/scale at template build)
-- Font: **Neuething Sans Medium Expanded** @ 6.1pt (RUO uses 6.1; BUD label 3.72; warnings 3.37)
-  - Staged: `public/fonts/labels/NeuethingSans-MediumExpanded.otf`
-- Teal accent on dose-box bottom: `#28646c` (vs PeptSci indigo)
+## Follow-up (owner feedback on live proof)
+- [x] Sofia Pro for date, mg, HPLC, batch (product name stays Neuething)
+- [x] Code 128 barcode between warning column and BATCH rail
+- [ ] Deploy + re-download proof
 
-## Dynamic overlays (PeptSci map family)
-- BUD date after baked `BUD:`
-- Dose in black top band of dose box
-- Product name above dose box
-- Batch value continuing baked `BATCH:`
-- Barcode well if geometry matches (confirm in empty art — no explicit barcode placeholder in SVG; may add like PeptSci or omit)
-
-## Admin
-- Add `livbetr` to `LABEL_BRAND_KEYS` / options
-- Same client switch: brand = LIVBETR
+## Typography
+- Sofia Pro — BUD / dose / purity / batch (reuse `SOFIA_PRO_REGULAR_B64` + disk font)
+- Neuething Sans Medium Expanded — product name only
 
 ## Project Status Board
-- [x] SVG uploaded + renamed
-- [x] Font located + copied into `public/fonts/labels/`
-- [ ] Executor: template PNG + engine + brand key + deploy
-
-## Executor's Feedback
-Say **Executor** to implement + deploy LIVBETR like Elevated Vitality (PeptSci overlay family + Neuething Sans).
+- [x] Initial LIVBETR brand live (`48c368d` / scale fix `86050f5`)
+- [x] Sofia + barcode engine update
+- [ ] Push + verify prod health
 
 ---
 

@@ -85,7 +85,9 @@ embedded in `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
 - Source SVG: `clients/livbetr/livbetr-label-empty.svg` (viewBox 130.11×47.58)
 - Raster template: `clients/livbetr/livbetr-label-template.png`
 - Engine: `lib/labels/livbetrLabelPdf.ts` — **PeptSci overlay family** (BUD date,
-  product name, dose in black band, batch on rail; no barcode)
-- Font: Neuething Sans Medium Expanded
-  (`public/fonts/labels/NeuethingSans-MediumExpanded.ttf` + embedded assets)
-- Teal accent `#28646c` on BUD day + batch
+  product name, dose + HPLC in two-tone box, Code 128 barcode, batch on rail)
+- Fonts:
+  - Sofia Pro — BUD date, dose, HPLC purity, batch value (same as PeptSci dose face)
+  - Neuething Sans Medium Expanded — product name
+    (`public/fonts/labels/NeuethingSans-MediumExpanded.ttf` + embedded assets)
+- Teal accent `#28646c` on BUD day + batch + purity band

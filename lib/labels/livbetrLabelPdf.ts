@@ -1,9 +1,13 @@
 /**
  * LIVBETR white-label vial labels (OL4891LP 2.0" × 0.75").
  *
- * PeptSci-style overlays (BUD date, product name, dose in black band, batch).
- * Artwork viewBox is 130.11×47.58 — fitted into 144×54 with **uniform** scale
- * and vertical letterboxing (no X/Y stretch) so Neuething metrics stay clean.
+ * PeptSci-style overlays: BUD date, product name, dose + purity in the two-tone
+ * box, Code 128 barcode, batch on the rail. Artwork viewBox is 130.11×47.58 —
+ * fitted into 144×54 with **uniform** scale and vertical letterboxing.
+ *
+ * Typography (matches artwork CSS):
+ *   - Sofia Pro — BUD date, dose, HPLC purity, batch value
+ *   - Neuething Sans Medium Expanded — product name
  */
 
 import {
@@ -16,8 +20,10 @@ import {
   type PDFImage,
 } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
+import JsBarcode from 'jsbarcode'
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { SOFIA_PRO_REGULAR_B64 } from './embeddedAssets'
 import {
   LIVBETR_TEMPLATE_PNG_B64,
   NEUETHING_SANS_MEDIUM_EXPANDED_B64,
@@ -55,17 +61,21 @@ const DOSE_BOX_LEFT = 41.84
 const DOSE_BOX_RIGHT = 66.06
 const DOSE_BOX_BLACK_TOP = 22.17
 const DOSE_BOX_BLACK_H = 6.86
+const DOSE_BOX_TEAL_LEFT = 39.67
+const DOSE_BOX_TEAL_WIDTH = 28.38
 const DOSE_BOX_MID = 31.18
-const DOSE_SIZE = 5.4
+const DOSE_BOX_TEAL_H = 6.86
+const DOSE_SIZE = 5.79 // Sofia Pro size from artwork (.st2)
+const PURITY_SIZE = 5.79
+const PURITY_BASELINE = 37.04
 
-// BUD date after baked "BUD:" at (24.95, 4.81) — size ~3.72 label
+// BUD date after baked "BUD:" at (24.95, 4.81)
 const BUD_START_X = 37.2
 const BUD_BASELINE = 7.4
 const BUD_SIZE = 3.85
 const BUD_SIZE_DAY = 4.6
 
 // Name band: divider (~20) → just before warning column (~88)
-// Neuething Medium Expanded is wide — keep max size modest.
 const NAME_LEFT = 24
 const NAME_RIGHT = 86
 const NAME_BASELINE = 16.8
@@ -77,18 +87,29 @@ const NAME_LINE1_SIZE_MAX = 6.5
 const NAME_LINE2_SIZE_MAX = 5.5
 const NAME_LINE2_SIZE_MIN = 4.2
 
-// BATCH: baked at (129.07, 43.73) rotate(-90); value must start *above* that label.
+// Barcode well between warning column (~91–99) and BATCH rail (~126)
+const BARCODE_LEFT = 99.5
+const BARCODE_RIGHT = 122.2
+const BARCODE_TOP = 2.0
+const BARCODE_BOTTOM = 45.5
+
+// BATCH: baked at (129.07, 43.73) rotate(-90); value starts above that label.
 const BATCH_X = 126.8
-const BATCH_BOTTOM = 22.5 // start of value (SVG y); reads upward toward BATCH_TOP
+const BATCH_BOTTOM = 22.5
 const BATCH_TOP = 4
 const BATCH_SIZE_MAX = 4.0
 
+const FONT_DIR = path.join(process.cwd(), 'public', 'fonts', 'labels')
 const TEMPLATE_CANDIDATES = [
   path.join(process.cwd(), 'public', 'labels', 'clients', 'livbetr', 'livbetr-label-template.png'),
 ]
-const FONT_CANDIDATES = [
-  path.join(process.cwd(), 'public', 'fonts', 'labels', 'NeuethingSans-MediumExpanded.ttf'),
-  path.join(process.cwd(), 'public', 'fonts', 'labels', 'NeuethingSans-MediumExpanded.otf'),
+const NEUETHING_CANDIDATES = [
+  path.join(FONT_DIR, 'NeuethingSans-MediumExpanded.ttf'),
+  path.join(FONT_DIR, 'NeuethingSans-MediumExpanded.otf'),
+]
+const SOFIA_CANDIDATES = [
+  path.join(FONT_DIR, 'SofiaPro-Regular.ttf'),
+  path.join(FONT_DIR, 'SofiaPro-Regular.otf'),
 ]
 
 export type LivbetrLabelRequest = {
@@ -105,6 +126,11 @@ export type LivbetrLabelGroup = {
   req: Omit<LivbetrLabelRequest, 'quantity' | 'proofMode'>
   quantity: number
   proofMode?: boolean
+}
+
+type LivbetrFonts = {
+  name: PDFFont
+  sofia: PDFFont
 }
 
 function parseBudParts(value: string): { month: string; day: string; year: string } {
@@ -130,8 +156,8 @@ async function loadTemplateBytes(): Promise<Uint8Array> {
   return Uint8Array.from(Buffer.from(LIVBETR_TEMPLATE_PNG_B64, 'base64'))
 }
 
-async function loadFontBytes(): Promise<Uint8Array> {
-  for (const p of FONT_CANDIDATES) {
+async function loadFontBytes(candidates: string[], fallbackB64: string): Promise<Uint8Array> {
+  for (const p of candidates) {
     try {
       await access(p)
       return new Uint8Array(await readFile(p))
@@ -139,7 +165,56 @@ async function loadFontBytes(): Promise<Uint8Array> {
       /* next */
     }
   }
-  return Uint8Array.from(Buffer.from(NEUETHING_SANS_MEDIUM_EXPANDED_B64, 'base64'))
+  return Uint8Array.from(Buffer.from(fallbackB64, 'base64'))
+}
+
+// --- Code 128 barcode (vector), same approach as PeptSci -------------------------
+
+type BarcodeEncoding = { data: string }
+type BarcodeTarget = { encodings?: BarcodeEncoding[] }
+
+function getCode128Bits(value: string): string {
+  const target: BarcodeTarget = {}
+  ;(JsBarcode as unknown as (t: unknown, v: string, o: Record<string, unknown>) => void)(
+    target,
+    value,
+    { format: 'CODE128', displayValue: false, margin: 0, flat: true }
+  )
+  const encoded = target.encodings?.[0]?.data
+  if (!encoded) throw new Error('Failed to generate Code 128 barcode encoding.')
+  return encoded
+}
+
+/**
+ * 90°-rotated Code 128: bars run horizontally and stack top→bottom in the well.
+ */
+function drawBarcodeBarsVertical(
+  page: PDFPage,
+  bits: string,
+  x: number,
+  yTop: number,
+  width: number,
+  height: number
+): void {
+  const moduleHeight = height / bits.length
+  let idx = 0
+  while (idx < bits.length) {
+    if (bits[idx] !== '1') {
+      idx += 1
+      continue
+    }
+    let runEnd = idx + 1
+    while (runEnd < bits.length && bits[runEnd] === '1') runEnd += 1
+    const runHeight = (runEnd - idx) * moduleHeight
+    page.drawRectangle({
+      x,
+      y: yTop - idx * moduleHeight - runHeight,
+      width,
+      height: runHeight,
+      color: rgb(0, 0, 0),
+    })
+    idx = runEnd
+  }
 }
 
 function drawLabel(
@@ -147,13 +222,14 @@ function drawLabel(
   ox: number,
   oy: number,
   template: PDFImage,
-  font: PDFFont,
+  fonts: LivbetrFonts,
   req: Omit<LivbetrLabelRequest, 'quantity' | 'proofMode'>,
   proofMode: boolean
 ): void {
   const toX = (svgX: number) => ox + svgX * SCALE
   const toY = (svgY: number) => oy + PAD_Y + (SVG_H - svgY) * SCALE
   const sz = (svgPt: number) => svgPt * SCALE
+  const { name: nameFont, sofia } = fonts
 
   // White label stock, then artwork letterboxed (uniform scale).
   page.drawRectangle({
@@ -170,7 +246,7 @@ function drawLabel(
     height: CONTENT_H,
   })
 
-  // BUD date MM/DD/YY — day in teal (same rhythm as PeptSci indigo day)
+  // BUD date MM/DD/YY — Sofia Pro; day in teal
   const { month, day, year } = parseBudParts(req.budIsoDate)
   let cursorX = BUD_START_X
   const drawBud = (text: string, sizeSvg: number, color: ReturnType<typeof rgb>) => {
@@ -179,29 +255,29 @@ function drawLabel(
       x: toX(cursorX),
       y: toY(BUD_BASELINE),
       size,
-      font,
+      font: sofia,
       color,
     })
-    cursorX += font.widthOfTextAtSize(text, size) / SCALE
+    cursorX += sofia.widthOfTextAtSize(text, size) / SCALE
   }
   drawBud(`${month}/`, BUD_SIZE, COLOR_TEXT)
   drawBud(day, BUD_SIZE_DAY, COLOR_TEAL)
   drawBud(`/${year}`, BUD_SIZE, COLOR_TEXT)
 
-  // Product name — Expanded face needs aggressive auto-fit + hard right edge
+  // Product name — Neuething Expanded (brand face)
   const nameMaxWidth = (NAME_RIGHT - NAME_LEFT) * SCALE
   const nameCenterSvg = (NAME_LEFT + NAME_RIGHT) / 2
   const fitSize = (text: string, max: number, min: number) => {
     let sizeSvg = max
-    while (sizeSvg > min && font.widthOfTextAtSize(text, sz(sizeSvg)) > nameMaxWidth) {
+    while (sizeSvg > min && nameFont.widthOfTextAtSize(text, sz(sizeSvg)) > nameMaxWidth) {
       sizeSvg -= 0.2
     }
     return sizeSvg
   }
   const ellipsize = (text: string, sizeSvg: number) => {
-    if (font.widthOfTextAtSize(text, sz(sizeSvg)) <= nameMaxWidth) return text
+    if (nameFont.widthOfTextAtSize(text, sz(sizeSvg)) <= nameMaxWidth) return text
     let t = text
-    while (t.length > 1 && font.widthOfTextAtSize(`${t}…`, sz(sizeSvg)) > nameMaxWidth) {
+    while (t.length > 1 && nameFont.widthOfTextAtSize(`${t}…`, sz(sizeSvg)) > nameMaxWidth) {
       t = t.slice(0, -1)
     }
     return `${t.trimEnd()}…`
@@ -209,19 +285,19 @@ function drawLabel(
   const drawName = (text: string, sizeSvg: number, baseline: number) => {
     const fitted = ellipsize(text, sizeSvg)
     const size = sz(sizeSvg)
-    const w = font.widthOfTextAtSize(fitted, size)
+    const w = nameFont.widthOfTextAtSize(fitted, size)
     page.drawText(fitted, {
       x: toX(nameCenterSvg) - w / 2,
       y: toY(baseline),
       size,
-      font,
+      font: nameFont,
       color: COLOR_TEXT,
     })
   }
 
   const doseNormalized = normalizeDoseLabel(req.dose)
   const fitsOne =
-    font.widthOfTextAtSize(req.productName, sz(NAME_SIZE_MAX)) <= nameMaxWidth
+    nameFont.widthOfTextAtSize(req.productName, sz(NAME_SIZE_MAX)) <= nameMaxWidth
   const nameLines = fitsOne ? [req.productName] : splitProductNameLines(req.productName)
 
   if (nameLines.length === 2) {
@@ -233,7 +309,7 @@ function drawLabel(
     drawName(nameLines[0], fitSize(nameLines[0], NAME_SIZE_MAX, NAME_SIZE_MIN), NAME_BASELINE)
   }
 
-  // Dose centered in black band
+  // Dose centered in black band — Sofia Pro
   const doseParts = doseNormalized
     .split(/\s*\/\s*/)
     .map((p) => p.trim())
@@ -241,49 +317,78 @@ function drawLabel(
   const primaryDose = (doseParts[0] ?? doseNormalized).toUpperCase().replace(/\s+/g, '')
   const doseMaxW = (DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 2.5) * SCALE
   let doseSizeSvg = DOSE_SIZE
-  while (doseSizeSvg > 3.2 && font.widthOfTextAtSize(primaryDose, sz(doseSizeSvg)) > doseMaxW) {
+  while (doseSizeSvg > 3.2 && sofia.widthOfTextAtSize(primaryDose, sz(doseSizeSvg)) > doseMaxW) {
     doseSizeSvg -= 0.2
   }
   const doseCx = (DOSE_BOX_LEFT + DOSE_BOX_RIGHT) / 2
-  // Optical center of black band → baseline
-  const doseBaseline =
-    DOSE_BOX_BLACK_TOP + DOSE_BOX_BLACK_H * 0.72
-  const doseW = font.widthOfTextAtSize(primaryDose, sz(doseSizeSvg))
+  const doseBaseline = DOSE_BOX_BLACK_TOP + DOSE_BOX_BLACK_H * 0.72
+  const doseW = sofia.widthOfTextAtSize(primaryDose, sz(doseSizeSvg))
   page.drawText(primaryDose, {
     x: toX(doseCx) - doseW / 2,
     y: toY(doseBaseline),
     size: sz(doseSizeSvg),
-    font,
+    font: sofia,
     color: COLOR_WHITE,
   })
 
+  // Purity (HPLC) — repaint teal band + Sofia Pro so it always matches PeptSci type
+  const purityText = (req.purity || '99%HPLC').trim().toUpperCase().replace(/\s+/g, '')
+  page.drawRectangle({
+    x: toX(DOSE_BOX_TEAL_LEFT),
+    y: toY(DOSE_BOX_MID + DOSE_BOX_TEAL_H),
+    width: DOSE_BOX_TEAL_WIDTH * SCALE,
+    height: DOSE_BOX_TEAL_H * SCALE,
+    color: COLOR_TEAL,
+  })
+
   if (doseParts.length >= 2) {
+    // Blend: second dose in teal band (Sofia), purity stays out of band for now
     const secondary = doseParts[1].toUpperCase().replace(/\s+/g, '')
     let s2 = DOSE_SIZE * 0.9
-    while (s2 > 3 && font.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
-    const w2 = font.widthOfTextAtSize(secondary, sz(s2))
-    page.drawRectangle({
-      x: toX(39.67),
-      y: toY(DOSE_BOX_MID + 6.86),
-      width: 28.38 * SCALE,
-      height: 6.86 * SCALE,
-      color: COLOR_TEAL,
-    })
+    while (s2 > 3 && sofia.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
+    const w2 = sofia.widthOfTextAtSize(secondary, sz(s2))
     page.drawText(secondary, {
       x: toX(doseCx) - w2 / 2,
       y: toY(DOSE_BOX_MID + 4.8),
       size: sz(s2),
-      font,
+      font: sofia,
+      color: COLOR_WHITE,
+    })
+  } else {
+    let puritySizeSvg = PURITY_SIZE
+    while (
+      puritySizeSvg > 3.2 &&
+      sofia.widthOfTextAtSize(purityText, sz(puritySizeSvg)) > doseMaxW
+    ) {
+      puritySizeSvg -= 0.2
+    }
+    const purityW = sofia.widthOfTextAtSize(purityText, sz(puritySizeSvg))
+    page.drawText(purityText, {
+      x: toX(doseCx) - purityW / 2,
+      y: toY(PURITY_BASELINE),
+      size: sz(puritySizeSvg),
+      font: sofia,
       color: COLOR_WHITE,
     })
   }
 
-  // Batch value above baked BATCH:
+  // Code 128 barcode (rotated vertical bars) from batch number
+  const bits = getCode128Bits(req.batchNumber)
+  drawBarcodeBarsVertical(
+    page,
+    bits,
+    toX(BARCODE_LEFT),
+    toY(BARCODE_TOP),
+    (BARCODE_RIGHT - BARCODE_LEFT) * SCALE,
+    (BARCODE_BOTTOM - BARCODE_TOP) * SCALE
+  )
+
+  // Batch value above baked BATCH: — Sofia Pro, teal
   const batchAvail = (BATCH_BOTTOM - BATCH_TOP) * SCALE
   let batchSizeSvg = BATCH_SIZE_MAX
   while (
     batchSizeSvg > 2.8 &&
-    font.widthOfTextAtSize(req.batchNumber, sz(batchSizeSvg)) > batchAvail
+    sofia.widthOfTextAtSize(req.batchNumber, sz(batchSizeSvg)) > batchAvail
   ) {
     batchSizeSvg -= 0.15
   }
@@ -291,7 +396,7 @@ function drawLabel(
     x: toX(BATCH_X),
     y: toY(BATCH_BOTTOM),
     size: sz(batchSizeSvg),
-    font,
+    font: sofia,
     color: COLOR_TEAL,
     rotate: degrees(90),
   })
@@ -313,12 +418,27 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
   doc.registerFontkit(fontkit)
 
   const template = await doc.embedPng(await loadTemplateBytes())
-  let font: PDFFont
+
+  let nameFont: PDFFont
   try {
-    font = await doc.embedFont(await loadFontBytes(), { subset: true })
+    nameFont = await doc.embedFont(
+      await loadFontBytes(NEUETHING_CANDIDATES, NEUETHING_SANS_MEDIUM_EXPANDED_B64),
+      { subset: true }
+    )
   } catch {
-    font = await doc.embedFont(StandardFonts.Helvetica)
+    nameFont = await doc.embedFont(StandardFonts.Helvetica)
   }
+
+  let sofia: PDFFont
+  try {
+    sofia = await doc.embedFont(await loadFontBytes(SOFIA_CANDIDATES, SOFIA_PRO_REGULAR_B64), {
+      subset: true,
+    })
+  } catch {
+    sofia = await doc.embedFont(StandardFonts.Helvetica)
+  }
+
+  const fonts: LivbetrFonts = { name: nameFont, sofia }
 
   let drew = false
   for (const group of groups) {
@@ -334,7 +454,7 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
         const x = LEFT_MARGIN + col * H_PITCH
         const top = SHEET_HEIGHT - TOP_MARGIN - row * V_PITCH
         const y = top - LABEL_HEIGHT
-        drawLabel(page, x, y, template, font, group.req, proofMode)
+        drawLabel(page, x, y, template, fonts, group.req, proofMode)
       }
       drew = true
     }
