@@ -40,6 +40,7 @@ import {
   CheckCircle2,
   Plus,
   CreditCard,
+  Package,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -67,7 +68,15 @@ type InvoiceView = {
     paymentTermsDays: number
     notes: string | null
     client: { id: string; organizationName: string; contactEmail: string | null } | null
-    lineItems: { id: string; description: string; quantity: number; unitPrice: string; amount: string }[]
+    lineItems: {
+      id: string
+      description: string
+      quantity: number
+      unitPrice: string
+      amount: string
+      orderId?: string | null
+      variantId?: string | null
+    }[]
     adjustments: { id: string; kind: string; amount: string | null; percent: string | null; reason: string }[]
     payments: { id: string; amount: string; method: string | null; reference: string | null; paidAt: string }[]
   }
@@ -143,6 +152,13 @@ export default function InvoiceDetailPage() {
   const { invoice, totals } = view
   const isVoid = invoice.status === 'VOID'
   const isDraft = invoice.status === 'DRAFT'
+  const productLines = invoice.lineItems.filter((l) => !l.description.startsWith('Order #'))
+  const fulfillmentOrderId =
+    productLines.find((l) => l.orderId)?.orderId ??
+    invoice.lineItems.find((l) => l.variantId && l.orderId)?.orderId ??
+    null
+  const canQueueFulfillment =
+    invoice.status === 'PAID' && productLines.length > 0 && !fulfillmentOrderId
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -253,6 +269,37 @@ export default function InvoiceDetailPage() {
           {!isVoid && invoice.status !== 'PAID' && (
             <Button size="sm" onClick={() => setPayOpen(true)}>
               <CreditCard className="mr-2 h-4 w-4" /> Record Payment
+            </Button>
+          )}
+          {canQueueFulfillment && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy === 'queue'}
+              onClick={() =>
+                action(
+                  () =>
+                    fetch(`/api/admin/invoices/${id}/queue-fulfillment`, {
+                      method: 'POST',
+                    }),
+                  'queue',
+                  'Queued for fulfillment — stock held'
+                )
+              }
+            >
+              {busy === 'queue' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Package className="mr-2 h-4 w-4" />
+              )}
+              Queue fulfillment
+            </Button>
+          )}
+          {fulfillmentOrderId && invoice.status === 'PAID' && (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/fulfillment?search=${encodeURIComponent(fulfillmentOrderId)}`}>
+                <Package className="mr-2 h-4 w-4" /> View in Fulfillment
+              </Link>
             </Button>
           )}
           {!isVoid && (
