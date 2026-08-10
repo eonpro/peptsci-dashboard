@@ -1,6 +1,6 @@
 /**
- * Rasterize LIVBETR empty SVG → template PNG with Neuething Sans embedded
- * so baked static type (RUO, warning, BUD:, BATCH:) matches the uploaded face.
+ * Rasterize LIVBETR empty SVG → template PNG.
+ * Static type is mostly outlined; RUO remains live Neuething text.
  *
  * Run: npx tsx scripts/build-livbetr-template.ts
  */
@@ -17,21 +17,14 @@ let svg = readFileSync(SRC, 'utf8')
 if (!svg.includes('id="label-bg"')) {
   svg = svg.replace(
     /<\/defs>/,
-    `</defs>\n  <rect id="label-bg" x="0" y="0" width="130.11" height="47.58" fill="#ffffff"/>`
+    `</defs>\n  <rect id="label-bg" x="0" y="0" width="129.1" height="47.27" fill="#ffffff"/>`
   )
 }
-// Point CSS families at PostScript names resvg resolves from fontFiles.
 svg = svg.replaceAll(
   "NeuethingSans-MediumExpanded, 'Neuething Sans'",
   'NeuethingSans-MediumExpanded'
 )
 svg = svg.replaceAll("SofiaPro-Regular, 'Sofia Pro'", 'SofiaPro-Regular')
-// Artwork specifies Roboto Condensed for BATCH:; keep Neuething (uploaded brand
-// face) so we never bake a substitute system font.
-svg = svg.replaceAll(
-  "RobotoCondensed-Regular, 'Roboto Condensed'",
-  'NeuethingSans-MediumExpanded'
-)
 
 const resvg = new Resvg(svg, {
   fitTo: { mode: 'zoom', value: 20 },

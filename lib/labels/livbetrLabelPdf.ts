@@ -1,16 +1,16 @@
 /**
  * LIVBETR white-label vial labels (OL4891LP 2.0" × 0.75").
  *
- * PeptSci-style overlays: BUD date, product name, dose + purity in the two-tone
- * box, Code 128 barcode, batch on the rail. Artwork viewBox is 130.11×47.58 —
- * fitted into 144×54 with **uniform** scale and vertical letterboxing.
+ * PeptSci-style overlays: BUD date, product name, dose in black band, Code 128
+ * barcode, batch on the rail. Artwork viewBox is 129.1×47.27 — fitted into
+ * 144×54 with **uniform** scale and vertical letterboxing.
  *
  * Typography:
  *   - Sofia Pro Regular — BUD date, batch value
- *   - Sofia Pro SemiBold — dose (mg) + HPLC (same weight as PeptSci dose)
- *   - Neuething Sans Medium Expanded — product name only
- * Static baked type (BUD:, RUO, PROVIDER USE ONLY…, BATCH:) stays on the
- * uploaded Neuething face in the template PNG — never re-drawn here.
+ *   - Sofia Pro SemiBold — dose (mg); HPLC is outlined in the template
+ *   - Neuething Sans Medium Expanded — product name; RUO live text in template
+ * Static outlined art (BUD:, PROVIDER USE ONLY…, BATCH:, 99%HPLC) is never
+ * re-drawn — only dynamic overlays are painted here.
  */
 
 import {
@@ -49,8 +49,8 @@ const H_PITCH = 2.125 * PT_PER_INCH
 const V_PITCH = 0.875 * PT_PER_INCH
 
 /** Native SVG artwork size (livbetr-label-empty.svg). */
-const SVG_W = 130.11
-const SVG_H = 47.58
+const SVG_W = 129.1
+const SVG_H = 47.27
 /** Fit width; letterbox vertically so type isn't anamorphically stretched. */
 const SCALE = LABEL_WIDTH / SVG_W
 const CONTENT_H = SVG_H * SCALE
@@ -60,50 +60,46 @@ const COLOR_TEXT = rgb(0x23 / 255, 0x1f / 255, 0x20 / 255)
 const COLOR_WHITE = rgb(1, 1, 1)
 const COLOR_TEAL = rgb(0x28 / 255, 0x64 / 255, 0x6c / 255)
 
-// Dose box (SVG units)
+// Dose box (SVG units) — black top / teal bottom from empty artwork
 const DOSE_BOX_LEFT = 41.84
 const DOSE_BOX_RIGHT = 66.06
-const DOSE_BOX_BLACK_TOP = 22.17
+const DOSE_BOX_BLACK_TOP = 21.9
 const DOSE_BOX_BLACK_H = 6.86
 const DOSE_BOX_TEAL_LEFT = 39.67
 const DOSE_BOX_TEAL_WIDTH = 28.38
-const DOSE_BOX_MID = 31.18
+const DOSE_BOX_MID = 30.91
 const DOSE_BOX_TEAL_H = 6.86
-const DOSE_SIZE = 5.79 // Sofia Pro size from artwork (.st2)
-const PURITY_SIZE = 5.79
+const DOSE_SIZE = 5.79
 
-// BUD date continues baked "BUD:" at (24.95, 4.81) size 3.72 — same optical line.
-// Neuething "BUD:" ends ~35.4; small gap then Sofia date. Sofia metrics sit slightly
-// lower than Neuething at the same baseline, so we pull the date up a hair.
-const BUD_START_X = 36.9
-const BUD_BASELINE = 4.88
-const BUD_BASELINE_DAY = 5.3
+// BUD: outlined glyphs span ~x[25.2,35.0] y[1.6,4.3] — date continues to the right
+const BUD_START_X = 36.2
+const BUD_BASELINE = 4.15
+const BUD_BASELINE_DAY = 4.55
 const BUD_SIZE = 3.85
 const BUD_SIZE_DAY = 4.6
 
-// Name band: divider (~20) → just before warning column (~88)
+// Name band: divider (~19) → just before warning column (~88)
 const NAME_LEFT = 24
-const NAME_RIGHT = 86
-const NAME_BASELINE = 16.8
+const NAME_RIGHT = 85
+const NAME_BASELINE = 16.5
 const NAME_SIZE_MAX = 7.2
 const NAME_SIZE_MIN = 4.8
-const NAME_LINE1_BASELINE = 14.2
-const NAME_LINE2_BASELINE = 19.6
+const NAME_LINE1_BASELINE = 13.9
+const NAME_LINE2_BASELINE = 19.3
 const NAME_LINE1_SIZE_MAX = 6.5
 const NAME_LINE2_SIZE_MAX = 5.5
 const NAME_LINE2_SIZE_MIN = 4.2
 
-// Barcode well between warning column (~91–99) and BATCH rail (~126)
-const BARCODE_LEFT = 99.5
-const BARCODE_RIGHT = 122.2
-const BARCODE_TOP = 2.0
-const BARCODE_BOTTOM = 45.5
+// Barcode well between warning outlines (~88–99) and BATCH rail (~126)
+const BARCODE_LEFT = 100.0
+const BARCODE_RIGHT = 124.0
+const BARCODE_TOP = 1.8
+const BARCODE_BOTTOM = 45.3
 
-// BATCH: baked at (129.07, 43.73) rotate(-90) scale(1.22,1) — share that baseline X
-// so the value is centered on the same rail as "BATCH:".
-const BATCH_X = 129.07
-const BATCH_BOTTOM = 22.5 // just above top of baked "BATCH:" run
-const BATCH_TOP = 4
+// BATCH: outlined glyphs span ~x[126.3,129.1] y[31.2,41.9] — value above, same rail
+const BATCH_X = 127.7
+const BATCH_BOTTOM = 30.0
+const BATCH_TOP = 3.5
 const BATCH_SIZE_MAX = 4.0
 
 const FONT_DIR = path.join(process.cwd(), 'public', 'fonts', 'labels')
@@ -355,43 +351,23 @@ function drawLabel(
     color: COLOR_WHITE,
   })
 
-  // Purity (HPLC) — cover baked glyphs + Sofia SemiBold (warning column untouched)
-  const purityText = (req.purity || '99%HPLC').trim().toUpperCase().replace(/\s+/g, '')
-  page.drawRectangle({
-    x: toX(DOSE_BOX_TEAL_LEFT),
-    y: toY(DOSE_BOX_MID + DOSE_BOX_TEAL_H),
-    width: DOSE_BOX_TEAL_WIDTH * SCALE,
-    height: DOSE_BOX_TEAL_H * SCALE,
-    color: COLOR_TEAL,
-  })
-
+  // HPLC is outlined in the teal band — leave it. Only cover for blend doses.
   if (doseParts.length >= 2) {
     const secondary = doseParts[1].toUpperCase().replace(/\s+/g, '')
     let s2 = DOSE_SIZE * 0.9
     while (s2 > 3 && sofiaBold.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
     const w2 = sofiaBold.widthOfTextAtSize(secondary, sz(s2))
+    page.drawRectangle({
+      x: toX(DOSE_BOX_TEAL_LEFT),
+      y: toY(DOSE_BOX_MID + DOSE_BOX_TEAL_H),
+      width: DOSE_BOX_TEAL_WIDTH * SCALE,
+      height: DOSE_BOX_TEAL_H * SCALE,
+      color: COLOR_TEAL,
+    })
     page.drawText(secondary, {
       x: toX(doseCx) - w2 / 2,
       y: toY(DOSE_BOX_MID + DOSE_BOX_TEAL_H / 2 + s2 * 0.35),
       size: sz(s2),
-      font: sofiaBold,
-      color: COLOR_WHITE,
-    })
-  } else {
-    let puritySizeSvg = PURITY_SIZE
-    while (
-      puritySizeSvg > 3.2 &&
-      sofiaBold.widthOfTextAtSize(purityText, sz(puritySizeSvg)) > doseMaxW
-    ) {
-      puritySizeSvg -= 0.2
-    }
-    const purityW = sofiaBold.widthOfTextAtSize(purityText, sz(puritySizeSvg))
-    const purityBaseline =
-      DOSE_BOX_MID + DOSE_BOX_TEAL_H / 2 + puritySizeSvg * 0.35
-    page.drawText(purityText, {
-      x: toX(doseCx) - purityW / 2,
-      y: toY(purityBaseline),
-      size: sz(puritySizeSvg),
       font: sofiaBold,
       color: COLOR_WHITE,
     })

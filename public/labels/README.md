@@ -82,14 +82,13 @@ embedded in `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
 
 ### LIVBETR (`livbetr`)
 
-- Source SVG: `clients/livbetr/livbetr-label-empty.svg` (viewBox 130.11×47.58)
+- Source SVG: `clients/livbetr/livbetr-label-empty.svg` (viewBox 129.1×47.27)
 - Raster template: `clients/livbetr/livbetr-label-template.png`
 - Engine: `lib/labels/livbetrLabelPdf.ts` — **PeptSci overlay family** (BUD date,
-  product name, dose + HPLC in two-tone box, Code 128 barcode, batch on rail)
+  product name, dose in black band, Code 128 barcode, batch on rail)
 - Fonts:
   - Sofia Pro Regular — BUD date, batch value
-  - Sofia Pro SemiBold — dose (mg) + HPLC (PeptSci dose weight)
-  - Neuething Sans Medium Expanded — product name; also baked static type
-    (`BUD:`, RUO, PROVIDER USE ONLY…, `BATCH:`) in the template PNG
-    (`public/fonts/labels/NeuethingSans-MediumExpanded.ttf` + embedded assets)
+  - Sofia Pro SemiBold — dose (mg)
+  - Neuething Sans Medium Expanded — product name; RUO live text in template
+  - Outlined in artwork (do not re-draw): `BUD:`, PROVIDER USE ONLY…, `BATCH:`, `99%HPLC`
 - Teal accent `#28646c` on BUD day + batch + purity band
