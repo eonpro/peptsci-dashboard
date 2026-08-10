@@ -31,6 +31,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/health',
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
+  '/api/webhooks/shopify(.*)',
   '/api/storefront(.*)',
   // Vercel Cron endpoints authenticate via CRON_SECRET inside each route
   // (lib/cron/auth.ts), not a Clerk session.
