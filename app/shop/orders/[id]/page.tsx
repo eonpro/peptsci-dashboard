@@ -24,6 +24,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { BuyAgainButton } from '@/components/shop/BuyAgainButton'
+import { ProductVial } from '@/components/shop/ProductVial'
 import { RequestReturnDialog } from '@/components/shop/RequestReturnDialog'
 
 type OrderItem = {
@@ -332,8 +333,11 @@ export default function OrderDetailPage() {
               <div className="space-y-4">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                    <div className="h-16 w-16 rounded-xl bg-linear-to-br from-indigo-500/25 to-purple-500/25 flex items-center justify-center shrink-0">
-                      <span className="text-xl font-bold text-indigo-200">{item.name.charAt(0)}</span>
+                    <div className="flex h-20 w-16 shrink-0 items-center justify-center">
+                      <ProductVial
+                        product={{ name: item.name, dose: item.dose ?? '' }}
+                        className="h-full drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-white">{item.name}</p>

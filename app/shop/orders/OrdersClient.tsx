@@ -24,6 +24,7 @@ import {
   ShoppingBag,
 } from 'lucide-react'
 import { BuyAgainButton } from '@/components/shop/BuyAgainButton'
+import { ProductVial } from '@/components/shop/ProductVial'
 import type { ShopOrder } from '@/lib/shop-orders'
 
 type StatusBucket = 'processing' | 'shipped' | 'delivered' | 'cancelled'
@@ -155,8 +156,11 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                     <div className="space-y-3">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-4">
-                          <div className="h-14 w-14 rounded-lg bg-linear-to-br from-indigo-500/25 to-purple-500/25 flex items-center justify-center shrink-0">
-                            <span className="text-lg font-bold text-indigo-200">{item.name.charAt(0)}</span>
+                          <div className="flex h-16 w-14 shrink-0 items-center justify-center">
+                            <ProductVial
+                              product={{ name: item.name, dose: item.dose ?? '' }}
+                              className="h-full drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-white">{item.name}</p>

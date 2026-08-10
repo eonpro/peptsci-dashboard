@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { ShopProduct } from '@/lib/types/shop'
+import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
 
 /**
  * ProductVial — renders the photoreal blank vial with a dynamically generated
@@ -20,13 +20,20 @@ export interface VialCompound {
   dose: string
 }
 
+/**
+ * Minimal product shape for labeled vial art — full ShopProduct works, but
+ * order/cart line items only need name + dose.
+ */
+export type VialProductInput = Pick<ShopProduct, 'name'> &
+  Partial<Pick<ShopProduct, 'dose' | 'milligrams' | 'compounds'>>
+
 /** Split a blend product into its component peptides (best effort). */
-export function getCompoundParts(product: ShopProduct): VialCompound[] {
+export function getCompoundParts(product: VialProductInput): VialCompound[] {
   if (product.compounds && product.compounds.length >= 2) {
-    return product.compounds.map((c) => ({ name: c.name, dose: c.amount || '' }))
+    return product.compounds.map((c: CompoundInfo) => ({ name: c.name, dose: c.amount || '' }))
   }
 
-  const looksLikeBlend = /blend|[/+]/i.test(product.name)
+  const looksLikeBlend = /blend|[/+]|\sand\s/i.test(product.name)
   if (looksLikeBlend) {
     const names = product.name
       .replace(/blend/gi, '')
@@ -74,7 +81,7 @@ function splitNameModifier(name: string): [string, string | null] {
 const CLIP = 'overflow-hidden whitespace-nowrap text-clip'
 
 interface ProductVialProps {
-  product: ShopProduct
+  product: VialProductInput
   className?: string
 }
 

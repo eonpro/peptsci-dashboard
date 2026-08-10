@@ -1,3 +1,35 @@
+# Order line item vial thumbnails  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+My Orders (`/shop/orders`) showed letter placeholders for each line item. Catalog cards already use `ProductVial` (blank vial + generated label); order list/detail should match.
+
+## Key Challenges and Analysis
+1. Order items only carry `name` / `dose` / `sku` — not full `ShopProduct`.
+2. `ProductVial` previously required full `ShopProduct`; widened to `VialProductInput`.
+3. Blend names like "BPC-157 and TB-500" needed "and" in blend detection for label split.
+
+## High-level Task Breakdown
+1. [x] Widen `ProductVial` / `getCompoundParts` to minimal name+dose input
+2. [x] Fix blend detection for "and" product names
+3. [x] Wire vial thumbs on My Orders list + order detail
+4. [x] Unit tests for `getCompoundParts`
+5. [ ] Deploy / verify on peptsci.com
+
+## Project Status Board
+- [x] ProductVial minimal input
+- [x] OrdersClient + order detail UI
+- [x] Tests
+- [ ] Deploy
+
+## Executor's Feedback or Assistance Requests
+Owner: refresh `/shop/orders` — each line should show a labeled vial (same art as catalog), not a letter tile.
+
+## Lessons
+- Order/cart UIs can reuse `ProductVial` with `{ name, dose }` only; no catalog fetch required.
+- `getCompoundParts` blend gate must include `\sand\s`, not only `/` and `+`.
+
+---
+
 # Order ship-to on Fulfillment + Client from order  [PLANNER — 2026-08-10]
 
 ## Background and Motivation
