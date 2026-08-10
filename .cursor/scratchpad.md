@@ -1,33 +1,38 @@
-# Platform invoice pay → internal Order ID + inventory  [EXECUTOR — 2026-08-10]
+# Platform invoice pay → Order + inventory hold  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation
-LIVBETR INV-00001 showed Stripe `pi_…` as Order ID. Product-only platform invoices must mint an internal Order (`#N`) on PAID.
+LIVBETR INV-00001 paid via platform invoice but never hit Fulfillment (no Order). Owner wants pay → hold stock; ship → deduct.
+
+## Why it wasn’t queued
+Fulfillment only lists **Orders**. Product-only invoices wrote AR lines only — no Order, no reserve. The “41 From Stripe” banner is a separate external-Stripe convert queue.
 
 ## What shipped
-1. `InvoiceLineItem.variantId` (+ migration) — admin product picker persists catalog link
-2. `fulfillPlatformInvoiceProducts` — on PAID: create CAPTURED Order, reserve stock, sync SalesRecord as `#N`, adopt orphan `pi_` SalesRecord
-3. Wired from `recordPayment`; skip Stripe ingest for platform invoice PIs
-4. `POST /api/admin/invoices/[id]/fulfill-order` repair endpoint (description→variant match for pre-column invoices)
-5. stripe-convert also sets `orderRef` to `#N`
+1. `InvoiceLineItem.variantId` (+ migration)
+2. New invoice UI/API persist `variantId`
+3. `fulfillPlatformInvoiceProducts` on PAID → CAPTURED Order + reserve + `#N` SalesRecord
+4. Description→SKU backfill for pre-variantId invoices
+5. Invoice detail **Queue fulfillment** → `POST .../queue-fulfillment`
+6. Skip Stripe sales-ingest for platform invoice PIs
 
 ## Success criteria
-- [x] New product invoices after charge → `#orderNumber` on Recent Orders
-- [ ] Run admin DB migrate for `variantId` column
-- [ ] Repair INV-00001 via fulfill-order (or Convert Stripe if lines unmatched)
-- [ ] Owner verify dashboard + inventory reserve
+- [x] New paid product invoices → Order in Needs Label, stock on hold
+- [x] INV-00001 repairable via Queue fulfillment
+- [ ] Deploy + admin migrate (`variantId`)
+- [ ] Owner: INV-00001 → Queue fulfillment → confirm Fulfillment + inventory
 
 ## Project Status Board
-- [x] Schema + fulfill path + UI/API variantId
-- [x] Tests (`fulfillProducts.test.ts` 5/5)
-- [ ] Commit + push main
-- [ ] Deploy + migrate + repair INV-00001
+- [x] Code + tests
+- [x] Migrate runner: ignore unique-index 23505; drop historical NPI unique CREATE
+- [ ] Commit / push / deploy
+- [ ] Re-run migrate (`variantId`) + repair INV-00001
 
 ## Executor's Feedback or Assistance Requests
-After Vercel READY: POST `/api/admin/db/migrate` then POST `/api/admin/invoices/{id}/fulfill-order` for INV-00001.
+Migrate failed on old `Client_npiNumber_key` (dup NPIs → 23505) and aborted before `variantId`. Fixed in runner + historical SQL. **Deploy this, then re-run migrate**, then INV-00001 → Queue fulfillment.
 
 ## Lessons
-- Never use Stripe PI as analytics orderRef for platform invoices.
-- Admin migrate runner cannot run `DO $$` blocks — plain ALTER only.
+- Fulfillment is Order-centric; invoice lines alone never appear in Needs Label.
+- Admin migrate re-applies all history; unique indexes later dropped will 23505 on dups unless ignorable.
+- Postgres short unique-index errors often omit the word "duplicate".
 
 ---
 

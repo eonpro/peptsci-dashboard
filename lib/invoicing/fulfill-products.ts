@@ -190,7 +190,9 @@ export async function fulfillPlatformInvoiceProducts(
       select: { id: true, orderNumber: true },
     })
     if (existingOrder) {
-      const linkable = invoice.lineItems.find((l) => !l.orderId)
+      const linkable =
+        invoice.lineItems.find((l) => !l.orderId && !l.description.startsWith('Order #')) ??
+        invoice.lineItems.find((l) => !l.orderId)
       if (linkable) {
         await prisma.invoiceLineItem
           .update({ where: { id: linkable.id }, data: { orderId: existingOrder.id } })

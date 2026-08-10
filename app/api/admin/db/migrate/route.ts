@@ -27,10 +27,10 @@ export const runtime = 'nodejs'
  *  - SUPER_ADMIN only.
  *  - POST requires an explicit { confirm: true } body.
  *  - Statements that fail with "already exists" / "does not exist" / "duplicate"
- *    are treated as no-ops, so the run is idempotent and safe to repeat. Every
- *    other failure aborts and is reported (statements run individually, not in a
- *    single transaction, because Postgres aborts a whole transaction on any
- *    error even when caught).
+ *    / unique-index 23505 are treated as no-ops, so the run is idempotent and
+ *    safe to repeat. Every other failure aborts and is reported (statements run
+ *    individually, not in a single transaction, because Postgres aborts a whole
+ *    transaction on any error even when caught).
  */
 
 const MIGRATIONS_DIR = path.join(process.cwd(), 'prisma', 'migrations')
@@ -45,7 +45,13 @@ function isIgnorableDdlError(message: string): boolean {
   return (
     m.includes('already exists') ||
     m.includes('does not exist') ||
-    m.includes('duplicate')
+    m.includes('duplicate') ||
+    // Re-running CREATE UNIQUE INDEX after duplicates exist (or after a later
+    // migration dropped uniqueness) — Postgres 23505 often omits the word
+    // "duplicate" from the short Prisma-wrapped message.
+    m.includes('23505') ||
+    m.includes('could not create unique index') ||
+    m.includes('unique constraint')
   )
 }
 
@@ -131,6 +137,7 @@ interface SchemaProbe {
   distributorLineReceivedQtyColumn: boolean
   clientShippingRateTwoDayColumn: boolean
   clientShippingRateOvernightColumn: boolean
+  invoiceLineItemVariantIdColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -178,7 +185,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'DistributorOrderLine' AND column_name = 'sku')
         OR (table_name = 'DistributorOrderLine' AND column_name = 'receivedQty')
         OR (table_name = 'Client' AND column_name = 'shippingRateTwoDay')
-        OR (table_name = 'Client' AND column_name = 'shippingRateOvernight'))
+        OR (table_name = 'Client' AND column_name = 'shippingRateOvernight')
+        OR (table_name = 'InvoiceLineItem' AND column_name = 'variantId'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -256,6 +264,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     distributorLineReceivedQtyColumn: colKeys.has('DistributorOrderLine.receivedQty'),
     clientShippingRateTwoDayColumn: colKeys.has('Client.shippingRateTwoDay'),
     clientShippingRateOvernightColumn: colKeys.has('Client.shippingRateOvernight'),
+    invoiceLineItemVariantIdColumn: colKeys.has('InvoiceLineItem.variantId'),
   }
 }
 

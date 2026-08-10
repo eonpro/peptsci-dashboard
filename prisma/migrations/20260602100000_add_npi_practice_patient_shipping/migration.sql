@@ -34,8 +34,10 @@ CREATE TABLE "Patient" (
 -- CreateIndex
 CREATE INDEX "Patient_clientId_idx" ON "Patient"("clientId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "Client_npiNumber_key" ON "Client"("npiNumber");
+-- NOTE: Do NOT create unique Client_npiNumber_key here. Prod allows the same
+-- NPI on multiple practices (see 20260809200000_client_npi_non_unique). The
+-- admin migrate runner re-applies historical SQL; a unique index fails with
+-- 23505 when duplicates exist and would abort the whole run.
 
 -- AddForeignKey
 ALTER TABLE "Patient" ADD CONSTRAINT "Patient_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
