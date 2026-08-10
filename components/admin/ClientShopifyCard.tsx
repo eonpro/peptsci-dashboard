@@ -90,6 +90,8 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [inbounds, setInbounds] = useState<InboundOrder[]>([])
   const [lineDrafts, setLineDrafts] = useState<Record<string, string>>({})
+  const [pullOrderName, setPullOrderName] = useState('')
+  const [pulling, setPulling] = useState(false)
 
   const loadConnection = useCallback(async () => {
     try {
@@ -315,6 +317,50 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
     toast.success('Webhook URL copied')
   }
 
+  const pullOrders = async (opts?: { orderName?: string; sinceDays?: number }) => {
+    setPulling(true)
+    try {
+      const body: { orderName?: string; sinceDays?: number } = {}
+      if (opts?.orderName?.trim()) body.orderName = opts.orderName.trim()
+      else if (opts?.sinceDays) body.sinceDays = opts.sinceDays
+      else body.sinceDays = 3
+
+      const res = await fetch(`/api/admin/clients/${clientId}/shopify/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || data.error || 'Pull failed')
+
+      const results = (data.results ?? []) as Array<{
+        shopifyOrderName: string
+        ingest: { status: string; message?: string; reason?: string }
+      }>
+      const processed = results.filter((r) => r.ingest.status === 'processed').length
+      const needsMap = results.filter((r) => r.ingest.status === 'needs_mapping').length
+      const dupes = results.filter((r) => r.ingest.status === 'duplicate').length
+      const errors = results.filter((r) => r.ingest.status === 'error')
+
+      if (results.length === 0) {
+        toast.message('No paid Shopify orders found in that window')
+      } else {
+        toast.success(
+          `Pulled ${results.length}: ${processed} queued, ${needsMap} need mapping, ${dupes} already synced`
+        )
+      }
+      if (errors.length) {
+        toast.error(errors[0]?.ingest.message || 'Some orders failed to ingest')
+      }
+      await loadInbounds()
+      await loadConnection()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Pull failed')
+    } finally {
+      setPulling(false)
+    }
+  }
+
   const mappedCount = useMemo(
     () => Object.values(draftMaps).filter(Boolean).length,
     [draftMaps]
@@ -441,6 +487,44 @@ export function ClientShopifyCard({ clientId }: { clientId: string }) {
             </Button>
           )}
         </div>
+
+        {connection && connection.status === 'ACTIVE' && (
+          <div className="space-y-3 border-t border-white/10 pt-6">
+            <div>
+              <h3 className="text-sm font-medium text-white">Pull missed orders</h3>
+              <p className="text-xs text-white/50">
+                If a paid Shopify order never hit the webhook (e.g. before public-route fix), pull it
+                from Shopify Admin API into PeptSci for invoice → charge → fulfillment.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label className={labelClass}>Order name (optional)</Label>
+                <Input
+                  className={`${inputClass} w-36`}
+                  placeholder="#1042"
+                  value={pullOrderName}
+                  onChange={(e) => setPullOrderName(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || pulling}
+                onClick={() =>
+                  pullOrders(
+                    pullOrderName.trim()
+                      ? { orderName: pullOrderName }
+                      : { sinceDays: 3 }
+                  )
+                }
+              >
+                {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {pullOrderName.trim() ? 'Pull this order' : 'Pull last 3 days'}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {connection && (
           <div className="space-y-4 border-t border-white/10 pt-6">

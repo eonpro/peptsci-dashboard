@@ -276,3 +276,131 @@ export async function updateShopifyFulfillmentTracking(
   })
   return { userErrors: data.fulfillmentTrackingInfoUpdate?.userErrors ?? [] }
 }
+
+const ORDERS_QUERY = `#graphql
+  query PaidOrders($query: String!, $cursor: String) {
+    orders(first: 25, after: $cursor, query: $query, sortKey: CREATED_AT, reverse: true) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        name
+        email
+        phone
+        note
+        cancelledAt
+        displayFinancialStatus
+        shippingAddress {
+          firstName
+          lastName
+          name
+          company
+          address1
+          address2
+          city
+          province
+          provinceCode
+          zip
+          country
+          countryCodeV2
+          phone
+        }
+        billingAddress {
+          firstName
+          lastName
+          name
+          company
+          address1
+          address2
+          city
+          province
+          provinceCode
+          zip
+          country
+          countryCodeV2
+          phone
+        }
+        shippingLine { title code }
+        lineItems(first: 50) {
+          nodes {
+            title
+            name
+            quantity
+            sku
+            requiresShipping
+            variant { id sku title }
+          }
+        }
+        fulfillmentOrders(first: 5) {
+          nodes { id status }
+        }
+      }
+    }
+  }
+`
+
+export type ShopifyGraphqlOrderNode = {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  note: string | null
+  cancelledAt: string | null
+  displayFinancialStatus: string | null
+  shippingAddress: {
+    firstName?: string | null
+    lastName?: string | null
+    name?: string | null
+    company?: string | null
+    address1?: string | null
+    address2?: string | null
+    city?: string | null
+    province?: string | null
+    provinceCode?: string | null
+    zip?: string | null
+    country?: string | null
+    countryCodeV2?: string | null
+    phone?: string | null
+  } | null
+  billingAddress: ShopifyGraphqlOrderNode['shippingAddress']
+  shippingLine: { title: string | null; code: string | null } | null
+  lineItems: {
+    nodes: Array<{
+      title: string | null
+      name: string | null
+      quantity: number
+      sku: string | null
+      requiresShipping: boolean
+      variant: { id: string; sku: string | null; title: string | null } | null
+    }>
+  }
+  fulfillmentOrders: { nodes: Array<{ id: string; status: string }> }
+}
+
+/** Fetch paid Shopify orders matching a search query (Shopify order search syntax). */
+export async function listShopifyOrders(
+  config: ShopifyGraphqlClientConfig,
+  opts: { query: string; maxPages?: number } = { query: 'financial_status:paid' }
+): Promise<ShopifyGraphqlOrderNode[]> {
+  const maxPages = opts.maxPages ?? 4
+  const out: ShopifyGraphqlOrderNode[] = []
+  let cursor: string | null = null
+  for (let page = 0; page < maxPages; page++) {
+    type Page = {
+      orders: {
+        pageInfo: { hasNextPage: boolean; endCursor: string | null }
+        nodes: ShopifyGraphqlOrderNode[]
+      }
+    }
+    const data: Page = await shopifyGraphql<Page>(
+      config,
+      ORDERS_QUERY,
+      cursor ? { query: opts.query, cursor } : { query: opts.query }
+    )
+    out.push(...(data.orders?.nodes ?? []))
+    if (!data.orders?.pageInfo?.hasNextPage) break
+    cursor = data.orders.pageInfo.endCursor
+    if (!cursor) break
+  }
+  return out
+}
+
