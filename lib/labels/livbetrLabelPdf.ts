@@ -1,10 +1,9 @@
 /**
  * LIVBETR white-label vial labels (OL4891LP 2.0" × 0.75").
  *
- * Same overlay family as PeptSci (BUD date, product name, dose in black band,
- * batch on the right rail). Artwork viewBox is 130.11×47.58 — stretched to the
- * full 144×54 label; overlay coords are SVG units scaled accordingly.
- * Dynamic typeface: Neuething Sans Medium Expanded.
+ * PeptSci-style overlays (BUD date, product name, dose in black band, batch).
+ * Artwork viewBox is 130.11×47.58 — fitted into 144×54 with **uniform** scale
+ * and vertical letterboxing (no X/Y stretch) so Neuething metrics stay clean.
  */
 
 import {
@@ -42,43 +41,47 @@ const V_PITCH = 0.875 * PT_PER_INCH
 /** Native SVG artwork size (livbetr-label-empty.svg). */
 const SVG_W = 130.11
 const SVG_H = 47.58
-const SX = LABEL_WIDTH / SVG_W
-const SY = LABEL_HEIGHT / SVG_H
+/** Fit width; letterbox vertically so type isn't anamorphically stretched. */
+const SCALE = LABEL_WIDTH / SVG_W
+const CONTENT_H = SVG_H * SCALE
+const PAD_Y = (LABEL_HEIGHT - CONTENT_H) / 2
 
 const COLOR_TEXT = rgb(0x23 / 255, 0x1f / 255, 0x20 / 255)
 const COLOR_WHITE = rgb(1, 1, 1)
 const COLOR_TEAL = rgb(0x28 / 255, 0x64 / 255, 0x6c / 255)
 
-// Dose box (from SVG paths)
+// Dose box (SVG units)
 const DOSE_BOX_LEFT = 41.84
-const DOSE_BOX_RIGHT = 67.9
+const DOSE_BOX_RIGHT = 66.06
+const DOSE_BOX_BLACK_TOP = 22.17
+const DOSE_BOX_BLACK_H = 6.86
 const DOSE_BOX_MID = 31.18
-const DOSE_BASELINE = 27.0
-const DOSE_SIZE = 6.5
+const DOSE_SIZE = 5.4
 
-// BUD date after baked "BUD:" at (24.95, 4.81)
-const BUD_START_X = 38.5
-const BUD_BASELINE = 7.6
-const BUD_SIZE = 5.5
-const BUD_SIZE_DAY = 6.8
+// BUD date after baked "BUD:" at (24.95, 4.81) — size ~3.72 label
+const BUD_START_X = 37.2
+const BUD_BASELINE = 7.4
+const BUD_SIZE = 3.85
+const BUD_SIZE_DAY = 4.6
 
-// Product name band above dose box
-const NAME_LEFT = 26
-const NAME_RIGHT = 88
-const NAME_BASELINE = 17.5
-const NAME_SIZE_MAX = 9
-const NAME_SIZE_MIN = 5.5
-const NAME_LINE1_BASELINE = 14.5
-const NAME_LINE2_BASELINE = 20.2
-const NAME_LINE1_SIZE_MAX = 8
-const NAME_LINE2_SIZE_MAX = 6.5
-const NAME_LINE2_SIZE_MIN = 4.5
+// Name band: divider (~20) → just before warning column (~88)
+// Neuething Medium Expanded is wide — keep max size modest.
+const NAME_LEFT = 24
+const NAME_RIGHT = 86
+const NAME_BASELINE = 16.8
+const NAME_SIZE_MAX = 7.2
+const NAME_SIZE_MIN = 4.8
+const NAME_LINE1_BASELINE = 14.2
+const NAME_LINE2_BASELINE = 19.6
+const NAME_LINE1_SIZE_MAX = 6.5
+const NAME_LINE2_SIZE_MAX = 5.5
+const NAME_LINE2_SIZE_MIN = 4.2
 
-// BATCH: baked at translate(129.07 43.73) rotate(-90)
-const BATCH_X = 129.07
-const BATCH_BOTTOM = 32 // just above baked BATCH: label end
+// BATCH: baked at (129.07, 43.73) rotate(-90); value must start *above* that label.
+const BATCH_X = 126.8
+const BATCH_BOTTOM = 22.5 // start of value (SVG y); reads upward toward BATCH_TOP
 const BATCH_TOP = 4
-const BATCH_SIZE_MAX = 5
+const BATCH_SIZE_MAX = 4.0
 
 const TEMPLATE_CANDIDATES = [
   path.join(process.cwd(), 'public', 'labels', 'clients', 'livbetr', 'livbetr-label-template.png'),
@@ -148,47 +151,69 @@ function drawLabel(
   req: Omit<LivbetrLabelRequest, 'quantity' | 'proofMode'>,
   proofMode: boolean
 ): void {
-  const toX = (svgX: number) => ox + svgX * SX
-  const toY = (svgY: number) => oy + LABEL_HEIGHT - svgY * SY
+  const toX = (svgX: number) => ox + svgX * SCALE
+  const toY = (svgY: number) => oy + PAD_Y + (SVG_H - svgY) * SCALE
+  const sz = (svgPt: number) => svgPt * SCALE
 
-  page.drawImage(template, {
+  // White label stock, then artwork letterboxed (uniform scale).
+  page.drawRectangle({
     x: ox,
     y: oy,
     width: LABEL_WIDTH,
     height: LABEL_HEIGHT,
+    color: COLOR_WHITE,
+  })
+  page.drawImage(template, {
+    x: ox,
+    y: oy + PAD_Y,
+    width: LABEL_WIDTH,
+    height: CONTENT_H,
   })
 
-  // BUD date MM/DD/YY — day emphasized in brand teal
+  // BUD date MM/DD/YY — day in teal (same rhythm as PeptSci indigo day)
   const { month, day, year } = parseBudParts(req.budIsoDate)
-  let cursor = BUD_START_X
-  const drawBud = (text: string, size: number, color: ReturnType<typeof rgb>) => {
+  let cursorX = BUD_START_X
+  const drawBud = (text: string, sizeSvg: number, color: ReturnType<typeof rgb>) => {
+    const size = sz(sizeSvg)
     page.drawText(text, {
-      x: toX(cursor),
+      x: toX(cursorX),
       y: toY(BUD_BASELINE),
-      size: size * SY,
+      size,
       font,
       color,
     })
-    cursor += font.widthOfTextAtSize(text, size * SY) / SX
+    cursorX += font.widthOfTextAtSize(text, size) / SCALE
   }
   drawBud(`${month}/`, BUD_SIZE, COLOR_TEXT)
   drawBud(day, BUD_SIZE_DAY, COLOR_TEAL)
   drawBud(`/${year}`, BUD_SIZE, COLOR_TEXT)
 
-  // Product name
-  const nameMaxWidth = (NAME_RIGHT - NAME_LEFT) * SX
+  // Product name — Expanded face needs aggressive auto-fit + hard right edge
+  const nameMaxWidth = (NAME_RIGHT - NAME_LEFT) * SCALE
   const nameCenterSvg = (NAME_LEFT + NAME_RIGHT) / 2
   const fitSize = (text: string, max: number, min: number) => {
-    let size = max
-    while (size > min && font.widthOfTextAtSize(text, size * SY) > nameMaxWidth) size -= 0.25
-    return size
+    let sizeSvg = max
+    while (sizeSvg > min && font.widthOfTextAtSize(text, sz(sizeSvg)) > nameMaxWidth) {
+      sizeSvg -= 0.2
+    }
+    return sizeSvg
   }
-  const drawName = (text: string, size: number, baseline: number) => {
-    const w = font.widthOfTextAtSize(text, size * SY)
-    page.drawText(text, {
+  const ellipsize = (text: string, sizeSvg: number) => {
+    if (font.widthOfTextAtSize(text, sz(sizeSvg)) <= nameMaxWidth) return text
+    let t = text
+    while (t.length > 1 && font.widthOfTextAtSize(`${t}…`, sz(sizeSvg)) > nameMaxWidth) {
+      t = t.slice(0, -1)
+    }
+    return `${t.trimEnd()}…`
+  }
+  const drawName = (text: string, sizeSvg: number, baseline: number) => {
+    const fitted = ellipsize(text, sizeSvg)
+    const size = sz(sizeSvg)
+    const w = font.widthOfTextAtSize(fitted, size)
+    page.drawText(fitted, {
       x: toX(nameCenterSvg) - w / 2,
       y: toY(baseline),
-      size: size * SY,
+      size,
       font,
       color: COLOR_TEXT,
     })
@@ -196,7 +221,7 @@ function drawLabel(
 
   const doseNormalized = normalizeDoseLabel(req.dose)
   const fitsOne =
-    font.widthOfTextAtSize(req.productName, NAME_SIZE_MAX * SY) <= nameMaxWidth
+    font.widthOfTextAtSize(req.productName, sz(NAME_SIZE_MAX)) <= nameMaxWidth
   const nameLines = fitsOne ? [req.productName] : splitProductNameLines(req.productName)
 
   if (nameLines.length === 2) {
@@ -208,59 +233,64 @@ function drawLabel(
     drawName(nameLines[0], fitSize(nameLines[0], NAME_SIZE_MAX, NAME_SIZE_MIN), NAME_BASELINE)
   }
 
-  // Dose in black band (single or first of blend "a / b")
-  const doseParts = doseNormalized.split(/\s*\/\s*/).map((p) => p.trim()).filter(Boolean)
+  // Dose centered in black band
+  const doseParts = doseNormalized
+    .split(/\s*\/\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean)
   const primaryDose = (doseParts[0] ?? doseNormalized).toUpperCase().replace(/\s+/g, '')
-  const doseMaxW = (DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 3) * SX
-  let doseSize = DOSE_SIZE
-  while (doseSize > 3.5 && font.widthOfTextAtSize(primaryDose, doseSize * SY) > doseMaxW) {
-    doseSize -= 0.25
+  const doseMaxW = (DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 2.5) * SCALE
+  let doseSizeSvg = DOSE_SIZE
+  while (doseSizeSvg > 3.2 && font.widthOfTextAtSize(primaryDose, sz(doseSizeSvg)) > doseMaxW) {
+    doseSizeSvg -= 0.2
   }
   const doseCx = (DOSE_BOX_LEFT + DOSE_BOX_RIGHT) / 2
-  const doseW = font.widthOfTextAtSize(primaryDose, doseSize * SY)
+  // Optical center of black band → baseline
+  const doseBaseline =
+    DOSE_BOX_BLACK_TOP + DOSE_BOX_BLACK_H * 0.72
+  const doseW = font.widthOfTextAtSize(primaryDose, sz(doseSizeSvg))
   page.drawText(primaryDose, {
     x: toX(doseCx) - doseW / 2,
-    y: toY(DOSE_BASELINE),
-    size: doseSize * SY,
+    y: toY(doseBaseline),
+    size: sz(doseSizeSvg),
     font,
     color: COLOR_WHITE,
   })
 
-  // Optional second dose in teal band (covers baked purity when blend)
   if (doseParts.length >= 2) {
     const secondary = doseParts[1].toUpperCase().replace(/\s+/g, '')
-    let s2 = DOSE_SIZE * 0.85
-    while (s2 > 3 && font.widthOfTextAtSize(secondary, s2 * SY) > doseMaxW) s2 -= 0.25
-    const w2 = font.widthOfTextAtSize(secondary, s2 * SY)
+    let s2 = DOSE_SIZE * 0.9
+    while (s2 > 3 && font.widthOfTextAtSize(secondary, sz(s2)) > doseMaxW) s2 -= 0.2
+    const w2 = font.widthOfTextAtSize(secondary, sz(s2))
     page.drawRectangle({
       x: toX(39.67),
       y: toY(DOSE_BOX_MID + 6.86),
-      width: 28.38 * SX,
-      height: 6.86 * SY,
+      width: 28.38 * SCALE,
+      height: 6.86 * SCALE,
       color: COLOR_TEAL,
     })
     page.drawText(secondary, {
       x: toX(doseCx) - w2 / 2,
-      y: toY(DOSE_BOX_MID + 4.6),
-      size: s2 * SY,
+      y: toY(DOSE_BOX_MID + 4.8),
+      size: sz(s2),
       font,
       color: COLOR_WHITE,
     })
   }
 
-  // Batch number continuing baked BATCH:
-  const batchAvail = (BATCH_BOTTOM - BATCH_TOP) * SY
-  let batchSize = BATCH_SIZE_MAX
+  // Batch value above baked BATCH:
+  const batchAvail = (BATCH_BOTTOM - BATCH_TOP) * SCALE
+  let batchSizeSvg = BATCH_SIZE_MAX
   while (
-    batchSize > 3 &&
-    font.widthOfTextAtSize(req.batchNumber, batchSize * SY) > batchAvail
+    batchSizeSvg > 2.8 &&
+    font.widthOfTextAtSize(req.batchNumber, sz(batchSizeSvg)) > batchAvail
   ) {
-    batchSize -= 0.2
+    batchSizeSvg -= 0.15
   }
   page.drawText(req.batchNumber, {
     x: toX(BATCH_X),
     y: toY(BATCH_BOTTOM),
-    size: batchSize * SY,
+    size: sz(batchSizeSvg),
     font,
     color: COLOR_TEAL,
     rotate: degrees(90),
@@ -268,12 +298,12 @@ function drawLabel(
 
   if (proofMode) {
     page.drawRectangle({
-      x: ox + 1,
-      y: oy + 1,
-      width: LABEL_WIDTH - 2,
-      height: LABEL_HEIGHT - 2,
-      borderColor: rgb(0.8, 0.2, 0.2),
-      borderWidth: 0.5,
+      x: ox + 0.75,
+      y: oy + 0.75,
+      width: LABEL_WIDTH - 1.5,
+      height: LABEL_HEIGHT - 1.5,
+      borderColor: rgb(0.85, 0.2, 0.2),
+      borderWidth: 0.4,
     })
   }
 }
