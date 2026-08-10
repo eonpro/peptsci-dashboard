@@ -611,11 +611,12 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
           <DialogHeader>
             <DialogTitle className="text-white">Upload Client Pricing (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
-              Columns:{' '}
-              <span className="text-white/80">sku, Strength, custom_price</span> (sku = product
-              name, e.g. Semaglutide + 5mg). Leave{' '}
-              <span className="text-white/80">custom_price</span> blank to clear an override.
-              Prices apply to {organizationName}.
+              Required columns:{' '}
+              <span className="text-white/80">sku, Strength, custom_price</span>.{' '}
+              <span className="text-white/80">sku</span> is the product name;{' '}
+              <span className="text-white/80">Strength</span> is the milligram/dose (e.g. 5mg vs
+              10mg). Same name with different Strengths is expected and maps to different
+              vials. Leave custom_price blank to clear. Applies to {organizationName}.
             </DialogDescription>
           </DialogHeader>
 

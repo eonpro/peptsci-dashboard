@@ -75,6 +75,33 @@ describe('parseClientPricingCsv', () => {
     assert.equal(errors.length, 4)
   })
 
+  test('allows same product name with different Strengths', () => {
+    const csv = [
+      'sku,Strength,custom_price',
+      'Semaglutide,5mg,$30',
+      'Semaglutide,10mg,$40',
+      'Semaglutide,15mg,$50',
+    ].join('\n')
+    const { rows, errors } = parseClientPricingCsv(csv)
+    assert.equal(errors.length, 0)
+    assert.equal(rows.length, 3)
+    assert.deepEqual(
+      rows.map((r) => r.strength),
+      ['5mg', '10mg', '15mg']
+    )
+  })
+
+  test('detects unlabeled Strength column from dose-like values', () => {
+    const csv = ['sku,col2,custom_price', 'Tirzepatide,10mg,$60', 'Tirzepatide,60mg,$100'].join(
+      '\n'
+    )
+    const { rows, errors } = parseClientPricingCsv(csv)
+    assert.equal(errors.length, 0)
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].strength, '10mg')
+    assert.equal(rows[1].strength, '60mg')
+  })
+
   test('template includes canonical headers', () => {
     const t = clientPricingImportTemplate()
     for (const h of CLIENT_PRICING_IMPORT_HEADERS) {

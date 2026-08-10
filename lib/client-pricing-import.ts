@@ -41,7 +41,12 @@ export const CLIENT_PRICING_IMPORT_HEADERS = ['sku', 'Strength', 'custom_price']
 type Field = 'sku' | 'strength' | 'customPrice' | 'notes'
 
 function classifyHeader(raw: string): Field | undefined {
-  const h = raw.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  // Strip BOM / odd whitespace Google Sheets sometimes embeds in headers.
+  const h = raw
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
   if (!h) return undefined
   if (
     h === 'sku' ||
@@ -50,17 +55,32 @@ function classifyHeader(raw: string): Field | undefined {
     h === 'item_sku' ||
     h === 'product' ||
     h === 'product_name' ||
-    h === 'name'
+    h === 'name' ||
+    h === 'peptide'
   )
     return 'sku'
-  if (h === 'strength' || h === 'dose' || h === 'size' || h === 'specification') return 'strength'
+  if (
+    h === 'strength' ||
+    h === 'dose' ||
+    h === 'size' ||
+    h === 'specification' ||
+    h === 'mg' ||
+    h === 'milligram' ||
+    h === 'milligrams' ||
+    h === 'dosage' ||
+    h === 'amount' ||
+    h === 'unit_size'
+  )
+    return 'strength'
   if (
     h === 'custom_price' ||
     h === 'customprice' ||
     h === 'offer_price' ||
     h === 'offerprice' ||
     h === 'price' ||
-    h === 'client_price'
+    h === 'client_price' ||
+    h === 'agreed_price' ||
+    h === 'clinic_price'
   )
     return 'customPrice'
   if (h === 'notes' || h === 'note' || h === 'price_notes') return 'notes'
@@ -124,12 +144,33 @@ export function parseClientPricingCsv(input: string): ClientPricingParseResult {
     }
   }
   if (colIndex.strength === undefined) {
+    // Fallback: detect a column whose values look like doses (5mg, 10iu, …)
+    // when the header is unlabeled / unexpected.
+    const doseLike = /^\d+(?:\.\d+)?\s*(mg|mcg|iu|ml|g)?$/i
+    for (let c = 0; c < header.length; c++) {
+      if (Object.values(colIndex).includes(c)) continue
+      let hits = 0
+      let samples = 0
+      for (let r = 1; r < Math.min(matrix.length, 25); r++) {
+        const v = (matrix[r][c] || '').trim()
+        if (!v) continue
+        samples++
+        if (doseLike.test(v)) hits++
+      }
+      if (samples >= 2 && hits / samples >= 0.7) {
+        colIndex.strength = c
+        break
+      }
+    }
+  }
+
+  if (colIndex.strength === undefined) {
     return {
       rows,
       errors: [
         {
           rowNumber: 1,
-          message: `Missing required column: Strength. Expected headers: ${CLIENT_PRICING_IMPORT_HEADERS.join(', ')}`,
+          message: `Missing required column: Strength (mg / dose). Same product name can appear multiple times with different milligram amounts — include Strength so each row maps to the right vial. Expected headers: ${CLIENT_PRICING_IMPORT_HEADERS.join(', ')}`,
         },
       ],
     }
