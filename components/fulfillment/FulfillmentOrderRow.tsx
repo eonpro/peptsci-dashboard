@@ -48,6 +48,8 @@ export type OrderRow = {
     organizationName: string
     contactName: string | null
     contactPhone: string | null
+    /** Practice ship-from for Shopify white-label FedEx labels. */
+    shippingAddress?: StoredAddress
   } | null
   items: { name: string; dose: string | null; quantity: number }[]
   fulfillmentStage: 'NOT_STARTED' | 'PICKING' | 'PICKED' | 'PACKED'

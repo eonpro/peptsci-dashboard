@@ -70,7 +70,16 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           shippedAt: true,
           shippingAddress: true,
-          client: { select: { id: true, organizationName: true, contactName: true, contactPhone: true } },
+          client: {
+            select: {
+              id: true,
+              organizationName: true,
+              contactName: true,
+              contactPhone: true,
+              // White-label (Shopify) FedEx ship-from uses practice shipping address.
+              shippingAddress: true,
+            },
+          },
           items: {
             select: {
               quantity: true,

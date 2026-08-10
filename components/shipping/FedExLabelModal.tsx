@@ -46,6 +46,8 @@ export type FedExLabelModalProps = {
   destination?: Partial<LabelAddress>
   /** Optional origin override; defaults to the configured ship-from. */
   origin?: Partial<LabelAddress>
+  /** When true, From was prefilled for Shopify white-label (still editable). */
+  whiteLabelOrigin?: boolean
   onCreated?: (result: { trackingNumber: string; labelId: string }) => void
 }
 
@@ -83,6 +85,7 @@ export default function FedExLabelModal({
   orderNumber,
   destination,
   origin,
+  whiteLabelOrigin = false,
   onCreated,
 }: FedExLabelModalProps) {
   const [labelFormat, setLabelFormat] = useState<LabelFormat>('PDF')
@@ -402,6 +405,11 @@ export default function FedExLabelModal({
               <legend className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
                 <Package className="h-4 w-4" /> From (Origin)
               </legend>
+              {whiteLabelOrigin && (
+                <p className="text-xs text-muted-foreground">
+                  White-label ship-from — prefilled with the practice brand address (editable).
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input value={originAddr.personName} onChange={(e) => updateOrigin({ personName: e.target.value })} placeholder="Name / Company" />
                 <Input value={originAddr.phoneNumber} onChange={(e) => updateOrigin({ phoneNumber: e.target.value })} placeholder="Phone" />

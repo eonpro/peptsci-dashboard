@@ -22,6 +22,11 @@ import {
   X,
 } from 'lucide-react'
 import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
+import {
+  resolveWhiteLabelOrigin,
+  looksLikePeptSciOrigin,
+  type ShipFromAddress,
+} from '@/lib/shipping/whiteLabelOrigin'
 import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
 import { apiError } from '@/lib/api-error'
 
@@ -70,6 +75,20 @@ function toLabelAddress(order: OrderRow): Partial<LabelAddress> {
   }
 }
 
+/** Shopify white-label: practice brand as FedEx From; else PeptSci defaults. */
+function toWhiteLabelOrigin(order: OrderRow): ShipFromAddress {
+  return resolveWhiteLabelOrigin({
+    source: order.source,
+    client: order.client
+      ? {
+          organizationName: order.client.organizationName,
+          contactPhone: order.client.contactPhone,
+          shippingAddress: (order.client.shippingAddress || null) as Record<string, unknown> | null,
+        }
+      : null,
+  })
+}
+
 /** Build the label modal's recipient address from an unconverted Stripe record. */
 function stripeRecordToLabelAddress(rec: StripeQueueRecord): Partial<LabelAddress> {
   return {
@@ -96,6 +115,8 @@ type LabelTarget = {
   id: string
   orderNumber: number
   destination?: Partial<LabelAddress>
+  origin?: Partial<LabelAddress>
+  whiteLabelOrigin?: boolean
   /** Whether a contents (packing) photo already exists for this order. */
   hasPhoto?: boolean
 }
@@ -557,14 +578,19 @@ export default function FulfillmentPage() {
                     onPack={() =>
                       setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
                     }
-                    onLabel={() =>
+                    onLabel={() => {
+                      const origin = toWhiteLabelOrigin(order)
+                      const whiteLabel =
+                        order.source === 'SHOPIFY' && !looksLikePeptSciOrigin(origin)
                       setLabelTarget({
                         id: order.id,
                         orderNumber: order.orderNumber,
                         destination: toLabelAddress(order),
+                        origin: whiteLabel ? origin : undefined,
+                        whiteLabelOrigin: whiteLabel,
                         hasPhoto: order.photoCount > 0,
                       })
-                    }
+                    }}
                     onDisposition={() =>
                       setDispositionOrder({
                         id: order.id,
@@ -682,6 +708,8 @@ export default function FulfillmentPage() {
           orderId={labelTarget.id}
           orderNumber={labelTarget.orderNumber}
           destination={labelTarget.destination}
+          origin={labelTarget.origin}
+          whiteLabelOrigin={labelTarget.whiteLabelOrigin}
           onCreated={({ trackingNumber }) => {
             setNextStep({
               orderNumber: labelTarget.orderNumber,

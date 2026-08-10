@@ -1,3 +1,84 @@
+# Order ship-to on Fulfillment + Client from order  [PLANNER — 2026-08-10]
+
+## Background and Motivation
+Owner wants the **admin backend** to show full order customer info (client/contact **name** + **shipping address**) — not only organization name — and use that data to **add/update the person as a Client** on CRM records.
+
+Context from shop UI (`/shop/orders`, Order #266): clinic sees their own orders; admin Fulfillment currently only shows `organizationName` even though `shippingAddress` + `contactName`/`contactPhone` are already returned by `GET /api/admin/orders`.
+
+## Key Challenges and Analysis
+1. **Platform `Order` already requires `clientId`** — every shop/admin order is already linked to a Client. “Add as client” is mainly needed for **unlinked** sources (Stripe SalesRecord / Customers analytics), not for normal Order rows.
+2. **Ship-to vs practice**: `Order.shippingAddress` JSON may include optional `name`/`phone`/`company`; Client has `contactName`, `contactEmail`, `contactPhone`, `shippingAddress`. List UI ignores all of this except org name.
+3. **No dedicated admin order detail page** — Fulfillment row is the surface; expand or secondary line is the lightest place to show address.
+4. **Create-client from address** already exists in Convert Stripe (`ConvertStripeModal` → `POST /api/admin/clients` with shippingAddress). Reuse that pattern; don’t invent a second customer entity on Order.
+5. Ambiguity: shop “My Orders” vs admin Fulfillment; and “add as client” for already-linked Orders vs Stripe/Customers.
+
+## Proposed approach (minimal, enterprise-fit)
+### A. Show order customer info (Fulfillment)
+- Extend `GET /api/admin/orders` client select with `contactEmail` (+ keep phone/name).
+- In `FulfillmentOrderRow`: show contact name (fallback org), email/phone, and formatted ship-to from `order.shippingAddress` (fallback `client.shippingAddress`) via `formatAddress` / existing label helpers.
+- Optional: compact expandable “Ship to” block so the list stays scannable.
+
+### B. Use info to create/update Client records
+- **Preferred for unlinked sales**: Customers page or Convert Stripe — “Create client” prefilled from name/email/phone/address (already partially in Convert Stripe).
+- **For existing Orders**: “Update client from ship-to” (PATCH client shipping + contact from order JSON) when practice record is incomplete — not a second Client create (would orphan/dupe).
+- **Avoid** auto-creating Clients on every checkout (already authenticated Client).
+
+## High-level Task Breakdown
+1. [ ] Confirm scope with owner (see questions below)
+2. [ ] API: include `contactEmail` (and any missing contact fields) on admin orders list
+3. [ ] UI: render name + address (+ email/phone) on Fulfillment order rows
+4. [ ] Client action: either (a) Create client from Customers/Stripe, or (b) “Sync ship-to → Client” on Order row — based on owner choice
+5. [ ] Tests for address display helpers / API select; smoke Fulfillment
+6. [ ] Update scratchpad status; deploy when owner asks
+
+## Success Criteria
+- Admin Fulfillment shows who the order ships to (name + street/city/state/zip) without opening label modals
+- Staff can create or update a Client record from that contact/shipping data without retyping
+- No duplicate Client rows for orders that already have a valid `clientId`
+
+## Open Questions (owner)
+1. Surface = **Fulfillment** (`/fulfillment`), not shop My Orders — correct?
+2. “Add as client” means: **(A)** create Client from Stripe/Customers sales that aren’t linked yet, **(B)** push order ship-to onto the existing linked Client when incomplete, or **(C)** both?
+3. Should patient ship-to (`shipTo: PATIENT`) show patient name/address instead of practice?
+
+## Project Status Board
+- [ ] Owner answers scope questions
+- [ ] Implementation (Executor)
+- [ ] Verify on peptsci.com
+
+## Executor’s Feedback or Assistance Requests
+Waiting on owner: Planner vs Executor next, plus Q1–Q3 above.
+
+---
+
+# White-label FedEx ship-from origin  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Shopify white-label fulfillment (e.g. Elevated Vitality Order #266) was printing PeptSci as FedEx From (Origin). Labels should show the practice brand name + profile shipping address while packages still leave PeptSci Tampa on the PeptSci FedEx account.
+
+## What shipped
+1. `lib/shipping/whiteLabelOrigin.ts` — `resolveWhiteLabelOrigin` (SHOPIFY + complete `Client.shippingAddress` → practice; else PeptSci)
+2. Orders GET includes `client.shippingAddress`
+3. Fulfillment → Create Label passes `origin` + white-label hint for Shopify orders
+4. FedEx label API warns (does not overwrite) when Shopify order still uses PeptSci ship-from
+5. Unit tests: `lib/__tests__/whiteLabelOrigin.test.ts` (7/7)
+
+## Project Status Board
+- [x] API client.shippingAddress
+- [x] Origin helper + tests
+- [x] Wire FedExLabelModal
+- [x] Soft server warning
+- [ ] Deploy
+
+## Executor's Feedback or Assistance Requests
+Verify on peptsci.com: Fulfillment → Shopify order (Elevated Vitality) → Create Label → From should show practice org + Client shipping address. Ensure that client profile has a complete shipping address; incomplete falls back to PeptSci.
+
+## Lessons
+- White-label vial labels (`whiteLabelEnabled`) ≠ Shopify ship-from branding — gate on `Order.source === SHOPIFY`.
+- Remount via `{labelTarget && <FedExLabelModal />}` is required so `origin` prop applies (useState init only).
+
+---
+
 # Print labels from Products  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation
@@ -11,6 +92,7 @@ Staff enter inventory via Receive Inventory, but need to print RUO vial labels f
 - [x] ProductLabelPrintDialog
 - [x] Wire Products page row action
 - [x] Scratchpad update
+- [x] Deployed `ec6b00d` → peptsci.com READY (`dpl_4YnbBfNRvPBoAkY5Et1ByabnR847`)
 
 ## Executor's Feedback or Assistance Requests
 Owner: Products → printer icon on a product with received batches → Download PDF / Proof.

@@ -36,6 +36,7 @@ import { sendOrderShippedEmail } from '@/lib/email'
 import { sendOrderShippedSms } from '@/lib/sms'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
 import { pushShopifyTrackingAsync } from '@/lib/shopify/fulfillment-sync'
+import { looksLikePeptSciOrigin } from '@/lib/shipping/whiteLabelOrigin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
           status: string
           paymentStatus: string
           orderNumber: number
+          source: string
           client: {
             contactEmail: string | null
             contactName: string | null
@@ -146,6 +148,7 @@ export async function POST(request: NextRequest) {
           status: true,
           paymentStatus: true,
           orderNumber: true,
+          source: true,
           _count: { select: { invoiceLineItems: true } },
           client: {
             select: {
@@ -160,6 +163,16 @@ export async function POST(request: NextRequest) {
       })
       if (!found) return errorResponse('Order not found', 404, 'NOT_FOUND')
       order = found
+
+      // Soft check: Shopify white-label labels should usually print the practice
+      // brand as ship-from. Do not overwrite — operator may intentionally keep PeptSci.
+      if (found.source === 'SHOPIFY' && looksLikePeptSciOrigin(data.origin)) {
+        logger.warn('[FedEx label] Shopify order still using PeptSci ship-from', {
+          orderId: found.id,
+          orderNumber: found.orderNumber,
+          organizationName: found.client?.organizationName ?? null,
+        })
+      }
 
       // Pay-before-ship gate: never label/ship an unpaid order unless it is
       // invoiced (net terms) or the admin explicitly overrides (audit-logged).
