@@ -34,6 +34,7 @@ const createBody = z.object({
         quantity: z.number().int().positive(),
         unitPrice: z.number().min(0),
         orderId: z.string().optional(),
+        variantId: z.string().optional(),
       })
     )
     .optional(),

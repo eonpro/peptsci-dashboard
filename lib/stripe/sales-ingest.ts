@@ -259,6 +259,25 @@ export async function ingestStripePaymentIntent(
     if (pi.status !== 'succeeded') return false
     if (pi.metadata?.source === 'connect_test') return false
 
+    // Platform invoice PIs are owned by the AR path (recordPayment → optional
+    // Order mint). Ingesting them here parks revenue under orderRef=pi_… with
+    // 0 vials — skip so fulfillPlatformInvoiceProducts / syncSalesRecordFromOrder
+    // can own the SalesRecord with an internal #orderNumber.
+    const platformInvoiceId = pi.metadata?.invoiceId
+    if (platformInvoiceId && !pi.metadata?.orderId) {
+      const platformInvoice = await prisma.invoice.findUnique({
+        where: { id: platformInvoiceId },
+        select: { id: true },
+      })
+      if (platformInvoice) {
+        logger.info('[STRIPE] Skipping SalesRecord ingest for platform invoice PI', {
+          paymentIntentId: pi.id,
+          invoiceId: platformInvoiceId,
+        })
+        return false
+      }
+    }
+
     const costLookup = await buildCostLookup()
     const data = await salesRecordDataFromPaymentIntent(stripe, pi, costLookup, requestOptions)
 

@@ -50,6 +50,11 @@ export interface CreateManualOrderParams {
    * never diverge from what the customer actually paid.
    */
   expectedTotal?: number | null
+  /**
+   * When set, replaces computed shipping (e.g. `0` for platform invoices that
+   * already billed product lines only — shipping was not on the invoice).
+   */
+  shippingTotalOverride?: number | null
   /** Shopify white-label fulfillment linkage. */
   shopifyConnectionId?: string | null
   shopifyOrderId?: string | null
@@ -142,7 +147,15 @@ export async function createManualOrder(
     twoDay: client.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
     overnight: client.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
   }
-  const totals = computeCartTotals(resolvedLines, shipSpeed, shippingOverrides)
+  let totals = computeCartTotals(resolvedLines, shipSpeed, shippingOverrides)
+  if (params.shippingTotalOverride != null) {
+    const shippingTotal = Math.max(0, params.shippingTotalOverride)
+    totals = {
+      ...totals,
+      shippingTotal,
+      total: Math.round((totals.subtotal + totals.taxTotal + shippingTotal) * 100) / 100,
+    }
+  }
 
   if (params.expectedTotal != null && Math.abs(totals.total - params.expectedTotal) > 0.005) {
     throw new ManualOrderError(

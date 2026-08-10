@@ -1,4 +1,38 @@
+# Platform invoice pay → internal Order ID + inventory  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+LIVBETR INV-00001 showed Stripe `pi_…` as Order ID. Product-only platform invoices must mint an internal Order (`#N`) on PAID.
+
+## What shipped
+1. `InvoiceLineItem.variantId` (+ migration) — admin product picker persists catalog link
+2. `fulfillPlatformInvoiceProducts` — on PAID: create CAPTURED Order, reserve stock, sync SalesRecord as `#N`, adopt orphan `pi_` SalesRecord
+3. Wired from `recordPayment`; skip Stripe ingest for platform invoice PIs
+4. `POST /api/admin/invoices/[id]/fulfill-order` repair endpoint (description→variant match for pre-column invoices)
+5. stripe-convert also sets `orderRef` to `#N`
+
+## Success criteria
+- [x] New product invoices after charge → `#orderNumber` on Recent Orders
+- [ ] Run admin DB migrate for `variantId` column
+- [ ] Repair INV-00001 via fulfill-order (or Convert Stripe if lines unmatched)
+- [ ] Owner verify dashboard + inventory reserve
+
+## Project Status Board
+- [x] Schema + fulfill path + UI/API variantId
+- [x] Tests (`fulfillProducts.test.ts` 5/5)
+- [ ] Commit + push main
+- [ ] Deploy + migrate + repair INV-00001
+
+## Executor's Feedback or Assistance Requests
+After Vercel READY: POST `/api/admin/db/migrate` then POST `/api/admin/invoices/{id}/fulfill-order` for INV-00001.
+
+## Lessons
+- Never use Stripe PI as analytics orderRef for platform invoices.
+- Admin migrate runner cannot run `DO $$` blocks — plain ALTER only.
+
+---
+
 # New invoice: products + charge card on file  [EXECUTOR — 2026-08-10]
+
 
 ## Background and Motivation
 New invoice modal only selected unbilled orders. Clients like LIVBETR with no unbilled orders could not be billed, and there was no way to charge a card on file at create time.
@@ -20,10 +54,11 @@ New invoice modal only selected unbilled orders. Clients like LIVBETR with no un
 - [x] API create + charge
 - [x] New invoice UI
 - [x] Detail charge button
-- [ ] Deploy / owner verify
+- [x] Deployed `5bcd6f1` → peptsci.com READY (`dpl_B7n1u3YZKJ1zVMcjXgJCUQffRKT9`)
+- [ ] Owner verify
 
 ## Executor's Feedback or Assistance Requests
-Ready for review: Billing → New invoice → pick client → search/add products → Charge card on file (if synced) → Create & charge.
+Live on peptsci.com. Billing → New invoice → pick client → add products → Charge card on file → Create & charge.
 
 ## Lessons
 - Manual `lineItems` + `chargeInvoiceWithSavedCard` already existed; gap was admin UI + create-time charge flag.

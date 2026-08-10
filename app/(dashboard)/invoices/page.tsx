@@ -449,6 +449,7 @@ function NewInvoiceDialog({
         description: l.description.trim(),
         quantity: Math.max(1, Math.floor(l.quantity)),
         unitPrice: Math.round(l.unitPrice * 100) / 100,
+        ...(l.variantId ? { variantId: l.variantId } : {}),
       }))
 
     if (!clientId) {

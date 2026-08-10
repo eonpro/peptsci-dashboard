@@ -90,7 +90,14 @@ export interface CreateInvoiceInput {
   clientId: string
   orderIds?: string[]
   /** Manual lines (used when not deriving from orders). */
-  lineItems?: Array<{ description: string; quantity: number; unitPrice: number; orderId?: string }>
+  lineItems?: Array<{
+    description: string
+    quantity: number
+    unitPrice: number
+    orderId?: string
+    /** Catalog variant when picked from the admin product picker. */
+    variantId?: string
+  }>
   paymentTermsDays?: number
   issueDate?: Date
   periodStart?: Date | null
@@ -226,6 +233,7 @@ export async function createInvoiceTx(
       const amount = Math.round((li.quantity * li.unitPrice + Number.EPSILON) * 100) / 100
       lines.push({
         ...(li.orderId ? { order: { connect: { id: li.orderId } } } : {}),
+        ...(li.variantId ? { variant: { connect: { id: li.variantId } } } : {}),
         description: li.description,
         quantity: li.quantity,
         unitPrice: new Prisma.Decimal(li.unitPrice),
@@ -390,6 +398,15 @@ export async function recordPayment(
     const { maybeFulfillShopifyInboundForInvoice } = await import('@/lib/shopify/process-inbound')
     await maybeFulfillShopifyInboundForInvoice(invoiceId).catch((e) =>
       logger.warn('[INVOICING] maybeFulfillShopifyInboundForInvoice failed (non-blocking)', {
+        invoiceId,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+    // Product-only admin invoices: mint Order so dashboard shows #N (not pi_…)
+    // and stock is reserved for fulfillment.
+    const { fulfillPlatformInvoiceProducts } = await import('./fulfill-products')
+    await fulfillPlatformInvoiceProducts(invoiceId).catch((e) =>
+      logger.warn('[INVOICING] fulfillPlatformInvoiceProducts failed (non-blocking)', {
         invoiceId,
         error: e instanceof Error ? e.message : String(e),
       })

@@ -149,9 +149,14 @@ export async function POST(request: NextRequest) {
 
     // Link the originating SalesRecord to the new order so it is not double
     // counted (kept as source `stripe` to preserve the true captured revenue/COGS).
+    // Update orderRef to the internal `#N` so Recent Orders is not stuck on pi_/Stripe ids.
     await prisma.salesRecord.update({
       where: { id: record.id },
-      data: { orderId: order.id, trackingNumber: '' },
+      data: {
+        orderId: order.id,
+        orderRef: `#${order.orderNumber}`,
+        trackingNumber: '',
+      },
     })
 
     // Seed Client shipping/billing when empty so invoices + later labels have an address.
