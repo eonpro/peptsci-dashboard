@@ -5,8 +5,11 @@ import { Info } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import {
   calculateReconstitution,
+  doseMcgToSyringeUnits,
+  formatDoseRangeAsSyringeUnits,
   formatReconNumber,
   parseTotalVialMg,
+  syringeUnitsToDoseMcg,
 } from '@/lib/reconstitution'
 import {
   getDefaultProtocol,
@@ -92,19 +95,39 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
 
   const initialVialMg = vialFromSku > 0 ? vialFromSku : protocol.typicalVialMg ?? 10
   const vialMax = Math.max(50, Math.ceil(initialVialMg * 2))
-  const doseMax = Math.max(2000, protocol.defaultDoseMcg * 4, Math.round(initialVialMg * 1000))
+  const recommendedWaterMl = clamp(protocol.recommendedBacWaterMl, 0.5, 5)
 
   const [vialMg, setVialMg] = useState(() => clamp(initialVialMg, 1, vialMax))
-  const [waterMl, setWaterMl] = useState(() =>
-    clamp(protocol.recommendedBacWaterMl, 0.5, 5)
-  )
-  const [desiredDoseMcg, setDesiredDoseMcg] = useState(() =>
-    clamp(protocol.defaultDoseMcg, 10, doseMax)
-  )
+  const [waterMl, setWaterMl] = useState(() => recommendedWaterMl)
+  /** Desired draw on a U-100 syringe at the current reconstitution. */
+  const [desiredUnits, setDesiredUnits] = useState(() => {
+    const units = doseMcgToSyringeUnits(
+      protocol.defaultDoseMcg,
+      clamp(initialVialMg, 1, vialMax),
+      recommendedWaterMl
+    )
+    return clamp(Math.round(units ?? 1), 1, Math.max(1, Math.round(recommendedWaterMl * 100)))
+  })
+
+  const unitsMax = Math.max(1, Math.round(waterMl * 100))
+
+  const desiredDoseMcg = useMemo(() => {
+    const mcg = syringeUnitsToDoseMcg(desiredUnits, vialMg, waterMl)
+    return mcg != null && mcg > 0 ? mcg : protocol.defaultDoseMcg
+  }, [desiredUnits, vialMg, waterMl, protocol.defaultDoseMcg])
 
   const result = useMemo(
     () => calculateReconstitution({ vialMg, waterMl, desiredDoseMcg }),
     [vialMg, waterMl, desiredDoseMcg]
+  )
+
+  const dailyUnitsRange = useMemo(
+    () => formatDoseRangeAsSyringeUnits(protocol.daily.range, vialMg, recommendedWaterMl),
+    [protocol.daily.range, vialMg, recommendedWaterMl]
+  )
+  const weeklyUnitsRange = useMemo(
+    () => formatDoseRangeAsSyringeUnits(protocol.weekly.range, vialMg, recommendedWaterMl),
+    [protocol.weekly.range, vialMg, recommendedWaterMl]
   )
 
   return (
@@ -141,13 +164,21 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
         />
         <ProtocolCard
           label="Daily dosage"
-          value={protocol.daily.range}
-          detail={protocol.daily.schedule}
+          value={dailyUnitsRange ?? protocol.daily.range}
+          detail={
+            dailyUnitsRange
+              ? `${protocol.daily.schedule} · at ${formatReconNumber(recommendedWaterMl, 1)} ml BAC water`
+              : protocol.daily.schedule
+          }
         />
         <ProtocolCard
           label="Weekly dosage"
-          value={protocol.weekly.range}
-          detail={protocol.weekly.schedule}
+          value={weeklyUnitsRange ?? protocol.weekly.range}
+          detail={
+            weeklyUnitsRange
+              ? `${protocol.weekly.schedule} · at ${formatReconNumber(recommendedWaterMl, 1)} ml BAC water`
+              : protocol.weekly.schedule
+          }
         />
       </div>
 
@@ -161,7 +192,16 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
             min={1}
             max={vialMax}
             step={vialMax > 20 ? 1 : 0.5}
-            onChange={setVialMg}
+            onChange={(next) => {
+              const prevMcg = syringeUnitsToDoseMcg(desiredUnits, vialMg, waterMl)
+              setVialMg(next)
+              if (prevMcg != null) {
+                const nextUnits = doseMcgToSyringeUnits(prevMcg, next, waterMl)
+                if (nextUnits != null) {
+                  setDesiredUnits(clamp(Math.round(nextUnits), 1, Math.max(1, Math.round(waterMl * 100))))
+                }
+              }
+            }}
           />
           <SliderRow
             label="Bacteriostatic water"
@@ -170,16 +210,25 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
             min={0.5}
             max={5}
             step={0.1}
-            onChange={setWaterMl}
+            onChange={(next) => {
+              const prevMcg = syringeUnitsToDoseMcg(desiredUnits, vialMg, waterMl)
+              setWaterMl(next)
+              if (prevMcg != null) {
+                const nextUnits = doseMcgToSyringeUnits(prevMcg, vialMg, next)
+                if (nextUnits != null) {
+                  setDesiredUnits(clamp(Math.round(nextUnits), 1, Math.max(1, Math.round(next * 100))))
+                }
+              }
+            }}
           />
           <SliderRow
             label="Desired dose"
-            display={`${formatReconNumber(desiredDoseMcg, 0)} mcg`}
-            value={desiredDoseMcg}
-            min={10}
-            max={doseMax}
-            step={desiredDoseMcg >= 1000 ? 50 : 10}
-            onChange={setDesiredDoseMcg}
+            display={`${formatReconNumber(desiredUnits, 0)} units`}
+            value={clamp(desiredUnits, 1, unitsMax)}
+            min={1}
+            max={unitsMax}
+            step={1}
+            onChange={setDesiredUnits}
           />
 
           <div className="flex gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-xs leading-relaxed text-white/55">
@@ -220,6 +269,8 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
           {result && (
             <p className="mt-4 text-xs text-white/40">
               Draw volume ≈ {formatReconNumber(result.injectionVolumeMl, 3)} ml per dose
+              {' · '}
+              ≈ {formatReconNumber(desiredDoseMcg, 0)} mcg
             </p>
           )}
         </div>

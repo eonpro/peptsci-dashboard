@@ -69,6 +69,79 @@ export function formatReconNumber(n: number, digits = 1): string {
 }
 
 /**
+ * U-100 syringe units for a dose mass at a given reconstitution.
+ * units = (doseMg / concentrationMgPerMl) × 100
+ */
+export function doseMgToSyringeUnits(doseMg: number, vialMg: number, waterMl: number): number | null {
+  const vial = Number(vialMg)
+  const water = Number(waterMl)
+  const dose = Number(doseMg)
+  if (!Number.isFinite(vial) || !Number.isFinite(water) || !Number.isFinite(dose)) return null
+  if (vial <= 0 || water <= 0 || dose <= 0) return null
+  return (dose / (vial / water)) * 100
+}
+
+export function doseMcgToSyringeUnits(
+  doseMcg: number,
+  vialMg: number,
+  waterMl: number
+): number | null {
+  return doseMgToSyringeUnits(Number(doseMcg) / 1000, vialMg, waterMl)
+}
+
+/** Inverse of doseMcgToSyringeUnits. */
+export function syringeUnitsToDoseMcg(
+  units: number,
+  vialMg: number,
+  waterMl: number
+): number | null {
+  const vial = Number(vialMg)
+  const water = Number(waterMl)
+  const u = Number(units)
+  if (!Number.isFinite(vial) || !Number.isFinite(water) || !Number.isFinite(u)) return null
+  if (vial <= 0 || water <= 0 || u <= 0) return null
+  // mcg = units × (vialMg / waterMl) × 10
+  return u * (vial / water) * 10
+}
+
+/**
+ * Convert authored protocol ranges ("300–500 mcg", "2.1–3.5 mg") into
+ * U-100 syringe units at the recommended reconstitution. Leaves IU / N/A
+ * / non-mass ranges unchanged (returns null).
+ */
+export function formatDoseRangeAsSyringeUnits(
+  range: string,
+  vialMg: number,
+  waterMl: number
+): string | null {
+  const raw = String(range || '').trim()
+  if (!raw) return null
+  if (/iu\b/i.test(raw) || /^n\/a$/i.test(raw) || /protocol-dependent/i.test(raw)) return null
+  if (/topical/i.test(raw) || /oral/i.test(raw)) return null
+
+  const match = raw.match(
+    /^([\d,]+(?:\.\d+)?)\s*[–-]\s*([\d,]+(?:\.\d+)?)\s*(mcg|µg|ug|mg)\b(.*)$/i
+  )
+  if (!match) return null
+
+  const low = Number(match[1]!.replace(/,/g, ''))
+  const high = Number(match[2]!.replace(/,/g, ''))
+  const unit = match[3]!.toLowerCase()
+  const suffix = (match[4] || '').trim() // e.g. "total"
+
+  if (!Number.isFinite(low) || !Number.isFinite(high) || low <= 0 || high <= 0) return null
+
+  const toMg = (n: number) => (unit === 'mg' ? n : n / 1000)
+  const lowU = doseMgToSyringeUnits(toMg(low), vialMg, waterMl)
+  const highU = doseMgToSyringeUnits(toMg(high), vialMg, waterMl)
+  if (lowU == null || highU == null) return null
+
+  const fmt = (n: number) => formatReconNumber(n, n >= 10 ? 0 : 1)
+  const base = `${fmt(lowU)}–${fmt(highU)} units`
+  return suffix ? `${base} ${suffix}` : base
+}
+
+/**
  * Products that are not reconstituted lyophilized peptides (BAC water,
  * accessories, sprays labeled as such, etc.).
  */
