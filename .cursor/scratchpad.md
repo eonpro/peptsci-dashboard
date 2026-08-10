@@ -13,13 +13,13 @@ My Orders (`/shop/orders`) showed letter placeholders for each line item. Catalo
 2. [x] Fix blend detection for "and" product names
 3. [x] Wire vial thumbs on My Orders list + order detail
 4. [x] Unit tests for `getCompoundParts`
-5. [ ] Deploy / verify on peptsci.com
+5. [x] Deploy / verify on peptsci.com
 
 ## Project Status Board
 - [x] ProductVial minimal input
 - [x] OrdersClient + order detail UI
 - [x] Tests
-- [ ] Deploy
+- [x] Deployed `6a55c20` → peptsci.com READY (`dpl_DctLmmEjMk3rFFoSWLYgHVectqBx`)
 
 ## Executor's Feedback or Assistance Requests
 Owner: refresh `/shop/orders` — each line should show a labeled vial (same art as catalog), not a letter tile.
@@ -100,7 +100,7 @@ Shopify white-label fulfillment (e.g. Elevated Vitality Order #266) was printing
 - [x] Origin helper + tests
 - [x] Wire FedExLabelModal
 - [x] Soft server warning
-- [ ] Deploy
+- [x] Deployed `2bb7602` → peptsci.com READY (`dpl_JCsVB4ZrWxSr7NvLryP2SvfYNTkW`)
 
 ## Executor's Feedback or Assistance Requests
 Verify on peptsci.com: Fulfillment → Shopify order (Elevated Vitality) → Create Label → From should show practice org + Client shipping address. Ensure that client profile has a complete shipping address; incomplete falls back to PeptSci.
