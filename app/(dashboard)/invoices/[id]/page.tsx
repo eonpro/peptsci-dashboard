@@ -276,16 +276,31 @@ export default function InvoiceDetailPage() {
               size="sm"
               variant="outline"
               disabled={busy === 'queue'}
-              onClick={() =>
-                action(
-                  () =>
-                    fetch(`/api/admin/invoices/${id}/queue-fulfillment`, {
-                      method: 'POST',
-                    }),
-                  'queue',
-                  'Queued for fulfillment — stock held'
-                )
-              }
+              onClick={async () => {
+                setBusy('queue')
+                try {
+                  const r = await fetch(`/api/admin/invoices/${id}/queue-fulfillment`, {
+                    method: 'POST',
+                  })
+                  const data = await r.json().catch(() => ({}))
+                  if (!r.ok) throw new Error(data.message || data.error || 'Queue failed')
+                  const result = data.result as
+                    | { status: string; orderNumber?: number; orderId?: string }
+                    | undefined
+                  if (result?.status === 'created' && result.orderNumber != null) {
+                    toast.success(`Order #${result.orderNumber} queued — stock on hold`)
+                  } else if (result?.status === 'already_linked') {
+                    toast.success('Already queued for fulfillment')
+                  } else {
+                    toast.success('Queued for fulfillment')
+                  }
+                  load()
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Queue failed')
+                } finally {
+                  setBusy(null)
+                }
+              }}
             >
               {busy === 'queue' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -297,7 +312,7 @@ export default function InvoiceDetailPage() {
           )}
           {fulfillmentOrderId && invoice.status === 'PAID' && (
             <Button size="sm" variant="ghost" asChild>
-              <Link href={`/fulfillment?search=${encodeURIComponent(fulfillmentOrderId)}`}>
+              <Link href="/fulfillment">
                 <Package className="mr-2 h-4 w-4" /> View in Fulfillment
               </Link>
             </Button>

@@ -6,41 +6,41 @@ import {
 } from '../invoicing/fulfill-products.ts'
 
 describe('mergeCatalogLinesForOrder', () => {
-  test('sums quantities for the same variant', () => {
+  test('sums quantities for duplicate variants', () => {
     const merged = mergeCatalogLinesForOrder([
-      { variantId: 'v1', quantity: 2, unitPrice: 100 },
-      { variantId: 'v2', quantity: 1, unitPrice: 50 },
-      { variantId: 'v1', quantity: 3, unitPrice: 100 },
+      { variantId: 'a', quantity: 2, unitPrice: 10 },
+      { variantId: 'b', quantity: 1, unitPrice: 20 },
+      { variantId: 'a', quantity: 3, unitPrice: 11 },
     ])
     assert.deepEqual(merged, [
-      { variantId: 'v1', quantity: 5, unitPrice: 100 },
-      { variantId: 'v2', quantity: 1, unitPrice: 50 },
+      { variantId: 'a', quantity: 5, unitPrice: 10 },
+      { variantId: 'b', quantity: 1, unitPrice: 20 },
     ])
   })
 })
 
 describe('matchVariantIdFromDescription', () => {
   const catalog = [
-    { id: 'a', sku: 'TIRZ-60', productName: 'Tirzepatide', dose: '60mg' },
-    { id: 'b', sku: 'SEMA-10', productName: 'Semaglutide', dose: '10mg' },
+    { id: 'v1', sku: 'RT10', productName: 'Retatrutide', dose: '10.0mg' },
+    { id: 'v2', sku: 'BC10', productName: 'BPC-157', dose: '10.0mg' },
   ]
 
-  test('matches by SKU after middot', () => {
+  test('matches middot SKU label from NewInvoiceDialog', () => {
     assert.equal(
-      matchVariantIdFromDescription('Tirzepatide 60mg · TIRZ-60', catalog),
-      'a'
+      matchVariantIdFromDescription('Retatrutide 10.0mg · RT10', catalog),
+      'v1'
     )
   })
 
-  test('matches full picker label', () => {
+  test('matches dash-separated SKU labels', () => {
     assert.equal(
-      matchVariantIdFromDescription('Semaglutide 10mg · SEMA-10', catalog),
-      'b'
+      matchVariantIdFromDescription('Retatrutide 10.0mg - RT10', catalog),
+      'v1'
     )
   })
 
-  test('matches name + dose without sku', () => {
-    assert.equal(matchVariantIdFromDescription('Tirzepatide 60mg', catalog), 'a')
+  test('matches bare SKU', () => {
+    assert.equal(matchVariantIdFromDescription('BC10', catalog), 'v2')
   })
 
   test('returns null when unknown', () => {
