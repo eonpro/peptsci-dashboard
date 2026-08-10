@@ -25,6 +25,7 @@ import DeleteClientButton from '../DeleteClientButton'
 import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
 import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
+import { ClientStripeCard } from '@/components/admin/ClientStripeCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
 import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
 import { ClientWhiteLabelLabelsCard } from '@/components/admin/ClientWhiteLabelLabelsCard'
@@ -751,6 +752,26 @@ export default function ClientDetailPage() {
         <ClientPatientsCard clientId={id} />
 
         <ClientCreditCard clientId={id} />
+        <ClientStripeCard
+          clientId={id}
+          onLinked={() => {
+            // Refresh setup checklist (card on file) after link/sync.
+            void fetch(`/api/admin/clients/${id}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data) => {
+                if (data?.setup) {
+                  setSetup({
+                    ...data.setup,
+                    cardOnFile: data.setup.cardOnFile ?? {
+                      count: 0,
+                      cardBrand: null,
+                      cardLast4: null,
+                    },
+                  })
+                }
+              })
+          }}
+        />
       </div>
 
       {/* Partner attribution — manual attach for clinics that signed up

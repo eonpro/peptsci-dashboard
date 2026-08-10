@@ -188,8 +188,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Non-provider bypass: the all-zeros sentinel is never stored (npiNumber
-    // is unique — storing it would block the second non-provider signup).
+    // Non-provider bypass: the all-zeros sentinel is never stored — store
+    // null so non-provider accounts do not look like a real NPI.
     const isNpiBypassed = data.npiNumber === NPI_BYPASS
     const npiNumber = isNpiBypassed ? null : data.npiNumber
 
@@ -201,47 +201,35 @@ export async function POST(request: NextRequest) {
       ? null
       : await matchLeadForNewClient({ email: data.contactEmail, npiNumber })
 
-    let client
-    try {
-      client = await prisma.client.create({
-        data: {
-          ...(attribution
-            ? {
-                partnerOrgId: attribution.partnerOrgId,
-                partnerRepId: attribution.partnerRepId,
-                referralLinkId: attribution.referralLinkId,
-              }
-            : leadMatch
-              ? { partnerOrgId: leadMatch.orgId, partnerRepId: leadMatch.repId }
-              : {}),
-          ...(clinicReferrerId ? { referredByClientId: clinicReferrerId } : {}),
-          organizationName: data.organizationName,
-          npiNumber,
-          providerName: isNpiBypassed ? data.providerName || null : data.providerName,
-          npiData: isNpiBypassed
-            ? Prisma.JsonNull
-            : ((data.npiData as Prisma.InputJsonValue) ?? Prisma.JsonNull),
-          contactName: data.contactName,
-          contactEmail: data.contactEmail,
-          contactPhone: data.contactPhone,
-          smsOptIn: data.smsOptIn,
-          smsOptInAt: data.smsOptIn ? new Date() : null,
-          billingAddress: data.billingAddress as unknown as Prisma.InputJsonValue,
-          shippingAddress: shippingAddress as unknown as Prisma.InputJsonValue,
-          onboardingStatus: 'PENDING',
-          users: { connect: { id: user.id } },
-        },
-      })
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        return errorResponse(
-          'That NPI number is already registered to another account. Contact support if this is an error.',
-          409,
-          'NPI_TAKEN'
-        )
-      }
-      throw err
-    }
+    const client = await prisma.client.create({
+      data: {
+        ...(attribution
+          ? {
+              partnerOrgId: attribution.partnerOrgId,
+              partnerRepId: attribution.partnerRepId,
+              referralLinkId: attribution.referralLinkId,
+            }
+          : leadMatch
+            ? { partnerOrgId: leadMatch.orgId, partnerRepId: leadMatch.repId }
+            : {}),
+        ...(clinicReferrerId ? { referredByClientId: clinicReferrerId } : {}),
+        organizationName: data.organizationName,
+        npiNumber,
+        providerName: isNpiBypassed ? data.providerName || null : data.providerName,
+        npiData: isNpiBypassed
+          ? Prisma.JsonNull
+          : ((data.npiData as Prisma.InputJsonValue) ?? Prisma.JsonNull),
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
+        smsOptIn: data.smsOptIn,
+        smsOptInAt: data.smsOptIn ? new Date() : null,
+        billingAddress: data.billingAddress as unknown as Prisma.InputJsonValue,
+        shippingAddress: shippingAddress as unknown as Prisma.InputJsonValue,
+        onboardingStatus: 'PENDING',
+        users: { connect: { id: user.id } },
+      },
+    })
 
     // Mirror clientId into Clerk so middleware/session can resolve it.
     if (isClerkConfigured) {

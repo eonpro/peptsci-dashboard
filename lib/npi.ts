@@ -35,9 +35,9 @@ function luhnCheckDigit(base: string): number {
 }
 
 /**
- * Sentinel stored/submitted by non-provider accounts to skip NPPES
- * verification during onboarding. Never persisted to Client.npiNumber
- * (the API stores null instead, since npiNumber is unique).
+ * Sentinel submitted by non-provider accounts to skip NPPES verification
+ * during onboarding. Never persisted to Client.npiNumber (the API stores
+ * null instead so it is not treated as a real provider ID).
  */
 export const NPI_BYPASS = '0000000000'
 

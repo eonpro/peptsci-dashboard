@@ -42,7 +42,8 @@ model Client {
   id                    String                    @id @default(cuid())
   organizationName      String
   // Credentialed medical provider verified against the NPPES NPI Registry.
-  npiNumber             String?                   @unique // 10-digit National Provider Identifier
+  // Not unique: the same provider may cover multiple practices (Client rows).
+  npiNumber             String? // 10-digit National Provider Identifier
   providerName          String? // Provider/organization name as returned by NPPES
   npiData               Json? // Frozen NPPES registry snapshot at verification time
   // Employer Identification Number (tax ID), optional — formatted as XX-XXXXXXX when known.
@@ -127,6 +128,7 @@ model Client {
   @@index([partnerOrgId])
   @@index([partnerRepId])
   @@index([referredByClientId])
+  @@index([npiNumber])
 }
 
 // -------------------------------------------------

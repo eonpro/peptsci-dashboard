@@ -5,8 +5,8 @@
  * Every API route responds with `errorResponse()` (lib/auth.ts), whose 4xx
  * bodies are intentionally user-facing: `{ error, message, code }`. UI code
  * that throws a hardcoded string ("Failed to load X") hides actionable
- * messages like "Insufficient batch stock…" or "That NPI number is already
- * registered…". Use this everywhere a fetch can fail:
+ * messages like "Insufficient batch stock…" or validation codes from the
+ * API. Use this everywhere a fetch can fail:
  *
  *   const res = await fetch('/api/…')
  *   if (!res.ok) throw await apiError(res, 'Failed to load products')

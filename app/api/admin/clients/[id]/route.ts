@@ -298,10 +298,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         select: clientSelect,
       })
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === 'P2002')
-          return errorResponse('That NPI number is already registered to another account.', 409, 'NPI_TAKEN')
-        if (err.code === 'P2025') return errorResponse('Client not found', 404, 'NOT_FOUND')
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        return errorResponse('Client not found', 404, 'NOT_FOUND')
       }
       throw err
     }

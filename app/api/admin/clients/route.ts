@@ -110,39 +110,28 @@ export async function POST(request: NextRequest) {
     }
     const input = parsed.data
 
-    try {
-      const client = await prisma.client.create({
-        data: {
-          organizationName: input.organizationName,
-          providerName: input.providerName ?? null,
-          npiNumber: input.npiNumber ?? null,
-          ein: input.ein || null,
-          contactName: input.contactName ?? null,
-          contactEmail: input.contactEmail ?? null,
-          contactPhone: input.contactPhone ?? null,
-          billingAddress: input.billingAddress
-            ? (input.billingAddress as unknown as Prisma.InputJsonValue)
-            : undefined,
-          shippingAddress: input.shippingAddress
-            ? (input.shippingAddress as unknown as Prisma.InputJsonValue)
-            : undefined,
-          onboardingStatus: input.onboardingStatus,
-        },
-        select: { id: true, organizationName: true, onboardingStatus: true },
-      })
+    const client = await prisma.client.create({
+      data: {
+        organizationName: input.organizationName,
+        providerName: input.providerName ?? null,
+        npiNumber: input.npiNumber ?? null,
+        ein: input.ein || null,
+        contactName: input.contactName ?? null,
+        contactEmail: input.contactEmail ?? null,
+        contactPhone: input.contactPhone ?? null,
+        billingAddress: input.billingAddress
+          ? (input.billingAddress as unknown as Prisma.InputJsonValue)
+          : undefined,
+        shippingAddress: input.shippingAddress
+          ? (input.shippingAddress as unknown as Prisma.InputJsonValue)
+          : undefined,
+        onboardingStatus: input.onboardingStatus,
+      },
+      select: { id: true, organizationName: true, onboardingStatus: true },
+    })
 
-      logger.info('[ADMIN CLIENTS] created', { clientId: client.id })
-      return successResponse({ client }, 201)
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        return errorResponse(
-          'That NPI number is already registered to another account.',
-          409,
-          'NPI_TAKEN'
-        )
-      }
-      throw err
-    }
+    logger.info('[ADMIN CLIENTS] created', { clientId: client.id })
+    return successResponse({ client }, 201)
   } catch (error) {
     logger.error(
       'Error creating client',

@@ -1,3 +1,136 @@
+# Link Stripe customer + saved cards to Client  [EXECUTOR — 2026-08-09]
+
+## Background and Motivation
+New practice **LIVBETR** (Victor Cruz MD, NPI 1861622060) was created separately from Elevated Vitality. Stripe already has customer `cus_TapwP4jv1FVREl` (Emil Botvinnik / livbetr1111@gmail.com) on Como RX LLX with payment history and a saved card. PeptSci had no admin path to attach an existing Stripe Customer + sync PaymentMethods onto a Client.
+
+## Key Challenges and Analysis
+- `Client.stripeCustomerId` is `@unique` — only one Client can own a given `cus_…`.
+- Cards live on the Connect account (`STRIPE_CONNECTED_ACCOUNT_ID`); local env cannot pull Sensitive Vercel secrets, so ops must run in production.
+- `persistPaymentMethodFromStripe` does not reassign `clientId` on upsert — link flow reassigns explicitly when force-moving.
+- Card-on-file checklist only reads local `PaymentMethod` rows — Stripe-only cards are invisible until synced.
+
+## High-level Task Breakdown
+1. [x] `lib/stripe/link-customer.ts` — validate cus_, retrieve on Connect, optional force-reassign, set Client.stripeCustomerId, sync cards, set default
+2. [x] `GET/POST /api/admin/clients/[id]/stripe`
+3. [x] `ClientStripeCard` on client detail page
+4. [ ] Deploy to peptsci.com (includes pending NPI non-unique if not yet live)
+5. [ ] Owner: open LIVBETR → Payment profile → paste `cus_TapwP4jv1FVREl` → Link & sync cards
+6. [ ] Confirm checklist shows card on file
+
+## Success criteria
+- LIVBETR.stripeCustomerId = cus_TapwP4jv1FVREl
+- Active PaymentMethod row(s) with brand/last4 for that client
+- Admin setup "Card on file" green
+- Shop/admin can charge saved card off-session
+
+## Project Status Board
+- [x] Link library + API + UI
+- [ ] Deploy
+- [ ] Execute link for LIVBETR
+- [ ] Verify card on file
+
+## Executor's Feedback or Assistance Requests
+Need commit+push (or `vercel --prod`) to ship the link UI, then one click on the LIVBETR client page with `cus_TapwP4jv1FVREl`. Confirm if I should commit the Stripe link work together with the pending NPI non-unique changes already on the working tree.
+
+## Lessons
+- Existing Stripe Dashboard customers must be linked + PaymentMethods synced; creating a new Stripe Customer via getOrCreate would orphan the saved card and payment history.
+
+---
+
+
+# Allow same NPI across multiple practices  [PLANNER → EXECUTOR — 2026-08-09]
+
+## Background and Motivation
+Admin "Create Client" fails with `That NPI number is already registered to another account` when reusing a provider NPI (e.g. 1861622060 on Victor Cruz). Real-world need: one credentialed provider can cover / work for multiple practices.
+
+## Key Challenges and Analysis
+- Root cause: `Client.npiNumber String? @unique` + P2002 → `NPI_TAKEN` in admin create/update, shop profile, onboarding.
+- NPI identifies a *provider*, not a *practice*. Practices are separate `Client` rows (org name, billing, Stripe, etc.).
+- Keep a non-unique index for search/lead-match. No need for a separate Provider entity for this fix.
+- Partner lead matching by NPI remains valid (first match / existing logic).
+
+## High-level Task Breakdown
+1. [x] Schema: drop `@unique` on `Client.npiNumber`; add `@@index([npiNumber])`
+2. [x] Migration: drop `Client_npiNumber_key`, create non-unique index
+3. [x] Remove `NPI_TAKEN` P2002 handlers (admin clients POST/PATCH, shop profile, onboarding)
+4. [x] Update comments that assume NPI uniqueness (`lib/npi.ts`, onboarding)
+5. [x] Local migrate applied (`20260809200000_client_npi_non_unique`)
+
+## Success criteria
+- Creating a second client with an existing NPI succeeds (no 409 NPI_TAKEN)
+- Onboarding / profile update with a reused NPI succeeds
+- Clients list/search still finds practices by NPI
+- Prod: migration applied before/with deploy
+
+## Project Status Board
+- [x] Schema + migration
+- [x] API guard removal
+- [x] Comment cleanup
+- [x] Local migrate
+- [ ] Deploy + owner prod migrate (Settings → Database)
+
+## Executor's Feedback or Assistance Requests
+Code ready. Needs deploy + prod migrate before Create Client with a shared NPI works on peptsci.com.
+
+## Lessons
+- NPI identifies a provider, not a practice — uniqueness belonged on practice identity (Client row), not credential ID.
+
+---
+
+# Platform next bets  [PLANNER — 2026-08-09]
+
+## Background and Motivation
+Core B2B loop is production-ready: NPI onboarding → catalog/pricing → Stripe Connect checkout → fulfillment (FedEx, labels, batches) → invoicing → partners → white-label/Shopify. Ask: what to build next for leverage, not novelty.
+
+## Key Challenges and Analysis
+- Pricing depth (tiers/promos/tax) is the biggest commercial gap vs ops polish.
+- Catalog trust (COAs, chemistry) still has holes — clinics buy on proof.
+- Media still on Blob/base64; S3 is ops debt, not growth.
+- Subscriptions unlock retention but need inventory/reservation discipline first.
+- AI is optional polish; do not lead with it until pricing + trust + retention are solid.
+- Multi-vendor marketplace remains explicitly out of scope.
+
+## Recommended priority (impact × fit)
+
+### P0 — Finish in-flight / unblocks revenue ops
+1. Prod migrate + enable white-label vial labels (Elevated Vitality)
+2. Remaining COAs when Nexus certs arrive; keep chemistry map as source of truth
+3. Owner checklist: Shopify charge + per-practice shipping rates migrate/verify
+
+### P1 — Commercial leverage (build next)
+1. **Volume / tier pricing + shared price lists** — clinics negotiate qty breaks; today is mostly flat ClientPricing
+2. **Promo / coupon codes** — partner campaigns, reactivation, launch SKUs without one-off price edits
+3. **Recurring / auto-refill orders** — sticky B2B revenue; align with FEFO reservations + payment methods on file
+4. **Stripe Tax + resale-cert exemption** — only if legal/finance decides tax must be charged; otherwise document “no tax” as intentional
+
+### P2 — Trust, retention, partner growth
+1. Clinic portal: buy-again polish, spend/order insights, reorder from last invoice
+2. Partner quoting → checkout conversion (quotes already exist; close the loop)
+3. Stronger COA/compliance surface on PDP (batch-linked COA at ship time)
+4. Notification preferences (email/SMS channels) beyond TCPA opt-in
+
+### P3 — Platform hardening (when ops pain shows)
+1. Package photos / labels → S3 (durable media, not base64/Blob sprawl)
+2. Broader Playwright E2E beyond smoke (checkout, fulfill, Shopify ingest)
+3. QuickBooks / accounting export; OpEx into P&L
+4. Multi-carrier (UPS) only if FedEx coverage/cost becomes a real constraint
+5. Light AI later: catalog enrichment assist, support triage — not a core product bet
+
+## Explicit non-goals (keep)
+- Multi-vendor marketplace
+- Telehealth / Rx dispensing
+- Generic marketing CRM rebuild
+
+## Success criteria (for choosing next build)
+- Increases clinic AOV, reorder rate, or partner-attributed GMV; or removes a daily ops failure mode
+- Fits single-vendor PeptSci model (no marketplace complexity)
+- Shipable in 1–2 focused sprints with clear migrate/owner checklist
+
+## Ask for owner
+Pick one track: **(A) volume/tier pricing**, **(B) promos**, **(C) subscriptions/auto-refill**, or **(D) finish P0 ops** — then Executor plans TDD slices.
+
+---
+
 # Client white-label vial labels  [EXECUTOR — SHIPPING]
 
 ## Background and Motivation
@@ -17,8 +150,8 @@ Super-admin switch + Elevated Vitality brand layout for order vial label PDFs.
 
 ## Project Status Board
 - [x] Implementation
-- [ ] Push main → Vercel
-- [ ] Prod migrate
+- [x] Pushed `ddc6442` → main → peptsci.com READY (health version matches)
+- [ ] Prod migrate (`whiteLabelEnabled` / `labelBrandKey`)
 - [ ] Enable on Elevated Vitality client
 
 ---

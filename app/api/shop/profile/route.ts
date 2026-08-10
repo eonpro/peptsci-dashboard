@@ -108,15 +108,11 @@ export async function PATCH(request: NextRequest) {
       if (input.npiNumber !== undefined) data.npiNumber = input.npiNumber
     }
 
-    let client
-    try {
-      client = await prisma.client.update({ where: { id: clientId }, data, select: clientSelect })
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        return errorResponse('That NPI number is already registered to another account.', 409, 'NPI_TAKEN')
-      }
-      throw err
-    }
+    const client = await prisma.client.update({
+      where: { id: clientId },
+      data,
+      select: clientSelect,
+    })
 
     const shippingRates = await loadClientShippingRates(clientId)
     return successResponse({
