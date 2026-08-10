@@ -1,3 +1,75 @@
+# Print labels from Products  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Staff enter inventory via Receive Inventory, but need to print RUO vial labels from the Products catalog without leaving that page.
+
+## What shipped
+1. `ProductLabelPrintDialog` — loads non-voided batches for a variant, picks soonest-BUD with stock, qty + Proof/Download via existing `POST /api/admin/inventory/labels/pdf`
+2. Printer icon on each Products table row opens the dialog; empty state links to Inventory → Receive Inventory
+
+## Project Status Board
+- [x] ProductLabelPrintDialog
+- [x] Wire Products page row action
+- [x] Scratchpad update
+
+## Executor's Feedback or Assistance Requests
+Owner: Products → printer icon on a product with received batches → Download PDF / Proof.
+
+---
+
+# Fix INV-00001 Stripe Convert dead-end  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Owner opened Convert on Emil/LIVBETR $4,640 (product `PeptSci invoice INV-00001`). Mapped total $0 and disabled Convert — mistaken for “paid but unfulfilled.” Real path is Invoice → Queue fulfillment.
+
+## What shipped (code)
+1. `stripe-queue` excludes `InvoicePayment` PIs (`excludePlatformInvoiceQueueRows`)
+2. Backfill/repair use `shouldSkipSalesIngestForPlatformInvoice` (metadata + InvoicePayment)
+3. Convert modal: platform-invoice banner + link to invoice Queue fulfillment; empty-state / “mapped lines” copy; no junk seed for invoice descriptions
+4. Tests: catalog picker, invoicing helpers, stripe-queue filter
+
+## Ops (prod — owner session required)
+Local DB has no INV-00001; `variantId` applied locally only.
+On peptsci.com as admin (after this deploy):
+```js
+await fetch('/api/admin/db/migrate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ confirm:true }) }).then(r=>r.json())
+```
+Then **Billing → INV-00001 → Queue fulfillment**. Confirm Needs Label + convert queue drop.
+
+## Project Status Board
+- [x] Filter stripe-queue + harden backfill/repair
+- [x] Convert modal UX + picker seed
+- [x] Unit tests
+- [ ] Deploy
+- [ ] Prod migrate `variantId`
+- [ ] Queue fulfillment INV-00001
+
+## Executor's Feedback or Assistance Requests
+Need owner (or SESSION_COOKIE) for prod migrate + Queue fulfillment. Script: `scripts/ops-inv00001-fulfill.ts` (local only without remote DB).
+
+---
+
+# Recon calculator: dose in units  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Owner wants Desired Dose (and protocol daily/weekly cards) in **U-100 syringe units** derived from recommended reconstitution, not mcg.
+
+## What shipped
+1. `lib/reconstitution.ts` — `doseMcgToSyringeUnits` / `syringeUnitsToDoseMcg` / `formatDoseRangeAsSyringeUnits`
+2. `ReconstitutionCalculator` — Desired Dose slider in units; Daily/Weekly cards convert mcg/mg ranges at recommended BAC water; mcg kept as secondary on draw line
+3. Tests for AOD 5mg/2ml/300mcg → 12 units and range formatting
+
+## Project Status Board
+- [x] Math helpers + tests (10/10)
+- [x] Calculator UI
+- [x] Deployed `6b9a7dd` → peptsci.com READY (`dpl_5STWHMeXSGhEhE6ST9fobmGFSKtm`)
+- [ ] Owner visual verify on AOD5 PDP
+
+## Executor's Feedback or Assistance Requests
+AOD-9604 (5 mg / 2 ml recommended): Daily **12–20 units**, Desired Dose defaults to **12 units** (was 300 mcg). IU / N/A protocols left as authored text.
+
+---
+
 # Platform invoice pay → Order + inventory hold  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation

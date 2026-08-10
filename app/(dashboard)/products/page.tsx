@@ -37,6 +37,7 @@ import {
   Pencil,
   ImagePlus,
   FileText,
+  Printer,
 } from 'lucide-react'
 import {
   parseProductCsv,
@@ -46,6 +47,9 @@ import {
   type RowError,
 } from '@/lib/product-import'
 import ProductFormDialog, { type ProductFormValues } from './ProductFormDialog'
+import ProductLabelPrintDialog, {
+  type ProductLabelVariantRef,
+} from './ProductLabelPrintDialog'
 import CoaManagerDialog, { type CoaVariantRef } from '@/components/coa/CoaManagerDialog'
 import { parseMonograph } from '@/lib/types/monograph'
 import { monographToForm } from '@/lib/monograph-format'
@@ -99,6 +103,8 @@ export default function ProductsPage() {
   const [uploadingImageId, setUploadingImageId] = useState<string | null>(null)
   const [coaOpen, setCoaOpen] = useState(false)
   const [coaVariant, setCoaVariant] = useState<CoaVariantRef | null>(null)
+  const [labelOpen, setLabelOpen] = useState(false)
+  const [labelVariant, setLabelVariant] = useState<ProductLabelVariantRef | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const imageTargetRef = useRef<VariantRow | null>(null)
@@ -234,6 +240,11 @@ export default function ProductsPage() {
   function openCoa(v: VariantRow) {
     setCoaVariant({ id: v.id, sku: v.sku, productName: v.productName, dose: v.dose })
     setCoaOpen(true)
+  }
+
+  function openLabels(v: VariantRow) {
+    setLabelVariant({ id: v.id, productName: v.productName, dose: v.dose, sku: v.sku })
+    setLabelOpen(true)
   }
 
   async function uploadImage(file: File) {
@@ -432,6 +443,15 @@ export default function ProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        title="Print labels"
+                        onClick={() => openLabels(v)}
+                        className="h-8 w-8 text-white/50 hover:bg-white/10 hover:text-white"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         title={v.coaCount ? `Certificates of analysis (${v.coaCount})` : 'Add certificate of analysis'}
                         onClick={() => openCoa(v)}
                         className="relative h-8 w-8 text-white/50 hover:bg-white/10 hover:text-white"
@@ -501,6 +521,13 @@ export default function ProductsPage() {
         onOpenChange={setCoaOpen}
         variant={coaVariant}
         onChanged={load}
+      />
+
+      {/* Print vial labels for a product's inventory batch */}
+      <ProductLabelPrintDialog
+        open={labelOpen}
+        onOpenChange={setLabelOpen}
+        variant={labelVariant}
       />
 
       {/* Import Dialog */}
