@@ -35,7 +35,7 @@ const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
   ),
 })
 import type { Sale } from '@/lib/sales'
-import { isOpsRecentSale } from '@/lib/sales'
+import { isOpsRecentSale } from '@/lib/ops-recent-sale'
 import { format } from 'date-fns'
 import { nyMonthKey } from '@/lib/reports/core'
 
