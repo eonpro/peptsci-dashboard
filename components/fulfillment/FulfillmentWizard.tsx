@@ -20,7 +20,16 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import PackPhotoCapture from '@/components/orders/PackPhotoCapture'
-import { postFulfillment, type AdvanceableStep } from '@/lib/fulfillment/api-client'
+import {
+  downloadLabelSheet,
+  fetchLabelShortfall,
+  postFulfillment,
+  type AdvanceableStep,
+} from '@/lib/fulfillment/api-client'
+import {
+  describeLabelShortfall,
+  type LabelShortfallEntry,
+} from '@/lib/fulfillment/label-shortfall'
 import {
   WIZARD_STEPS,
   canComplete,
@@ -35,6 +44,7 @@ import {
 } from '@/lib/fulfillment/wizard-core'
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   Camera,
   CheckCircle2,
@@ -108,6 +118,31 @@ function BackButton({
   )
 }
 
+/**
+ * Vials the label sheet cannot cover, because their variant has no allocatable
+ * batch. Shown on Verify (from the pick list) and on the label screen (from the
+ * print response) so a short sheet is never applied to a box unnoticed.
+ */
+function ShortfallNotice({
+  entries,
+  children,
+}: {
+  entries: LabelShortfallEntry[]
+  children?: React.ReactNode
+}) {
+  const message = describeLabelShortfall(entries)
+  if (!message) return null
+  return (
+    <div className="space-y-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{message}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 /** Compact "Step 3 of 6" rail so the operator always knows where they are. */
 function StepRail({ current }: { current: FulfillmentStepName }) {
   const position = stepIndex(current)
@@ -150,6 +185,9 @@ export default function FulfillmentWizard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmSkip, setConfirmSkip] = useState(false)
+  const [shortfall, setShortfall] = useState<LabelShortfallEntry[]>([])
+  /** A print really did come back short — offer to move on deliberately. */
+  const [printedShort, setPrintedShort] = useState(false)
 
   // Anchor once per order (and once per explicit `initialStep` instruction).
   // The dialog is hidden — not unmounted — while a ship modal is open, so a
@@ -163,9 +201,13 @@ export default function FulfillmentWizard({
     anchoredRef.current = anchor
     setError(null)
     setConfirmSkip(false)
+    setPrintedShort(false)
     setStep(
       initialStep ?? resumeStep({ step: order.fulfillmentStep, stage: order.fulfillmentStage })
     )
+    // Learn about unlabelable lines up front, so Verify can flag them before
+    // anyone prints. Never throws; worst case the notice just doesn't appear.
+    void fetchLabelShortfall(order.id).then(setShortfall)
   }, [open, initialStep, order.id, order.fulfillmentStep, order.fulfillmentStage])
 
   const run = async (fn: () => Promise<void>) => {
@@ -191,6 +233,21 @@ export default function FulfillmentWizard({
   const openPdf = (path: string) => {
     window.open(`/api/admin/orders/${order.id}/${path}`, '_blank', 'noopener,noreferrer')
   }
+
+  /**
+   * Download the sheet, then only advance if it covered every vial. A short sheet
+   * holds the operator on this screen with the missing products named.
+   */
+  const printLabels = () =>
+    run(async () => {
+      const short = await downloadLabelSheet(order.id, order.orderNumber)
+      setShortfall(short)
+      setPrintedShort(short.length > 0)
+      if (short.length > 0) return
+      await postFulfillment(order.id, { action: 'step', step: 'VIAL_LABELS' })
+      setStep(nextStep('VIAL_LABELS'))
+      onChanged()
+    })
 
   const completion = canComplete({
     trackingNumber: order.trackingNumber,
@@ -244,6 +301,7 @@ export default function FulfillmentWizard({
                   )}
                 </ul>
               </div>
+              <ShortfallNotice entries={shortfall} />
               <Button className="w-full" disabled={busy} onClick={() => void advance('VERIFY')}>
                 {busy ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -261,16 +319,26 @@ export default function FulfillmentWizard({
                 Print the vial labels and apply them to each vial. This is a preview print — stock is
                 drawn when the order ships.
               </p>
+              <ShortfallNotice entries={shortfall}>
+                {printedShort && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void advance('VIAL_LABELS')}
+                  >
+                    Continue without those labels
+                  </Button>
+                )}
+              </ShortfallNotice>
               <div className="space-y-2">
-                <Button
-                  className="w-full"
-                  disabled={busy}
-                  onClick={() => {
-                    openPdf('labels/pdf')
-                    void advance('VIAL_LABELS')
-                  }}
-                >
-                  <Printer className="mr-2 h-4 w-4" /> Print Vial Labels
+                <Button className="w-full" disabled={busy} onClick={() => void printLabels()}>
+                  {busy ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Printer className="mr-2 h-4 w-4" />
+                  )}
+                  {printedShort ? 'Reprint Vial Labels' : 'Print Vial Labels'}
                 </Button>
                 <Button
                   variant="outline"

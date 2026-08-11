@@ -22,6 +22,11 @@ import {
 } from '@/lib/labels/generateVialLabelsPdf'
 import { resolveLabelDose } from '@/lib/labels/peptsciLabelPdf'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
+import { displayProductName } from '@/lib/products/named-blends'
+import {
+  serializeLabelShortfall,
+  type LabelShortfallEntry,
+} from '@/lib/fulfillment/label-shortfall'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,7 +62,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { variant: true } },
+        // The product name comes along so a line with NO allocatable batch can
+        // still be named in the shortfall header (batch rows are absent there).
+        items: { include: { variant: { include: { product: { select: { name: true } } } } } },
         client: {
           select: { whiteLabelEnabled: true, labelBrandKey: true, paymentTermsDays: true },
         },
@@ -108,7 +115,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const groups: VialLabelGroup[] = []
-    const shortfalls: Array<{ variantId: string; needed: number; short: number }> = []
+    const shortfalls: Array<LabelShortfallEntry & { variantId: string }> = []
 
     // Fetch eligible batches for every line item's variant in one query
     // (instead of one query per item).
@@ -137,10 +144,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })),
         needed
       )
-      if (plan.shortfall > 0) {
-        shortfalls.push({ variantId, needed, short: plan.shortfall })
-      }
       const catalog = variantById.get(variantId)
+      if (plan.shortfall > 0) {
+        shortfalls.push({
+          variantId,
+          productName: catalog
+            ? displayProductName(catalog.product.name, catalog.sku)
+            : 'Unknown product',
+          dose: resolveLabelDose(null, catalog?.dose, catalog?.sku) || null,
+          needed,
+          short: plan.shortfall,
+        })
+      }
       for (const draw of plan.draws) {
         const batch = batches.find((b) => b.id === draw.batchId)!
         groups.push({
@@ -259,7 +274,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         'Content-Disposition': `attachment; filename="${brandSlug}-order-${order.orderNumber}-labels.pdf"`,
         'Cache-Control': 'no-store',
         'X-Label-Brand': brand,
-        'X-Label-Shortfall': shortfalls.length > 0 ? JSON.stringify(shortfalls) : '',
+        'X-Label-Shortfall': serializeLabelShortfall(shortfalls),
       },
     })
   } catch (error) {

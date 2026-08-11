@@ -24,6 +24,9 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { downloadLabelSheet } from '@/lib/fulfillment/api-client'
+import { describeLabelShortfall } from '@/lib/fulfillment/label-shortfall'
 import type { FulfillmentStageName, FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
 
 type StoredAddress = Record<string, unknown> | null
@@ -140,6 +143,21 @@ export function FulfillmentOrderRow({
   // that hasn't been marked fulfilled yet still needs the operator to finish.
   const showWizardAction = !cancelled && !fulfilled && (inProgress || !shipped)
   const stageBadge = fulfilled ? FULFILLED_META : STAGE_META[order.fulfillmentStage]
+
+  /**
+   * Downloaded rather than linked so the shortfall header can be read: lines with
+   * no allocatable batch print no label, and the operator has to hear about it.
+   */
+  const printVialLabels = async () => {
+    try {
+      const shortfall = await downloadLabelSheet(order.id, order.orderNumber)
+      const warning = describeLabelShortfall(shortfall)
+      if (warning) toast.warning(warning, { duration: 12000 })
+      else toast.success('Label sheet downloaded')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to generate vial labels')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -301,14 +319,8 @@ export function FulfillmentOrderRow({
                     <FileText className="mr-2 h-4 w-4" /> Packing Slip (PDF)
                   </a>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a
-                    href={`/api/admin/orders/${order.id}/labels/pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Printer className="mr-2 h-4 w-4" /> Vial Labels (PDF)
-                  </a>
+                <DropdownMenuItem onClick={() => void printVialLabels()}>
+                  <Printer className="mr-2 h-4 w-4" /> Vial Labels (PDF)
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {order.fulfillmentStage === 'PICKED' && (
