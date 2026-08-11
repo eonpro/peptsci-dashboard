@@ -16,6 +16,7 @@ interface GroupedOrder {
   totalVials: number
   trackingNumber: string
   invoicePaid: boolean
+  orderStatus: string | null
   totalProfit: number
   profitMargin: number
   markup: number
@@ -55,6 +56,7 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
         totalVials: 0,
         trackingNumber: sale.TrackingNumber,
         invoicePaid: sale.InvoicePaid,
+        orderStatus: sale.OrderStatus ?? null,
         totalProfit: 0,
         profitMargin: 0,
         markup: 0,
@@ -232,7 +234,11 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white/80">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{order.orderId}</span>
-                        {!order.invoicePaid ? (
+                        {order.orderStatus === 'CANCELLED' || order.orderStatus === 'REJECTED' ? (
+                          <span className="px-2 py-1 text-xs font-semibold bg-zinc-100 dark:bg-white/10 text-zinc-700 dark:text-white/60 rounded-full">
+                            Cancelled
+                          </span>
+                        ) : !order.invoicePaid ? (
                           <span className="px-2 py-1 text-xs font-semibold bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-300 rounded-full">
                             Needs Payment
                           </span>
