@@ -1,6 +1,11 @@
-import { describe, it } from 'node:test'
+import { before, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { PDFDocument, type PDFFont } from 'pdf-lib'
+import fontkit from '@pdf-lib/fontkit'
 import {
+  fitNameSize,
   formatElevatedVitalityDose,
   parseBudUs,
   splitElevatedVitalityNameLines,
@@ -41,6 +46,83 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
     assert.equal(parseBudUs('2027-07-21'), '07/21/27')
     assert.equal(parseBudUs('07/21/2027'), '07/21/27')
     assert.equal(parseBudUs('07/21/27'), '07/21/27')
+  })
+})
+
+describe('Elevated Vitality product name sizing', () => {
+  /** Label geometry the sizing has to live inside (points, from the artwork). */
+  const CARD_CX = 67.575
+  const NAME_BAND = { top: 20.5, bottom: 35.46 }
+  const CAP_RATIO = 0.74
+  const TRIDENT_RIGHT_EDGE = 28.4 // solid artwork on the left
+  const RAIL_LEFT_EDGE = 120.01 // right rail box
+
+  let italic: PDFFont
+
+  before(async () => {
+    const doc = await PDFDocument.create()
+    doc.registerFontkit(fontkit)
+    italic = await doc.embedFont(
+      await readFile(
+        path.join(process.cwd(), 'public', 'fonts', 'labels', 'Inter-ExtraBoldItalic.ttf')
+      ),
+      { subset: false }
+    )
+  })
+
+  const lines = (name: string) => splitElevatedVitalityNameLines(name).map((l) => l.toUpperCase())
+
+  it('gives short names the full cap size', () => {
+    assert.equal(fitNameSize(italic, lines('NAD+')), 11)
+    assert.equal(fitNameSize(italic, lines('Semax')), 11)
+  })
+
+  it('keeps long compounds far larger than the old 9pt/narrow-budget output', () => {
+    // These used to shrink to ~5.1pt, which is what prompted the change.
+    for (const name of ['Tesamorelin', 'Retatrutide', 'Semaglutide', 'Glutathione']) {
+      const size = fitNameSize(italic, lines(name))
+      assert.ok(size >= 7, `${name} rendered at ${size}pt, expected >= 7`)
+    }
+  })
+
+  it('never lets the two lines of a blend collide', () => {
+    const blend = lines('BPC-157 / TB-500')
+    assert.equal(blend.length, 2)
+    const size = fitNameSize(italic, blend)
+    const capHeight = size * CAP_RATIO
+    const gap = 1.4
+    const blockHeight = 2 * capHeight + gap
+    assert.ok(
+      blockHeight <= NAME_BAND.bottom - NAME_BAND.top,
+      `blend block ${blockHeight.toFixed(2)}pt exceeds the ${(NAME_BAND.bottom - NAME_BAND.top).toFixed(2)}pt band`
+    )
+    // Leading must clear the caps, otherwise line 2 overlaps line 1.
+    assert.ok(capHeight + gap > capHeight)
+  })
+
+  it('stays clear of the trident block and the right rail', () => {
+    for (const name of [
+      'NAD+',
+      'Tesamorelin',
+      'Retatrutide',
+      'Semaglutide',
+      'Tirzepatide',
+      'Glutathione',
+      'BPC-157 / TB-500',
+    ]) {
+      const nameLines = lines(name)
+      const size = fitNameSize(italic, nameLines)
+      for (const line of nameLines) {
+        const width = italic.widthOfTextAtSize(line, size)
+        const left = CARD_CX - width / 2
+        const right = CARD_CX + width / 2
+        assert.ok(
+          left > TRIDENT_RIGHT_EDGE,
+          `${name} starts at ${left.toFixed(1)}, over the trident`
+        )
+        assert.ok(right < RAIL_LEFT_EDGE, `${name} ends at ${right.toFixed(1)}, over the rail`)
+      }
+    }
   })
 })
 
