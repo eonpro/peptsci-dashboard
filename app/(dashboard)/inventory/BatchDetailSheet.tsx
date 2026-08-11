@@ -77,6 +77,7 @@ export default function BatchDetailSheet({
 
   // Edit dialog (label-cosmetic fields; counts/BUD/batch # are immutable)
   const [editOpen, setEditOpen] = useState(false)
+  const [editDose, setEditDose] = useState('')
   const [editPurity, setEditPurity] = useState('')
   const [editVialSize, setEditVialSize] = useState('')
   const [editColor, setEditColor] = useState('#2b2c84')
@@ -139,6 +140,7 @@ export default function BatchDetailSheet({
 
   function openEdit() {
     if (!detail) return
+    setEditDose(detail.dose || '')
     setEditPurity(detail.purity)
     setEditVialSize(detail.vialSize ?? '')
     setEditColor(detail.yearColor ?? '#2b2c84')
@@ -148,12 +150,17 @@ export default function BatchDetailSheet({
 
   async function saveEdit() {
     if (!detail) return
+    if (!editDose.trim()) {
+      toast.error('Dose is required for labels (e.g. 5mg)')
+      return
+    }
     setBusy(true)
     try {
       const res = await fetch(`/api/admin/inventory/batches/${detail.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          dose: editDose.trim(),
           purity: editPurity.trim() || null,
           vialSize: editVialSize.trim() || null,
           yearColor: /^#[0-9a-fA-F]{6}$/.test(editColor.trim()) ? editColor.trim() : null,
@@ -428,6 +435,15 @@ export default function BatchDetailSheet({
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-dose">Dose (label)</Label>
+                    <Input
+                      id="edit-dose"
+                      value={editDose}
+                      onChange={(e) => setEditDose(e.target.value)}
+                      placeholder="5mg"
+                    />
+                  </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="edit-purity">Purity (label)</Label>
                     <Input

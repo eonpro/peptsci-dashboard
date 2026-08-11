@@ -15,6 +15,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const updateSchema = z.object({
+  dose: z.string().trim().min(1).max(40).optional(),
   purity: z.string().trim().optional(),
   vialSize: z.string().trim().optional(),
   yearColor: z

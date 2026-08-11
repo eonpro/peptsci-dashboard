@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeDoseLabel, splitProductNameLines, NAME_TRACKING_EM } from '../labels/peptsciLabelPdf'
+import { normalizeDoseLabel, splitProductNameLines, NAME_TRACKING_EM, resolveLabelDose, inferDoseFromSku } from '../labels/peptsciLabelPdf'
 
 describe('normalizeDoseLabel', () => {
   it('strips trailing .0 decimals', () => {
@@ -67,5 +67,33 @@ describe('splitProductNameLines', () => {
 describe('NAME_TRACKING_EM', () => {
   it('matches Illustrator tracking −25 (thousandths of an em)', () => {
     assert.equal(NAME_TRACKING_EM, -0.025)
+  })
+})
+
+describe('inferDoseFromSku', () => {
+  it('reads trailing digits from compact and dashed SKUs', () => {
+    assert.equal(inferDoseFromSku('RT5'), '5mg')
+    assert.equal(inferDoseFromSku('RT10'), '10mg')
+    assert.equal(inferDoseFromSku('TES-10'), '10mg')
+    assert.equal(inferDoseFromSku('GLOW-70'), '70mg')
+  })
+
+  it('returns null when no dose digits are present', () => {
+    assert.equal(inferDoseFromSku('BAC'), null)
+    assert.equal(inferDoseFromSku(''), null)
+    assert.equal(inferDoseFromSku(null), null)
+  })
+})
+
+describe('resolveLabelDose', () => {
+  it('prefers the batch snapshot, then variant, then SKU', () => {
+    assert.equal(resolveLabelDose('10mg', '5mg', 'RT5'), '10mg')
+    assert.equal(resolveLabelDose('', '5mg', 'RT5'), '5mg')
+    assert.equal(resolveLabelDose('  ', null, 'RT5'), '5mg')
+    assert.equal(resolveLabelDose('', '10.0 mg', 'RT5'), '10mg')
+  })
+
+  it('returns empty when nothing can be resolved', () => {
+    assert.equal(resolveLabelDose('', null, 'BAC'), '')
   })
 })

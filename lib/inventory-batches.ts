@@ -428,13 +428,15 @@ export async function getBatch(id: string) {
   return db().inventoryBatch.findUnique({
     where: { id },
     include: {
-      variant: { select: { sku: true } },
+      variant: { select: { sku: true, dose: true } },
       events: { orderBy: { createdAt: 'asc' } },
     },
   })
 }
 
 export interface UpdateBatchInput {
+  /** Label dose-box text (e.g. "5mg"). Batch number stays immutable. */
+  dose?: string | null
   purity?: string | null
   vialSize?: string | null
   yearColor?: string | null
@@ -444,6 +446,7 @@ export interface UpdateBatchInput {
 /**
  * Update label-cosmetic / informational fields on a batch. Counts, batch
  * number, BUD and variant are immutable here (they are audit-tracked at intake).
+ * Dose may be corrected when intake captured a blank snapshot (e.g. RET0-…).
  */
 export async function updateBatch(id: string, input: UpdateBatchInput, actor: BatchActor) {
   const client = db()
@@ -451,6 +454,11 @@ export async function updateBatch(id: string, input: UpdateBatchInput, actor: Ba
     throw new BatchValidationError('Accent color must be a #rrggbb hex value', 'yearColor')
   }
   const data: Prisma.InventoryBatchUpdateInput = {}
+  if (input.dose !== undefined) {
+    const next = input.dose?.trim() || ''
+    if (!next) throw new BatchValidationError('Dose is required for labels', 'dose')
+    data.dose = next
+  }
   if (input.purity !== undefined) data.purity = input.purity?.trim() || '99%HPLC'
   if (input.vialSize !== undefined) data.vialSize = input.vialSize?.trim() || null
   if (input.yearColor !== undefined) data.yearColor = input.yearColor?.trim() || null
@@ -464,6 +472,30 @@ export async function updateBatch(id: string, input: UpdateBatchInput, actor: Ba
       },
     },
   })
+}
+
+/**
+ * When a catalog variant dose is set, backfill any batches for that variant
+ * that still have a blank dose snapshot (so reprints pick up the mg amount).
+ */
+export async function syncEmptyBatchDosesFromVariant(
+  variantId: string,
+  dose: string
+): Promise<number> {
+  const next = dose.trim()
+  if (!next) return 0
+  const client = db()
+  const rows = await client.inventoryBatch.findMany({
+    where: { variantId },
+    select: { id: true, dose: true },
+  })
+  let healed = 0
+  for (const row of rows) {
+    if (row.dose.trim()) continue
+    await client.inventoryBatch.update({ where: { id: row.id }, data: { dose: next } })
+    healed += 1
+  }
+  return healed
 }
 
 /**

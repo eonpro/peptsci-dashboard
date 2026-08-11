@@ -968,6 +968,39 @@ export function normalizeDoseLabel(value: string): string {
   )
 }
 
+/**
+ * Infer "5mg" from SKUs like RT5 / RT-5 / TES-10 when the catalog dose was wiped.
+ * Letters+digits (RT5) or a trailing -N / _N segment.
+ */
+export function inferDoseFromSku(sku: string | null | undefined): string | null {
+  if (!sku) return null
+  const trimmed = sku.trim()
+  if (!trimmed) return null
+  const dashed = /(?:^|[-_])(\d+(?:\.\d+)?)$/.exec(trimmed)
+  if (dashed) return `${Number(dashed[1])}mg`
+  const glued = /^[A-Za-z]+(\d+(?:\.\d+)?)$/.exec(trimmed)
+  if (glued) return `${Number(glued[1])}mg`
+  return null
+}
+
+/**
+ * Label dose for printing: prefer the batch snapshot, then the live variant
+ * dose, then a SKU-derived amount. Empty batch doses (e.g. RET0-… from a
+ * wiped catalog field) must not blank the black dose box.
+ */
+export function resolveLabelDose(
+  batchDose: string | null | undefined,
+  variantDose?: string | null,
+  sku?: string | null
+): string {
+  const fromBatch = batchDose?.trim()
+  if (fromBatch) return normalizeDoseLabel(fromBatch)
+  const fromVariant = variantDose?.trim()
+  if (fromVariant) return normalizeDoseLabel(fromVariant)
+  const fromSku = inferDoseFromSku(sku)
+  return fromSku ? normalizeDoseLabel(fromSku) : ''
+}
+
 function normalizeReq(input: PeptSciLabelRequest): PeptSciLabelRequest {
   return {
     ...input,

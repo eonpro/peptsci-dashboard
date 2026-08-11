@@ -9,7 +9,12 @@ import {
 } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getBatch, recordLabelPrintEvent } from '@/lib/inventory-batches'
-import { generatePeptSciLabelSheetPdf, PEPTSCI_LABEL_SHEET_MAX } from '@/lib/labels/peptsciLabelPdf'
+import {
+  generatePeptSciLabelSheetPdf,
+  PEPTSCI_LABEL_SHEET_MAX,
+  resolveLabelDose,
+} from '@/lib/labels/peptsciLabelPdf'
+import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,9 +52,18 @@ export async function POST(request: NextRequest) {
       ? 1
       : (parsed.data.quantity ?? Math.min(PEPTSCI_LABEL_SHEET_MAX, batch.qtyReceived || 1))
 
+    // Batch.dose is frozen at intake; empty snapshots (RET0-…) fall back to the
+    // live variant dose or SKU (RT5 → 5mg) so the black dose box is never blank.
+    const dose = resolveLabelDose(batch.dose, batch.variant?.dose, batch.variant?.sku)
+    if (dose && !batch.dose.trim() && prisma) {
+      await prisma.inventoryBatch
+        .update({ where: { id: batch.id }, data: { dose } })
+        .catch(() => {})
+    }
+
     const pdf = await generatePeptSciLabelSheetPdf({
       productName: batch.productName,
-      dose: batch.dose,
+      dose,
       purity: batch.purity,
       batchNumber: batch.batchNumber,
       budIsoDate: batch.bud.toISOString().slice(0, 10),

@@ -10,6 +10,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { syncEmptyBatchDosesFromVariant } from '@/lib/inventory-batches'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -106,6 +107,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(body.reorderLevel !== undefined ? { reorderLevel: body.reorderLevel } : {}),
       },
     })
+
+    // Heal blank batch dose snapshots so label reprints show the mg amount.
+    if (body.dose !== undefined && body.dose.trim()) {
+      await syncEmptyBatchDosesFromVariant(id, body.dose).catch((err) => {
+        logger.warn('Could not sync empty batch doses from variant', {
+          variantId: id,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      })
+    }
 
     if (
       body.name !== undefined ||

@@ -20,6 +20,7 @@ import {
   resolveLabelBrandKey,
   type VialLabelGroup,
 } from '@/lib/labels/generateVialLabelsPdf'
+import { resolveLabelDose } from '@/lib/labels/peptsciLabelPdf'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
 
 export const runtime = 'nodejs'
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     for (const item of order.items) {
       qtyByVariant.set(item.variantId, (qtyByVariant.get(item.variantId) ?? 0) + item.quantity)
     }
+    const variantById = new Map(order.items.map((item) => [item.variantId, item.variant]))
 
     for (const [variantId, needed] of qtyByVariant) {
       const batches = batchesByVariant.get(variantId) ?? []
@@ -135,11 +137,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (plan.shortfall > 0) {
         shortfalls.push({ variantId, needed, short: plan.shortfall })
       }
+      const catalog = variantById.get(variantId)
       for (const draw of plan.draws) {
         const batch = batches.find((b) => b.id === draw.batchId)!
         groups.push({
           productName: batch.productName,
-          dose: batch.dose,
+          dose: resolveLabelDose(batch.dose, catalog?.dose, catalog?.sku),
           purity: batch.purity,
           batchNumber: batch.batchNumber,
           budIsoDate: batch.bud.toISOString().slice(0, 10),
@@ -208,6 +211,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               batchNumber: true,
               bud: true,
               yearColor: true,
+              variant: { select: { dose: true, sku: true } },
             },
           })
           const batchById = new Map(drawnBatches.map((b) => [b.id, b]))
@@ -217,7 +221,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return [
               {
                 productName: batch.productName,
-                dose: batch.dose,
+                dose: resolveLabelDose(batch.dose, batch.variant?.dose, batch.variant?.sku),
                 purity: batch.purity,
                 batchNumber: batch.batchNumber,
                 budIsoDate: batch.bud.toISOString().slice(0, 10),

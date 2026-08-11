@@ -1,3 +1,21 @@
+# Label PDF empty mg (batch dose snapshot)  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Retatrutide labels still printed with a blank black dose box. Batch `RET0-072028` was received with empty `InventoryBatch.dose` (doseCode → `0`); label PDF used only the frozen batch field, ignoring catalog/SKU.
+
+## What shipped
+- `resolveLabelDose` / `inferDoseFromSku` — batch → variant → SKU (RT5 → 5mg)
+- Inventory + order label PDF routes use it; heal blank batch on print
+- Product PATCH syncs empty batch doses; batch edit UI can set Dose
+- Tests for resolve/infer
+
+## Project Status Board
+- [x] Resolve + heal on print
+- [x] Product/batch edit paths
+- [ ] Deploy + reprint Retatrutide labels (expect 5mg from RT5 if catalog dose still blank)
+
+---
+
 # Product form: Retatrutide single vs blend + label tracking  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation
@@ -17,10 +35,11 @@ Retatrutide (single peptide, SKU RT5) reopened as **Blend** because aka `"GLP-1 
 - [x] Fix false blend reopen
 - [x] Label name tracking −25
 - [x] Unit tests
-- [ ] Soft-refresh Products → Edit Retatrutide → confirm Single peptide + Dose field; set mg (e.g. 5mg) and save; reprint labels
+- [x] Deployed `f01fb77` → peptsci.com READY (`dpl_cHaJqwd5csb9uREQFSQVzZArbsNU`)
+- [ ] Soft-refresh Products → Edit Retatrutide → confirm Single peptide + Dose; set mg and save; reprint labels
 
 ## Executor's Feedback or Assistance Requests
-Hard-refresh Products. Open Retatrutide — should show **Single peptide** with Dose (not Blend compounds). Enter the mg amount, Save, reprint labels. GLOW/KLOW should still reopen as Blend.
+Hard-refresh peptsci.com Products. Open Retatrutide — should show **Single peptide** with Dose. Enter mg, Save, reprint labels. GLOW/KLOW still reopen as Blend.
 
 ## Lessons
 - Slash-separated aka ≠ blend compounds; gate aka parsing on `resolveNamedBlendTradeName`.
@@ -51,16 +70,15 @@ EonMeds partner dashboard showed 3 approved clinics but $0 attributed revenue / 
 - [x] Ops backfill route
 - [x] Unit tests
 - [x] Deployed `8d2980f` → peptsci.com READY (`dpl_FqLFWiFkwe72KtDyQPLEJkeNPJxe`)
-- [ ] Dry-run backfill on prod, then `{ confirm: true }` for EonMeds
+- [x] Prod backfill run as SUPER_ADMIN (`info@peptsci.com`): **5 orders accrued**, $5,325 revenue / $1,065 org commission (20%) for EonMeds
+- [x] Partner API now shows clinicCount=3, transactionCount=5
 
 ## Executor's Feedback or Assistance Requests
-As SUPER_ADMIN on peptsci.com after deploy:
-```js
-await fetch('/api/admin/ops/backfill-partner-accrual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json())
-// then:
-await fetch('/api/admin/ops/backfill-partner-accrual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}).then(r=>r.json())
-```
-Refresh `/partners` for EonMeds — ordering clinics + attributed revenue should populate for CAPTURED attributed orders (org ACTIVE + commissionRateBps > 0). `skipped_no_ledger` means gates failed (rate 0, inactive org, etc.).
+Refresh `/partners` (hard refresh). Expected: ~$5,325 attributed revenue, ~$1,065 org commission, 3 ordering clinics.
+
+**Why the owner's earlier `fetch` did nothing:** they ran it while signed in as EonMeds **PARTNER** (`italo@eonmeds.com`). The ops route requires **SUPER_ADMIN** → 403. Must run from an admin session (or ask ops).
+
+Platform Orders on attributed clinics today: EV=3, LIVBETR=1, EONPro=5 (only 1 CAPTURED so far = #67). Older Stripe-only SalesRecords without Orders still do not credit until converted.
 
 ## Lessons
 - Partner KPIs are ledger-only; minting CAPTURED Orders without accrual silently zeros the partner dashboard.
