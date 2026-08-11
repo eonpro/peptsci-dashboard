@@ -12,6 +12,7 @@ import {
   BACKORDER_WARNING,
   clampBackorderQuantity,
 } from '@/lib/shop/backorder'
+import { getProductDisplayImage } from './ProductVial'
 
 interface PdpAddToCartProps {
   product: ShopProduct
@@ -59,7 +60,7 @@ export function PdpAddToCart({ product }: PdpAddToCartProps) {
       sku: product.sku || 'N/A',
       price: product.displayPrice,
       quantity: clampQty(qty),
-      image: undefined,
+      image: getProductDisplayImage(product.name) ?? undefined,
       isBackorder: soldOut,
     })
     setQty(minQty)

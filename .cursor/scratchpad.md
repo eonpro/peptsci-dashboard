@@ -1,3 +1,24 @@
+# Bacteriostatic water product photo  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Shop catalog used generated PeptSci peptide vial labels for every SKU. Bacteriostatic water should show the real Hospira product photo instead.
+
+## What shipped
+- Asset: `public/shop/bacteriostatic-water.png`
+- `ProductVial` detects BAC water names and renders the photo (catalog cards, PDP, orders)
+- Cart ATC passes the same image URL for BAC water line items
+- Unit tests for name detection + image override
+
+## Project Status Board
+- [x] Copy image to public
+- [x] ProductVial override + cart image
+- [x] Tests
+
+## Executor's Feedback or Assistance Requests
+Soft-refresh `/shop` and open Bacteriostatic Water to confirm the Hospira vial photo (not a PeptSci peptide label).
+
+---
+
 # Order #267 LL-37 → Retatrutide 20mg  [EXECUTOR — 2026-08-10]
 
 ## What shipped
@@ -61,10 +82,10 @@ Zero-inventory SKUs must show as **Sold Out** on the client shop, but clinics ca
 - [x] Core helpers + catalog + checkout/reservation
 - [x] Shop UI
 - [x] Tests (31 pass: backorder + checkout-core)
-- [ ] Deploy when owner asks
+- [x] Deployed `4a3eb46` → peptsci.com READY (`dpl_8p8J69k5C7xapgjjdQd4ehS3drmq`)
 
 ## Executor's Feedback or Assistance Requests
-Ready for owner review on `/shop`: zero-inventory SKUs show Sold Out, Request Backorder (min 20), amber 2–3 week warning through cart/checkout. Order notes get a `BACKORDER` line for fulfillment.
+Live on peptsci.com. Soft-refresh `/shop` and open a 0-inventory SKU (e.g. Epithalon ET10) to confirm Sold Out + Request Backorder (min 20, 2–3 weeks).
 
 ## Lessons
 - Backorder = available===0 only; partial stock still cannot oversell.

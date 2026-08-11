@@ -10,10 +10,32 @@ import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
  * official render; the label area occupies a fixed region of the image and is
  * filled with live HTML sized in container-query units so it scales with the
  * vial.
+ *
+ * Bacteriostatic water uses a dedicated product photo instead of the
+ * generated PeptSci peptide label.
  */
 
 // Label rectangle as % of the cropped vial image (measured from the render)
 const LABEL = { left: 1.6, top: 44.4, width: 95.8, height: 43.2 }
+
+/** Dedicated catalog photo for bacteriostatic water (not a peptide vial label). */
+export const BACTERIOSTATIC_WATER_IMAGE = '/shop/bacteriostatic-water.png'
+
+/** True when this catalog name is bacteriostatic / BAC water. */
+export function isBacteriostaticWaterProduct(name: string): boolean {
+  const n = (name || '').toLowerCase()
+  if (!n.trim()) return false
+  if (n.includes('bacteriostatic')) return true
+  if (n.includes('bac water') || n.includes('bac-water')) return true
+  if (n.includes('bac-h2o') || n.includes('bach2o') || n.includes('bacwater')) return true
+  return false
+}
+
+/** Override image for products that should not use the generated peptide label. */
+export function getProductDisplayImage(name: string): string | null {
+  if (isBacteriostaticWaterProduct(name)) return BACTERIOSTATIC_WATER_IMAGE
+  return null
+}
 
 export interface VialCompound {
   name: string
@@ -86,6 +108,21 @@ interface ProductVialProps {
 }
 
 export function ProductVial({ product, className }: ProductVialProps) {
+  const photo = getProductDisplayImage(product.name)
+  if (photo) {
+    return (
+      <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photo}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      </div>
+    )
+  }
+
   const compounds = getCompoundParts(product)
   const isBlend = compounds.length >= 2
   // Two-row dose box needs a dose per compound; otherwise show the total dose
