@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { isOpsRecentSale } from '../sales'
+import { isOpsRecentSale } from '../ops-recent-sale'
 
 describe('isOpsRecentSale', () => {
   it('keeps sales with no linked order status (CSV / legacy)', () => {
