@@ -28,6 +28,7 @@ import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import { ClientStripeCard } from '@/components/admin/ClientStripeCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
 import { ClientShopifyCard } from '@/components/admin/ClientShopifyCard'
+import { ClientCustomersCard } from '@/components/admin/ClientCustomersCard'
 import { ClientWhiteLabelLabelsCard } from '@/components/admin/ClientWhiteLabelLabelsCard'
 import { ClientPricingPanel } from './ClientPricingPanel'
 import {
@@ -786,6 +787,7 @@ export default function ClientDetailPage() {
           directly but came from a partner (no referral link used). */}
       <ClientPartnerCard clientId={id} />
       <ClientShopifyCard clientId={id} />
+      <ClientCustomersCard clientId={id} />
       <ClientWhiteLabelLabelsCard
         clientId={id}
         initialEnabled={whiteLabelEnabled}

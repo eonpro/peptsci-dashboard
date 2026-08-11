@@ -174,6 +174,23 @@ export function FulfillmentOrderRow({
             {order.client?.organizationName || 'Unknown client'} · {formatDate(order.createdAt)} ·{' '}
             {formatPrice(order.total)}
           </p>
+          {(() => {
+            const a = (order.shippingAddress || {}) as Record<string, unknown>
+            const name =
+              (typeof a.name === 'string' && a.name.trim()) ||
+              (typeof a.personName === 'string' && a.personName.trim()) ||
+              ''
+            const city = typeof a.city === 'string' ? a.city.trim() : ''
+            const state = typeof a.state === 'string' ? a.state.trim() : ''
+            const loc = [city, state].filter(Boolean).join(', ')
+            if (!name && !loc) return null
+            return (
+              <p className="mt-0.5 truncate text-sm text-violet-200/80">
+                Ship to: {name || '—'}
+                {loc ? ` · ${loc}` : ''}
+              </p>
+            )
+          })()}
           {(order.items?.length ?? 0) > 0 && (
             <p className="mt-0.5 truncate text-sm text-white/70">
               {order.items

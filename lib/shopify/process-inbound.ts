@@ -18,6 +18,10 @@ import {
   inboundLinesFullyMapped,
   type PricedInboundLine,
 } from './inbound-core'
+import {
+  enrichShippingAddressWithBuyer,
+  upsertPatientFromShipTo,
+} from '@/lib/patients/upsert-from-ship-to'
 
 export type ProcessShopifyInboundResult =
   | {
@@ -166,6 +170,24 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
     quantity: l.quantity,
   }))
 
+  const shippingAddress = enrichShippingAddressWithBuyer(
+    inbound.shippingAddress,
+    inbound.buyerEmail
+  )
+  let patientId: string | null = null
+  try {
+    patientId = await upsertPatientFromShipTo({
+      clientId: inbound.clientId,
+      shippingAddress,
+      buyerEmail: inbound.buyerEmail,
+    })
+  } catch (err) {
+    logger.warn('[shopify] patient upsert failed; continuing without patientId', {
+      inboundId,
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+
   try {
     const order = await createManualOrder({
       clientId: inbound.clientId,
@@ -177,7 +199,8 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
       paidAt: invoiceView.invoice.paidAt ?? new Date(),
       shipTo: 'PATIENT',
       shipSpeed: inbound.shipSpeed as ShipSpeed,
-      shippingAddress: (inbound.shippingAddress as Prisma.InputJsonValue) ?? null,
+      patientId,
+      shippingAddress: (shippingAddress as Prisma.InputJsonValue) ?? null,
       notes: inbound.buyerNote,
       internalNotes: [
         `Shopify order ${inbound.shopifyOrderName ?? inbound.shopifyOrderId}`,

@@ -16,6 +16,7 @@ import {
   Receipt,
   Gift,
   BookOpen,
+  Users,
   LogOut,
 } from 'lucide-react'
 import { useCart } from './CartContext'
@@ -69,6 +70,7 @@ function AuthUserButton() {
 const navigation = [
   { name: 'Products', href: '/shop', icon: Package, exact: true },
   { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
+  { name: 'Customers', href: '/shop/customers', icon: Users },
   { name: 'Invoices', href: '/shop/invoices', icon: Receipt },
   { name: 'My Storefront', href: '/shop/storefront-manage', icon: Store },
   { name: 'Resources', href: '/shop/resources', icon: BookOpen },

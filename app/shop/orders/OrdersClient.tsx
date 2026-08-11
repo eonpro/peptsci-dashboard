@@ -54,7 +54,9 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
       const matchesSearch =
         `#${order.orderNumber}`.toLowerCase().includes(q) ||
         order.items.some((item) => item.name.toLowerCase().includes(q)) ||
-        (order.trackingNumber?.toLowerCase().includes(q) ?? false)
+        (order.trackingNumber?.toLowerCase().includes(q) ?? false) ||
+        (order.shipToName?.toLowerCase().includes(q) ?? false) ||
+        (order.shopifyOrderName?.toLowerCase().includes(q) ?? false)
       const matchesStatus = statusFilter === 'all' || bucketFor(order) === statusFilter
       return matchesSearch && matchesStatus
     })
@@ -141,6 +143,17 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                       <div>
                         <p className="font-semibold text-white">Order #{order.orderNumber}</p>
                         <p className="text-sm text-white/60">Placed on {formatDate(order.createdAt)}</p>
+                        {(order.shipToName || order.shopifyOrderName) && (
+                          <p className="mt-0.5 text-sm text-white/50">
+                            {order.shipToName ? `Ship to: ${order.shipToName}` : null}
+                            {order.shipToName && order.shopifyOrderName ? ' · ' : null}
+                            {order.shopifyOrderName
+                              ? `Shopify ${order.shopifyOrderName}`
+                              : order.source === 'SHOPIFY'
+                                ? 'Shopify'
+                                : null}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
