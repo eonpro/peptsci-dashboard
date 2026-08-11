@@ -47,8 +47,17 @@ const CARD = { x: 52.71, y: 35.46, w: 29.73, h: 9.07 }
 const CARD_CX = CARD.x + CARD.w / 2
 const LOGO_BOTTOM = 20.5
 const CARD_TOP = CARD.y
-const NAME_SIZE = 9
-const NAME_LEADING = 5.5
+// Product name sizing. The name is the hero element, so it gets the whole clear
+// band between the "vitality" script and the black dose card, and a width budget
+// wider than the "elevated" wordmark (42.1pt of centre column) — it may sit over
+// the grey swoosh, as the wordmark already does, but stays clear of the trident
+// block on the left (solid artwork ends at x=28.4) and the right rail (x=120).
+const NAME_MAX_SIZE = 11
+const NAME_MAX_WIDTH = 56
+/** Vertical gap between the two lines of a blend name. */
+const NAME_LINE_GAP = 1.4
+/** Breathing room kept at the top and bottom of the name band. */
+const NAME_BAND_PAD = 0.6
 const CAP_RATIO = 0.74
 const DOSE_SIZE = 4.2
 
@@ -158,6 +167,20 @@ function fitTextWidth(font: PDFFont, text: string, size: number, maxWidth: numbe
   return s
 }
 
+/**
+ * One size shared by every line of the product name, as large as the artwork
+ * allows: capped by `NAME_MAX_SIZE`, by the width budget, and — for a two-line
+ * blend — by the height of the band, so the lines can never collide.
+ */
+export function fitNameSize(font: PDFFont, lines: string[]): number {
+  const byWidth = Math.min(
+    ...lines.map((line) => fitTextWidth(font, line, NAME_MAX_SIZE, NAME_MAX_WIDTH))
+  )
+  const band = CARD_TOP - LOGO_BOTTOM - 2 * NAME_BAND_PAD
+  const byHeight = (band - (lines.length - 1) * NAME_LINE_GAP) / (lines.length * CAP_RATIO)
+  return Math.min(byWidth, byHeight)
+}
+
 function drawLabel(
   page: PDFPage,
   originX: number,
@@ -180,21 +203,21 @@ function drawLabel(
 
   const nameLines = splitElevatedVitalityNameLines(req.productName).map((l) => l.toUpperCase())
   const dose = formatElevatedVitalityDose(req.dose, nameLines)
-  const blockSpan = nameLines.length === 1 ? 0 : (nameLines.length - 1) * NAME_LEADING
-  const visualHeight = NAME_SIZE * CAP_RATIO + blockSpan
-  const pad = Math.max(0, (CARD_TOP - LOGO_BOTTOM - visualHeight) / 2)
-  const firstBaselineSvg = LOGO_BOTTOM + pad + NAME_SIZE * CAP_RATIO
-  const maxNameWidth = CARD.w + 8
+  const nameSize = fitNameSize(italic, nameLines)
+  const capHeight = nameSize * CAP_RATIO
+  const leading = capHeight + NAME_LINE_GAP
+  const blockHeight = nameLines.length * capHeight + (nameLines.length - 1) * NAME_LINE_GAP
+  const pad = Math.max(0, (CARD_TOP - LOGO_BOTTOM - blockHeight) / 2)
+  const firstBaselineSvg = LOGO_BOTTOM + pad + capHeight
 
   for (let i = 0; i < nameLines.length; i += 1) {
     const line = nameLines[i]
-    const size = fitTextWidth(italic, line, NAME_SIZE, maxNameWidth)
-    const baselineSvg = firstBaselineSvg + i * NAME_LEADING
-    const textWidth = italic.widthOfTextAtSize(line, size)
+    const baselineSvg = firstBaselineSvg + i * leading
+    const textWidth = italic.widthOfTextAtSize(line, nameSize)
     page.drawText(line, {
       x: ox + CARD_CX - textWidth / 2,
       y: oy + (LABEL_HEIGHT - baselineSvg),
-      size,
+      size: nameSize,
       font: italic,
       color: COLOR_BLACK,
     })
