@@ -9,10 +9,39 @@
  * form print correctly without any extra mapping.
  */
 
+import { resolveNamedBlendTradeName } from './named-blends'
+
 export interface BlendComponent {
   name: string
   /** Per-compound amount, e.g. "5mg". Bare numbers are treated as mg. */
   amount: string
+}
+
+/**
+ * Decide how the product form should reopen a saved variant.
+ *
+ * - Compound-list names ("BPC-157 and TB-500") → blend mode.
+ * - Named trade blends (GLOW / KLOW) with a slash aka → blend mode, trade
+ *   name kept in the blend-name field.
+ * - Single peptides whose aka happens to list receptors / aliases with
+ *   slashes (e.g. Retatrutide · "GLP-1 / GIP / …") stay in single mode —
+ *   never treat aka alone as proof of a blend.
+ */
+export function resolveBlendEditState(
+  name: string,
+  dose: string,
+  aka?: string | null,
+  sku?: string | null
+): { components: BlendComponent[]; blendName: string } | null {
+  const fromName = parseBlendProduct(name, dose)
+  if (fromName) return { components: fromName, blendName: '' }
+
+  const trade = resolveNamedBlendTradeName(name, sku)
+  if (!trade || !aka?.trim()) return null
+
+  const fromAka = parseBlendProduct(aka, dose)
+  if (!fromAka) return null
+  return { components: fromAka, blendName: name.trim() }
 }
 
 /** "5" -> "5mg"; "5 MG" -> "5mg"; keeps anything already unit-qualified. */

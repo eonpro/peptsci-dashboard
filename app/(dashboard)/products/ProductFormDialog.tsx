@@ -18,7 +18,7 @@ import { formToMonograph } from '@/lib/monograph-format'
 import {
   composeBlendProduct,
   composeCompoundList,
-  parseBlendProduct,
+  resolveBlendEditState,
   type BlendComponent,
 } from '@/lib/products/blend'
 
@@ -105,16 +105,16 @@ export default function ProductFormDialog({
   useEffect(() => {
     if (open) {
       setValues(initial ? { ...initial } : { ...EMPTY })
-      // Existing blend products reopen in blend mode with one row per
-      // compound: either the name itself lists the compounds ("BPC-157 and
-      // TB-500") or a named blend ("GLOW") keeps them in the aka subtitle.
-      const parsedFromName = initial ? parseBlendProduct(initial.name, initial.dose) : null
-      const parsedFromAka =
-        !parsedFromName && initial?.aka ? parseBlendProduct(initial.aka, initial.dose) : null
-      const parsed = parsedFromName ?? parsedFromAka
-      setProductType(parsed ? 'blend' : 'single')
-      setBlend(parsed ?? EMPTY_BLEND.map((c) => ({ ...c })))
-      setBlendName(parsedFromAka && initial ? initial.name : '')
+      // Compound-list names and known named blends (GLOW/KLOW) reopen in blend
+      // mode. Slash-separated aka on a single peptide (e.g. Retatrutide
+      // receptor list) must NOT flip the form into blend — that wiped the mg
+      // dose on save.
+      const blendState = initial
+        ? resolveBlendEditState(initial.name, initial.dose, initial.aka, initial.sku)
+        : null
+      setProductType(blendState ? 'blend' : 'single')
+      setBlend(blendState?.components ?? EMPTY_BLEND.map((c) => ({ ...c })))
+      setBlendName(blendState?.blendName ?? '')
       setError(null)
     }
   }, [open, initial])

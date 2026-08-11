@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 import { excludePlatformInvoiceQueueRows } from '@/lib/fulfillment/stripe-queue'
+import { parseStripeSaleLineItems } from '@/lib/fulfillment/stripe-line-map'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
         vials: true,
         paidAmount: true,
         stripePaymentIntentId: true,
+        lineItems: true,
       },
     })
 
@@ -140,6 +142,7 @@ export async function GET(request: NextRequest) {
         vials: r.vials,
         paidAmount: Number(r.paidAmount),
         stripePaymentIntentId: r.stripePaymentIntentId,
+        lineItems: parseStripeSaleLineItems(r.lineItems),
         matchedClient: match,
       }
     })

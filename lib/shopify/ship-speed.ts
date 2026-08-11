@@ -13,6 +13,12 @@ export type ShopifyShippingLineLike = {
 const OVERNIGHT_RE =
   /\b(over[\s-]?night|next[\s-]?day|1[\s-]?day|priority[\s-]?overnight|express[\s-]?overnight)\b/i
 
+/** Infer ship speed from free-text (Stripe description, invoice memo, etc.). */
+export function inferShipSpeedFromText(text: string | null | undefined): ShipSpeed {
+  if (!text?.trim()) return 'TWO_DAY'
+  return OVERNIGHT_RE.test(text) ? 'OVERNIGHT' : 'TWO_DAY'
+}
+
 /**
  * Prefer the first overnight-matching shipping line; otherwise TWO_DAY.
  * Empty / missing lines → TWO_DAY.

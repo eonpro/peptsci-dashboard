@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeDoseLabel, splitProductNameLines } from '../labels/peptsciLabelPdf'
+import { normalizeDoseLabel, splitProductNameLines, NAME_TRACKING_EM } from '../labels/peptsciLabelPdf'
 
 describe('normalizeDoseLabel', () => {
   it('strips trailing .0 decimals', () => {
@@ -61,5 +61,11 @@ describe('splitProductNameLines', () => {
 
   it('keeps single-word names on one line', () => {
     assert.deepEqual(splitProductNameLines('BPC-157'), ['BPC-157'])
+  })
+})
+
+describe('NAME_TRACKING_EM', () => {
+  it('matches Illustrator tracking −25 (thousandths of an em)', () => {
+    assert.equal(NAME_TRACKING_EM, -0.025)
   })
 })

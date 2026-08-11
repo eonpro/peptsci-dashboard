@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mapShopifyShipSpeed } from '../shopify/ship-speed.ts'
+import { mapShopifyShipSpeed, inferShipSpeedFromText } from '../shopify/ship-speed.ts'
 
 describe('mapShopifyShipSpeed', () => {
   test('defaults to TWO_DAY when lines are missing or empty', () => {
@@ -32,5 +32,21 @@ describe('mapShopifyShipSpeed', () => {
       ]),
       'OVERNIGHT'
     )
+  })
+})
+
+describe('inferShipSpeedFromText', () => {
+  test('detects overnight from Stripe-style descriptions', () => {
+    assert.equal(
+      inferShipSpeedFromText('VRIQO4JN-0009 · Overnight Shipping +1 more · 7 vials'),
+      'OVERNIGHT'
+    )
+    assert.equal(inferShipSpeedFromText('Next-day shipping'), 'OVERNIGHT')
+  })
+
+  test('defaults to TWO_DAY', () => {
+    assert.equal(inferShipSpeedFromText('Tirzepatide 60mg'), 'TWO_DAY')
+    assert.equal(inferShipSpeedFromText(''), 'TWO_DAY')
+    assert.equal(inferShipSpeedFromText(null), 'TWO_DAY')
   })
 })

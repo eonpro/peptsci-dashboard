@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { computeCartTotals } from '@/lib/checkout-core'
+import { computeShipping } from '@/lib/checkout-core'
 import {
   filterCatalogVariantsForPicker,
   suggestProductQueryFromDescription,
@@ -23,6 +23,11 @@ import {
   isPlatformInvoiceDescription,
   parseInvoiceNumberFromLabel,
 } from '@/lib/invoicing/core'
+import { inferShipSpeedFromText } from '@/lib/shopify/ship-speed'
+import {
+  mapStripeSaleLinesToConvert,
+  type StripeSaleLineItem,
+} from '@/lib/fulfillment/stripe-line-map'
 
 const inputCls =
   'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
@@ -41,6 +46,8 @@ export type StripeQueueRecord = {
   vials: number
   paidAmount: number
   stripePaymentIntentId: string | null
+  /** Per-line Stripe invoice breakdown (products + shipping). */
+  lineItems?: StripeSaleLineItem[]
   matchedClient: { id: string; organizationName: string } | null
 }
 
@@ -67,6 +74,16 @@ function formatPrice(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
+function roundMoney(n: number) {
+  return Math.round(n * 100) / 100
+}
+
+/** Prefer Stripe remainder so mapped total can match what was captured. */
+function suggestShippingFromStripe(paidAmount: number, productSubtotal: number): number {
+  if (productSubtotal <= 0) return 0
+  return Math.max(0, roundMoney(paidAmount - productSubtotal))
+}
+
 export default function ConvertStripeModal({ open, onOpenChange, record, onConverted }: ConvertStripeModalProps) {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [variants, setVariants] = useState<VariantRow[]>([])
@@ -80,8 +97,11 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
 
   const [productQuery, setProductQuery] = useState('')
   const [lines, setLines] = useState<Line[]>([])
+  const [unmatchedStripe, setUnmatchedStripe] = useState<string[]>([])
   const [customPriceMap, setCustomPriceMap] = useState<Record<string, number>>({})
   const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
+  const [shippingTotal, setShippingTotal] = useState(0)
+  const [shippingSource, setShippingSource] = useState<'auto' | 'manual'>('auto')
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -120,14 +140,19 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       contactEmail: record.customerEmail || '',
       contactPhone: record.customerPhone || '',
     })
-    // Seed from the Stripe line description so "Tirzepatide 60mg +1 more"
-    // immediately surfaces the matching in-stock catalog variant.
-    setProductQuery(suggestProductQueryFromDescription(record.product))
+    setProductQuery('')
     setLines([])
+    setUnmatchedStripe([])
     setCustomPriceMap({})
-    setShipSpeed('TWO_DAY')
+    setShipSpeed(inferShipSpeedFromText(`${record.product} ${record.orderRef}`))
+    setShippingTotal(0)
+    setShippingSource('auto')
     setError(null)
     setPlatformInvoice(null)
+
+    const skipAutoMap =
+      isPlatformInvoiceDescription(record.product) ||
+      isPlatformInvoiceDescription(record.orderRef)
 
     setLoadingRefs(true)
     Promise.all([
@@ -135,8 +160,43 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
       fetch('/api/admin/products').then((r) => r.json()).catch(() => ({})),
     ])
       .then(([c, p]) => {
-        setClients(c.clients ?? [])
-        setVariants(p.variants ?? [])
+        const nextClients: ClientRow[] = c.clients ?? []
+        const nextVariants: VariantRow[] = p.variants ?? []
+        setClients(nextClients)
+        setVariants(nextVariants)
+
+        if (skipAutoMap) return
+
+        const mapped = mapStripeSaleLinesToConvert(record.lineItems ?? [], nextVariants, {
+          fallbackProduct: record.product,
+          fallbackVials: record.vials,
+          paidAmount: record.paidAmount,
+        })
+        setLines(
+          mapped.lines.map((l) => ({
+            variantId: l.variantId,
+            label: l.label,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            available: l.available,
+            priceSource: 'manual',
+          }))
+        )
+        setUnmatchedStripe(mapped.unmatched)
+        setShipSpeed(mapped.shipSpeed)
+        if (mapped.hasShippingLine) {
+          setShippingTotal(mapped.shippingTotal)
+          setShippingSource('auto')
+        }
+        // Seed search with the first unmatched Stripe description so the admin
+        // can finish mapping without retyping.
+        if (mapped.unmatched.length > 0) {
+          setProductQuery(suggestProductQueryFromDescription(mapped.unmatched[0]))
+        } else if (mapped.lines.length === 0) {
+          setProductQuery(suggestProductQueryFromDescription(record.product))
+        } else {
+          setProductQuery('')
+        }
       })
       .finally(() => setLoadingRefs(false))
   }, [open, record])
@@ -284,9 +344,30 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
     )
   const removeLine = (id: string) => setLines((prev) => prev.filter((l) => l.variantId !== id))
 
-  const totals = useMemo(
-    () => computeCartTotals(lines.map((l) => ({ lineTotal: l.unitPrice * l.quantity })), shipSpeed),
-    [lines, shipSpeed]
+  const productSubtotal = useMemo(
+    () => roundMoney(lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)),
+    [lines]
+  )
+
+  // Keep shipping in sync with Stripe remainder (or matrix) until the admin edits it.
+  useEffect(() => {
+    if (!record || shippingSource !== 'auto') return
+    if (lines.length === 0) {
+      setShippingTotal(0)
+      return
+    }
+    const fromStripe = suggestShippingFromStripe(record.paidAmount, productSubtotal)
+    // If remainder is a plausible shipping fee, use it so Convert can match Stripe.
+    // Otherwise fall back to the published matrix for the selected speed.
+    const matrix = computeShipping(productSubtotal, shipSpeed)
+    const next =
+      fromStripe > 0 && fromStripe <= 100 ? fromStripe : matrix
+    setShippingTotal(next)
+  }, [record, lines.length, productSubtotal, shipSpeed, shippingSource])
+
+  const mappedTotal = useMemo(
+    () => roundMoney(productSubtotal + Math.max(0, shippingTotal)),
+    [productSubtotal, shippingTotal]
   )
 
   const handleCreateClient = useCallback(async () => {
@@ -378,6 +459,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
           salesRecordId: record.id,
           clientId,
           shipSpeed,
+          shippingTotal: Math.max(0, shippingTotal),
           shippingAddress,
           notes: `Converted from Stripe ${record.orderRef}`,
           lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice })),
@@ -515,9 +597,20 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-foreground/90">Map products</legend>
               <p className="text-xs text-muted-foreground">
-                Add catalog products to build the fulfillment order. Stripe already captured payment — the
-                mapped total below is not an unpaid balance.
+                Stripe invoice lines are preloaded with the prices that were charged. Adjust only if a
+                catalog match is wrong — the mapped total below is not an unpaid balance.
               </p>
+              {unmatchedStripe.length > 0 && (
+                <div className="rounded-md border border-amber-400/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+                  <p className="font-medium text-amber-100">Couldn’t auto-match from Stripe:</p>
+                  <ul className="mt-1 list-inside list-disc">
+                    {unmatchedStripe.map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-amber-200/80">Search the catalog below and add them manually.</p>
+                </div>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                 <input className={`w-full pl-9 ${inputCls}`} placeholder="Search products to add…" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
@@ -554,13 +647,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                         <p className="truncate text-sm text-foreground">{l.label}</p>
                         <p className={`text-xs ${l.quantity > l.available ? 'text-amber-400' : 'text-muted-foreground/70'}`}>
                           {l.quantity > l.available ? `Only ${l.available} in stock (oversell)` : `${l.available} available`}
-                          {l.priceSource === 'auto'
-                            ? clientPaysAtCost
-                              ? ' · At-cost price'
-                              : customPriceMap[l.variantId] != null
-                                ? ' · Custom price'
-                                : ''
-                            : ''}
+                          {l.priceSource === 'manual' ? ' · Stripe price' : clientPaysAtCost ? ' · At-cost price' : customPriceMap[l.variantId] != null ? ' · Custom price' : ''}
                         </p>
                       </div>
                       <input
@@ -597,17 +684,50 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label className="mb-1 block text-xs font-medium text-muted-foreground">Ship speed</Label>
-                <select value={shipSpeed} onChange={(e) => setShipSpeed(e.target.value as typeof shipSpeed)} className={`w-full ${selectCls}`}>
+                <select
+                  value={shipSpeed}
+                  onChange={(e) => setShipSpeed(e.target.value as typeof shipSpeed)}
+                  className={`w-full ${selectCls}`}
+                >
                   <option value="TWO_DAY">2-Day</option>
                   <option value="OVERNIGHT">Overnight</option>
                 </select>
+              </div>
+              <div>
+                <Label className="mb-1 block text-xs font-medium text-muted-foreground">Shipping price</Label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={shippingTotal}
+                    onChange={(e) => {
+                      setShippingSource('manual')
+                      setShippingTotal(Math.max(0, parseFloat(e.target.value) || 0))
+                    }}
+                    className={`w-full pl-5 ${inputCls}`}
+                    aria-label="Shipping price"
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Defaults to the Stripe remainder (products vs captured) so the order can match payment.
+                </p>
               </div>
             </div>
 
             <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Mapped lines total</span>
-                <span>{formatPrice(totals.total)}</span>
+                <span>Mapped products</span>
+                <span>{formatPrice(productSubtotal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Shipping</span>
+                <span>{formatPrice(Math.max(0, shippingTotal))}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1 font-semibold text-foreground">
+                <span>Mapped total</span>
+                <span>{formatPrice(mappedTotal)}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Stripe captured (already paid)</span>
@@ -618,13 +738,13 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                   $0 mapped lines means you have not added products yet — not that the customer still owes money.
                 </p>
               )}
-              {lines.length > 0 && Math.abs(totals.total - record.paidAmount) > 0.5 && (
+              {lines.length > 0 && Math.abs(mappedTotal - record.paidAmount) > 0.5 && (
                 <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-400/30 bg-amber-500/10 p-2 text-xs text-amber-300">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>
-                    The mapped line prices ({formatPrice(totals.total)}) don&apos;t match what Stripe
-                    captured ({formatPrice(record.paidAmount)}). Revenue stays at the Stripe amount;
-                    adjust line prices if you want the fulfillment order to match.
+                    Mapped total ({formatPrice(mappedTotal)}) doesn&apos;t match what Stripe captured
+                    ({formatPrice(record.paidAmount)}). Adjust line prices or shipping so the
+                    fulfillment order matches — Convert requires an exact match.
                   </span>
                 </div>
               )}

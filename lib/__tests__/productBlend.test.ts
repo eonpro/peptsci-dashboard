@@ -5,6 +5,7 @@ import {
   composeBlendProduct,
   normalizeBlendAmount,
   parseBlendProduct,
+  resolveBlendEditState,
 } from '../products/blend'
 
 describe('normalizeBlendAmount', () => {
@@ -68,5 +69,49 @@ describe('parseBlendProduct', () => {
   it('returns null for single-compound products', () => {
     assert.equal(parseBlendProduct('Tesamorelin', '10mg'), null)
     assert.equal(parseBlendProduct('CJC-1295 (no DAC)', '5mg'), null)
+  })
+})
+
+describe('resolveBlendEditState', () => {
+  it('reopens compound-list names in blend mode', () => {
+    const state = resolveBlendEditState('BPC-157 and TB-500', '5mg / 5mg')
+    assert.deepEqual(state, {
+      components: [
+        { name: 'BPC-157', amount: '5mg' },
+        { name: 'TB-500', amount: '5mg' },
+      ],
+      blendName: '',
+    })
+  })
+
+  it('reopens named GLOW/KLOW trade names from aka compounds', () => {
+    const state = resolveBlendEditState(
+      'GLOW',
+      '20mg / 10mg / 10mg',
+      'GHK-Cu / BPC-157 / TB-500',
+      'GLOW-70'
+    )
+    assert.ok(state)
+    assert.equal(state!.blendName, 'GLOW')
+    assert.equal(state!.components.length, 3)
+    assert.equal(state!.components[0].name, 'GHK-Cu')
+  })
+
+  it('does not treat a single peptide aka subtitle as a blend', () => {
+    // Retatrutide is one peptide; the aka lists receptor pathways, not
+    // separate compounds in the vial.
+    assert.equal(
+      resolveBlendEditState(
+        'Retatrutide',
+        '5mg',
+        'GLP-1 / GIP / Glucagon Triple Agonist',
+        'RT5'
+      ),
+      null
+    )
+    assert.equal(
+      resolveBlendEditState('Retatrutide', '', 'GLP-1 / GIP / Glucagon Triple Agonist', 'RT5'),
+      null
+    )
   })
 })

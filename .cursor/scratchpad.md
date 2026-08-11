@@ -1,3 +1,32 @@
+# Product form: Retatrutide single vs blend + label tracking  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Retatrutide (single peptide, SKU RT5) reopened as **Blend** because aka `"GLP-1 / GIP / Glucagon Triple Agonist"` was parsed as compounds. Saving in blend mode with blank per-compound amounts wiped `dose`, so vial labels printed with an empty mg box. Compound name tracking on PeptSci labels needed Illustrator −25 (−0.025em).
+
+## Key Challenges and Analysis
+- Form used `parseBlendProduct(aka)` for any slash aka — correct for GLOW/KLOW, wrong for receptor/alias subtitles on singles
+- Missing mg is a data consequence of the false blend save path, not the PDF dose renderer
+
+## What shipped
+- `resolveBlendEditState` — only treat aka as blend compounds for known named blends (GLOW/KLOW)
+- `ProductFormDialog` uses that helper on open
+- PeptSci label PDF: compound-name `Tc` tracking `NAME_TRACKING_EM = -0.025`
+- Tests: `productBlend` + `peptsciLabelDose`
+
+## Project Status Board
+- [x] Fix false blend reopen
+- [x] Label name tracking −25
+- [x] Unit tests
+- [ ] Soft-refresh Products → Edit Retatrutide → confirm Single peptide + Dose field; set mg (e.g. 5mg) and save; reprint labels
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Products. Open Retatrutide — should show **Single peptide** with Dose (not Blend compounds). Enter the mg amount, Save, reprint labels. GLOW/KLOW should still reopen as Blend.
+
+## Lessons
+- Slash-separated aka ≠ blend compounds; gate aka parsing on `resolveNamedBlendTradeName`.
+
+---
+
 # Partner sales reporting to partner profiles  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation
@@ -21,7 +50,8 @@ EonMeds partner dashboard showed 3 approved clinics but $0 attributed revenue / 
 - [x] Wire Shopify inbound accrual
 - [x] Ops backfill route
 - [x] Unit tests
-- [ ] Deploy + dry-run backfill on prod, then `{ confirm: true }` for EonMeds
+- [x] Deployed `8d2980f` → peptsci.com READY (`dpl_FqLFWiFkwe72KtDyQPLEJkeNPJxe`)
+- [ ] Dry-run backfill on prod, then `{ confirm: true }` for EonMeds
 
 ## Executor's Feedback or Assistance Requests
 As SUPER_ADMIN on peptsci.com after deploy:
@@ -4224,8 +4254,11 @@ Post-launch gap analysis identified missing pieces the owner approved for build 
 - [x] `/pricing` loads `getProductCatalog` + `groupProductsByParent` + COA flags
 - [x] tsc clean
 
+## Project Status Board (deploy)
+- [x] Deployed `2369a50` → peptsci.com READY (`dpl_4qztYFBBJ7fXrbHa22WbQYJ8b7Sz`)
+
 ## Executor's Feedback or Assistance Requests
-Hard-refresh Super Admin → Pricing (Card View). Cards should match client portal product cards (vial, CAS/Formula/MW, size pills). Edit / size pills open Cost+SRP dialog. List view unchanged.
+Live on peptsci.com/pricing. Hard-refresh Card View to confirm shop-style cards.
 
 ## Lessons
 - Never put `unitCost` on ShopProduct (serialized to /shop). Pass Cost only via adminPricing prop on the Super Admin page.

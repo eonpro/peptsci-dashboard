@@ -39,6 +39,7 @@ import {
   StandardFonts,
   degrees,
   rgb,
+  setCharacterSpacing,
   type PDFPage,
   type PDFFont,
   type PDFImage,
@@ -171,6 +172,20 @@ const NAME_RIGHT = 86
 const NAME_BASELINE = 20.5
 const NAME_SIZE_MAX = 11
 const NAME_SIZE_MIN = 6
+/** Adobe Illustrator tracking −25 (thousandths of an em) on compound names. */
+export const NAME_TRACKING_EM = -0.025
+
+/** Glyph advance width including tracking between characters. */
+export function textWidthWithTracking(
+  font: PDFFont,
+  text: string,
+  size: number,
+  trackingEm: number = NAME_TRACKING_EM
+): number {
+  const base = font.widthOfTextAtSize(text, size)
+  if (text.length <= 1 || trackingEm === 0) return base
+  return base + trackingEm * size * (text.length - 1)
+}
 
 // Two-line name layout for long names (e.g. "CJC-1295 and Ipamorelin"),
 // matching the physical vial artwork: the main peptide name sits just below
@@ -453,24 +468,27 @@ function drawLabel(ctx: LabelContext): void {
   // ellipsis so it can never bleed into the logo or barcode columns.
   const nameMaxWidth = NAME_RIGHT - NAME_LEFT
   const nameCenterX = (NAME_LEFT + NAME_RIGHT) / 2
+  const nameWidth = (text: string, size: number) =>
+    textWidthWithTracking(fonts.name, text, size, NAME_TRACKING_EM)
   const fitNameSize = (text: string, maxSize: number, minSize: number) => {
     let size = maxSize
-    while (size > minSize && fonts.name.widthOfTextAtSize(text, size) > nameMaxWidth) {
+    while (size > minSize && nameWidth(text, size) > nameMaxWidth) {
       size -= 0.25
     }
     return size
   }
   const ellipsizeName = (text: string, size: number) => {
-    if (fonts.name.widthOfTextAtSize(text, size) <= nameMaxWidth) return text
+    if (nameWidth(text, size) <= nameMaxWidth) return text
     let t = text
-    while (t.length > 1 && fonts.name.widthOfTextAtSize(`${t}…`, size) > nameMaxWidth) {
+    while (t.length > 1 && nameWidth(`${t}…`, size) > nameMaxWidth) {
       t = t.slice(0, -1)
     }
     return `${t.trimEnd()}…`
   }
   const drawNameLine = (text: string, size: number, baseline: number) => {
     const fitted = ellipsizeName(text, size)
-    const width = fonts.name.widthOfTextAtSize(fitted, size)
+    const width = nameWidth(fitted, size)
+    page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * size))
     page.drawText(fitted, {
       x: toX(nameCenterX - width / 2),
       y: toY(baseline),
@@ -478,6 +496,7 @@ function drawLabel(ctx: LabelContext): void {
       font: fonts.name,
       color: COLOR_TEXT,
     })
+    page.pushOperators(setCharacterSpacing(0))
   }
   // Line 2 of a blend name renders "and" in dark text and the second compound
   // in the brand blue, matching the printed vial label.
@@ -488,9 +507,10 @@ function drawLabel(ctx: LabelContext): void {
       drawNameLine(fitted, size, baseline)
       return
     }
-    const andWidth = fonts.name.widthOfTextAtSize(blend[1], size)
-    const compoundWidth = fonts.name.widthOfTextAtSize(blend[2], size)
+    const andWidth = nameWidth(blend[1], size)
+    const compoundWidth = nameWidth(blend[2], size)
     let cursorX = nameCenterX - (andWidth + compoundWidth) / 2
+    page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * size))
     page.drawText(blend[1], {
       x: toX(cursorX),
       y: toY(baseline),
@@ -506,10 +526,10 @@ function drawLabel(ctx: LabelContext): void {
       font: fonts.name,
       color: COLOR_BOX_BLUE,
     })
+    page.pushOperators(setCharacterSpacing(0))
   }
 
-  const fitsOneLine =
-    fonts.name.widthOfTextAtSize(req.productName, NAME_SIZE_MAX) <= nameMaxWidth
+  const fitsOneLine = nameWidth(req.productName, NAME_SIZE_MAX) <= nameMaxWidth
   const nameLines = fitsOneLine ? [req.productName] : splitProductNameLines(req.productName)
   const twoLine = nameLines.length === 2
   const boxShift = twoLine ? DOSE_BOX_SHIFT : 0
@@ -545,8 +565,8 @@ function drawLabel(ctx: LabelContext): void {
     // fits the band at its max size, then line 2's size is derived so its
     // width matches line 1's, clamped so it never exceeds line 1's size.
     const size1 = fitNameSize(nameLines[0], NAME_LINE1_SIZE_MAX, NAME_SIZE_MIN)
-    const line1Width = fonts.name.widthOfTextAtSize(ellipsizeName(nameLines[0], size1), size1)
-    const line2UnitWidth = fonts.name.widthOfTextAtSize(nameLines[1], 1)
+    const line1Width = nameWidth(ellipsizeName(nameLines[0], size1), size1)
+    const line2UnitWidth = nameWidth(nameLines[1], 1)
     let size2 = line2UnitWidth > 0 ? line1Width / line2UnitWidth : NAME_LINE2_SIZE_MAX
     size2 = Math.max(NAME_LINE2_SIZE_MIN, Math.min(size2, size1))
     drawNameLine(nameLines[0], size1, NAME_LINE1_BASELINE)
@@ -727,11 +747,12 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
   let nameSize = 10.5
   while (
     nameSize > 5 &&
-    fonts.helv.widthOfTextAtSize(req.productName, nameSize) > nameMaxWidth
+    textWidthWithTracking(fonts.helv, req.productName, nameSize) > nameMaxWidth
   ) {
     nameSize -= 0.25
   }
   const nameY = budY - 12
+  page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * nameSize))
   page.drawText(req.productName, {
     x: contentX,
     y: nameY,
@@ -739,6 +760,7 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
     font: fonts.helv,
     color: COLOR_TEXT,
   })
+  page.pushOperators(setCharacterSpacing(0))
 
   // Two-tone dose box + rotated "RUO" to its left.
   const ruoWidth = 8
