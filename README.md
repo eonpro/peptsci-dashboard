@@ -280,7 +280,7 @@ Use a **Connect webhook endpoint** so connected-account events (with
 ### Pricing rules
 
 - **No sales tax.**
-- **Shipping:** free at/above `$500`, otherwise a flat `$25`.
+- **Shipping:** free at/above `$500`, otherwise `$15` 2-day / `$25` overnight (or practice overrides).
 - Unit prices are resolved server-side per client (`lib/checkout-core.ts` +
   `lib/stripe/checkout.ts`); client-sent cart amounts are ignored.
 

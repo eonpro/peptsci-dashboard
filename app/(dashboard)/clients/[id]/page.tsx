@@ -595,7 +595,7 @@ export default function ClientDetailPage() {
             Choose terms to enable &ldquo;Bill to account&rdquo; at checkout. Card only keeps
             checkout on card. Credit limit caps open balance + new orders (blank = no cap).
             Shipping rates below override the global matrix for every order (shop, Shopify,
-            manual); blank = defaults ($25 / $35 under $500).
+            manual); blank = defaults ($15 / $25 under $500).
           </CardDescription>
         </CardHeader>
         <CardContent>

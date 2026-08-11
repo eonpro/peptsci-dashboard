@@ -311,7 +311,7 @@ export async function createRetailOrder(data: {
 
   const subtotal = data.items.reduce((sum, i) => sum + i.quantity * i.unitRetailPrice, 0)
   const taxTotal = Math.round(subtotal * 0.08 * 100) / 100
-  const shippingTotal = subtotal > 500 ? 0 : 25
+  const shippingTotal = subtotal > 500 ? 0 : 15
   const total = Math.round((subtotal + taxTotal + shippingTotal) * 100) / 100
 
   const count = await prisma.retailOrder.count({ where: { storefrontId: data.storefrontId } })

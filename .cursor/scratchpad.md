@@ -1,3 +1,26 @@
+# Restore $15 shipping + back-bill missing fees  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Orders #266 / #267 (and similar) showed product-only totals with `$0` shipping. Global matrix had been raised to $25/$35; owner wants original D-SHIP **$15 / $25** under $500, and add-on invoices to charge missing fees on already-paid orders.
+
+## What shipped
+- `SHIPPING_RATES.STANDARD` restored to `{ TWO_DAY: 15, OVERNIGHT: 25 }` (+ tests, client UI copy, storefront/stripe/README)
+- Helpers + tests: `lib/ops/backfill-missing-shipping.ts`
+- Ops: `POST /api/admin/ops/backfill-missing-shipping` — dry-run lists candidates; `{ confirm: true }` clears EV `$0` overrides, creates add-on invoices, charges card on file, bumps `Order.shippingTotal`/`total`
+
+## Project Status Board
+- [x] Restore rates + tests + copy
+- [x] Ops route (clear EV $0 overrides + backfill)
+- [ ] Deploy + dry-run + confirm charge on prod
+
+## Executor's Feedback or Assistance Requests
+After deploy: dry-run then `POST { "confirm": true }` as SUPER_ADMIN. Expect #266 → $80, #267 → $415 on Fulfillment.
+
+## Lessons
+- Client `shippingRateTwoDay = 0` is intentional free shipping and bypasses the global matrix — clear to `null` to restore defaults.
+
+---
+
 # Bacteriostatic water product photo  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation

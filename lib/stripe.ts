@@ -23,9 +23,9 @@ import { getStripeClient } from '@/lib/stripe/config'
 /** Stripe currency/payment constants for the PeptSci account. */
 export const STRIPE_CONFIG = {
   currency: 'usd' as const,
-  // Shipping rule (Model A): free over $500, else flat $25. Tax: none.
+  // Shipping rule (Model A): free over $500, else flat $15 (2-day). Tax: none.
   freeShippingThreshold: 500,
-  flatShippingRate: 25,
+  flatShippingRate: 15,
 } as const
 
 /**
