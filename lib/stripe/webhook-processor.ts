@@ -5,7 +5,6 @@
  */
 
 import type Stripe from 'stripe'
-import { PaymentStatus } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { getStripeClient } from '@/lib/stripe/config'
@@ -14,11 +13,10 @@ import {
   persistPaymentMethodFromStripe,
 } from '@/lib/stripe/payments'
 import { ingestStripePaymentIntent } from '@/lib/stripe/sales-ingest'
-import { releaseForOrder } from '@/lib/inventory/reservations'
 import { recordPayment } from '@/lib/invoicing/service'
-import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { reconcileRetailOrderFromPaymentIntent } from '@/lib/storefront-payments'
 import { syncConnectAccountStatus } from '@/lib/partners/stripe-payouts'
+import { applyStripeChargeRefund } from '@/lib/orders/apply-stripe-refund'
 
 export interface ProcessResult {
   success: boolean
@@ -220,37 +218,10 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
 
     case 'charge.refunded': {
       const charge = event.data.object as Stripe.Charge
-      const order = await prisma.order.findFirst({ where: { stripeChargeId: charge.id } })
-      // Only a FULL refund flips the order to REFUNDED and frees reservations.
-      // A partial refund leaves the order active/shippable (there is no partial
-      // enum state) — otherwise the remaining goods would be un-reserved and
-      // could be oversold. Partial refunds are recorded via logs for review.
-      const fullyRefunded = charge.amount_refunded >= charge.amount
-      if (order) {
-        // Track cumulative refunds from Stripe's authoritative charge state so
-        // dashboard-issued refunds stay in sync with our /refund endpoint, and
-        // re-sync the SalesRecord so revenue nets out the refund. Idempotent.
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            refundedTotal: charge.amount_refunded / 100,
-            refundedAt: new Date(),
-            ...(fullyRefunded ? { paymentStatus: PaymentStatus.REFUNDED } : {}),
-          },
-        })
-        await syncSalesRecordFromOrder(order.id)
-      }
-      if (order && fullyRefunded) {
-        // Free any stock reserved for this order (non-blocking).
-        await releaseForOrder(order.id).catch(() => {})
-      } else if (order && !fullyRefunded) {
-        logger.warn('[STRIPE WEBHOOK] Partial refund — order left active', {
-          orderId: order.id,
-          chargeId: charge.id,
-          amount: charge.amount,
-          amountRefunded: charge.amount_refunded,
-        })
-      }
+      // Sync refundedTotal / REFUNDED, reverse commission, and cancel pre-ship
+      // fulfillment when Stripe Dashboard issues a full refund (incl. white-
+      // label invoice charges that never set Order.stripeChargeId).
+      const applied = await applyStripeChargeRefund(charge)
 
       // External payment (no platform order): re-ingest the PaymentIntent so
       // its SalesRecord nets out the refund (paidAmount/COGS recomputed from
@@ -259,7 +230,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
         typeof charge.payment_intent === 'string'
           ? charge.payment_intent
           : charge.payment_intent?.id
-      if (!order && piId) {
+      if (!applied.orderMatched && piId) {
         const salesAdjusted = await ingestExternalSale(piId, event.account)
         if (!salesAdjusted) {
           return {
@@ -274,7 +245,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
           details: {
             chargeId: charge.id,
             orderMatched: false,
-            fullyRefunded,
+            fullyRefunded: applied.fullyRefunded,
             salesAdjusted: true,
             amountRefunded: charge.amount_refunded,
           },
@@ -285,9 +256,11 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
         success: true,
         details: {
           chargeId: charge.id,
-          orderMatched: !!order,
-          fullyRefunded,
-          salesAdjusted: false,
+          orderMatched: applied.orderMatched,
+          orderId: applied.orderId ?? null,
+          fullyRefunded: applied.fullyRefunded,
+          cancelled: applied.cancelled,
+          cancelSkippedReason: applied.cancelSkippedReason ?? null,
           amountRefunded: charge.amount_refunded,
         },
       }

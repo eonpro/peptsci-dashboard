@@ -6,6 +6,7 @@ import {
   stripeReasonForCancel,
   ORDER_CANCEL_REASONS,
 } from '../orders/cancel'
+import { shouldCancelFulfillmentOnStripeRefund } from '../orders/apply-stripe-refund'
 
 describe('pickRefundablePaymentIntentId', () => {
   it('prefers Order PI over invoice and SalesRecord', () => {
@@ -82,5 +83,46 @@ describe('stripeReasonForCancel', () => {
       if (reason === 'duplicate') continue
       assert.equal(stripeReasonForCancel(reason), 'requested_by_customer')
     }
+  })
+})
+
+describe('shouldCancelFulfillmentOnStripeRefund', () => {
+  it('cancels only on full refund of a pre-ship order', () => {
+    assert.deepEqual(
+      shouldCancelFulfillmentOnStripeRefund({
+        fullyRefunded: true,
+        orderStatus: 'SUBMITTED',
+        trackingNumber: null,
+      }),
+      { cancel: true }
+    )
+  })
+
+  it('skips partial refunds', () => {
+    assert.deepEqual(
+      shouldCancelFulfillmentOnStripeRefund({
+        fullyRefunded: false,
+        orderStatus: 'SUBMITTED',
+      }),
+      { cancel: false, reason: 'partial_refund' }
+    )
+  })
+
+  it('skips already shipped / cancelled orders', () => {
+    assert.equal(
+      shouldCancelFulfillmentOnStripeRefund({
+        fullyRefunded: true,
+        orderStatus: 'SHIPPED',
+        trackingNumber: '1Z',
+      }).cancel,
+      false
+    )
+    assert.equal(
+      shouldCancelFulfillmentOnStripeRefund({
+        fullyRefunded: true,
+        orderStatus: 'CANCELLED',
+      }).cancel,
+      false
+    )
   })
 })

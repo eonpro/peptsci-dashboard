@@ -17,6 +17,7 @@ export const ORDER_CANCEL_REASONS = [
   'client_cancelled',
   'duplicate',
   'address_issue',
+  'stripe_refund',
   'other',
 ] as const
 
@@ -27,6 +28,7 @@ export const ORDER_CANCEL_REASON_LABELS: Record<OrderCancelReason, string> = {
   client_cancelled: 'Client cancelled',
   duplicate: 'Duplicate',
   address_issue: 'Address issue',
+  stripe_refund: 'Refunded on Stripe',
   other: 'Other',
 }
 
