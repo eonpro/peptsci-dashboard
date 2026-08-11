@@ -1,3 +1,43 @@
+# Guided fulfillment wizard (Start Fulfillment)  [EXECUTOR — 2026-08-11]
+
+## Background and Motivation
+The Fulfillment row's primary action was "Mark Picked", which only recorded a stage and left the rest of the flow to the operator's memory (overflow menu for pick list / slip / vial labels, separate Photo & Pack, separate Label). Owner asked for the button to read **Start Fulfillment** and for it to open a step-by-step flow: verify order + products → print vial labels → print packing slip → photo & pack (skippable with confirmation) → FedEx label or manual tracking → mark order as fulfilled.
+
+## Key Challenges and Analysis
+- **The ship step already does everything.** `POST /api/admin/shipping/fedex/label` sets tracking, flips the order to SHIPPED, draws batch inventory, and emails/SMSes the customer. Owner chose to keep those side effects there; the final screen is a summary + confirm that records fulfillment and does **not** touch `Order.status` (already SHIPPED by then).
+- **Two sources of truth risk.** Rather than a second independent state field, `stage` is now *derived* from the new `step` cursor by `stageForStep()`, so the legacy badge can never disagree with the wizard.
+- **Legacy orders.** `step` is nullable — null means the wizard never ran, and `resumeStep()` derives an entry screen from the old `stage` (PACKED → SHIP, PICKED → VIAL_LABELS). No backfill needed.
+- **Nested dialogs.** The wizard hands off to the existing `FedExLabelModal` / `ManualDispositionModal` instead of reimplementing them (both already carry the payment gate and stock override). It is hidden, not unmounted, so cancelling the child drops the operator back on the ship screen.
+- **Vial labels stay a preview.** The wizard links the PDF with no `?consume=true`; stock is still drawn once at ship time.
+
+## What shipped
+- `lib/fulfillment/wizard-core.ts` — pure step machine (`WIZARD_STEPS`, `nextStep`/`previousStep`, `stageForStep`, `resumeStep`, `canComplete`); no Prisma import
+- Schema: `FulfillmentStep` enum + `OrderFulfillment.step` (nullable) and per-screen audit columns (`startedAt/By`, `verifiedAt`, `vialLabelsAt` + `vialLabelsManual`, `packingSlipAt` + `packingSlipManual`, `photoSkippedAt/By`, `shipConfirmedAt`, `fulfilledAt/By`); migration `20260811130000_add_fulfillment_wizard_steps`
+- `lib/fulfillment/service.ts` — `startFulfillment` (idempotent), `completeWizardStep`, `completeFulfillment`; `reset` now clears the wizard too
+- `POST /api/admin/orders/[id]/fulfillment` — Zod discriminated union `start` / `step` / `complete`, with `pick`/`pack`/`reset` unchanged on the wire
+- `components/fulfillment/FulfillmentWizard.tsx` — six screens + progress rail; skip-photo AlertDialog confirmation; Review blocks completion without tracking and warns on a missing photo
+- `components/orders/PackPhotoCapture.tsx` — capture UI extracted from `PackPhotoModal` so the modal and the wizard's photo step share one implementation
+- Row: primary is now **Start Fulfillment** / **Resume Fulfillment**, plus a `Fulfilled` badge; orders list returns `fulfillmentStep`, `photoSkippedAt`, `fulfilledAt`
+
+## Project Status Board
+- [x] TDD: `lib/__tests__/fulfillmentWizard.test.ts` (17 assertions) written before the core module
+- [x] Pure step machine + schema/migration (applied locally; prod applied in the cancel-fulfillment session)
+- [x] Service + API discriminated union, legacy actions untouched
+- [x] Wizard UI, shared photo capture, ship hand-off, row/page wiring
+- [x] `npm test` 581/581, `tsc --noEmit` clean, lint clean, `next build` passes
+- [x] Full step walkthrough against the local DB (start → verify → labels → slip → photo skip → ship → complete → reset), including idempotent restart and legacy resume
+- [ ] Owner UI pass: Start Fulfillment on a paid order, confirm each screen and a mid-wizard refresh resumes in place
+
+## Executor's Feedback or Assistance Requests
+Bulk select still uses the legacy `pick` action and reads "Mark Picked" — starting a six-screen wizard for many orders at once is not meaningful. Say the word if you want that renamed or removed.
+
+## Lessons
+- `Order.trackingNumber` cannot be written without ship side effects (both FedEx and disposition set `shippedAt` + flip status), which is why the wizard's ship screen hands off to those modals rather than storing tracking itself.
+- Migration SQL must be idempotent to match the repo's admin migrate runner: `20260810120000_invoice_line_variant` used a bare `ADD CONSTRAINT` and wedged the local DB with P3018 (`42710 already exists`); recovered with `prisma migrate resolve --applied`. Prefer `ADD CONSTRAINT IF NOT EXISTS`-style guards or a separate check.
+- Do not statically import a helper from a `dynamic()`-loaded component module — it pulls the whole chunk into the parent bundle. The shared fulfillment POST helper lives in `lib/fulfillment/api-client.ts` for that reason.
+
+---
+
 # White-label refunds + cancel fulfillment  [EXECUTOR — 2026-08-11]
 
 ## Background and Motivation
@@ -16,8 +56,9 @@ Shopify white-label orders were CAPTURED via PeptSci invoice Stripe charges but 
 - [x] Shopify forward-fix
 - [x] Cancel service + API + UI
 - [x] Unit tests
-- [ ] Deploy migration `20260811140000_add_order_cancel_fields`
-- [ ] Soft-refresh Fulfillment → Refund #266 (or similar) should work; Cancel fulfillment… in overflow
+- [x] Deployed `4f09b61` → peptsci.com READY (`dpl_2X45CjPqR6puF9hwgC8XhwRB8c9E`)
+- [x] Prod migrate via `POST /api/admin/db/migrate` — wizard steps (15) + cancel fields (2) applied; `success:true`
+- [ ] Soft-refresh Fulfillment → Refund #266; Cancel fulfillment… in overflow
 
 ## Executor's Feedback or Assistance Requests
 Hard-refresh Fulfillment. Open Refund on a paid Shopify white-label order — should show refundable balance (not the amber block). Overflow → Cancel fulfillment… with reason + refund checkbox.
