@@ -11,10 +11,15 @@ Orders #266 / #267 (and similar) showed product-only totals with `$0` shipping. 
 ## Project Status Board
 - [x] Restore rates + tests + copy
 - [x] Ops route (clear EV $0 overrides + backfill)
-- [ ] Deploy + dry-run + confirm charge on prod
+- [x] Deployed `c84a9ee` → peptsci.com READY (`dpl_G3oTx6t3je124cvPzgJpH4qfY1UZ`)
+- [x] Dry-run: **no candidates** — #266/#267/#268 already have `shippingTotal: 15`
 
 ## Executor's Feedback or Assistance Requests
-After deploy: dry-run then `POST { "confirm": true }` as SUPER_ADMIN. Expect #266 → $80, #267 → $415 on Fulfillment.
+Fulfillment list shows product lines + grand total only (no shipping row). #266 = $50 products + $15 ship = $65; #267 = $385 + $15 = $400. EV client rates already `$15` / `$30`. No add-on charge needed.
+
+## Lessons
+- Zero shipping on the Fulfillment row UI ≠ zero `Order.shippingTotal`; verify subtotal vs total.
+- Prisma `shippingTotal: 0` Decimal filters can miss rows; raw SQL was more reliable for ops scans.
 
 ## Lessons
 - Client `shippingRateTwoDay = 0` is intentional free shipping and bypasses the global matrix — clear to `null` to restore defaults.
@@ -38,7 +43,7 @@ Shop catalog used generated PeptSci peptide vial labels for every SKU. Bacterios
 - [x] Tests
 
 ## Executor's Feedback or Assistance Requests
-Soft-refresh `/shop` and open Bacteriostatic Water to confirm the Hospira vial photo (not a PeptSci peptide label).
+Live on peptsci.com — deploy `dpl_5V7qmECw5ABNL7iVB7GzTTwLFFdZ` / commit `93a02b2`. Soft-refresh `/shop` and open Bacteriostatic Water to confirm the Hospira vial photo.
 
 ---
 
