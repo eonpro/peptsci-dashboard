@@ -172,6 +172,20 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                           <p className="text-sm font-medium text-white">{formatPrice(item.total)}</p>
                         </div>
                       ))}
+                      <div className="flex items-center justify-between border-t border-white/10 pt-3 text-sm">
+                        <span className="text-white/60">
+                          {order.shipSpeed === 'OVERNIGHT' ? 'Next-day shipping' : '2-day shipping'}
+                        </span>
+                        <span
+                          className={
+                            order.shippingTotal === 0
+                              ? 'font-medium text-green-400'
+                              : 'font-medium text-white'
+                          }
+                        >
+                          {order.shippingTotal === 0 ? 'FREE' : formatPrice(order.shippingTotal)}
+                        </span>
+                      </div>
                     </div>
 
                     {order.trackingNumber && (

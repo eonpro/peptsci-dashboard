@@ -1,3 +1,15 @@
+# My Orders list: show shipping on cards  [EXECUTOR — 2026-08-10]
+
+## What shipped
+- `ShopOrder` + `listClientOrders` now include `subtotal`, `shippingTotal`, `shipSpeed`
+- `/shop/orders` cards show a **2-day / Next-day shipping** row (or FREE) under line items so totals reconcile
+
+## Project Status Board
+- [x] Data + UI
+- [ ] Deploy
+
+---
+
 # Restore $15 shipping + back-bill missing fees  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation
