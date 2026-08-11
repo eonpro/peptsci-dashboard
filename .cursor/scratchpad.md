@@ -4429,3 +4429,81 @@ the same pipeline. Every PeptSci label printed its product name and dose as
   fonts; if only OTF exists, embed it whole via `embedLabelFont`.
 - A font swap is a rendering change: rasterize a sheet and read it before
   shipping. Type checks and unit tests cannot see garbled glyphs.
+
+## Elevated Vitality: bigger compound name [EXECUTOR — 2026-08-11]
+
+Owner printed a real EV sheet (packing fix confirmed: 5 labels on one sheet) and
+asked for a bigger compound name. Root cause of the small text: the name was fit
+into `CARD.w + 8` = 37.7pt, so 11-character names shrank to ~5pt while NAD+ kept
+the full 9pt cap.
+
+Measured the template's own centre column with sharp (ink clusters per band):
+`elevated` wordmark spans 42.1pt (x 46.1..88.2), RESEARCH USE ONLY 36.7pt, the
+name band is otherwise clear of solid artwork, the grey swoosh starts at x=69.2
+(the wordmark already overlaps it), the trident block ends at x=28.4 and the
+right rail starts at x=120.
+
+- `NAME_MAX_WIDTH` 37.7 -> 56pt, `NAME_MAX_SIZE` 9 -> 11pt.
+- `fitNameSize` now picks ONE size for all lines, bounded by width AND band
+  height, so a two-line blend can no longer collide.
+- Fixed a real overlap bug: `NAME_LEADING` was 5.5pt while the cap height at 9pt
+  is 6.66pt, so blend lines printed on top of each other. Leading is now derived
+  from the fitted size plus a 1.4pt gap.
+
+Result: Tesamorelin/Semaglutide/Glutathione +50% (5.0 -> 7.5pt), Retatrutide
++48%, Tirzepatide +50%, NAD+ +22% (9 -> 11pt). Blends go 8.75 -> 8.35pt, which
+reads smaller on paper only because they no longer overlap.
+
+Tests assert the cap for short names, a >= 7pt floor for long ones, no blend
+collision, and that no name crosses the trident or the rail. 625 pass.
+
+To go bigger still, raise `NAME_MAX_WIDTH`; at 64pt long names reach ~8.7pt but
+sit within ~7pt of the trident block.
+
+## Missing blend label on order #267: short sheets printed silently [EXECUTOR — 2026-08-11]
+
+Owner printed order #267 (3x NAD+, 1x BPC-157/TB-500, 1x Tesamorelin, 1x
+Retatrutide) and got 5 labels — the blend was absent.
+
+Root cause, and NOT a layout bug: `/api/admin/orders/[id]/labels/pdf` builds
+labels from `plan.draws`, i.e. from inventory batches, never from order lines. A
+label carries batch number, BUD, purity and year colour, so a variant with no
+allocatable batch (`status RECEIVED` + `qtyOnHand > 0` + `bud >= today UTC`,
+per `allocatableBatchesForVariants`) contributes zero labels. The blend variant
+failed one of those three in prod.
+
+The real defect was the SILENCE: the route computed the gap and put it in the
+`X-Label-Shortfall` response header, but the wizard printed via
+`window.open(url)`, which discards headers, so nothing ever read it. The wizard's
+"SHOULD CONTAIN" checklist is built from `order.items`, so the UI kept listing
+the blend as if labelled. The hard `INSUFFICIENT_BATCH_STOCK` 409 only fires on
+`?consume=true` (ship step), not on the preview print.
+
+Fix (both warning points, per owner):
+- `lib/fulfillment/label-shortfall.ts` (pure, 19 tests): parse/serialize the
+  header, derive the same entries from a pick list, and render one operator
+  sentence naming each product. Header is ASCII-escaped — a raw multi-byte
+  product name would throw on the header and kill the whole PDF response.
+- Labels route now names the short products (`displayProductName` +
+  `resolveLabelDose`, product name pulled into the `items.variant` include)
+  instead of emitting bare variant IDs.
+- Wizard: Verify (step 1) fetches the pick list on open and flags unlabelable
+  lines BEFORE printing; the label step downloads via `fetch` + anchor click (the
+  house pattern from ProductLabelPrintDialog, so no popup blocker and headers are
+  readable) and refuses to auto-advance on a short sheet, offering Reprint or an
+  explicit "Continue without those labels".
+- Row dropdown "Vial Labels (PDF)" was a plain `<a href>` with the same blind
+  spot; now downloads and toasts the warning.
+
+Ops note: to find WHICH condition failed for a given order, run
+`npx tsx --env-file=<prod env> scripts/diagnose-order-stock.ts <orderNumber>` —
+it lists every batch per line and why it was excluded.
+
+### Lessons
+- `.env.local` DATABASE_URL points at LOCAL postgres (127.0.0.1:5433/peptsci),
+  not prod. Anything described as "your real data" from that DB is dev catalog.
+- Response headers are invisible to `window.open`. Never carry operator-critical
+  information in a header the UI cannot read; fetch as a blob if you need it.
+- Two lists of the same order, one from order lines and one from batch draws,
+  will silently disagree the moment inventory is incomplete. Reconcile them in
+  the UI, don't just render both.
