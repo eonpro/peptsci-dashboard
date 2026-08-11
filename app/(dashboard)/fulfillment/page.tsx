@@ -114,6 +114,7 @@ const filterTabs = [
   { id: 'false', label: 'Needs Label' },
   { id: 'true', label: 'Shipped' },
   { id: 'all', label: 'All' },
+  { id: 'cancelled', label: 'Cancellations' },
   { id: 'stripe', label: 'From Stripe' },
 ] as const
 
@@ -198,6 +199,7 @@ export default function FulfillmentPage() {
     }
     const tab = params.get('tab')
     if (tab === 'stripe') setShipped('stripe')
+    if (tab === 'cancelled') setShipped('cancelled')
   }, [])
 
   const load = useCallback(() => {
@@ -533,7 +535,11 @@ export default function FulfillmentPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {shipped === 'stripe' ? 'Stripe payments to fulfill' : 'Orders'}
+            {shipped === 'stripe'
+              ? 'Stripe payments to fulfill'
+              : shipped === 'cancelled'
+                ? 'Cancelled orders'
+                : 'Orders'}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -581,14 +587,20 @@ export default function FulfillmentPage() {
             <div className="flex flex-col items-center py-12 text-center text-white/50">
               <Package className="mb-3 h-10 w-10" />
               <p className="font-medium text-white/70">
-                {search.trim() ? 'No orders match this search.' : 'No orders in this view.'}
+                {search.trim()
+                  ? 'No orders match this search.'
+                  : shipped === 'cancelled'
+                    ? 'No cancelled orders.'
+                    : 'No orders in this view.'}
               </p>
               <p className="mt-1 max-w-sm text-sm">
                 {search.trim()
                   ? 'Try a different order #, tracking number, or client name.'
-                  : 'Create a manual order, or convert a paid Stripe payment into a fulfillable order.'}
+                  : shipped === 'cancelled'
+                    ? 'Cancelled fulfillment orders will appear here.'
+                    : 'Create a manual order, or convert a paid Stripe payment into a fulfillable order.'}
               </p>
-              {!search.trim() && (
+              {!search.trim() && shipped !== 'cancelled' && (
                 <div className="mt-4 flex gap-2">
                   <Button size="sm" onClick={() => setNewOrderOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" /> New Order

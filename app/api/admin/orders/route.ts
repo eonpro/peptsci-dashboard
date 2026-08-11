@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic'
 const querySchema = z.object({
   search: z.string().optional(),
   status: z.string().optional(),
-  shipped: z.enum(['true', 'false', 'all']).optional().default('all'),
+  /** false=Needs Label, true=Shipped, cancelled=Cancellations tab, all=active queue. */
+  shipped: z.enum(['true', 'false', 'all', 'cancelled']).optional().default('all'),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
 })
@@ -29,17 +30,27 @@ export async function GET(request: NextRequest) {
 
     const params = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams))
 
-    const where: Record<string, unknown> = { status: { not: 'DRAFT' } }
+    const where: Record<string, unknown> = {}
+    // Cancellations tab is CANCELLED-only. Active fulfillment tabs exclude them
+    // so cancelled orders leave Needs Label / Shipped / All immediately.
+    if (params.shipped === 'cancelled') {
+      where.status = 'CANCELLED'
+    } else if (params.status && params.status !== 'all') {
+      where.status = params.status
+    } else {
+      where.status = { notIn: ['DRAFT', 'CANCELLED'] }
+    }
     // "Shipped" means a label/tracking exists OR the order was manually
     // dispositioned (shippingStatus set without tracking, e.g. hand delivery).
     // Wrapped in AND so it can't collide with the search OR below.
+    // Skip ship filters on the cancellations tab — cancelled orders stay listed
+    // regardless of whether a label was created before cancel was blocked.
     if (params.shipped === 'true') {
       where.AND = [{ OR: [{ trackingNumber: { not: null } }, { shippingStatus: { not: null } }] }]
     } else if (params.shipped === 'false') {
       where.trackingNumber = null
       where.shippingStatus = null
     }
-    if (params.status && params.status !== 'all') where.status = params.status
     if (params.search) {
       const asNum = Number(params.search.replace(/^#/, ''))
       where.OR = [

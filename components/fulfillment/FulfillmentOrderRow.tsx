@@ -133,11 +133,12 @@ export function FulfillmentOrderRow({
     order.shippingStatus === 'SHIPPED' ||
     order.shippingStatus === 'DELIVERED'
 
+  const cancelled = order.status === 'CANCELLED'
   const fulfilled = order.fulfillmentStep === 'COMPLETE'
   const inProgress = !!order.fulfillmentStep && !fulfilled
   // The wizard ships the order on its second-to-last screen, so a shipped order
   // that hasn't been marked fulfilled yet still needs the operator to finish.
-  const showWizardAction = !fulfilled && (inProgress || !shipped)
+  const showWizardAction = !cancelled && !fulfilled && (inProgress || !shipped)
   const stageBadge = fulfilled ? FULFILLED_META : STAGE_META[order.fulfillmentStage]
 
   return (
@@ -155,7 +156,14 @@ export function FulfillmentOrderRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-white">Order #{order.orderNumber}</span>
-            <Badge variant="outline" className="text-xs">
+            <Badge
+              variant="outline"
+              className={`text-xs ${
+                order.status === 'CANCELLED'
+                  ? 'border-red-400/50 text-red-300'
+                  : ''
+              }`}
+            >
               {order.status}
             </Badge>
             {order.source === 'SHOPIFY' && (
@@ -231,11 +239,13 @@ export function FulfillmentOrderRow({
 
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         {/* Payment is money — keep it visible whenever action is needed. */}
-        {order.paymentStatus !== 'CAPTURED' && order.paymentStatus !== 'REFUNDED' && (
-          <Button size="sm" variant="outline" onClick={onCharge}>
-            <CreditCard className="mr-2 h-4 w-4" /> Take Payment
-          </Button>
-        )}
+        {!cancelled &&
+          order.paymentStatus !== 'CAPTURED' &&
+          order.paymentStatus !== 'REFUNDED' && (
+            <Button size="sm" variant="outline" onClick={onCharge}>
+              <CreditCard className="mr-2 h-4 w-4" /> Take Payment
+            </Button>
+          )}
 
         {/* One primary action: the guided fulfillment wizard. */}
         {showWizardAction && (
@@ -248,13 +258,13 @@ export function FulfillmentOrderRow({
             {inProgress ? 'Resume Fulfillment' : 'Start Fulfillment'}
           </Button>
         )}
-        {/* Label stays reachable outside the wizard. */}
-        {!shipped && (
+        {/* Label stays reachable outside the wizard — not for cancelled orders. */}
+        {!cancelled && !shipped && (
           <Button size="sm" variant="outline" onClick={onLabel}>
             <Printer className="mr-2 h-4 w-4" /> Label
           </Button>
         )}
-        {shipped && (
+        {!cancelled && shipped && (
           <Button size="sm" variant="outline" onClick={onLabel}>
             <Printer className="mr-2 h-4 w-4" /> New Label
           </Button>
@@ -271,64 +281,70 @@ export function FulfillmentOrderRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem asChild>
-              <a
-                href={`/api/admin/orders/${order.id}/pick-list/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ClipboardList className="mr-2 h-4 w-4" /> Pick List (PDF)
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a
-                href={`/api/admin/orders/${order.id}/packing-slip/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <FileText className="mr-2 h-4 w-4" /> Packing Slip (PDF)
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a
-                href={`/api/admin/orders/${order.id}/labels/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Printer className="mr-2 h-4 w-4" /> Vial Labels (PDF)
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {order.fulfillmentStage === 'PICKED' && (
-              <DropdownMenuItem onClick={onPack}>
-                <Camera className="mr-2 h-4 w-4" /> Photo & Pack
-              </DropdownMenuItem>
-            )}
-            {order.fulfillmentStage === 'PACKED' && (
-              <DropdownMenuItem
-                disabled={advancing === `${order.id}:reset`}
-                onClick={() => onAdvance(order.id, 'reset')}
-              >
-                <RotateCcw className="mr-2 h-4 w-4" /> Reset stage
-              </DropdownMenuItem>
-            )}
-            {!shipped && order.status !== 'CANCELLED' && (
-              <DropdownMenuItem
-                onClick={onDisposition}
-                title="Fulfilled outside the app? Mark it shipped/delivered manually."
-              >
-                <PackageCheck className="mr-2 h-4 w-4" /> Manual Disposition
-              </DropdownMenuItem>
-            )}
-            {order.paymentStatus === 'CAPTURED' && (
+            {!cancelled && (
               <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onRefund} className="text-red-400 focus:text-red-300">
-                  <Undo2 className="mr-2 h-4 w-4" /> Refund…
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`/api/admin/orders/${order.id}/pick-list/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ClipboardList className="mr-2 h-4 w-4" /> Pick List (PDF)
+                  </a>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`/api/admin/orders/${order.id}/packing-slip/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FileText className="mr-2 h-4 w-4" /> Packing Slip (PDF)
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`/api/admin/orders/${order.id}/labels/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Printer className="mr-2 h-4 w-4" /> Vial Labels (PDF)
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {order.fulfillmentStage === 'PICKED' && (
+                  <DropdownMenuItem onClick={onPack}>
+                    <Camera className="mr-2 h-4 w-4" /> Photo & Pack
+                  </DropdownMenuItem>
+                )}
+                {order.fulfillmentStage === 'PACKED' && (
+                  <DropdownMenuItem
+                    disabled={advancing === `${order.id}:reset`}
+                    onClick={() => onAdvance(order.id, 'reset')}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" /> Reset stage
+                  </DropdownMenuItem>
+                )}
+                {!shipped && (
+                  <DropdownMenuItem
+                    onClick={onDisposition}
+                    title="Fulfilled outside the app? Mark it shipped/delivered manually."
+                  >
+                    <PackageCheck className="mr-2 h-4 w-4" /> Manual Disposition
+                  </DropdownMenuItem>
+                )}
               </>
             )}
-            {!shipped && order.status !== 'CANCELLED' && (
+            {(order.paymentStatus === 'CAPTURED' || order.paymentStatus === 'REFUNDED') && (
+              <>
+                {!cancelled && <DropdownMenuSeparator />}
+                {order.paymentStatus === 'CAPTURED' && (
+                  <DropdownMenuItem onClick={onRefund} className="text-red-400 focus:text-red-300">
+                    <Undo2 className="mr-2 h-4 w-4" /> Refund…
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
+            {!cancelled && !shipped && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onCancel} className="text-red-400 focus:text-red-300">
