@@ -113,13 +113,13 @@ export function ClientHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all',
                   isActive
                     ? 'bg-brand-primary text-white'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 {item.name}
               </Link>
             )
