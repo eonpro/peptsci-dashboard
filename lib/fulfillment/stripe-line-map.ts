@@ -6,7 +6,7 @@
  */
 
 import type { ShipSpeed } from '../checkout-core'
-import { matchVariantIdFromDescription } from '../invoicing/fulfill-products'
+import { matchVariantIdFromDescription } from '../invoicing/match-variant'
 import { inferShipSpeedFromText } from '../shopify/ship-speed'
 
 export type StripeSaleLineItem = {
