@@ -130,36 +130,41 @@ async function clearEvZeroOverrides(clerkUserId: string | null): Promise<{
 async function findCandidates(): Promise<CandidateRow[]> {
   if (!prisma) return []
 
-  const orders = await prisma.order.findMany({
-    where: {
-      paymentStatus: 'CAPTURED',
-      status: { notIn: ['CANCELLED', 'DRAFT'] },
-      shippingTotal: 0,
-      subtotal: { gt: 0, lt: FREE_SHIPPING_THRESHOLD },
-    },
-    orderBy: { orderNumber: 'asc' },
-    select: {
-      id: true,
-      orderNumber: true,
-      clientId: true,
-      subtotal: true,
-      shippingTotal: true,
-      total: true,
-      shipSpeed: true,
-      shopifyOrderName: true,
-      paymentStatus: true,
-      status: true,
-      client: { select: { organizationName: true } },
-    },
-  })
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string
+      orderNumber: number
+      clientId: string
+      organizationName: string
+      subtotal: unknown
+      shippingTotal: unknown
+      total: unknown
+      shipSpeed: string | null
+      shopifyOrderName: string | null
+      paymentStatus: string
+      status: string
+    }>
+  >`
+    SELECT o.id, o."orderNumber", o."clientId", c."organizationName",
+           o.subtotal, o."shippingTotal", o.total, o."shipSpeed", o."shopifyOrderName",
+           o."paymentStatus"::text AS "paymentStatus", o.status::text AS status
+    FROM "Order" o
+    JOIN "Client" c ON c.id = o."clientId"
+    WHERE o."paymentStatus" = 'CAPTURED'
+      AND o.status::text NOT IN ('CANCELLED', 'DRAFT')
+      AND COALESCE(o."shippingTotal", 0) <= 0
+      AND o.subtotal > 0
+      AND o.subtotal < ${FREE_SHIPPING_THRESHOLD}
+    ORDER BY o."orderNumber" ASC
+  `
 
   const candidates: CandidateRow[] = []
-  for (const o of orders) {
+  for (const o of rows) {
     const subtotal = Number(o.subtotal)
-    const shippingTotal = Number(o.shippingTotal)
+    const shippingTotal = Number(o.shippingTotal ?? 0)
     if (
       !isShippingBackfillCandidate({
-        orderNumber: o.orderNumber,
+        orderNumber: Number(o.orderNumber),
         subtotal,
         shippingTotal,
         paymentStatus: o.paymentStatus,
@@ -174,11 +179,12 @@ async function findCandidates(): Promise<CandidateRow[]> {
     const amountDue = shippingBackfillAmount(subtotal, shipSpeed)
     if (amountDue <= 0) continue
 
+    const orderNumber = Number(o.orderNumber)
     candidates.push({
       id: o.id,
-      orderNumber: o.orderNumber,
+      orderNumber,
       clientId: o.clientId,
-      organizationName: o.client.organizationName,
+      organizationName: o.organizationName,
       subtotal,
       shippingTotal,
       total: Number(o.total),
@@ -186,7 +192,7 @@ async function findCandidates(): Promise<CandidateRow[]> {
       shopifyOrderName: o.shopifyOrderName,
       amountDue,
       lineDescription: shippingBackfillLineDescription(
-        o.orderNumber,
+        orderNumber,
         shipSpeed,
         o.shopifyOrderName
       ),
@@ -237,6 +243,29 @@ export async function POST(request: NextRequest) {
     const evOverrides = await loadEvShippingOverrides()
     const candidates = await findCandidates()
 
+    // Diagnostic: raw totals for recent EV Shopify orders (helps verify Decimal filters).
+    let sampleOrders: Array<Record<string, unknown>> = []
+    try {
+      sampleOrders = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT "orderNumber", "subtotal", "shippingTotal", "total", "paymentStatus", "status", "shipSpeed", "shopifyOrderName"
+        FROM "Order"
+        WHERE "orderNumber" IN (266, 267, 268, 67)
+        ORDER BY "orderNumber"
+      `
+      sampleOrders = sampleOrders.map((r) => ({
+        orderNumber: Number(r.orderNumber),
+        subtotal: Number(r.subtotal),
+        shippingTotal: Number(r.shippingTotal),
+        total: Number(r.total),
+        paymentStatus: r.paymentStatus,
+        status: r.status,
+        shipSpeed: r.shipSpeed,
+        shopifyOrderName: r.shopifyOrderName,
+      }))
+    } catch {
+      sampleOrders = []
+    }
+
     const planned: Array<CandidateRow & { skipReason?: string }> = []
     const skipped: Array<{ orderNumber: number; reason: string }> = []
 
@@ -258,6 +287,7 @@ export async function POST(request: NextRequest) {
           shippingRateOvernight: evOverrides.overnight,
           willClearZeroOverrides: evOverrides.clearTwoDay || evOverrides.clearOvernight,
         },
+        sampleOrders,
         planned,
         skipped,
         totals: {
