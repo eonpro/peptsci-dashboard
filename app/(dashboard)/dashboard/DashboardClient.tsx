@@ -35,6 +35,7 @@ const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
   ),
 })
 import type { Sale } from '@/lib/sales'
+import { isOpsRecentSale } from '@/lib/sales'
 import { format } from 'date-fns'
 import { nyMonthKey } from '@/lib/reports/core'
 
@@ -180,7 +181,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   const recentOrders = useMemo(
     () =>
       sales
-        .filter((s) => s.Date)
+        .filter((s) => s.Date && isOpsRecentSale(s))
         .sort((a, b) => {
           if (!a.Date || !b.Date) return 0
           return b.Date.getTime() - a.Date.getTime()

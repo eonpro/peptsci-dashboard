@@ -11,6 +11,7 @@ import { advanceFulfillment } from '@/lib/fulfillment/service'
 import { voidInvoice } from '@/lib/invoicing/service'
 import { issueOrderRefund, OrderRefundError } from '@/lib/orders/refund'
 import { resolveOrderPaymentIntentId } from '@/lib/orders/payment-intent'
+import { syncSalesRecordFromOrder } from '@/lib/sales'
 
 export const ORDER_CANCEL_REASONS = [
   'wrong_compound',
@@ -278,6 +279,15 @@ export async function cancelOrder(
       })
       .catch(() => {})
   }
+
+  // Keep analytics / dashboard in step (amounts + tracking). Status itself is
+  // read live from Order in getSales — this sync covers refunded totals.
+  await syncSalesRecordFromOrder(order.id).catch((e) =>
+    logger.warn('[cancel] syncSalesRecordFromOrder failed (non-blocking)', {
+      orderId: order.id,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  )
 
   logger.info('[cancel] order cancelled', {
     orderId: order.id,

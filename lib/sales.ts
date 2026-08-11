@@ -34,6 +34,18 @@ export interface Sale {
   Profit: number
   ProfitMargin: number
   Markup: number
+  /** Linked Order.status when the SalesRecord has an orderId (ops badges / filters). */
+  OrderStatus?: string | null
+}
+
+/** Terminal / non-actionable order statuses — hide from Recent Orders ops queue. */
+const NON_OPS_ORDER_STATUSES = new Set(['CANCELLED', 'REJECTED', 'DRAFT'])
+
+/** True when a sale should appear in the home Recent Orders action list. */
+export function isOpsRecentSale(sale: Pick<Sale, 'OrderStatus'>): boolean {
+  const status = sale.OrderStatus
+  if (!status) return true
+  return !NON_OPS_ORDER_STATUSES.has(status)
 }
 
 type SalesRecordRow = {
@@ -164,7 +176,25 @@ export async function getSales(): Promise<Sale[]> {
     const rows = await prisma.salesRecord.findMany({
       orderBy: { date: 'desc' },
     })
-    return rows.flatMap((r) => salesFromRecord(r as unknown as SalesRecordRow))
+    // Attach live Order.status so the dashboard can hide cancelled rows from
+    // the Recent Orders ops queue (SalesRecord alone has no status column).
+    const orderIds = [
+      ...new Set(rows.map((r) => r.orderId).filter((id): id is string => Boolean(id))),
+    ]
+    const statusByOrderId = new Map<string, string>()
+    if (orderIds.length > 0) {
+      const orders = await prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, status: true },
+      })
+      for (const o of orders) statusByOrderId.set(o.id, o.status)
+    }
+    return rows.flatMap((r) => {
+      const sales = salesFromRecord(r as unknown as SalesRecordRow)
+      const status = r.orderId ? statusByOrderId.get(r.orderId) : undefined
+      if (!status) return sales
+      return sales.map((s) => ({ ...s, OrderStatus: status }))
+    })
   } catch (error) {
     logger.error(
       'Error fetching sales',
