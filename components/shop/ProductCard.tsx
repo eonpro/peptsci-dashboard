@@ -4,15 +4,32 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ShopProduct } from '@/lib/types/shop'
-import { useCart } from './CartContext'
+import { useOptionalCart } from './CartContext'
 import { cn } from '@/lib/utils'
-import { ChevronRight, FileText } from 'lucide-react'
+import { ChevronRight, FileText, Pencil } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
+
+/** Per-SKU cost/SRP for Super Admin pricing cards (never sent to shop clients). */
+export interface AdminPricingSku {
+  sku: string
+  cost: number
+  srp: number
+  id?: string
+}
+
+export interface ProductCardAdminPricing {
+  /** Cost/SRP rows for this compound's sizes (matched by sku). */
+  skus: AdminPricingSku[]
+  /** Open the Cost/SRP editor for a given sku (or primary when omitted). */
+  onEdit: (sku: string) => void
+}
 
 interface ProductCardProps {
   product: ShopProduct
   viewMode?: 'grid' | 'list'
+  /** Super Admin /pricing mode — same card chrome, Cost/SRP/margin + Edit. */
+  adminPricing?: ProductCardAdminPricing
 }
 
 // PeptSci Logo - using actual logo image
@@ -40,12 +57,14 @@ function formatMolecularFormula(formula: string | null | undefined): JSX.Element
 }
 
 /**
- * Browse-only catalog card: one card per compound. Size (mg) selection and
- * add-to-cart happen on the product detail page — the whole card links there.
+ * Catalog card: one card per compound. Shop mode links to the PDP for size
+ * selection / cart. Admin pricing mode keeps the same chrome but surfaces
+ * Cost/SRP/margin and an Edit action (no cart / no PDP navigation).
  */
-export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
-  const { items } = useCart()
+export function ProductCard({ product, viewMode = 'grid', adminPricing }: ProductCardProps) {
+  const { items } = useOptionalCart()
   const [coaOpen, setCoaOpen] = useState(false)
+  const isAdmin = Boolean(adminPricing)
 
   const productId = product.sku || product.id
   const pdpHref = `/shop/product/${encodeURIComponent(productId)}`
@@ -133,24 +152,101 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const purityDisplay = product.purity || product.compounds?.[0]?.purity || '99%'
   const hasSciSpecs = !!(product.casNumber || product.molecularFormula || product.molecularWeight)
 
-  // Compact dose pills shown in the footer / list row
+  // Admin: match size pills to Cost/SRP rows (by dose, then sku fallback)
+  const adminSkus = adminPricing?.skus ?? []
+  const adminByDose = new Map<string, AdminPricingSku>()
+  for (const s of sizes) {
+    const row = adminSkus.find((a) => a.sku === s.sku)
+    if (row && s.dose) adminByDose.set(s.dose, row)
+  }
+  const adminPrimary =
+    adminSkus.find((a) => a.sku === productId) ||
+    adminSkus.slice().sort((a, b) => a.srp - b.srp)[0] ||
+    null
+  const adminCosts = adminSkus.map((a) => a.cost).filter((c) => c > 0)
+  const adminSrps = adminSkus.map((a) => a.srp).filter((s) => s > 0)
+  const adminFromSrp = adminSrps.length ? Math.min(...adminSrps) : fromPrice
+  const adminPricedRows = adminSkus.filter((a) => a.srp > 0)
+  const adminAvgMargin =
+    adminPricedRows.length > 0
+      ? adminPricedRows.reduce((acc, a) => acc + ((a.srp - a.cost) / a.srp) * 100, 0) /
+        adminPricedRows.length
+      : 0
+  const resolveAdminSkuForDose = (dose: string): string => {
+    const byDose = adminByDose.get(dose)
+    if (byDose) return byDose.sku
+    const size = sizes.find((s) => s.dose === dose)
+    return size?.sku || adminPrimary?.sku || productId
+  }
+
+  // Compact dose pills — admin: click opens Cost/SRP editor for that size
   const renderSizePills = () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      {doseList.slice(0, 4).map((dose) => (
-        <span
-          key={dose}
-          className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75"
-        >
-          {dose}
-        </span>
-      ))}
+      {doseList.slice(0, 4).map((dose) =>
+        isAdmin && adminPricing ? (
+          <button
+            key={dose}
+            type="button"
+            onClick={() => adminPricing.onEdit(resolveAdminSkuForDose(dose))}
+            className="relative z-10 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75 transition-colors hover:border-blue-400/50 hover:text-white"
+          >
+            {dose}
+          </button>
+        ) : (
+          <span
+            key={dose}
+            className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75"
+          >
+            {dose}
+          </span>
+        )
+      )}
       {doseList.length > 4 && (
         <span className="text-[11px] font-medium text-white/45">+{doseList.length - 4}</span>
       )}
     </div>
   )
 
-  const priceBlock = (
+  const priceBlock = isAdmin ? (
+    <div className="min-w-0">
+      <div className="flex items-baseline gap-1.5">
+        {adminSkus.length > 1 && adminSrps.length > 1 && new Set(adminSrps).size > 1 && (
+          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+            From
+          </span>
+        )}
+        <p className="text-xl font-bold text-white">
+          {adminSrps.length === 0 ? '—' : formatPrice(adminFromSrp)}
+        </p>
+      </div>
+      <p className="text-[11px] text-white/55">
+        Cost{' '}
+        <span className="font-semibold text-white/80">
+          {adminCosts.length === 0
+            ? '—'
+            : formatPrice(Math.min(...adminCosts))}
+        </span>
+        {Number.isFinite(adminAvgMargin) && adminSrps.length > 0 && (
+          <>
+            {' '}
+            · Margin{' '}
+            <span
+              className={cn(
+                'font-semibold',
+                adminAvgMargin >= 70
+                  ? 'text-green-400'
+                  : adminAvgMargin >= 50
+                    ? 'text-amber-300'
+                    : 'text-red-400'
+              )}
+            >
+              {adminAvgMargin.toFixed(0)}%
+            </span>
+          </>
+        )}
+      </p>
+    </div>
+  ) : (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
         {showFromLabel && !unpriced && (
@@ -199,13 +295,22 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               )}
             </div>
             <h3 className="font-semibold tracking-tight text-white text-lg leading-tight truncate">
-              {/* Stretched link: makes the whole card navigate to the PDP */}
-              <Link
-                href={pdpHref}
-                className="hover:text-blue-300 transition-colors after:absolute after:inset-0 after:content-['']"
-              >
-                {product.name}
-              </Link>
+              {isAdmin && adminPricing ? (
+                <button
+                  type="button"
+                  onClick={() => adminPricing.onEdit(adminPrimary?.sku || productId)}
+                  className="relative z-10 text-left hover:text-blue-300 transition-colors"
+                >
+                  {product.name}
+                </button>
+              ) : (
+                <Link
+                  href={pdpHref}
+                  className="hover:text-blue-300 transition-colors after:absolute after:inset-0 after:content-['']"
+                >
+                  {product.name}
+                </Link>
+              )}
             </h3>
             <p className="text-white/60 text-sm truncate">{doseDisplay}</p>
             {outOfStock && (
@@ -218,24 +323,50 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           {/* Price and chevron */}
           <div className="flex shrink-0 items-center gap-2">
             <div className="flex flex-col items-end">
-              {showFromLabel && !unpriced && (
-                <span className="text-[10px] font-medium uppercase tracking-wide text-white/45">
-                  From
-                </span>
-              )}
-              <p className="text-lg font-bold text-white">
-                {unpriced ? 'Call' : formatPrice(fromPrice)}
-              </p>
-              {savingsAmount > 0 && (
-                <p className="text-[10px] font-semibold text-green-400">Save {savingsPercent}%</p>
+              {isAdmin ? (
+                <>
+                  <p className="text-lg font-bold text-white">
+                    {adminSrps.length === 0 ? '—' : formatPrice(adminFromSrp)}
+                  </p>
+                  {Number.isFinite(adminAvgMargin) && adminSrps.length > 0 && (
+                    <p className="text-[10px] font-semibold text-white/50">
+                      {adminAvgMargin.toFixed(0)}% margin
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {showFromLabel && !unpriced && (
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-white/45">
+                      From
+                    </span>
+                  )}
+                  <p className="text-lg font-bold text-white">
+                    {unpriced ? 'Call' : formatPrice(fromPrice)}
+                  </p>
+                  {savingsAmount > 0 && (
+                    <p className="text-[10px] font-semibold text-green-400">Save {savingsPercent}%</p>
+                  )}
+                </>
               )}
             </div>
-            <ChevronRight className="h-5 w-5 text-white/40" />
+            {isAdmin && adminPricing ? (
+              <button
+                type="button"
+                onClick={() => adminPricing.onEdit(adminPrimary?.sku || productId)}
+                className="relative z-10 rounded-lg border border-white/15 p-2 text-white/60 hover:border-blue-400/50 hover:text-white"
+                aria-label={`Edit pricing for ${product.name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            ) : (
+              <ChevronRight className="h-5 w-5 text-white/40" />
+            )}
           </div>
         </div>
 
         {/* In cart indicator badge */}
-        {cartQty > 0 && (
+        {!isAdmin && cartQty > 0 && (
           <div className="pointer-events-none absolute top-2 right-2 z-10">
             <div className="bg-green-500 text-white text-xs font-bold min-w-6 h-6 px-1 rounded-full flex items-center justify-center shadow-lg">
               {cartQty}
@@ -280,7 +411,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
               {product.compounds.slice(0, 2).map((c, i) => (
                 <div key={i}>
                   <h3 className="font-semibold tracking-tight text-white text-base @[16rem]:text-lg leading-tight">
-                    {i === 0 ? (
+                    {i === 0 && !isAdmin ? (
                       <Link
                         href={pdpHref}
                         className="transition-colors group-hover:text-blue-300"
@@ -288,9 +419,9 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
                         {c.name} {c.amount}
                       </Link>
                     ) : (
-                      <>
+                      <span className={cn(!isAdmin && i === 0 && 'transition-colors group-hover:text-blue-300')}>
                         {c.name} {c.amount}
-                      </>
+                      </span>
                     )}
                   </h3>
                   <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug tracking-tight">
@@ -315,12 +446,16 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
             /* Single-compound layout */
             <>
               <h3 className="font-semibold tracking-tight text-white text-xl @[16rem]:text-2xl leading-tight">
-                <Link
-                  href={pdpHref}
-                  className="transition-colors group-hover:text-blue-300"
-                >
-                  {isBlend ? product.name : compounds[0]?.name || product.name}
-                </Link>
+                {isAdmin ? (
+                  <span>{isBlend ? product.name : compounds[0]?.name || product.name}</span>
+                ) : (
+                  <Link
+                    href={pdpHref}
+                    className="transition-colors group-hover:text-blue-300"
+                  >
+                    {isBlend ? product.name : compounds[0]?.name || product.name}
+                  </Link>
+                )}
               </h3>
               {product.category && (
                 <p className="mt-0.5 text-[#4d6bff] text-[10px] @[16rem]:text-[11px] font-medium uppercase tracking-tight line-clamp-2">
@@ -392,7 +527,19 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
         {renderSizePills()}
         <div className="flex items-center justify-between gap-2">
           {priceBlock}
-          {outOfStock ? (
+          {isAdmin && adminPricing ? (
+            <button
+              type="button"
+              onClick={() => adminPricing.onEdit(adminPrimary?.sku || productId)}
+              className={cn(
+                'relative z-10 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white',
+                'bg-brand-primary transition-colors hover:bg-[#1a30c0]'
+              )}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          ) : outOfStock ? (
             <Link
               href={pdpHref}
               className={cn(
@@ -419,7 +566,7 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
       </div>
 
       {/* In cart indicator badge */}
-      {cartQty > 0 && (
+      {!isAdmin && cartQty > 0 && (
         <div className="pointer-events-none absolute top-3 right-3 z-10">
           <div className="bg-green-500 text-white text-xs font-bold min-w-6 h-6 px-1 rounded-full flex items-center justify-center shadow-lg">
             {cartQty}
@@ -431,12 +578,14 @@ export function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
           but below interactive controls (z-10: COA button). aria-hidden +
           tabIndex=-1 because the product-name link already exposes this
           destination to keyboards and screen readers. */}
-      <Link
-        href={pdpHref}
-        aria-hidden="true"
-        tabIndex={-1}
-        className="absolute inset-0 z-[5]"
-      />
+      {!isAdmin && (
+        <Link
+          href={pdpHref}
+          aria-hidden="true"
+          tabIndex={-1}
+          className="absolute inset-0 z-[5]"
+        />
+      )}
 
       {product.hasCoa && (
         <CoaDialog

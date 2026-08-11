@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PriceSheet } from '@/lib/pricing'
+import type { ShopProduct } from '@/lib/types/shop'
 import ExportButton from './ExportButton'
 import PricingTable from './PricingTable'
 import EditPriceDialog from './EditPriceDialog'
+import { ProductCard } from '@/components/shop/ProductCard'
 import { LayoutGrid, List, RefreshCw, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -28,13 +29,54 @@ function normalizePrices(data: unknown): PriceSheet[] {
   }))
 }
 
-export default function PricingClient({ initialPrices }: { initialPrices: PriceSheet[] }) {
+/** Keep grouped catalog cards in sync with refreshed Cost/SRP rows. */
+function applyPricesToProducts(products: ShopProduct[], prices: PriceSheet[]): ShopProduct[] {
+  const bySku = new Map(prices.map((p) => [p.SKU, p]))
+  return products.map((product) => {
+    const own = bySku.get(product.sku)
+    const sizeOptions = product.sizeOptions?.map((s) => {
+      const row = bySku.get(s.sku)
+      if (!row) return s
+      return {
+        ...s,
+        displayPrice: row.SRP,
+        inStock: row.Notes === 'In Stock',
+      }
+    })
+    return {
+      ...product,
+      displayPrice: own?.SRP ?? product.displayPrice,
+      inStock: own ? own.Notes === 'In Stock' : product.inStock,
+      ...(sizeOptions ? { sizeOptions } : {}),
+    }
+  })
+}
+
+export default function PricingClient({
+  initialPrices,
+  initialProducts,
+}: {
+  initialPrices: PriceSheet[]
+  initialProducts: ShopProduct[]
+}) {
   // Seeded from the server render, so there's no first-paint skeleton or
   // client round trip. Background refresh keeps it live.
   const [prices, setPrices] = useState<PriceSheet[]>(initialPrices)
+  const [catalogProducts] = useState<ShopProduct[]>(initialProducts)
   const [view, setView] = useState<'card' | 'list'>('card')
   const [refreshing, setRefreshing] = useState(false)
   const [editingRow, setEditingRow] = useState<PriceSheet | null>(null)
+
+  const products = useMemo(
+    () => applyPricesToProducts(catalogProducts, prices),
+    [catalogProducts, prices]
+  )
+
+  const pricesBySku = useMemo(() => {
+    const map = new Map<string, PriceSheet>()
+    for (const p of prices) map.set(p.SKU, p)
+    return map
+  }, [prices])
 
   // `force` bypasses the browser cache for an explicit manual refresh; the
   // background poll reuses the cache.
@@ -71,16 +113,22 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
     else toast.error(err)
   }
 
-  // Group prices by product for display
-  const groupedPrices = prices.reduce(
-    (acc, price) => {
-      const product = price.Product
-      if (!acc[product]) acc[product] = []
-      acc[product].push(price)
-      return acc
-    },
-    {} as Record<string, PriceSheet[]>
-  )
+  const openEditForSku = (sku: string) => {
+    const row = pricesBySku.get(sku)
+    if (row) {
+      setEditingRow(row)
+      return
+    }
+    // Fallback: match by dose on any size option of a product that owns this sku
+    toast.error('No pricing row found for that SKU')
+  }
+
+  const pricedForMargin = prices.filter((p) => p.SRP > 0)
+  const avgMargin =
+    pricedForMargin.length > 0
+      ? pricedForMargin.reduce((acc, p) => acc + ((p.SRP - p.Cost) / p.SRP) * 100, 0) /
+        pricedForMargin.length
+      : 0
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -132,67 +180,36 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
 
       {view === 'card' ? (
         <>
-          {/* Pricing Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(groupedPrices).map(([product, variations], index) => {
-              const minPrice = Math.min(...variations.map((v) => v.SRP))
-              const maxPrice = Math.max(...variations.map((v) => v.SRP))
-              const avgMargin =
-                variations.reduce((acc, v) => {
-                  const margin = ((v.SRP - v.Cost) / v.SRP) * 100
-                  return acc + margin
-                }, 0) / variations.length
+          {/* Same scientific product cards as the client portal catalog */}
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => {
+              const sizeSkus =
+                product.sizeOptions && product.sizeOptions.length > 0
+                  ? product.sizeOptions.map((s) => s.sku)
+                  : [product.sku || product.id]
+              const skus = sizeSkus
+                .map((sku) => {
+                  const row = pricesBySku.get(sku)
+                  if (!row) return null
+                  return {
+                    sku,
+                    cost: row.Cost,
+                    srp: row.SRP,
+                    id: row.Id,
+                  }
+                })
+                .filter((r): r is NonNullable<typeof r> => r != null)
 
               return (
-                <Card key={`${product}-${index}`}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{product}</CardTitle>
-                      {variations.some((v) => v.Notes === 'In Stock') && (
-                        <Badge className="bg-green-100 text-green-800">In Stock</Badge>
-                      )}
-                    </div>
-                    <CardDescription>{variations.length} variations available</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Price Range:</span>
-                        <span className="font-medium">
-                          ${minPrice} - ${maxPrice}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Avg Margin:</span>
-                        <span
-                          className={`font-medium ${
-                            avgMargin >= 70
-                              ? 'text-green-600'
-                              : avgMargin >= 50
-                                ? 'text-yellow-600'
-                                : 'text-red-600'
-                          }`}
-                        >
-                          {avgMargin.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="pt-2">
-                        <div className="text-xs text-muted-foreground mb-1">Doses:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {variations.map((v, idx) => (
-                            <Badge
-                              key={`${product}_${v.Dose}_${idx}`}
-                              variant="secondary"
-                              className="text-xs"
-                            >
-                              {v.Dose}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProductCard
+                  key={product.parentProductId || product.id}
+                  product={product}
+                  viewMode="grid"
+                  adminPricing={{
+                    skus,
+                    onEdit: openEditForSku,
+                  }}
+                />
               )
             })}
           </div>
@@ -204,7 +221,7 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
                 <CardTitle className="text-sm font-medium">Total Products</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{Object.keys(groupedPrices).length}</div>
+                <div className="text-2xl font-bold">{products.length}</div>
               </CardContent>
             </Card>
             <Card>
@@ -231,15 +248,7 @@ export default function PricingClient({ initialPrices }: { initialPrices: PriceS
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {prices.length > 0
-                    ? (
-                        prices.reduce((acc, p) => {
-                          const margin = ((p.SRP - p.Cost) / p.SRP) * 100
-                          return acc + margin
-                        }, 0) / prices.length
-                      ).toFixed(1)
-                    : '0.0'}
-                  %
+                  {prices.length > 0 ? avgMargin.toFixed(1) : '0.0'}%
                 </div>
               </CardContent>
             </Card>

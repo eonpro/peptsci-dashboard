@@ -1,5 +1,8 @@
 import { getPricing } from '@/lib/pricing'
 import type { PriceSheet } from '@/lib/pricing'
+import { getProductCatalog } from '@/lib/catalog'
+import { getSkusWithPublishedCoa } from '@/lib/coa'
+import { groupProductsByParent, type ShopProduct } from '@/lib/types/shop'
 import PricingClient from './PricingClient'
 
 // Pricing is per-request data (DB/Sheets); render dynamically and seed the
@@ -7,7 +10,11 @@ import PricingClient from './PricingClient'
 export const dynamic = 'force-dynamic'
 
 export default async function PricingPage() {
-  const { prices } = await getPricing()
+  const [{ prices }, { products: catalog }] = await Promise.all([
+    getPricing(),
+    getProductCatalog(),
+  ])
+
   const initialPrices: PriceSheet[] = prices.map((p) => ({
     SKU: p.sku,
     Product: p.productName,
@@ -18,5 +25,10 @@ export default async function PricingPage() {
     Id: p.id,
   }))
 
-  return <PricingClient initialPrices={initialPrices} />
+  // Same grouped catalog cards as /shop — COA flags for "View COA" on cards.
+  const coaSkus = await getSkusWithPublishedCoa(catalog.map((p) => p.sku).filter(Boolean))
+  const productsWithCoa = catalog.map((p) => ({ ...p, hasCoa: coaSkus.has(p.sku) }))
+  const initialProducts: ShopProduct[] = groupProductsByParent(productsWithCoa)
+
+  return <PricingClient initialPrices={initialPrices} initialProducts={initialProducts} />
 }

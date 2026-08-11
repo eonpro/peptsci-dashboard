@@ -246,3 +246,9 @@ export function useCart() {
   }
   return context
 }
+
+/** Safe outside CartProvider — returns empty cart state (admin catalog cards). */
+export function useOptionalCart(): Pick<CartContextType, 'items'> {
+  const context = useContext(CartContext)
+  return context ?? { items: [] }
+}
