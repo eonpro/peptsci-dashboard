@@ -53,7 +53,18 @@ import {
   KeyRound,
   X,
   Mail,
+  ShoppingCart,
+  ReceiptText,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { toast } from 'sonner'
+import { localYmd } from '@/lib/invoicing/bill-period'
+
+const NewOrderModal = dynamic(() => import('@/components/orders/NewOrderModal'), { ssr: false })
+const NewInvoiceDialog = dynamic(() => import('@/components/invoices/NewInvoiceDialog'), {
+  ssr: false,
+})
+
 
 interface LinkedUser {
   id: string
@@ -153,6 +164,9 @@ export default function ClientDetailPage() {
   const [shippingRateOvernight, setShippingRateOvernight] = useState('')
   const [whiteLabelEnabled, setWhiteLabelEnabled] = useState(false)
   const [labelBrandKey, setLabelBrandKey] = useState<string | null>(null)
+  const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [billPeriodOpen, setBillPeriodOpen] = useState(false)
+  const [unbilled, setUnbilled] = useState<{ count: number; total: number } | null>(null)
 
   const hydrate = (p: ClientProfile) => {
     setProfile(p)
@@ -231,6 +245,27 @@ export default function ClientDetailPage() {
       cancelled = true
     }
   }, [id])
+
+  const loadUnbilled = useCallback(() => {
+    if (!id || paymentTermsDays === '') {
+      setUnbilled(null)
+      return
+    }
+    fetch(`/api/admin/invoices/unbilled?clientId=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : { orders: [] }))
+      .then((d) => {
+        const orders: Array<{ total: number }> = d.orders ?? []
+        setUnbilled({
+          count: orders.length,
+          total: orders.reduce((s, o) => s + (o.total || 0), 0),
+        })
+      })
+      .catch(() => setUnbilled(null))
+  }, [id, paymentTermsDays])
+
+  useEffect(() => {
+    loadUnbilled()
+  }, [loadUnbilled])
 
   const revokeInvite = async (invitationId: string) => {
     setRevokingId(invitationId)
@@ -581,16 +616,40 @@ export default function ClientDetailPage() {
       {/* Billing terms */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base text-white">Billing Terms</CardTitle>
-            <a
-              href={`/api/admin/clients/${id}/statement`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
-            >
-              Statement (last month)
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              {paymentTermsDays !== '' && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                    onClick={() => setNewOrderOpen(true)}
+                  >
+                    <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
+                    New order
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setBillPeriodOpen(true)}
+                  >
+                    <ReceiptText className="mr-1.5 h-3.5 w-3.5" />
+                    Bill period…
+                  </Button>
+                </>
+              )}
+              <a
+                href={`/api/admin/clients/${id}/statement`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
+              >
+                Statement (last month)
+              </a>
+            </div>
           </div>
           <CardDescription className="text-white/50">
             Choose terms to enable &ldquo;Bill to account&rdquo; at checkout. Card only keeps
@@ -600,6 +659,32 @@ export default function ClientDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {paymentTermsDays !== '' && (
+            <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/40">Unbilled tab</p>
+                  <p className="mt-0.5 text-lg font-semibold text-white">
+                    {unbilled
+                      ? new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                        }).format(unbilled.total)
+                      : '—'}
+                  </p>
+                  <p className="text-xs text-white/50">
+                    {unbilled
+                      ? `${unbilled.count} order${unbilled.count === 1 ? '' : 's'} waiting to bill`
+                      : 'Loading…'}
+                  </p>
+                </div>
+                <p className="max-w-xs text-xs text-white/40">
+                  Email / manual orders stay on this tab until you bill a create-date period.
+                  Net {paymentTermsDays} clients can ship before invoicing.
+                </p>
+              </div>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className={labelClass}>Payment Terms</Label>
@@ -886,7 +971,9 @@ export default function ClientDetailPage() {
                     <Badge variant="outline" className={statusStyles[u.status] ?? 'text-white/70'}>
                       {u.status}
                     </Badge>
-                    {u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN' ? (
+                    {!['ADMIN', 'SUPER_ADMIN', 'FULFILLMENT', 'BILLING', 'CATALOG', 'FINANCE_VIEWER'].includes(
+                      u.role
+                    ) ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -937,6 +1024,30 @@ export default function ClientDetailPage() {
               'user'
             : 'user'
         }
+      />
+
+      <NewOrderModal
+        open={newOrderOpen}
+        onOpenChange={setNewOrderOpen}
+        initialClientId={id}
+        onCreated={() => {
+          setNewOrderOpen(false)
+          toast.success('Order added to tab')
+          loadUnbilled()
+        }}
+      />
+
+      <NewInvoiceDialog
+        open={billPeriodOpen}
+        onOpenChange={setBillPeriodOpen}
+        initialClientId={id}
+        initialPeriodFrom={localYmd(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+        initialPeriodTo={localYmd(new Date())}
+        onCreated={(msg) => {
+          setBillPeriodOpen(false)
+          if (msg) toast.success(msg)
+          loadUnbilled()
+        }}
       />
     </div>
   )

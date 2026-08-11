@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
               contactPhone: true,
               smsOptIn: true,
               organizationName: true,
+              paymentTermsDays: true,
             },
           },
         },
@@ -174,11 +175,12 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Pay-before-ship gate: never label/ship an unpaid order unless it is
-      // invoiced (net terms) or the admin explicitly overrides (audit-logged).
+      // Pay-before-ship gate: unpaid is OK when client is on terms (tab),
+      // order is invoiced, or admin overrides (audit-logged).
       const gate = assessShipmentPaymentGate({
         paymentStatus: found.paymentStatus,
         invoiced: found._count.invoiceLineItems > 0,
+        onTerms: found.client?.paymentTermsDays != null,
         override: data.overrideUnpaidShip,
       })
       if (!gate.allowed) {

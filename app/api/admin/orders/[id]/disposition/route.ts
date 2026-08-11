@@ -105,6 +105,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             contactPhone: true,
             smsOptIn: true,
             organizationName: true,
+            paymentTermsDays: true,
           },
         },
       },
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const gate = assessShipmentPaymentGate({
       paymentStatus: order.paymentStatus,
       invoiced: order._count.invoiceLineItems > 0,
+      onTerms: order.client?.paymentTermsDays != null,
       override: input.overrideUnpaidShip,
     })
     if (!gate.allowed) {

@@ -27,6 +27,7 @@ import {
   type AgingBucket,
   type AdjustmentKind,
 } from './core'
+import { billPeriodStart, billPeriodEnd } from './bill-period'
 
 function db() {
   if (!prisma) throw new Error('Database is not configured')
@@ -109,8 +110,22 @@ export interface CreateInvoiceInput {
   issue?: boolean
 }
 
+export type GetUnbilledOrdersOptions = {
+  /** Inclusive local-calendar start (YYYY-MM-DD) — filters Order.createdAt. */
+  from?: string | null
+  /** Inclusive local-calendar end (YYYY-MM-DD) — filters Order.createdAt. */
+  to?: string | null
+}
+
 /** Orders for a client that aren't on any invoice yet (candidate lines). */
-export async function getUnbilledOrders(clientId: string) {
+export async function getUnbilledOrders(
+  clientId: string,
+  options: GetUnbilledOrdersOptions = {}
+) {
+  const createdAt: { gte?: Date; lte?: Date } = {}
+  if (options.from) createdAt.gte = billPeriodStart(options.from)
+  if (options.to) createdAt.lte = billPeriodEnd(options.to)
+
   const orders = await db().order.findMany({
     where: {
       clientId,
@@ -121,6 +136,7 @@ export async function getUnbilledOrders(clientId: string) {
       paymentStatus: { notIn: ['CAPTURED', 'REFUNDED'] },
       // Exclude orders already on a non-void invoice.
       invoiceLineItems: { none: { invoice: { status: { not: 'VOID' } } } },
+      ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
     },
     orderBy: { createdAt: 'desc' },
     select: { id: true, orderNumber: true, total: true, createdAt: true, status: true, paymentStatus: true },

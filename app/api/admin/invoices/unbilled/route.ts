@@ -13,7 +13,9 @@ import { getUnbilledOrders } from '@/lib/invoicing/service'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** GET /api/admin/invoices/unbilled?clientId= — orders not yet on any invoice. */
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+
+/** GET /api/admin/invoices/unbilled?clientId=&from=&to= — unbilled orders (optional create-date range). */
 export async function GET(request: NextRequest) {
   try {
     const { isAuthenticated, isAdmin } = await requireAdmin()
@@ -21,10 +23,16 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) return forbiddenResponse('Admin access required')
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
-    const clientId = new URL(request.url).searchParams.get('clientId')
+    const sp = new URL(request.url).searchParams
+    const clientId = sp.get('clientId')
     if (!clientId) return errorResponse('clientId is required', 400, 'CLIENT_REQUIRED')
 
-    const orders = await getUnbilledOrders(clientId)
+    const from = sp.get('from')
+    const to = sp.get('to')
+    if (from && !YMD.test(from)) return errorResponse('from must be YYYY-MM-DD', 400, 'INVALID_FROM')
+    if (to && !YMD.test(to)) return errorResponse('to must be YYYY-MM-DD', 400, 'INVALID_TO')
+
+    const orders = await getUnbilledOrders(clientId, { from, to })
     return successResponse({ orders })
   } catch (error) {
     logger.error('[admin/invoices/unbilled] error', {}, error instanceof Error ? error : new Error(String(error)))

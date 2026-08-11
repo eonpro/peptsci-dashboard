@@ -58,7 +58,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       where: { id },
       include: {
         items: { include: { variant: true } },
-        client: { select: { whiteLabelEnabled: true, labelBrandKey: true } },
+        client: {
+          select: { whiteLabelEnabled: true, labelBrandKey: true, paymentTermsDays: true },
+        },
         _count: { select: { invoiceLineItems: true } },
       },
     })
@@ -66,12 +68,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const brandKey = resolveLabelBrandKey(order.client)
 
-    // Pay-before-consume gate: previews are always allowed, but drawing down
-    // stock for an unpaid, un-invoiced order requires an explicit override.
+    // Pay-before-consume gate: previews are always allowed; drawing stock for
+    // unpaid orders is OK on terms / invoice / explicit override.
     if (consume) {
       const gate = assessShipmentPaymentGate({
         paymentStatus: order.paymentStatus,
         invoiced: order._count.invoiceLineItems > 0,
+        onTerms: order.client?.paymentTermsDays != null,
         override: overrideUnpaidShip,
       })
       if (!gate.allowed) {

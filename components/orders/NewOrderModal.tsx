@@ -55,9 +55,16 @@ export type NewOrderModalProps = {
   onOpenChange: (open: boolean) => void
   /** Called with the new order id after a successful create. */
   onCreated?: (orderId: string) => void
+  /** Prefill client (e.g. from client detail → New order on tab). */
+  initialClientId?: string | null
 }
 
-export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalProps) {
+export default function NewOrderModal({
+  open,
+  onOpenChange,
+  onCreated,
+  initialClientId = null,
+}: NewOrderModalProps) {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [variants, setVariants] = useState<VariantRow[]>([])
   const [loadingRefs, setLoadingRefs] = useState(false)
@@ -97,6 +104,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
   useEffect(() => {
     if (!open) return
     resetAll()
+    if (initialClientId) setClientId(initialClientId)
     setLoadingRefs(true)
     Promise.all([
       fetch('/api/admin/clients').then((r) => r.json()).catch(() => ({})),
@@ -107,7 +115,7 @@ export default function NewOrderModal({ open, onOpenChange, onCreated }: NewOrde
         setVariants(p.variants ?? [])
       })
       .finally(() => setLoadingRefs(false))
-  }, [open, resetAll])
+  }, [open, resetAll, initialClientId])
 
   // Load clinic custom prices whenever the selected client changes; re-price auto lines.
   useEffect(() => {
