@@ -6,7 +6,7 @@
 
 ## Project Status Board
 - [x] Data + UI
-- [ ] Deploy
+- [x] Deployed `fe27866` → peptsci.com READY (`dpl_BzGJfNxvicYUdR1tGumrm8H2xJqi`)
 
 ---
 
