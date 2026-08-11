@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -89,6 +89,25 @@ function formatShipTo(order: WizardOrder): string {
   return [name, line, city].filter(Boolean).join(' · ') || 'No shipping address on file'
 }
 
+/** Back to the previous screen; renders nothing on the first one. */
+function BackButton({
+  step,
+  disabled,
+  onBack,
+}: {
+  step: FulfillmentStepName
+  disabled: boolean
+  onBack: (to: FulfillmentStepName) => void
+}) {
+  const prev = previousStep(step)
+  if (!prev) return null
+  return (
+    <Button variant="outline" size="sm" disabled={disabled} onClick={() => onBack(prev)}>
+      <ArrowLeft className="mr-2 h-4 w-4" /> Back
+    </Button>
+  )
+}
+
 /** Compact "Step 3 of 6" rail so the operator always knows where they are. */
 function StepRail({ current }: { current: FulfillmentStepName }) {
   const position = stepIndex(current)
@@ -132,16 +151,22 @@ export default function FulfillmentWizard({
   const [error, setError] = useState<string | null>(null)
   const [confirmSkip, setConfirmSkip] = useState(false)
 
-  // Re-anchor whenever the dialog opens: either where the caller says, or where
-  // the persisted cursor left off.
+  // Anchor once per order (and once per explicit `initialStep` instruction).
+  // The dialog is hidden — not unmounted — while a ship modal is open, so a
+  // cancelled label must not re-anchor from the now-stale opening snapshot and
+  // throw the operator back to Verify.
+  const anchoredRef = useRef<string | null>(null)
   useEffect(() => {
     if (!open) return
+    const anchor = `${order.id}:${initialStep ?? ''}`
+    if (anchoredRef.current === anchor) return
+    anchoredRef.current = anchor
     setError(null)
     setConfirmSkip(false)
     setStep(
       initialStep ?? resumeStep({ step: order.fulfillmentStep, stage: order.fulfillmentStage })
     )
-  }, [open, initialStep, order.fulfillmentStep, order.fulfillmentStage])
+  }, [open, initialStep, order.id, order.fulfillmentStep, order.fulfillmentStage])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -167,26 +192,15 @@ export default function FulfillmentWizard({
     window.open(`/api/admin/orders/${order.id}/${path}`, '_blank', 'noopener,noreferrer')
   }
 
-  const back = () => {
-    const prev = previousStep(step)
-    if (prev) setStep(prev)
-  }
-
   const completion = canComplete({
     trackingNumber: order.trackingNumber,
     photoCount: order.photoCount,
     photoSkippedAt: order.photoSkippedAt,
   })
 
-  const BackButton = () => {
-    const prev = previousStep(step)
-    if (!prev) return null
-    return (
-      <Button variant="outline" size="sm" disabled={busy} onClick={back}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
-    )
-  }
+  // Going back only moves the local cursor; the timestamps already recorded
+  // stand, and redoing a screen simply re-stamps it.
+  const back = <BackButton step={step} disabled={busy} onBack={setStep} />
 
   return (
     <>
@@ -267,7 +281,7 @@ export default function FulfillmentWizard({
                   Already printed manually
                 </Button>
               </div>
-              <BackButton />
+              {back}
             </div>
           )}
 
@@ -296,7 +310,7 @@ export default function FulfillmentWizard({
                   Already printed manually
                 </Button>
               </div>
-              <BackButton />
+              {back}
             </div>
           )}
 
@@ -326,7 +340,7 @@ export default function FulfillmentWizard({
                   </Button>
                 }
               />
-              <BackButton />
+              {back}
             </div>
           )}
 
@@ -369,7 +383,7 @@ export default function FulfillmentWizard({
                   </Button>
                 )}
               </div>
-              <BackButton />
+              {back}
             </div>
           )}
 
@@ -434,7 +448,7 @@ export default function FulfillmentWizard({
                 )}
                 Mark Order as Fulfilled
               </Button>
-              <BackButton />
+              {back}
             </div>
           )}
 

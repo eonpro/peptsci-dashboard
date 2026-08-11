@@ -61,7 +61,7 @@ const FulfillmentWizard = dynamic(() => import('@/components/fulfillment/Fulfill
 })
 import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
 import type { PackPhotoOrder } from '@/components/orders/PackPhotoModal'
-import { recordShipStep } from '@/lib/fulfillment/api-client'
+import { postFulfillment, recordShipStep } from '@/lib/fulfillment/api-client'
 import type { FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
 
 function str(v: unknown): string {
@@ -272,6 +272,79 @@ export default function FulfillmentPage() {
     },
     [load]
   )
+
+  const openLabelModal = useCallback((order: OrderRow, fromWizard = false) => {
+    const origin = toWhiteLabelOrigin(order)
+    const whiteLabel = order.source === 'SHOPIFY' && !looksLikePeptSciOrigin(origin)
+    setLabelTarget({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      destination: toLabelAddress(order),
+      origin: whiteLabel ? origin : undefined,
+      whiteLabelOrigin: whiteLabel,
+      hasPhoto: order.photoCount > 0,
+      fromWizard,
+    })
+  }, [])
+
+  /**
+   * Open the guided wizard. Marking it started up front means an operator who
+   * closes the dialog mid-flow sees "Resume Fulfillment" instead of starting
+   * over; the wizard itself decides which screen to show.
+   */
+  const startWizard = useCallback(
+    (order: OrderRow) => {
+      setWizardStep(undefined)
+      setWizardOrder(order)
+      if (order.fulfillmentStep) return
+      postFulfillment(order.id, { action: 'start' })
+        .then(load)
+        .catch((e) =>
+          toast.error(e instanceof Error ? e.message : 'Failed to start fulfillment')
+        )
+    },
+    [load]
+  )
+
+  /**
+   * Shipping succeeded inside the wizard: record the ship screen, then reopen on
+   * the review screen with the tracking we just got so the summary is accurate
+   * before the list refresh lands.
+   */
+  const resumeWizardAfterShip = useCallback(
+    async (orderId: string, trackingNumber: string | null) => {
+      try {
+        await recordShipStep(orderId)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Shipped, but recording the step failed')
+      }
+      setWizardOrder((prev) =>
+        prev && prev.id === orderId ? { ...prev, trackingNumber, fulfillmentStep: 'SHIP' } : prev
+      )
+      setWizardStep('REVIEW')
+      load()
+    },
+    [load]
+  )
+
+  // Keep the open wizard's display data fresh (photo on file, tracking) without
+  // touching its cursor — the operator's position is the wizard's to own.
+  useEffect(() => {
+    setWizardOrder((prev) => {
+      if (!prev) return prev
+      const fresh = orders.find((o) => o.id === prev.id)
+      if (!fresh) return prev
+      return {
+        ...prev,
+        items: fresh.items,
+        photoCount: fresh.photoCount,
+        photoSkippedAt: fresh.photoSkippedAt,
+        trackingNumber: fresh.trackingNumber,
+        carrier: fresh.carrier,
+        shippingStatus: fresh.shippingStatus,
+      }
+    })
+  }, [orders])
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
@@ -596,19 +669,7 @@ export default function FulfillmentPage() {
                     onPack={() =>
                       setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
                     }
-                    onLabel={() => {
-                      const origin = toWhiteLabelOrigin(order)
-                      const whiteLabel =
-                        order.source === 'SHOPIFY' && !looksLikePeptSciOrigin(origin)
-                      setLabelTarget({
-                        id: order.id,
-                        orderNumber: order.orderNumber,
-                        destination: toLabelAddress(order),
-                        origin: whiteLabel ? origin : undefined,
-                        whiteLabelOrigin: whiteLabel,
-                        hasPhoto: order.photoCount > 0,
-                      })
-                    }}
+                    onLabel={() => openLabelModal(order)}
                     onDisposition={() =>
                       setDispositionOrder({
                         id: order.id,
@@ -616,6 +677,7 @@ export default function FulfillmentPage() {
                         hasPhoto: order.photoCount > 0,
                       })
                     }
+                    onStartFulfillment={() => startWizard(order)}
                   />
                 ))}
               </div>
@@ -716,14 +778,20 @@ export default function FulfillmentPage() {
           orderId={dispositionOrder.id}
           orderNumber={dispositionOrder.orderNumber}
           onDone={({ orderNumber, outcome, trackingNumber }) => {
+            const { id, fromWizard, hasPhoto } = dispositionOrder
+            setDispositionOrder(null)
+            if (fromWizard) {
+              // The wizard's review screen replaces the banner as the next step.
+              void resumeWizardAfterShip(id, trackingNumber)
+              return
+            }
             setNextStep({
               orderNumber,
               trackingNumber,
               // Contents photo should exist for every fulfilled order; flag it
               // when the packer never captured one.
-              needsPhoto: !dispositionOrder.hasPhoto && outcome === 'SHIPPED',
+              needsPhoto: !hasPhoto && outcome === 'SHIPPED',
             })
-            setDispositionOrder(null)
             load()
           }}
         />
@@ -739,12 +807,50 @@ export default function FulfillmentPage() {
           origin={labelTarget.origin}
           whiteLabelOrigin={labelTarget.whiteLabelOrigin}
           onCreated={({ trackingNumber }) => {
-            setNextStep({
-              orderNumber: labelTarget.orderNumber,
-              trackingNumber: trackingNumber || null,
-              needsPhoto: !labelTarget.hasPhoto,
-            })
+            const { id, orderNumber, fromWizard, hasPhoto } = labelTarget
             setLabelTarget(null)
+            if (fromWizard) {
+              // The wizard's review screen replaces the banner as the next step.
+              void resumeWizardAfterShip(id, trackingNumber || null)
+              return
+            }
+            setNextStep({
+              orderNumber,
+              trackingNumber: trackingNumber || null,
+              needsPhoto: !hasPhoto,
+            })
+            load()
+          }}
+        />
+      )}
+
+      {wizardOrder && (
+        <FulfillmentWizard
+          // Hidden rather than unmounted while a ship modal is open, so
+          // cancelling that modal drops the operator back on the ship screen.
+          open={!labelTarget && !dispositionOrder}
+          onOpenChange={(open) => {
+            if (!open) {
+              setWizardOrder(null)
+              setWizardStep(undefined)
+            }
+          }}
+          order={wizardOrder}
+          initialStep={wizardStep}
+          onCreateLabel={() => openLabelModal(wizardOrder, true)}
+          onEnterTrackingManually={() =>
+            setDispositionOrder({
+              id: wizardOrder.id,
+              orderNumber: wizardOrder.orderNumber,
+              hasPhoto: wizardOrder.photoCount > 0,
+              fromWizard: true,
+            })
+          }
+          onChanged={load}
+          onFulfilled={() => {
+            toast.success(`Order #${wizardOrder.orderNumber} fulfilled`)
+            setWizardOrder(null)
+            setWizardStep(undefined)
             load()
           }}
         />

@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -103,7 +102,7 @@ export interface FulfillmentOrderRowProps {
   onLabel: () => void
   onDisposition: () => void
   /** Open the guided wizard on this order (start or resume). */
-  onStartFulfillment?: () => void
+  onStartFulfillment: () => void
 }
 
 /**
@@ -239,7 +238,7 @@ export function FulfillmentOrderRow({
         )}
 
         {/* One primary action: the guided fulfillment wizard. */}
-        {showWizardAction && onStartFulfillment && (
+        {showWizardAction && (
           <Button
             size="sm"
             onClick={onStartFulfillment}
@@ -248,30 +247,6 @@ export function FulfillmentOrderRow({
             <PlayCircle className="mr-2 h-4 w-4" />
             {inProgress ? 'Resume Fulfillment' : 'Start Fulfillment'}
           </Button>
-        )}
-        {/* Legacy primary steps when the guided wizard is not wired. */}
-        {showWizardAction && !onStartFulfillment && !shipped && (
-          <>
-            {(order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING') && (
-              <Button
-                size="sm"
-                disabled={advancing === `${order.id}:pick`}
-                onClick={() => onAdvance(order.id, 'pick')}
-              >
-                Mark Picked
-              </Button>
-            )}
-            {order.fulfillmentStage === 'PICKED' && (
-              <Button size="sm" onClick={onPack} title="Photograph the products in the box, then mark packed">
-                <Camera className="mr-2 h-4 w-4" /> Photo & Pack
-              </Button>
-            )}
-            {order.fulfillmentStage === 'PACKED' && (
-              <Button size="sm" onClick={onLabel}>
-                <Printer className="mr-2 h-4 w-4" /> Create Label
-              </Button>
-            )}
-          </>
         )}
         {/* Label stays reachable outside the wizard. */}
         {!shipped && (
