@@ -44,6 +44,9 @@ const ChargeOrderModal = dynamic(() => import('@/components/orders/ChargeOrderMo
 const RefundOrderModal = dynamic(() => import('@/components/orders/RefundOrderModal'), {
   ssr: false,
 })
+const CancelOrderModal = dynamic(() => import('@/components/orders/CancelOrderModal'), {
+  ssr: false,
+})
 const ConvertStripeModal = dynamic(() => import('@/components/orders/ConvertStripeModal'), {
   ssr: false,
 })
@@ -53,8 +56,13 @@ const ManualDispositionModal = dynamic(() => import('@/components/orders/ManualD
 const PackPhotoModal = dynamic(() => import('@/components/orders/PackPhotoModal'), {
   ssr: false,
 })
+const FulfillmentWizard = dynamic(() => import('@/components/fulfillment/FulfillmentWizard'), {
+  ssr: false,
+})
 import type { StripeQueueRecord } from '@/components/orders/ConvertStripeModal'
 import type { PackPhotoOrder } from '@/components/orders/PackPhotoModal'
+import { recordShipStep } from '@/lib/fulfillment/api-client'
+import type { FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
@@ -119,6 +127,8 @@ type LabelTarget = {
   whiteLabelOrigin?: boolean
   /** Whether a contents (packing) photo already exists for this order. */
   hasPhoto?: boolean
+  /** Reopen the guided wizard on its review screen once shipping succeeds. */
+  fromWizard?: boolean
 }
 type NextStep = { orderNumber: number; trackingNumber: string | null; needsPhoto: boolean }
 
@@ -140,13 +150,20 @@ export default function FulfillmentPage() {
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [chargeOrder, setChargeOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [refundOrder, setRefundOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
+  const [cancelOrder, setCancelOrder] = useState<{ id: string; orderNumber?: number } | null>(null)
   const [convertRecord, setConvertRecord] = useState<StripeQueueRecord | null>(null)
   const [dispositionOrder, setDispositionOrder] = useState<{
     id: string
     orderNumber: number
     hasPhoto: boolean
+    /** Reopen the guided wizard on its review screen once tracking is saved. */
+    fromWizard?: boolean
   } | null>(null)
   const [packOrder, setPackOrder] = useState<PackPhotoOrder | null>(null)
+  // The guided wizard. `wizardStep` forces the opening screen after a ship
+  // hand-off; otherwise the persisted cursor decides.
+  const [wizardOrder, setWizardOrder] = useState<OrderRow | null>(null)
+  const [wizardStep, setWizardStep] = useState<FulfillmentStepName | undefined>(undefined)
   const [advancing, setAdvancing] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -575,6 +592,7 @@ export default function FulfillmentPage() {
                     onAdvance={advance}
                     onCharge={() => setChargeOrder({ id: order.id, orderNumber: order.orderNumber })}
                     onRefund={() => setRefundOrder({ id: order.id, orderNumber: order.orderNumber })}
+                    onCancel={() => setCancelOrder({ id: order.id, orderNumber: order.orderNumber })}
                     onPack={() =>
                       setPackOrder({ id: order.id, orderNumber: order.orderNumber, items: order.items })
                     }
@@ -648,6 +666,16 @@ export default function FulfillmentPage() {
           orderId={refundOrder.id}
           orderNumber={refundOrder.orderNumber}
           onRefunded={load}
+        />
+      )}
+
+      {cancelOrder && (
+        <CancelOrderModal
+          open={!!cancelOrder}
+          onOpenChange={(open) => !open && setCancelOrder(null)}
+          orderId={cancelOrder.id}
+          orderNumber={cancelOrder.orderNumber}
+          onCancelled={load}
         />
       )}
 

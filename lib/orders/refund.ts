@@ -16,6 +16,7 @@ import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { releaseForOrder } from '@/lib/inventory/reservations'
 import { reverseCommissionForOrder } from '@/lib/partners/accrual'
 import { reverseReferralCreditForOrder } from '@/lib/referrals/credit'
+import { resolveOrderPaymentIntentId } from '@/lib/orders/payment-intent'
 
 export class OrderRefundError extends Error {
   constructor(
@@ -70,17 +71,22 @@ export async function issueOrderRefund(
     },
   })
   if (!order) throw new OrderRefundError('Order not found', 'NOT_FOUND', 404)
-  if (!order.stripePaymentIntentId) {
-    throw new OrderRefundError(
-      'This order has no Stripe payment to refund (billed to account or unpaid).',
-      'NO_STRIPE_PAYMENT',
-      409
-    )
-  }
   if (order.paymentStatus !== 'CAPTURED' && order.paymentStatus !== 'REFUNDED') {
     throw new OrderRefundError(
       `Order payment is ${order.paymentStatus} — only captured payments can be refunded.`,
       'NOT_CAPTURED',
+      409
+    )
+  }
+
+  // White-label / invoice-settled orders may lack Order.stripePaymentIntentId
+  // even when the clinic paid PeptSci via Stripe — resolve via invoice payment.
+  const resolved = await resolveOrderPaymentIntentId(order.id)
+  const paymentIntentId = resolved.paymentIntentId
+  if (!paymentIntentId) {
+    throw new OrderRefundError(
+      'This order has no Stripe payment to refund (billed to account or unpaid).',
+      'NO_STRIPE_PAYMENT',
       409
     )
   }
@@ -110,10 +116,14 @@ export async function issueOrderRefund(
   try {
     refund = await stripe.refunds.create(
       {
-        payment_intent: order.stripePaymentIntentId,
+        payment_intent: paymentIntentId,
         amount: amountCents,
         ...(input.reason ? { reason: input.reason } : {}),
-        metadata: { orderId: order.id, refundedBy: input.refundedBy ?? 'unknown' },
+        metadata: {
+          orderId: order.id,
+          refundedBy: input.refundedBy ?? 'unknown',
+          paymentIntentSource: resolved.source ?? 'order',
+        },
       },
       // Cumulative position in the key: retries of THIS refund dedupe, while
       // a subsequent refund (after refundedTotal advanced) gets a fresh key.

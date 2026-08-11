@@ -304,8 +304,9 @@ export async function cancelShopifyLinkedOrder(params: {
     select: { id: true, status: true, invoiceId: true, orderId: true },
   })
 
-  if (inbound) {
-    if (inbound.status !== 'FULFILLMENT_QUEUED' && inbound.status !== 'CANCELLED') {
+  // Inbound-only cancel (no PeptSci Order yet): void unpaid invoice + mark CANCELLED.
+  if (inbound && !inbound.orderId) {
+    if (inbound.status !== 'CANCELLED') {
       if (inbound.invoiceId) {
         const inv = await prisma.invoice.findUnique({
           where: { id: inbound.invoiceId },
@@ -320,30 +321,38 @@ export async function cancelShopifyLinkedOrder(params: {
         data: { status: 'CANCELLED', lastError: 'Cancelled on Shopify' },
       })
     }
+    return { status: 'cancelled', inboundId: inbound.id }
   }
 
   const order = await prisma.order.findFirst({
     where: { clientId: params.clientId, shopifyOrderId },
-    select: { id: true, status: true, trackingNumber: true, internalNotes: true },
+    select: { id: true, status: true, trackingNumber: true, shippingStatus: true },
   })
   if (!order && !inbound) return { status: 'not_found' }
   if (!order) return { status: 'cancelled', inboundId: inbound?.id }
-  if (order.trackingNumber || ['SHIPPED', 'COMPLETED', 'CANCELLED'].includes(order.status)) {
+
+  const { assessOrderCancel, cancelOrder } = await import('@/lib/orders/cancel')
+  const gate = assessOrderCancel(order)
+  if (!gate.allowed) {
     return { status: 'noop', orderId: order.id, inboundId: inbound?.id }
   }
 
-  const note = 'Cancelled on Shopify'
-  const internalNotes = order.internalNotes?.trim()
-    ? `${order.internalNotes} | ${note}`
-    : note
-
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: 'CANCELLED', internalNotes },
-  })
-
-  const { releaseForOrder } = await import('@/lib/inventory/reservations')
-  await releaseForOrder(order.id).catch(() => {})
+  try {
+    // Shopify already cancelled retail side — do not auto-refund the PeptSci
+    // clinic invoice charge (ops decide separately). Still release stock / reset.
+    await cancelOrder(order.id, {
+      reason: 'client_cancelled',
+      notePrefix: 'Cancelled on Shopify',
+      refund: false,
+      cancelledBy: 'shopify_webhook',
+    })
+  } catch (e) {
+    logger.warn('[shopify] cancelOrder failed', {
+      orderId: order.id,
+      error: e instanceof Error ? e.message : String(e),
+    })
+    return { status: 'noop', orderId: order.id, inboundId: inbound?.id }
+  }
 
   return { status: 'cancelled', orderId: order.id, inboundId: inbound?.id }
 }

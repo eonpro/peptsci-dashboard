@@ -929,6 +929,9 @@ model Order {
   // refundedTotal >= total the order's paymentStatus becomes REFUNDED.
   refundedTotal         Decimal                @default(0) @db.Decimal(12, 2)
   refundedAt            DateTime?
+  // Admin / Shopify cancel before ship — reason enum string (see lib/orders/cancel.ts).
+  cancelReason          String?
+  cancelledAt           DateTime?
   // Referral store credit applied at checkout (dollars). The card is charged
   // `total`, which is already net of this credit; the REDEEMED ledger row is
   // written at capture. Full-credit orders (total 0) skip Stripe entirely.
@@ -1434,23 +1437,45 @@ model ReturnItem {
 // snapshot of the operator's pack count per line ([{variantId, productName,
 // expected, packed}]). Physical stock consumption still happens via the batch
 // label-consume path; this records who picked/packed and when.
+//
+// `step` is the guided wizard's cursor (verify → vial labels → packing slip →
+// photo → ship → review); null means the wizard was never started, so orders
+// from the older pick/pack buttons resume from `stage` instead. `stage` is
+// derived from `step` by lib/fulfillment/wizard-core.ts, which keeps the two in
+// step. The per-screen timestamps are the audit trail of how the box was built:
+// whether each document was printed from the app or by hand, and whether the
+// contents photo was deliberately skipped.
 // -------------------------------------------------
 
 model OrderFulfillment {
-  id            String           @id @default(cuid())
-  order         Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId       String           @unique
-  stage         FulfillmentStage @default(NOT_STARTED)
-  pickedAt      DateTime?
-  pickedById    String?
-  packedAt      DateTime?
-  packedById    String?
-  verifiedItems Json?
-  notes         String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id                String           @id @default(cuid())
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId           String           @unique
+  stage             FulfillmentStage @default(NOT_STARTED)
+  step              FulfillmentStep?
+  startedAt         DateTime?
+  startedById       String?
+  verifiedAt        DateTime?
+  vialLabelsAt      DateTime?
+  vialLabelsManual  Boolean          @default(false)
+  packingSlipAt     DateTime?
+  packingSlipManual Boolean          @default(false)
+  photoSkippedAt    DateTime?
+  photoSkippedById  String?
+  shipConfirmedAt   DateTime?
+  fulfilledAt       DateTime?
+  fulfilledById     String?
+  pickedAt          DateTime?
+  pickedById        String?
+  packedAt          DateTime?
+  packedById        String?
+  verifiedItems     Json?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([stage])
+  @@index([step])
 }
 
 // -------------------------------------------------
@@ -2062,6 +2087,18 @@ enum FulfillmentStage {
   PICKING
   PICKED
   PACKED
+}
+
+// Guided fulfillment wizard cursor. COMPLETE is terminal (order marked
+// fulfilled) and has no screen of its own.
+enum FulfillmentStep {
+  VERIFY
+  VIAL_LABELS
+  PACKING_SLIP
+  PHOTO
+  SHIP
+  REVIEW
+  COMPLETE
 }
 
 enum InvoiceStatus {

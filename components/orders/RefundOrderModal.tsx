@@ -28,6 +28,8 @@ type RefundInfo = {
   remaining: number
   paymentStatus: string
   hasStripePayment: boolean
+  /** order | invoice | sales_record — invoice means white-label PeptSci charge. */
+  paymentIntentSource?: string | null
 }
 
 function formatPrice(n: number) {
@@ -111,7 +113,9 @@ export default function RefundOrderModal({
             <Undo2 className="h-5 w-5" /> Refund Order{orderNumber ? ` #${orderNumber}` : ''}
           </DialogTitle>
           <DialogDescription>
-            Refunds go back to the original payment method via Stripe.
+            {info?.hasStripePayment && info.paymentIntentSource === 'invoice'
+              ? 'Refunds the PeptSci invoice charge back to the clinic’s original payment method via Stripe.'
+              : 'Refunds go back to the original payment method via Stripe.'}
           </DialogDescription>
         </DialogHeader>
 

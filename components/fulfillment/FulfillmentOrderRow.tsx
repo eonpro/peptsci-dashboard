@@ -14,17 +14,18 @@ import {
   Truck,
   Camera,
   ExternalLink,
-  Loader2,
   Printer,
   ClipboardList,
   FileText,
-  CheckCircle2,
   CreditCard,
   Undo2,
   MoreHorizontal,
   PackageCheck,
+  PlayCircle,
   RotateCcw,
+  XCircle,
 } from 'lucide-react'
+import type { FulfillmentStageName, FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
 
 type StoredAddress = Record<string, unknown> | null
 
@@ -52,16 +53,25 @@ export type OrderRow = {
     shippingAddress?: StoredAddress
   } | null
   items: { name: string; dose: string | null; quantity: number }[]
-  fulfillmentStage: 'NOT_STARTED' | 'PICKING' | 'PICKED' | 'PACKED'
+  fulfillmentStage: FulfillmentStageName
+  /** Guided wizard cursor; null when the wizard has never been started. */
+  fulfillmentStep: FulfillmentStepName | null
+  photoSkippedAt: string | null
+  fulfilledAt: string | null
   photoCount: number
   labelCount: number
 }
 
-const STAGE_META: Record<OrderRow['fulfillmentStage'], { label: string; className: string }> = {
+const STAGE_META: Record<FulfillmentStageName, { label: string; className: string }> = {
   NOT_STARTED: { label: 'Not started', className: 'border-white/15 text-white/50' },
   PICKING: { label: 'Picking', className: 'border-amber-400/40 text-amber-300' },
   PICKED: { label: 'Picked', className: 'border-sky-400/40 text-sky-300' },
   PACKED: { label: 'Packed', className: 'border-emerald-400/40 text-emerald-300' },
+}
+
+const FULFILLED_META = {
+  label: 'Fulfilled',
+  className: 'border-emerald-400/40 text-emerald-300',
 }
 
 /** Honest payment badges — AUTHORIZED and PENDING are not the same as unpaid. */
@@ -88,15 +98,18 @@ export interface FulfillmentOrderRowProps {
   onAdvance: (orderId: string, action: 'pick' | 'pack' | 'reset') => void
   onCharge: () => void
   onRefund: () => void
+  onCancel: () => void
   onPack: () => void
   onLabel: () => void
   onDisposition: () => void
+  /** Open the guided wizard on this order (start or resume). */
+  onStartFulfillment?: () => void
 }
 
 /**
- * One fulfillment row with a single guided primary action:
- * Mark Picked → Photo & Pack → Create Label. Everything else lives behind an
- * overflow menu so the operator always knows the next step.
+ * One fulfillment row with a single primary action — Start Fulfillment — that
+ * opens the guided wizard. Everything else lives behind an overflow menu so the
+ * operator always knows the next step.
  */
 export function FulfillmentOrderRow({
   order,
@@ -106,9 +119,11 @@ export function FulfillmentOrderRow({
   onAdvance,
   onCharge,
   onRefund,
+  onCancel,
   onPack,
   onLabel,
   onDisposition,
+  onStartFulfillment,
 }: FulfillmentOrderRowProps) {
   const payment = PAYMENT_META[order.paymentStatus] ?? {
     label: order.paymentStatus,
@@ -119,14 +134,12 @@ export function FulfillmentOrderRow({
     order.shippingStatus === 'SHIPPED' ||
     order.shippingStatus === 'DELIVERED'
 
-  // The one recommended next step for this order.
-  const primary: 'pick' | 'pack' | 'label' | null = shipped
-    ? null
-    : order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING'
-      ? 'pick'
-      : order.fulfillmentStage === 'PICKED'
-        ? 'pack'
-        : 'label'
+  const fulfilled = order.fulfillmentStep === 'COMPLETE'
+  const inProgress = !!order.fulfillmentStep && !fulfilled
+  // The wizard ships the order on its second-to-last screen, so a shipped order
+  // that hasn't been marked fulfilled yet still needs the operator to finish.
+  const showWizardAction = !fulfilled && (inProgress || !shipped)
+  const stageBadge = fulfilled ? FULFILLED_META : STAGE_META[order.fulfillmentStage]
 
   return (
     <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -158,11 +171,8 @@ export function FulfillmentOrderRow({
             <Badge variant="outline" className={`text-xs ${payment.className}`}>
               {payment.label}
             </Badge>
-            <Badge
-              variant="outline"
-              className={`text-xs ${STAGE_META[order.fulfillmentStage].className}`}
-            >
-              {STAGE_META[order.fulfillmentStage].label}
+            <Badge variant="outline" className={`text-xs ${stageBadge.className}`}>
+              {stageBadge.label}
             </Badge>
             {order.photoCount > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-white/50">
@@ -228,33 +238,43 @@ export function FulfillmentOrderRow({
           </Button>
         )}
 
-        {/* One primary guided action. */}
-        {primary === 'pick' && (
+        {/* One primary action: the guided fulfillment wizard. */}
+        {showWizardAction && onStartFulfillment && (
           <Button
             size="sm"
-            disabled={advancing === `${order.id}:pick`}
-            onClick={() => onAdvance(order.id, 'pick')}
+            onClick={onStartFulfillment}
+            title="Verify, print, pack, ship, and mark fulfilled — one step at a time"
           >
-            {advancing === `${order.id}:pick` ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="mr-2 h-4 w-4" />
+            <PlayCircle className="mr-2 h-4 w-4" />
+            {inProgress ? 'Resume Fulfillment' : 'Start Fulfillment'}
+          </Button>
+        )}
+        {/* Legacy primary steps when the guided wizard is not wired. */}
+        {showWizardAction && !onStartFulfillment && !shipped && (
+          <>
+            {(order.fulfillmentStage === 'NOT_STARTED' || order.fulfillmentStage === 'PICKING') && (
+              <Button
+                size="sm"
+                disabled={advancing === `${order.id}:pick`}
+                onClick={() => onAdvance(order.id, 'pick')}
+              >
+                Mark Picked
+              </Button>
             )}
-            Mark Picked
-          </Button>
+            {order.fulfillmentStage === 'PICKED' && (
+              <Button size="sm" onClick={onPack} title="Photograph the products in the box, then mark packed">
+                <Camera className="mr-2 h-4 w-4" /> Photo & Pack
+              </Button>
+            )}
+            {order.fulfillmentStage === 'PACKED' && (
+              <Button size="sm" onClick={onLabel}>
+                <Printer className="mr-2 h-4 w-4" /> Create Label
+              </Button>
+            )}
+          </>
         )}
-        {primary === 'pack' && (
-          <Button size="sm" onClick={onPack} title="Photograph the products in the box, then mark packed">
-            <Camera className="mr-2 h-4 w-4" /> Photo & Pack
-          </Button>
-        )}
-        {primary === 'label' && (
-          <Button size="sm" onClick={onLabel}>
-            <Printer className="mr-2 h-4 w-4" /> Create Label
-          </Button>
-        )}
-        {/* Label stays reachable when it's not the recommended step. */}
-        {primary !== 'label' && !shipped && (
+        {/* Label stays reachable outside the wizard. */}
+        {!shipped && (
           <Button size="sm" variant="outline" onClick={onLabel}>
             <Printer className="mr-2 h-4 w-4" /> Label
           </Button>
@@ -317,7 +337,7 @@ export function FulfillmentOrderRow({
                 <RotateCcw className="mr-2 h-4 w-4" /> Reset stage
               </DropdownMenuItem>
             )}
-            {!shipped && (
+            {!shipped && order.status !== 'CANCELLED' && (
               <DropdownMenuItem
                 onClick={onDisposition}
                 title="Fulfilled outside the app? Mark it shipped/delivered manually."
@@ -330,6 +350,14 @@ export function FulfillmentOrderRow({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onRefund} className="text-red-400 focus:text-red-300">
                   <Undo2 className="mr-2 h-4 w-4" /> Refund…
+                </DropdownMenuItem>
+              </>
+            )}
+            {!shipped && order.status !== 'CANCELLED' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onCancel} className="text-red-400 focus:text-red-300">
+                  <XCircle className="mr-2 h-4 w-4" /> Cancel fulfillment…
                 </DropdownMenuItem>
               </>
             )}

@@ -7,10 +7,14 @@
  * happens through the batch label-consume path (order labels PDF `?consume`);
  * this layer records who picked/packed, when, and the verified pack counts.
  *
+ * It also drives the guided wizard: `startFulfillment` / `completeWizardStep` /
+ * `completeFulfillment` persist the cursor and per-screen audit stamps decided
+ * by the pure machine in lib/fulfillment/wizard-core.ts.
+ *
  * @module lib/fulfillment/service
  */
 
-import { Prisma, type FulfillmentStage } from '@prisma/client'
+import { Prisma, type FulfillmentStage, type FulfillmentStep } from '@prisma/client'
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { displayProductName } from '../products/named-blends'
@@ -30,6 +34,7 @@ import {
   type PickList,
   type PickListItemInput,
 } from './pick-list-core'
+import { nextStep, stageForStep } from './wizard-core'
 
 function db() {
   if (!prisma) throw new Error('Database is not configured')
@@ -403,9 +408,176 @@ export interface VerifiedItem {
 
 export type FulfillmentAction = 'pick' | 'pack' | 'reset'
 
+/** Everything the guided wizard writes, blanked out — used by `reset`. */
+const CLEARED_WIZARD_FIELDS = {
+  step: null,
+  startedAt: null,
+  startedById: null,
+  verifiedAt: null,
+  vialLabelsAt: null,
+  vialLabelsManual: false,
+  packingSlipAt: null,
+  packingSlipManual: false,
+  photoSkippedAt: null,
+  photoSkippedById: null,
+  shipConfirmedAt: null,
+  fulfilledAt: null,
+  fulfilledById: null,
+} satisfies Prisma.OrderFulfillmentUncheckedUpdateInput
+
 /** Current fulfillment row for an order, or null if none yet. */
 export async function getOrderFulfillment(orderId: string) {
   return db().orderFulfillment.findUnique({ where: { orderId } })
+}
+
+/** A screen whose completion moves the wizard forward. */
+export type AdvanceableStep = Exclude<FulfillmentStep, 'REVIEW' | 'COMPLETE'>
+
+export interface WizardStepOptions {
+  /** The document was printed outside the app rather than from the PDF. */
+  manual?: boolean
+  /** The packer explicitly skipped the contents photo. */
+  skipped?: boolean
+  verifiedItems?: VerifiedItem[]
+}
+
+async function requireOrder(orderId: string) {
+  const order = await db().order.findUnique({ where: { id: orderId }, select: { id: true } })
+  if (!order) throw new Error('Order not found')
+  return order
+}
+
+/**
+ * Open the guided wizard on an order. Idempotent: an order already part-way
+ * through keeps its cursor so a second operator picking up the tablet resumes
+ * rather than restarting at Verify.
+ */
+export async function startFulfillment(orderId: string, userId: string) {
+  await requireOrder(orderId)
+  const client = db()
+  const existing = await client.orderFulfillment.findUnique({ where: { orderId } })
+  if (existing?.step) return existing
+
+  const now = new Date()
+  return client.orderFulfillment.upsert({
+    where: { orderId },
+    create: {
+      orderId,
+      stage: stageForStep('VERIFY'),
+      step: 'VERIFY',
+      startedAt: now,
+      startedById: userId,
+    },
+    update: {
+      stage: stageForStep('VERIFY'),
+      step: 'VERIFY',
+      startedAt: existing?.startedAt ?? now,
+      startedById: existing?.startedById ?? userId,
+    },
+  })
+}
+
+/**
+ * Record that a screen is done and move the cursor to the next one. Each step
+ * stamps its own audit column; `stage` is re-derived from the new cursor so the
+ * legacy badge can never disagree with the wizard.
+ */
+export async function completeWizardStep(
+  orderId: string,
+  step: AdvanceableStep,
+  userId: string,
+  opts: WizardStepOptions = {}
+) {
+  await requireOrder(orderId)
+  const now = new Date()
+  const advanced = nextStep(step)
+  const data: Prisma.OrderFulfillmentUncheckedUpdateInput = {
+    step: advanced,
+    stage: stageForStep(advanced),
+  }
+
+  switch (step) {
+    case 'VERIFY':
+      // Confirming the contents is the pick: keep the legacy columns truthful.
+      data.verifiedAt = now
+      data.pickedAt = now
+      data.pickedById = userId
+      if (opts.verifiedItems) {
+        data.verifiedItems = opts.verifiedItems as unknown as Prisma.InputJsonValue
+      }
+      break
+    case 'VIAL_LABELS':
+      data.vialLabelsAt = now
+      data.vialLabelsManual = opts.manual === true
+      break
+    case 'PACKING_SLIP':
+      data.packingSlipAt = now
+      data.packingSlipManual = opts.manual === true
+      break
+    case 'PHOTO':
+      // The box is packed either way; a skip is recorded alongside it so the
+      // missing photo is attributable.
+      data.packedAt = now
+      data.packedById = userId
+      if (opts.skipped) {
+        data.photoSkippedAt = now
+        data.photoSkippedById = userId
+      }
+      break
+    case 'SHIP':
+      data.shipConfirmedAt = now
+      break
+  }
+
+  return db().orderFulfillment.upsert({
+    where: { orderId },
+    create: {
+      orderId,
+      stage: stageForStep(advanced),
+      step: advanced,
+      startedAt: now,
+      startedById: userId,
+      ...stripUpdateOnlyNulls(data),
+    },
+    update: data,
+  })
+}
+
+/** Final screen: the order is out the door. */
+export async function completeFulfillment(orderId: string, userId: string) {
+  await requireOrder(orderId)
+  const now = new Date()
+  return db().orderFulfillment.upsert({
+    where: { orderId },
+    create: {
+      orderId,
+      stage: stageForStep('COMPLETE'),
+      step: 'COMPLETE',
+      startedAt: now,
+      startedById: userId,
+      packedAt: now,
+      packedById: userId,
+      fulfilledAt: now,
+      fulfilledById: userId,
+    },
+    update: {
+      step: 'COMPLETE',
+      stage: stageForStep('COMPLETE'),
+      fulfilledAt: now,
+      fulfilledById: userId,
+    },
+  })
+}
+
+/**
+ * Prisma's create input rejects the explicit nulls that are meaningful on
+ * update, so drop them when seeding a brand-new row.
+ */
+function stripUpdateOnlyNulls(data: Prisma.OrderFulfillmentUncheckedUpdateInput) {
+  return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null)) as Omit<
+    Prisma.OrderFulfillmentUncheckedCreateInput,
+    'orderId'
+  >
 }
 
 /**
@@ -446,6 +618,9 @@ export async function advanceFulfillment(
     data.packedAt = null
     data.packedById = null
     data.verifiedItems = Prisma.JsonNull
+    // Reset clears the guided wizard too, so the order starts over at Verify
+    // rather than resuming half-way through a flow the operator abandoned.
+    Object.assign(data, CLEARED_WIZARD_FIELDS)
   }
 
   return client.orderFulfillment.upsert({

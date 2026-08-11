@@ -86,7 +86,9 @@ export async function GET(request: NextRequest) {
               variant: { select: { dose: true, product: { select: { name: true } } } },
             },
           },
-          fulfillment: { select: { stage: true } },
+          fulfillment: {
+            select: { stage: true, step: true, photoSkippedAt: true, fulfilledAt: true },
+          },
           _count: { select: { packagePhotos: true, shipmentLabels: true } },
         },
       }),
@@ -115,6 +117,11 @@ export async function GET(request: NextRequest) {
         quantity: it.quantity,
       })),
       fulfillmentStage: o.fulfillment?.stage ?? 'NOT_STARTED',
+      // Guided wizard cursor: null when the wizard was never started on this
+      // order, so the row shows Start rather than Resume.
+      fulfillmentStep: o.fulfillment?.step ?? null,
+      photoSkippedAt: o.fulfillment?.photoSkippedAt?.toISOString() ?? null,
+      fulfilledAt: o.fulfillment?.fulfilledAt?.toISOString() ?? null,
       photoCount: o._count.packagePhotos,
       labelCount: o._count.shipmentLabels,
     }))

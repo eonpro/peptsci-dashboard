@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { StripeConfigError } from '@/lib/stripe/config'
 import { issueOrderRefund, OrderRefundError } from '@/lib/orders/refund'
+import { resolveOrderPaymentIntentId } from '@/lib/orders/payment-intent'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,6 +37,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
     if (!order) return errorResponse('Order not found', 404, 'NOT_FOUND')
 
+    const resolved = await resolveOrderPaymentIntentId(id, { backfill: false })
     const total = Number(order.total)
     const refundedTotal = Number(order.refundedTotal)
     return successResponse({
@@ -44,7 +46,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       refundedTotal,
       remaining: Math.max(0, total - refundedTotal),
       paymentStatus: order.paymentStatus,
-      hasStripePayment: Boolean(order.stripePaymentIntentId),
+      hasStripePayment: Boolean(resolved.paymentIntentId),
+      paymentIntentSource: resolved.source,
     })
   } catch (error) {
     logger.error('[REFUND] GET error', {}, error instanceof Error ? error : new Error(String(error)))

@@ -1,3 +1,32 @@
+# White-label refunds + cancel fulfillment  [EXECUTOR — 2026-08-11]
+
+## Background and Motivation
+Shopify white-label orders were CAPTURED via PeptSci invoice Stripe charges but Order.stripePaymentIntentId was never set, so Refund blocked with "not paid by card". Ops also needed cancel-fulfillment with reason from the Fulfillment page.
+
+## What shipped
+- `resolveOrderPaymentIntentId` / `pickRefundablePaymentIntentId` — Order PI → InvoicePayment → SalesRecord; backfill Order
+- Refund GET/POST + modal use resolver (invoice copy for white-label)
+- Shopify fulfill mints Order with invoice PI + syncSalesRecordFromOrder
+- `cancelOrder` + `POST /api/admin/orders/[id]/cancel` + CancelOrderModal (reason dropdown + optional refund)
+- Schema: Order.cancelReason / cancelledAt; Shopify webhook uses shared cancel (no auto-refund)
+- Tests: `lib/__tests__/orderCancelRefund.test.ts`
+
+## Project Status Board
+- [x] PI resolver + refund wiring
+- [x] Shopify forward-fix
+- [x] Cancel service + API + UI
+- [x] Unit tests
+- [ ] Deploy migration `20260811140000_add_order_cancel_fields`
+- [ ] Soft-refresh Fulfillment → Refund #266 (or similar) should work; Cancel fulfillment… in overflow
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Fulfillment. Open Refund on a paid Shopify white-label order — should show refundable balance (not the amber block). Overflow → Cancel fulfillment… with reason + refund checkbox.
+
+## Lessons
+- Invoice-first Shopify mint must copy InvoicePayment.stripePaymentIntentId onto Order (platform fulfill already did).
+
+---
+
 # Label PDF empty mg (batch dose snapshot)  [EXECUTOR — 2026-08-10]
 
 ## Background and Motivation

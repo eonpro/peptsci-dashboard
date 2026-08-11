@@ -14,6 +14,7 @@ import { createManualOrder } from '@/lib/orders/create'
 import { reserveForOrder } from '@/lib/inventory/reservations'
 import { accrueCommissionForOrder } from '@/lib/partners/accrual'
 import { chargeInvoiceWithSavedCard } from '@/lib/stripe/charge-invoice-saved-card'
+import { syncSalesRecordFromOrder } from '@/lib/sales'
 import {
   buildShopifyInvoiceLines,
   inboundLinesFullyMapped,
@@ -190,6 +191,18 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
   }
 
   try {
+    // Mirror platform invoice fulfill: copy the invoice Stripe PI onto the Order
+    // so refunds hit the PeptSci charge without a separate lookup.
+    const invoicePayments = await prisma.invoicePayment.findMany({
+      where: {
+        invoiceId: inbound.invoiceId!,
+        stripePaymentIntentId: { not: null },
+      },
+      orderBy: { paidAt: 'asc' },
+      select: { stripePaymentIntentId: true },
+    })
+    const stripePaymentIntentId = invoicePayments[0]?.stripePaymentIntentId ?? null
+
     const order = await createManualOrder({
       clientId: inbound.clientId,
       createdById: clientUser.id,
@@ -202,11 +215,13 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
       shipSpeed: inbound.shipSpeed as ShipSpeed,
       patientId,
       shippingAddress: (shippingAddress as Prisma.InputJsonValue) ?? null,
+      stripePaymentIntentId,
       notes: inbound.buyerNote,
       internalNotes: [
         `Shopify order ${inbound.shopifyOrderName ?? inbound.shopifyOrderId}`,
         inbound.buyerEmail ? `buyer: ${inbound.buyerEmail}` : null,
         `invoice: ${invoiceView.invoice.invoiceNumber}`,
+        stripePaymentIntentId ? `pi: ${stripePaymentIntentId}` : null,
         'Paid via invoice (card on file)',
       ]
         .filter(Boolean)
@@ -236,6 +251,13 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
       where: { id: inbound.id },
       data: { orderId: order.id, status: 'FULFILLMENT_QUEUED', lastError: null },
     })
+
+    await syncSalesRecordFromOrder(order.id).catch((e) =>
+      logger.warn('[shopify] syncSalesRecordFromOrder failed (non-blocking)', {
+        orderId: order.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
 
     try {
       await reserveForOrder(order.id)
