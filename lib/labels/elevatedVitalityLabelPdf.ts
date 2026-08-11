@@ -26,22 +26,19 @@ import {
   INTER_BLACK_B64,
 } from './elevatedVitalityEmbeddedAssets'
 import { normalizeDoseLabel } from './peptsciLabelPdf'
+import { OL4891LP, labelsPerSheet, planLabelSheets } from './sheet-layout'
+import { embedLabelFont } from './embed-font'
 
 export { ELEVATED_VITALITY_BRAND_KEY } from './brandKeys'
 
 const PT_PER_INCH = 72
 const SHEET_WIDTH = 8.5 * PT_PER_INCH
 const SHEET_HEIGHT = 11 * PT_PER_INCH
-const COLS = 3
-const ROWS = 12
-const MAX_LABELS = COLS * ROWS
 
+// OL4891LP label size. Sheet margins and pitches live in ./sheet-layout, which
+// owns slot placement.
 const LABEL_WIDTH = 2.0 * PT_PER_INCH // 144
 const LABEL_HEIGHT = 0.75 * PT_PER_INCH // 54
-const LEFT_MARGIN = 1.125 * PT_PER_INCH
-const TOP_MARGIN = 0.3125 * PT_PER_INCH
-const H_PITCH = 2.125 * PT_PER_INCH
-const V_PITCH = 0.875 * PT_PER_INCH
 
 const COLOR_BLACK = rgb(0x01 / 255, 0x01 / 255, 0x01 / 255)
 const COLOR_WHITE = rgb(1, 1, 1)
@@ -77,7 +74,8 @@ const FONT_DIR = path.join(process.cwd(), 'public', 'fonts', 'labels')
 const INTER_ITALIC_PATHS = [path.join(FONT_DIR, 'Inter-ExtraBoldItalic.ttf')]
 const INTER_BLACK_PATHS = [path.join(FONT_DIR, 'Inter-Black.ttf')]
 
-export const ELEVATED_VITALITY_LABEL_SHEET_MAX = MAX_LABELS
+/** Slots on one OL4891LP sheet (36). */
+export const ELEVATED_VITALITY_LABEL_SHEET_MAX = labelsPerSheet(OL4891LP)
 
 export type ElevatedVitalityLabelRequest = {
   productName: string
@@ -247,6 +245,21 @@ export async function generateElevatedVitalityLabelsPdf(
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
 
+  const { pageCount, placements } = planLabelSheets(
+    groups.map((group) => ({
+      req: { label: group.req, proofMode: Boolean(group.proofMode) },
+      quantity: group.quantity,
+    }))
+  )
+
+  // Nothing to print (e.g. no allocatable batches) still yields one blank
+  // sheet. Returning before embedding fonts also avoids a fontkit crash when
+  // subsetting a font no glyph was ever drawn with.
+  if (placements.length === 0) {
+    doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
+    return Buffer.from(await doc.save())
+  }
+
   const templateBytes = await loadTemplateBytes()
   const template = await doc.embedPng(templateBytes)
   const italicBytes = await loadFontBytes(INTER_ITALIC_PATHS, INTER_EXTRABOLD_ITALIC_B64)
@@ -254,35 +267,16 @@ export async function generateElevatedVitalityLabelsPdf(
   let italic: PDFFont
   let black: PDFFont
   try {
-    italic = await doc.embedFont(italicBytes, { subset: true })
-    black = await doc.embedFont(blackBytes, { subset: true })
+    italic = await embedLabelFont(doc, italicBytes)
+    black = await embedLabelFont(doc, blackBytes)
   } catch {
     italic = await doc.embedFont(StandardFonts.HelveticaBoldOblique)
     black = await doc.embedFont(StandardFonts.HelveticaBold)
   }
 
-  let drewAnything = false
-  for (const group of groups) {
-    const count = Math.max(0, Math.trunc(group.quantity))
-    if (count <= 0) continue
-    const proofMode = Boolean(group.proofMode)
-    let i = 0
-    while (i < count) {
-      const page = doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-      for (let slot = 0; slot < MAX_LABELS && i < count; slot += 1, i += 1) {
-        const row = Math.floor(slot / COLS)
-        const col = slot % COLS
-        const x = LEFT_MARGIN + col * H_PITCH
-        const top = SHEET_HEIGHT - TOP_MARGIN - row * V_PITCH
-        const y = top - LABEL_HEIGHT
-        drawLabel(page, x, y, template, italic, black, group.req, proofMode)
-      }
-      drewAnything = true
-    }
-  }
-
-  if (!drewAnything) {
-    doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
+  const pages = Array.from({ length: pageCount }, () => doc.addPage([SHEET_WIDTH, SHEET_HEIGHT]))
+  for (const { pageIndex, x, y, req } of placements) {
+    drawLabel(pages[pageIndex], x, y, template, italic, black, req.label, req.proofMode)
   }
 
   const bytes = await doc.save()

@@ -53,21 +53,17 @@ import {
   AMERICAN_TYPEWRITER_CONDENSED_B64,
   SOFIA_PRO_REGULAR_B64,
 } from './embeddedAssets'
+import { OL4891LP, labelsPerSheet, planLabelSheets } from './sheet-layout'
+import { embedLabelFont } from './embed-font'
 
 const PT_PER_INCH = 72
 const SHEET_WIDTH = 8.5 * PT_PER_INCH
 const SHEET_HEIGHT = 11 * PT_PER_INCH
-const COLS = 3
-const ROWS = 12
-const MAX_LABELS = COLS * ROWS
 
-// OL4891LP geometry (inches -> points).
+// OL4891LP label size (inches -> points). Sheet margins and pitches live in
+// ./sheet-layout, which owns slot placement.
 const LABEL_WIDTH = 2.0 * PT_PER_INCH // 144
 const LABEL_HEIGHT = 0.75 * PT_PER_INCH // 54
-const LEFT_MARGIN = 1.125 * PT_PER_INCH // 81
-const TOP_MARGIN = 0.3125 * PT_PER_INCH // 22.5
-const H_PITCH = 2.125 * PT_PER_INCH // 153 (label + 0.125" gap)
-const V_PITCH = 0.875 * PT_PER_INCH // 63  (label + 0.125" gap)
 
 // Brand palette (approximate; user-provided logo SVG/PNG is the source of truth
 // for the mark itself). Accent (BUD day, dose-box bottom, batch text) defaults
@@ -901,7 +897,7 @@ async function loadFontFrom(doc: PDFDocument, candidates: string[]): Promise<PDF
     try {
       await access(candidate)
       const bytes = await readFile(candidate)
-      return await doc.embedFont(bytes, { subset: true })
+      return await embedLabelFont(doc, bytes)
     } catch {
       // try next / fall through
     }
@@ -912,7 +908,7 @@ async function loadFontFrom(doc: PDFDocument, candidates: string[]): Promise<PDF
 /** Embed a base64 font (bundled fallback). */
 async function embedB64Font(doc: PDFDocument, b64: string): Promise<PDFFont | null> {
   try {
-    return await doc.embedFont(Buffer.from(b64, 'base64'), { subset: true })
+    return await embedLabelFont(doc, Buffer.from(b64, 'base64'))
   } catch {
     return null
   }
@@ -1016,40 +1012,48 @@ export type PeptSciLabelGroup = {
 }
 
 /**
- * Render a multi-batch, multi-page label document. Each group's labels flow
- * across full OL4891LP sheets (36/page) and every new group starts on a fresh
- * page so a batch's labels stay contiguous. Returns a PDF Buffer.
+ * Render a multi-batch label document. Labels flow continuously across full
+ * OL4891LP sheets (36/page), so an order for several compounds shares a sheet
+ * rather than starting a new one per batch. Returns a PDF Buffer.
  */
 export async function generatePeptSciLabelsPdf(groups: PeptSciLabelGroup[]): Promise<Buffer> {
   const doc = await PDFDocument.create()
+
+  const { pageCount, placements } = planLabelSheets(
+    groups.map((group) => {
+      const count = Math.max(0, Math.trunc(group.quantity))
+      const req = normalizeReq({ ...group.req, quantity: count })
+      return {
+        req: { req, accent: req.accentColor ? hexToRgb(req.accentColor) : COLOR_INDIGO },
+        quantity: count,
+      }
+    })
+  )
+
+  // Nothing to print (e.g. no allocatable batches) still yields one blank
+  // sheet. Returning before embedding fonts also avoids a fontkit crash when
+  // subsetting a font no glyph was ever drawn with.
+  if (placements.length === 0) {
+    doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
+    return Buffer.from(await doc.save())
+  }
+
   const fonts = await embedFonts(doc)
   const logo = await loadLogo(doc)
   const template = await loadTemplate(doc)
 
-  let drewAnything = false
-  for (const group of groups) {
-    const count = Math.max(0, Math.trunc(group.quantity))
-    if (count <= 0) continue
-    const req = normalizeReq({ ...group.req, quantity: count })
-    const accent = req.accentColor ? hexToRgb(req.accentColor) : COLOR_INDIGO
-
-    let i = 0
-    while (i < count) {
-      const page = doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-      for (let slot = 0; slot < MAX_LABELS && i < count; slot += 1, i += 1) {
-        const row = Math.floor(slot / COLS)
-        const col = slot % COLS
-        const x = LEFT_MARGIN + col * H_PITCH
-        const top = SHEET_HEIGHT - TOP_MARGIN - row * V_PITCH
-        const y = top - LABEL_HEIGHT
-        drawLabel({ page, x, y, req, fonts, logo, template, accent })
-      }
-      drewAnything = true
-    }
-  }
-
-  if (!drewAnything) {
-    doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
+  const pages = Array.from({ length: pageCount }, () => doc.addPage([SHEET_WIDTH, SHEET_HEIGHT]))
+  for (const { pageIndex, x, y, req } of placements) {
+    drawLabel({
+      page: pages[pageIndex],
+      x,
+      y,
+      req: req.req,
+      fonts,
+      logo,
+      template,
+      accent: req.accent,
+    })
   }
 
   const bytes = await doc.save()
@@ -1106,4 +1110,5 @@ export async function generatePeptSciSingleLabelPdf(
   return Buffer.from(await doc.save())
 }
 
-export const PEPTSCI_LABEL_SHEET_MAX = MAX_LABELS
+/** Slots on one OL4891LP sheet (36). */
+export const PEPTSCI_LABEL_SHEET_MAX = labelsPerSheet(OL4891LP)

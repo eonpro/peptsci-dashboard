@@ -4351,3 +4351,81 @@ Live on peptsci.com/pricing. Hard-refresh Card View to confirm shop-style cards.
 ## Lessons
 - Never put `unitCost` on ShopProduct (serialized to /shop). Pass Cost only via adminPricing prop on the Super Admin page.
 
+
+# Label sheets: pack 36 slots before spilling to a new sheet [EXECUTOR — 2026-08-11]
+
+## Background and Motivation
+Auto-generated vial labels print on OnlineLabels OL4891LP (2.0" x 0.75", 36 per
+US-Letter sheet, 3 cols x 12 rows). Every brand generator started a fresh page
+per label group, so an order for 5 compounds at 3 vials each produced 5 sheets
+holding 3 labels instead of 1 sheet holding 15 — wasting 165 of 180 slots.
+
+## Key Challenges and Analysis
+- Label "groups" are per (variant, batch) draw, so a single product can also
+  yield several groups; packing must be a continuous stream across all of them.
+- Three brand modules (peptsci, livbetr, elevated_vitality) each duplicated the
+  same page-per-group loop and the same geometry constants.
+- A group may now straddle a sheet boundary. That is fine — labels stay
+  contiguous in peel order, which is what packers rely on.
+
+## High-level Task Breakdown
+- [x] TDD: `lib/__tests__/labelSheetLayout.test.ts` covering the 5x3 case, the
+      36/37 boundary, straddling, ordering, and slot coordinates
+- [x] Pure `lib/labels/sheet-layout.ts` — `OL4891LP` geometry, `labelsPerSheet`,
+      `planLabelSheets` (no pdf-lib import, so it unit-tests in isolation)
+- [x] Rewrite all three generators to draw from `planLabelSheets` placements
+- [x] Drop the duplicated margin/pitch constants; `*_LABEL_SHEET_MAX` now derives
+      from `labelsPerSheet(OL4891LP)`
+
+## Project Status Board
+- [x] 15 labels -> 1 sheet, 40 -> 2 sheets, verified on all three brands by
+      loading the real PDFs and counting pages
+- [x] Visual check: rasterized sheet shows 5 products x 3 vials filling rows 1-5
+- [x] npm test 607 pass, tsc clean, eslint clean
+- [x] Fixed a latent crash: a zero-label request (order with no allocatable
+      batches) threw a fontkit CFF subsetting RangeError on save and 500'd the
+      route. Generators now return the blank sheet before embedding any font.
+
+## Executor's Feedback or Assistance Requests
+Not deployed yet — awaiting the go-ahead. Note the working tree also carries an
+unrelated concurrent RBAC/permissions change; only the label files and
+sheet-layout belong to this task.
+
+## Lessons
+- Label geometry lives in `lib/labels/sheet-layout.ts` now. Adding a brand means
+  feeding it groups, not re-deriving row/col math.
+- pdf-lib font subsetting throws if a font is embedded but never drawn with, so
+  bail out to a blank page before embedding when there is nothing to print.
+- `peptsciLabelPdf.ts` and `livbetrLabelPdf.ts` are not Prettier-clean at HEAD;
+  do not run `prettier --write` on them or the diff drowns the real change.
+
+## Follow-up: garbled product name/dose was a REAL regression, not a preview artifact
+
+Investigating "were all the bugs fixed?" turned up a third, more serious bug in
+the same pipeline. Every PeptSci label printed its product name and dose as
+`!"#$%&`, and LIVBETR printed its dose the same way.
+
+- Root cause: `@pdf-lib/fontkit` subsets OpenType/CFF (`.otf`) fonts by
+  re-indexing glyphs without rewriting the encoding, so drawn text maps to the
+  wrong glyphs. It is also what threw the RangeError on a zero-label document.
+- Trigger: commits `48c368d` / `118e740` (2026-08-09) added
+  `SofiaPro-SemiBold.otf` + `SofiaPro-Bold.otf` and put the `.otf` first in
+  `SOFIA_SEMIBOLD_CANDIDATES`. PeptSci draws name+dose with `sofiaBold`, so both
+  went garbled the moment those files landed; before that the lookup fell
+  through to `SofiaPro-Regular.ttf` and rendered fine.
+- Proof: same string drawn with each label font at `subset: true` vs
+  `subset: false` — only the two `.otf` files garble, and only when subsetted.
+  American Typewriter / Inter / Neuething TTFs are unaffected either way, which
+  is why BUD and lot number always looked right.
+- Fix: `lib/labels/embed-font.ts` — `isCffFont` sniffs the `OTTO` sfnt tag and
+  `embedLabelFont` subsets TrueType only, embedding CFF whole. All three brand
+  modules now embed through it (disk fonts and base64 fallbacks alike).
+- Verified against the real catalog: BPC-157 5mg, Semax 30mg, Tesamorelin 10mg
+  across two lots all render correctly on PeptSci, LIVBETR, and Elevated
+  Vitality. 611 tests pass, tsc/eslint clean, build clean.
+
+## Lessons
+- Never subset `.otf`/CFF fonts through @pdf-lib/fontkit. Prefer TTF for label
+  fonts; if only OTF exists, embed it whole via `embedLabelFont`.
+- A font swap is a rendering change: rasterize a sheet and read it before
+  shipping. Type checks and unit tests cannot see garbled glyphs.

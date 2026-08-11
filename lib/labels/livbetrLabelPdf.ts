@@ -33,20 +33,17 @@ import {
   SOFIA_PRO_SEMIBOLD_B64,
 } from './livbetrEmbeddedAssets'
 import { normalizeDoseLabel, splitProductNameLines } from './peptsciLabelPdf'
+import { OL4891LP, labelsPerSheet, planLabelSheets } from './sheet-layout'
+import { embedLabelFont } from './embed-font'
 
 const PT_PER_INCH = 72
 const SHEET_WIDTH = 8.5 * PT_PER_INCH
 const SHEET_HEIGHT = 11 * PT_PER_INCH
-const COLS = 3
-const ROWS = 12
-const MAX_LABELS = COLS * ROWS
 
+// OL4891LP label size. Sheet margins and pitches live in ./sheet-layout, which
+// owns slot placement.
 const LABEL_WIDTH = 2.0 * PT_PER_INCH // 144
 const LABEL_HEIGHT = 0.75 * PT_PER_INCH // 54
-const LEFT_MARGIN = 1.125 * PT_PER_INCH
-const TOP_MARGIN = 0.3125 * PT_PER_INCH
-const H_PITCH = 2.125 * PT_PER_INCH
-const V_PITCH = 0.875 * PT_PER_INCH
 
 /** Native SVG artwork size (livbetr-label-empty.svg). */
 const SVG_W = 129.1
@@ -450,13 +447,28 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
 
+  const { pageCount, placements } = planLabelSheets(
+    groups.map((group) => ({
+      req: { label: group.req, proofMode: Boolean(group.proofMode) },
+      quantity: group.quantity,
+    }))
+  )
+
+  // Nothing to print (e.g. no allocatable batches) still yields one blank
+  // sheet. Returning before embedding fonts also avoids a fontkit crash when
+  // subsetting a font no glyph was ever drawn with.
+  if (placements.length === 0) {
+    doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
+    return Buffer.from(await doc.save())
+  }
+
   const template = await doc.embedPng(await loadTemplateBytes())
 
   let nameFont: PDFFont
   try {
-    nameFont = await doc.embedFont(
-      await loadFontBytes(NEUETHING_CANDIDATES, NEUETHING_SANS_MEDIUM_EXPANDED_B64),
-      { subset: true }
+    nameFont = await embedLabelFont(
+      doc,
+      await loadFontBytes(NEUETHING_CANDIDATES, NEUETHING_SANS_MEDIUM_EXPANDED_B64)
     )
   } catch {
     nameFont = await doc.embedFont(StandardFonts.Helvetica)
@@ -464,18 +476,16 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
 
   let sofia: PDFFont
   try {
-    sofia = await doc.embedFont(await loadFontBytes(SOFIA_CANDIDATES, SOFIA_PRO_REGULAR_B64), {
-      subset: true,
-    })
+    sofia = await embedLabelFont(doc, await loadFontBytes(SOFIA_CANDIDATES, SOFIA_PRO_REGULAR_B64))
   } catch {
     sofia = await doc.embedFont(StandardFonts.Helvetica)
   }
 
   let sofiaBold: PDFFont
   try {
-    sofiaBold = await doc.embedFont(
-      await loadFontBytes(SOFIA_SEMIBOLD_CANDIDATES, SOFIA_PRO_SEMIBOLD_B64),
-      { subset: true }
+    sofiaBold = await embedLabelFont(
+      doc,
+      await loadFontBytes(SOFIA_SEMIBOLD_CANDIDATES, SOFIA_PRO_SEMIBOLD_B64)
     )
   } catch {
     sofiaBold = sofia
@@ -483,26 +493,10 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
 
   const fonts: LivbetrFonts = { name: nameFont, sofia, sofiaBold }
 
-  let drew = false
-  for (const group of groups) {
-    const count = Math.max(0, Math.trunc(group.quantity))
-    if (count <= 0) continue
-    const proofMode = Boolean(group.proofMode)
-    let i = 0
-    while (i < count) {
-      const page = doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-      for (let slot = 0; slot < MAX_LABELS && i < count; slot += 1, i += 1) {
-        const row = Math.floor(slot / COLS)
-        const col = slot % COLS
-        const x = LEFT_MARGIN + col * H_PITCH
-        const top = SHEET_HEIGHT - TOP_MARGIN - row * V_PITCH
-        const y = top - LABEL_HEIGHT
-        drawLabel(page, x, y, template, fonts, group.req, proofMode)
-      }
-      drew = true
-    }
+  const pages = Array.from({ length: pageCount }, () => doc.addPage([SHEET_WIDTH, SHEET_HEIGHT]))
+  for (const { pageIndex, x, y, req } of placements) {
+    drawLabel(pages[pageIndex], x, y, template, fonts, req.label, req.proofMode)
   }
-  if (!drew) doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
 
   return Buffer.from(await doc.save())
 }
@@ -525,4 +519,5 @@ export async function generateLivbetrLabelSheetPdf(
   ])
 }
 
-export const LIVBETR_LABEL_SHEET_MAX = MAX_LABELS
+/** Slots on one OL4891LP sheet (36). */
+export const LIVBETR_LABEL_SHEET_MAX = labelsPerSheet(OL4891LP)
