@@ -13,6 +13,7 @@ import { createManualOrder } from '../orders/create'
 import { resolveOrderCreatorId } from '../orders/actor'
 import { reserveForOrder } from '../inventory/reservations'
 import { syncSalesRecordFromOrder } from '../sales'
+import { accrueCommissionForOrder } from '../partners/accrual'
 import { formatInvoiceNumber } from './core'
 
 export type CatalogInvoiceLine = {
@@ -48,7 +49,19 @@ export function mergeCatalogLinesForOrder(
  * Best-effort: match invoice description labels from the admin product picker
  * (`Name Dose · SKU`) back to catalog variants when `variantId` was not stored
  * (e.g. INV-00001 created before the column existed).
+ *
+ * Also used for Stripe convert auto-map — normalizes `10mg` vs `10.0mg` so
+ * hosted-invoice descriptions line up with catalog dose strings.
  */
+export function normalizeProductDescription(description: string): string {
+  return description
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/(\d+)\.0+(?=\s*mg\b)/gi, '$1')
+    .replace(/(\d+)\s*mg\b/gi, '$1mg')
+    .trim()
+}
+
 export function matchVariantIdFromDescription(
   description: string,
   catalog: Array<{ id: string; sku: string | null; productName: string; dose: string | null }>
@@ -70,16 +83,34 @@ export function matchVariantIdFromDescription(
   const byExactSku = catalog.find((v) => v.sku && v.sku.toLowerCase() === desc.toLowerCase())
   if (byExactSku) return byExactSku.id
 
-  const normalized = desc.toLowerCase().replace(/\s+/g, ' ')
+  const normalized = normalizeProductDescription(desc)
+  const exactHits: string[] = []
   for (const v of catalog) {
-    const label = `${v.productName}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` · ${v.sku}` : ''}`
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-    if (label === normalized) return v.id
-    const withoutSku = `${v.productName}${v.dose ? ` ${v.dose}` : ''}`.toLowerCase().replace(/\s+/g, ' ')
-    if (withoutSku && (normalized === withoutSku || normalized.startsWith(withoutSku + ' '))) {
-      return v.id
+    const label = normalizeProductDescription(
+      `${v.productName}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` · ${v.sku}` : ''}`
+    )
+    if (label === normalized) {
+      exactHits.push(v.id)
+      continue
     }
+    const withoutSku = normalizeProductDescription(
+      `${v.productName}${v.dose ? ` ${v.dose}` : ''}`
+    )
+    if (withoutSku && (normalized === withoutSku || normalized.startsWith(withoutSku + ' '))) {
+      exactHits.push(v.id)
+    }
+  }
+  if (exactHits.length === 1) return exactHits[0]
+  if (exactHits.length > 1) {
+    // Prefer the tightest without-SKU equality over startsWith collisions.
+    const tight = catalog.filter((v) => {
+      const withoutSku = normalizeProductDescription(
+        `${v.productName}${v.dose ? ` ${v.dose}` : ''}`
+      )
+      return withoutSku === normalized
+    })
+    if (tight.length === 1) return tight[0].id
+    return null
   }
   return null
 }
@@ -199,6 +230,14 @@ export async function fulfillPlatformInvoiceProducts(
           .catch(() => {})
       }
       await adoptOrphanSalesRecord(stripePaymentIntentId, existingOrder.id, existingOrder.orderNumber)
+      // Idempotent — covers converts that minted before accrual was wired.
+      await accrueCommissionForOrder(existingOrder.id).catch((e) =>
+        logger.warn('[invoicing] partner accrual failed on already_linked (non-blocking)', {
+          orderId: existingOrder.id,
+          invoiceId,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      )
       return { status: 'already_linked', orderId: existingOrder.id }
     }
   }
@@ -249,6 +288,15 @@ export async function fulfillPlatformInvoiceProducts(
 
   await reserveForOrder(order.id).catch((e) =>
     logger.warn('[invoicing] reserveForOrder failed after invoice fulfill (non-blocking)', {
+      orderId: order.id,
+      invoiceId,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  )
+
+  // settleOrdersForPaidInvoice only accrues pre-linked orders; this mint is new.
+  await accrueCommissionForOrder(order.id).catch((e) =>
+    logger.warn('[invoicing] partner accrual failed after invoice fulfill (non-blocking)', {
       orderId: order.id,
       invoiceId,
       error: e instanceof Error ? e.message : String(e),

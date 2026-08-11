@@ -1,3 +1,66 @@
+# Partner sales reporting to partner profiles  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+EonMeds partner dashboard showed 3 approved clinics but $0 attributed revenue / 0 ordering clinics. `/partners` only reads `PartnerTransaction` / `CommissionEntry` — not Orders or SalesRecords.
+
+## Key Challenges and Analysis
+- Attribution works (`Client.partnerOrgId`)
+- Accrual (`accrueCommissionForOrder`) only ran from shop PI capture + settleOrdersForPaidInvoice (pre-linked orders)
+- CAPTURED mints without accrual: stripe-convert, fulfill-products, Shopify process-inbound
+- Header "0 clinics" = distinct clients on PartnerTransaction; funnel "approved" = Client count
+
+## What shipped
+- Wire `accrueCommissionForOrder` after CAPTURED mint in stripe-convert, fulfill-products (created + already_linked), process-inbound
+- Ops: `POST /api/admin/ops/backfill-partner-accrual` (dry-run / `{ confirm: true }`, optional clientId/partnerOrgId)
+- Helpers: `lib/ops/backfill-partner-accrual.ts`
+- Tests: `lib/__tests__/partnerAccrualBackfill.test.ts`
+
+## Project Status Board
+- [x] Wire stripe-convert accrual
+- [x] Wire fulfill-products accrual
+- [x] Wire Shopify inbound accrual
+- [x] Ops backfill route
+- [x] Unit tests
+- [ ] Deploy + dry-run backfill on prod, then `{ confirm: true }` for EonMeds
+
+## Executor's Feedback or Assistance Requests
+As SUPER_ADMIN on peptsci.com after deploy:
+```js
+await fetch('/api/admin/ops/backfill-partner-accrual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json())
+// then:
+await fetch('/api/admin/ops/backfill-partner-accrual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}).then(r=>r.json())
+```
+Refresh `/partners` for EonMeds — ordering clinics + attributed revenue should populate for CAPTURED attributed orders (org ACTIVE + commissionRateBps > 0). `skipped_no_ledger` means gates failed (rate 0, inactive org, etc.).
+
+## Lessons
+- Partner KPIs are ledger-only; minting CAPTURED Orders without accrual silently zeros the partner dashboard.
+- Invoice PAID settles pre-linked orders first, then mints new Orders — accrual must live on the mint path too.
+
+---
+
+# Stripe convert: auto-preload products + shipping price  [EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+Convert modal only showed truncated Stripe labels (`MOTS +1 more`) and forced manual catalog search. Operators need every Stripe invoice line preloaded with the charged qty/price, plus an editable shipping amount.
+
+## What shipped
+- Queue API returns `SalesRecord.lineItems`
+- `mapStripeSaleLinesToConvert` matches catalog (dose-normalized), peels shipping lines, keeps Stripe unit prices as `manual`
+- `ConvertStripeModal` auto-preloads mapped lines; unmatched shown for manual finish
+- Shipping price field (prior) + Overnight seed from description / shipping lines
+- Tests: `stripeLineMap`, dose normalize in `fulfillProducts`
+
+## Project Status Board
+- [x] lineItems on queue + mapper + modal preload
+- [x] Shipping price field
+- [x] Unit tests
+- [ ] Soft-refresh Fulfillment → Convert Luis/Monica and confirm lines + prices appear
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Fulfillment (From Stripe). Open Dr. Luis Dominguez — products should appear with Stripe prices, not an empty mapper. If a row has empty `lineItems` (old ingest), re-run Stripe backfill or map unmatched manually.
+
+---
+
 # My Orders list: show shipping on cards  [EXECUTOR — 2026-08-10]
 
 ## What shipped
@@ -7,6 +70,24 @@
 ## Project Status Board
 - [x] Data + UI
 - [x] Deployed `fe27866` → peptsci.com READY (`dpl_BzGJfNxvicYUdR1tGumrm8H2xJqi`)
+
+---
+
+# Customers & Shopify ship-to visibility  [EXECUTOR — 2026-08-10]
+
+## What shipped (`5221783` → peptsci.com READY `dpl_ACekymMzvrMMLnKKjtMJ7yTduTcZ`)
+- Upsert Patient on Shopify fulfill + buyer email on shippingAddress
+- Portal **Customers** tab `/shop/customers` (+ detail)
+- My Orders + Fulfillment show ship-to name
+- Admin Clients → Customers card
+- Ops: `POST /api/admin/ops/backfill-shopify-patients` `{ confirm: true, clientId?: "…" }`
+
+## Owner action
+As SUPER_ADMIN on peptsci.com:
+```js
+await fetch('/api/admin/ops/backfill-shopify-patients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,clientId:'cmsknhwra000004jlj41yi0l8'})}).then(r=>r.json())
+```
+Then refresh Portal → Customers / Fulfillment for #266–#268.
 
 ---
 
@@ -4117,3 +4198,35 @@ Post-launch gap analysis identified missing pieces the owner approved for build 
 - Audit coverage (P2 pattern): attach/detach now write `writeAudit` rows (`Client` / `partner_attributed` / `partner_detached` with orgId+repId metadata).
 
 **Verified:** tsc clean, next lint clean on the four touched files.
+
+---
+
+# Super Admin /pricing: shop-style product cards  [PLANNER → EXECUTOR — 2026-08-10]
+
+## Background and Motivation
+`/pricing` Super Admin card view uses generic shadcn Cards (name, price range, margin). Owner wants the same scientific product cards as the client portal catalog (`/shop` ProductCard): logo, CAS/Formula/MW/Purity, vial art, size pills, PRUO.
+
+## Key Challenges and Analysis
+- Shop `ProductCard` requires `CartProvider` and links to PDP — admin needs Edit + Cost/SRP/margin instead.
+- Pricing API returns Cost (must not leak to shop); catalog `ShopProduct` already has sci specs + vial data.
+- Card view should stay one-card-per-compound (grouped), matching shop.
+
+## High-level Task Breakdown
+1. [x] Soften cart coupling so ProductCard can render outside CartProvider (admin)
+2. [x] Add admin pricing mode to ProductCard (Cost/SRP/margin + Edit, no PDP/cart)
+3. [x] Seed `/pricing` with grouped catalog + COA flags; wire PricingClient card grid
+4. [x] Keep list view + EditPriceDialog; size pills / Edit open the right SKU
+5. [x] Update scratchpad status after verify
+
+## Project Status Board
+- [x] `useOptionalCart` — ProductCard works on admin `/pricing` without CartProvider
+- [x] ProductCard `adminPricing` prop — same chrome as /shop; Cost · Margin · Edit CTA
+- [x] `/pricing` loads `getProductCatalog` + `groupProductsByParent` + COA flags
+- [x] tsc clean
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh Super Admin → Pricing (Card View). Cards should match client portal product cards (vial, CAS/Formula/MW, size pills). Edit / size pills open Cost+SRP dialog. List view unchanged.
+
+## Lessons
+- Never put `unitCost` on ShopProduct (serialized to /shop). Pass Cost only via adminPricing prop on the Super Admin page.
+

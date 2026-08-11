@@ -43,6 +43,13 @@ describe('matchVariantIdFromDescription', () => {
     assert.equal(matchVariantIdFromDescription('BC10', catalog), 'v2')
   })
 
+  test('normalizes 10mg vs 10.0mg', () => {
+    assert.equal(
+      matchVariantIdFromDescription('Retatrutide 10mg', catalog),
+      'v1'
+    )
+  })
+
   test('returns null when unknown', () => {
     assert.equal(matchVariantIdFromDescription('Custom consulting fee', catalog), null)
   })

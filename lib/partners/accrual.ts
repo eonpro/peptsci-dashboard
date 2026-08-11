@@ -4,9 +4,11 @@
  * commissions back proportionally when orders are refunded.
  *
  * Called from the payment-capture path (lib/stripe/payments.ts), the invoice
- * payment path (lib/invoicing/service.ts), and the refund path
- * (lib/orders/refund.ts). ALWAYS best-effort from the caller's perspective:
- * accrual failures are logged, never thrown into the payment flow.
+ * payment path (lib/invoicing/service.ts settleOrdersForPaidInvoice), Stripe
+ * convert / product-invoice mint / Shopify inbound CAPTURED mints, the ops
+ * backfill route, and the refund path (lib/orders/refund.ts). ALWAYS
+ * best-effort from the caller's perspective: accrual failures are logged,
+ * never thrown into the payment flow.
  *
  * Idempotency: one PartnerTransaction per order via the unique
  * `reference = "order:<orderId>"`; a concurrent double-accrual loses the

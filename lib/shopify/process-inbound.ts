@@ -12,6 +12,7 @@ import { displayProductName } from '@/lib/products/named-blends'
 import { createInvoice, getInvoice } from '@/lib/invoicing/service'
 import { createManualOrder } from '@/lib/orders/create'
 import { reserveForOrder } from '@/lib/inventory/reservations'
+import { accrueCommissionForOrder } from '@/lib/partners/accrual'
 import { chargeInvoiceWithSavedCard } from '@/lib/stripe/charge-invoice-saved-card'
 import {
   buildShopifyInvoiceLines,
@@ -252,6 +253,15 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
         })
       }
     }
+
+    // Invoice PAID settles pre-linked orders only; this Order is minted after.
+    await accrueCommissionForOrder(order.id).catch((e) =>
+      logger.warn('[shopify] partner accrual failed (non-blocking)', {
+        orderId: order.id,
+        inboundId: inbound.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
 
     return {
       status: 'fulfillment_queued',

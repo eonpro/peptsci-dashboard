@@ -15,6 +15,7 @@ import { createManualOrder } from '@/lib/orders/create'
 import { resolveOrderCreatorId, NoOrderActorError } from '@/lib/orders/actor'
 import { ManualOrderError } from '@/lib/orders/order-core'
 import { reserveForOrder } from '@/lib/inventory/reservations'
+import { accrueCommissionForOrder } from '@/lib/partners/accrual'
 import { platformAddressFromSalesRecord } from '@/lib/stripe/apply-addresses'
 import { isIncompletePlatformAddress } from '@/lib/stripe/resolve-address'
 
@@ -43,6 +44,8 @@ const bodySchema = z.object({
     .min(1, 'Map at least one product'),
   shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
   shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+  /** Explicit shipping amount (dollars). Overrides the matrix so converts can match Stripe. */
+  shippingTotal: z.number().min(0).optional(),
   shippingAddress: orderShippingSchema.optional(),
   notes: z.string().trim().max(2000).optional(),
 })
@@ -132,6 +135,7 @@ export async function POST(request: NextRequest) {
       lines: input.lines,
       shipTo: input.shipTo,
       shipSpeed: input.shipSpeed,
+      shippingTotalOverride: input.shippingTotal,
       shippingAddress: shippingAddress
         ? (shippingAddress as unknown as Prisma.InputJsonValue)
         : null,
@@ -184,6 +188,14 @@ export async function POST(request: NextRequest) {
     // Payment was captured externally, so reconcile never runs — reserve here.
     await reserveForOrder(order.id).catch((e) =>
       logger.warn('[stripe-convert] reserveForOrder failed (non-blocking)', {
+        orderId: order.id,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+
+    // Partner ledger: capture path never ran for Stripe-ingest converts.
+    await accrueCommissionForOrder(order.id).catch((e) =>
+      logger.warn('[stripe-convert] partner accrual failed (non-blocking)', {
         orderId: order.id,
         error: e instanceof Error ? e.message : String(e),
       })
