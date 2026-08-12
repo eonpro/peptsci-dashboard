@@ -127,25 +127,73 @@ export default function POGeneratorPage() {
   const selectedSupplier =
     priceSource === CATALOG_SOURCE ? null : (suppliers.find((s) => s.id === priceSource) ?? null)
 
-  // Product list for the item picker: our catalog, or the selected supplier's
-  // price list (their Cat.No + our negotiated per-vial cost).
-  const products = useMemo<PriceSheet[]>(() => {
-    if (!selectedSupplier) return catalogProducts
-    return selectedSupplier.priceItems.map((i) => ({
+  const supplierToProducts = useCallback((supplier: Supplier): PriceSheet[] => {
+    return supplier.priceItems.map((i) => ({
       SKU: i.supplierSku,
       Product: i.productName,
       Dose: i.dose,
       Cost: i.unitCost,
       SRP: i.listPrice ?? i.unitCost,
     }))
-  }, [selectedSupplier, catalogProducts])
+  }, [])
 
-  // Switching price source re-prices the sheet, so line items no longer match.
+  // Product list for the item picker: our catalog, or the selected supplier's
+  // price list (their Cat.No + our negotiated per-vial cost).
+  const products = useMemo<PriceSheet[]>(() => {
+    if (!selectedSupplier) return catalogProducts
+    return supplierToProducts(selectedSupplier)
+  }, [selectedSupplier, catalogProducts, supplierToProducts])
+
+  /** Reprice existing lines from a product list (match by "Name Dose"); keep manual cost when no match. */
+  const repriceItems = (items: POItem[], productList: PriceSheet[]): POItem[] =>
+    items.map((item) => {
+      if (!item.product) return item
+      const product = productList.find((p) => `${p.Product} ${p.Dose}` === item.product)
+      if (!product) return item
+      return {
+        ...item,
+        name: product.Product,
+        sku: product.SKU,
+        dose: product.Dose,
+        cost: product.Cost,
+        total: product.Cost * item.quantity,
+      }
+    })
+
+  // Switching price source re-prices the sheet. Keep lines that still match; clear orphan picks.
   const changePriceSource = (value: string) => {
     setPriceSource(value)
-    setPOItems([])
     const supplier = value === CATALOG_SOURCE ? null : suppliers.find((s) => s.id === value)
     setVendor(supplier ? supplier.name : '')
+    const nextProducts = supplier ? supplierToProducts(supplier) : catalogProducts
+    setPOItems((prev) =>
+      repriceItems(prev, nextProducts).map((item) => {
+        if (!item.product) return item
+        const stillExists = nextProducts.some((p) => `${p.Product} ${p.Dose}` === item.product)
+        return stillExists
+          ? item
+          : { ...item, product: '', name: '', sku: '', dose: '', cost: 0, total: 0 }
+      })
+    )
+  }
+
+  /**
+   * Typing a known supplier name into Vendor syncs the Price List and reprices
+   * matching lines. Unknown names stay free-text — edit Unit Cost manually.
+   */
+  const syncVendorToPriceList = () => {
+    const trimmed = vendor.trim()
+    if (!trimmed) return
+    const match = suppliers.find((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+    if (!match) return
+    if (priceSource === match.id) {
+      if (vendor !== match.name) setVendor(match.name)
+      return
+    }
+    setPriceSource(match.id)
+    setVendor(match.name)
+    setPOItems((prev) => repriceItems(prev, supplierToProducts(match)))
+    toast.success(`Using ${match.name} price list`)
   }
 
   // After a price-list import, refresh and select the imported supplier.
@@ -203,6 +251,12 @@ export default function POGeneratorPage() {
           const quantity = typeof value === 'number' ? value : Number(value) || 0
           updated.quantity = quantity
           updated.total = updated.cost * quantity
+        }
+
+        if (field === 'cost') {
+          const cost = typeof value === 'number' ? value : Number(value) || 0
+          updated.cost = Math.max(0, cost)
+          updated.total = updated.cost * updated.quantity
         }
 
         return updated
@@ -546,6 +600,12 @@ export default function POGeneratorPage() {
               <Input
                 value={vendor}
                 onChange={(e) => setVendor(e.target.value)}
+                onBlur={syncVendorToPriceList}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }}
                 placeholder="Enter vendor name"
                 className="mt-1"
               />
@@ -628,8 +688,25 @@ export default function POGeneratorPage() {
                       />
                     </div>
 
-                    <div className="col-span-2">
-                      <Input value={`$${item.cost.toFixed(2)}`} disabled />
+                    <div className="col-span-2 relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        $
+                      </span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        inputMode="decimal"
+                        className="pl-7"
+                        value={item.cost === 0 ? '' : item.cost}
+                        placeholder="0.00"
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          const num = raw === '' ? 0 : Number(raw)
+                          if (!Number.isNaN(num)) updateItem(item.id, 'cost', num)
+                        }}
+                        aria-label="Unit cost"
+                      />
                     </div>
 
                     <div className="col-span-1">
