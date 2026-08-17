@@ -6,6 +6,7 @@ import {
   looksLikePeptSciOrigin,
   resolveWhiteLabelOrigin,
   fedexShipFromDisplayName,
+  resolveFedExDestinationCompany,
 } from '../shipping/whiteLabelOrigin.ts'
 
 const clientAddr = {
@@ -127,5 +128,51 @@ describe('isCompleteShipFromAddress / looksLikePeptSciOrigin', () => {
     assert.equal(fedexShipFromDisplayName('Elevated Vitality Peptides'), 'Elevated Vitality')
     assert.equal(fedexShipFromDisplayName('LIVBETR'), 'LIVBETR')
     assert.equal(fedexShipFromDisplayName('Acme Peptides'), 'Acme')
+  })
+})
+
+describe('resolveFedExDestinationCompany', () => {
+  test('white-label never falls back to the clinic organization', () => {
+    assert.equal(
+      resolveFedExDestinationCompany({
+        addressCompany: null,
+        clientOrganizationName: 'Elevated Vitality Peptides',
+        whiteLabel: true,
+      }),
+      ''
+    )
+  })
+
+  test('white-label drops address company when it is the clinic name', () => {
+    assert.equal(
+      resolveFedExDestinationCompany({
+        addressCompany: 'Elevated Vitality Peptides',
+        clientOrganizationName: 'Elevated Vitality',
+        whiteLabel: true,
+      }),
+      ''
+    )
+  })
+
+  test('white-label keeps a real recipient company', () => {
+    assert.equal(
+      resolveFedExDestinationCompany({
+        addressCompany: 'Mueller Lab',
+        clientOrganizationName: 'Elevated Vitality Peptides',
+        whiteLabel: true,
+      }),
+      'Mueller Lab'
+    )
+  })
+
+  test('non-white-label still falls back to clinic org', () => {
+    assert.equal(
+      resolveFedExDestinationCompany({
+        addressCompany: null,
+        clientOrganizationName: 'Acme Clinic',
+        whiteLabel: false,
+      }),
+      'Acme Clinic'
+    )
   })
 })
