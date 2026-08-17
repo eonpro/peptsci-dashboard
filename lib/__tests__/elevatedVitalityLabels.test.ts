@@ -5,10 +5,13 @@ import path from 'node:path'
 import { PDFDocument, type PDFFont } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import {
+  fitDoseSize,
   fitNameSize,
   formatElevatedVitalityDose,
   parseBudUs,
+  resolveElevatedVitalityNameBlock,
   splitElevatedVitalityNameLines,
+  wrapCompoundSubtitle,
 } from '../labels/elevatedVitalityLabelPdf'
 import { isLabelBrandKey, resolveLabelBrandKey } from '../labels/brandKeys'
 
@@ -37,9 +40,33 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
   })
 
   it('formats blend doses as dose/dose when needed', () => {
-    assert.equal(formatElevatedVitalityDose('10mg', ['BPC-157', 'TB-500']), '10MG/10MG')
-    assert.equal(formatElevatedVitalityDose('10mg/5mg', ['A', 'B']), '10MG/5MG')
-    assert.equal(formatElevatedVitalityDose('10mg', ['TESAMORELIN']), '10MG')
+    assert.equal(formatElevatedVitalityDose('10mg', 2), '10MG/10MG')
+    assert.equal(formatElevatedVitalityDose('10mg/5mg', 2), '10MG/5MG')
+    assert.equal(formatElevatedVitalityDose('10mg', 1), '10MG')
+    assert.equal(formatElevatedVitalityDose('50mg/10mg/10mg', 3), '50MG/10MG/10MG')
+  })
+
+  it('resolves GLOW / KLOW as trade name + compound subtitle', () => {
+    const glow = resolveElevatedVitalityNameBlock('GLOW')
+    assert.equal(glow.hero, 'GLOW')
+    assert.equal(glow.compoundCount, 3)
+    assert.deepEqual(glow.lines, ['GHK-CU / BPC-157 / TB-500'])
+
+    const fromCompounds = resolveElevatedVitalityNameBlock(
+      'GHK-Cu and BPC-157 and TB-500'
+    )
+    assert.equal(fromCompounds.hero, 'GLOW')
+
+    const klow = resolveElevatedVitalityNameBlock('KLOW')
+    assert.equal(klow.hero, 'KLOW')
+    assert.equal(klow.compoundCount, 4)
+    assert.deepEqual(klow.lines, ['GHK-CU / BPC-157', 'TB-500 / KPV'])
+  })
+
+  it('keeps GLOW compounds on one subtitle line', () => {
+    assert.deepEqual(wrapCompoundSubtitle('GHK-Cu / BPC-157 / TB-500'), [
+      'GHK-Cu / BPC-157 / TB-500',
+    ])
   })
 
   it('formats EXP as MM/DD/YY so the year fits the rail box', () => {
@@ -49,23 +76,23 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
   })
 })
 
+
 describe('Elevated Vitality product name sizing', () => {
   /** Label geometry the sizing has to live inside (points, from the artwork). */
   const CARD_CX = 67.575
+  const CARD_W = 29.73
   const NAME_BAND = { top: 20.5, bottom: 35.46 }
   const CAP_RATIO = 0.74
   const TRIDENT_RIGHT_EDGE = 28.4 // solid artwork on the left
   const RAIL_LEFT_EDGE = 120.01 // right rail box
 
-  let italic: PDFFont
+  let roman: PDFFont
 
   before(async () => {
     const doc = await PDFDocument.create()
     doc.registerFontkit(fontkit)
-    italic = await doc.embedFont(
-      await readFile(
-        path.join(process.cwd(), 'public', 'fonts', 'labels', 'Inter-ExtraBoldItalic.ttf')
-      ),
+    roman = await doc.embedFont(
+      await readFile(path.join(process.cwd(), 'public', 'fonts', 'labels', 'Inter-Black.ttf')),
       { subset: false }
     )
   })
@@ -73,14 +100,14 @@ describe('Elevated Vitality product name sizing', () => {
   const lines = (name: string) => splitElevatedVitalityNameLines(name).map((l) => l.toUpperCase())
 
   it('gives short names the full cap size', () => {
-    assert.equal(fitNameSize(italic, lines('NAD+')), 11)
-    assert.equal(fitNameSize(italic, lines('Semax')), 11)
+    assert.equal(fitNameSize(roman, lines('NAD+')), 11)
+    assert.equal(fitNameSize(roman, lines('Semax')), 11)
   })
 
   it('keeps long compounds far larger than the old 9pt/narrow-budget output', () => {
     // These used to shrink to ~5.1pt, which is what prompted the change.
     for (const name of ['Tesamorelin', 'Retatrutide', 'Semaglutide', 'Glutathione']) {
-      const size = fitNameSize(italic, lines(name))
+      const size = fitNameSize(roman, lines(name))
       assert.ok(size >= 7, `${name} rendered at ${size}pt, expected >= 7`)
     }
   })
@@ -88,7 +115,7 @@ describe('Elevated Vitality product name sizing', () => {
   it('never lets the two lines of a blend collide', () => {
     const blend = lines('BPC-157 / TB-500')
     assert.equal(blend.length, 2)
-    const size = fitNameSize(italic, blend)
+    const size = fitNameSize(roman, blend)
     const capHeight = size * CAP_RATIO
     const gap = 1.4
     const blockHeight = 2 * capHeight + gap
@@ -111,9 +138,9 @@ describe('Elevated Vitality product name sizing', () => {
       'BPC-157 / TB-500',
     ]) {
       const nameLines = lines(name)
-      const size = fitNameSize(italic, nameLines)
+      const size = fitNameSize(roman, nameLines)
       for (const line of nameLines) {
-        const width = italic.widthOfTextAtSize(line, size)
+        const width = roman.widthOfTextAtSize(line, size)
         const left = CARD_CX - width / 2
         const right = CARD_CX + width / 2
         assert.ok(
@@ -122,6 +149,16 @@ describe('Elevated Vitality product name sizing', () => {
         )
         assert.ok(right < RAIL_LEFT_EDGE, `${name} ends at ${right.toFixed(1)}, over the rail`)
       }
+    }
+  })
+
+  it('fits GLOW / KLOW multi-dose strings inside the black card', () => {
+    const maxW = CARD_W - 5
+    for (const dose of ['50MG/10MG/10MG', '50MG/10MG/10MG/10MG', '10MG/10MG', '10MG']) {
+      const size = fitDoseSize(roman, dose)
+      const width = roman.widthOfTextAtSize(dose, size)
+      assert.ok(width <= maxW + 0.05, `${dose} at ${size}pt is ${width.toFixed(1)}pt wide > ${maxW}`)
+      assert.ok(size >= 1.8 - 1e-9, `${dose} shrunk below the floor (${size})`)
     }
   })
 })

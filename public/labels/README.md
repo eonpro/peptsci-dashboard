@@ -72,13 +72,15 @@ Per-client vial brands live under `public/labels/clients/<slug>/`.
 - Source SVG: `clients/elevated-vitality/elevated-vitality-label-empty.svg`
 - Raster template: `clients/elevated-vitality/elevated-vitality-label-template.png`
 - Engine: `lib/labels/elevatedVitalityLabelPdf.ts`
-- Dynamic overlays: compound name(s) @ 9pt Inter ExtraBold Italic (centered between
-  wordmark and black card; two compounds → two lines), dose in black card
-  (`10MG` or `10MG/10MG`), `BATCH#` / `EXP` values on the right rail
+- Dynamic overlays: compound name(s) @ Inter Black roman (centered between
+  wordmark and black card; two compounds → two lines; GLOW/KLOW → trade name +
+  compound subtitle), dose in black card auto-fit (`10MG`, `10MG/10MG`, or
+  `50MG/10MG/10MG`), `BATCH#` / `EXP` on the right rail, warning vertically
+  centered with the rail boxes
 - Enable on **Clients → [practice] → White-label vial labels**
 
-Fonts: `public/fonts/labels/Inter-ExtraBoldItalic.ttf`, `Inter-Black.ttf` (also
-embedded in `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
+Fonts: `public/fonts/labels/Inter-Black.ttf` (also embedded in
+`lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
 
 ### LIVBETR (`livbetr`)
 
