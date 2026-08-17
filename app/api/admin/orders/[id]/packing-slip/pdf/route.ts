@@ -23,7 +23,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="peptsci-order-${slip.orderNumber}-packing-slip.pdf"`,
+        'Content-Disposition': `attachment; filename="${
+          slip.labelBrandKey ? slip.labelBrandKey.replace(/_/g, '-') : 'peptsci'
+        }-order-${slip.orderNumber}-packing-slip.pdf"`,
         'Cache-Control': 'no-store',
       },
     })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Printer, Package, Truck, AlertCircle, Zap, DollarSign, Download, CheckCircle2 } from 'lucide-react'
 import {
   Dialog,
@@ -100,6 +100,22 @@ export default function FedExLabelModal({
     state: destination?.state || '',
     zip: destination?.zip || '',
   })
+
+  // Remount-safe: when the modal opens for a new order, re-apply origin/destination.
+  useEffect(() => {
+    if (!open) return
+    setOriginAddr({ ...DEFAULT_ORIGIN, ...origin })
+    setDestAddr({
+      personName: destination?.personName || '',
+      companyName: destination?.companyName || '',
+      phoneNumber: destination?.phoneNumber || '',
+      address1: destination?.address1 || '',
+      address2: destination?.address2 || '',
+      city: destination?.city || '',
+      state: destination?.state || '',
+      zip: destination?.zip || '',
+    })
+  }, [open, origin, destination])
 
   const [oneRate, setOneRate] = useState(true)
   const [serviceType, setServiceType] = useState('FEDEX_2_DAY')
