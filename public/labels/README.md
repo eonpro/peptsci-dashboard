@@ -81,7 +81,7 @@ Per-client vial brands live under `public/labels/clients/<slug>/`.
 
 Fonts: `public/fonts/labels/Inter-Black.ttf` (also embedded in
 `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
-GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `KPV / BPC-157 / GHK-Cu / TB-500`.
+GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `GHK-Cu / BPC-157 / KPV / TB-500` (dose `50/10/10/10`).
 
 ### LIVBETR (`livbetr`)
 

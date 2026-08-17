@@ -64,13 +64,17 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
     const klow = resolveElevatedVitalityNameBlock('KLOW')
     assert.equal(klow.hero, 'KLOW')
     assert.equal(klow.compoundCount, 4)
-    assert.deepEqual(klow.lines, ['KPV / BPC-157', 'GHK-CU / TB-500'])
+    assert.deepEqual(klow.lines, ['GHK-CU / BPC-157', 'KPV / TB-500'])
   })
 
-  it('reorders legacy KLOW stock doses to on-label compound order', () => {
+  it('keeps KLOW doses as 50/10/10/10 (GHK / BPC / KPV / TB)', () => {
     assert.equal(
       alignNamedBlendDose('KLOW', '50MG/10MG/10MG/10MG'),
-      '10MG/10MG/50MG/10MG'
+      '50MG/10MG/10MG/10MG'
+    )
+    assert.equal(
+      alignNamedBlendDose('KLOW', '10MG/10MG/50MG/10MG'),
+      '50MG/10MG/10MG/10MG'
     )
     assert.equal(alignNamedBlendDose('GLOW', '50MG/10MG/10MG'), '50MG/10MG/10MG')
   })
