@@ -31,14 +31,14 @@ const CJC_1295_NO_DAC: BlendComponent = { name: 'CJC-1295 (no DAC)', casNumber: 
 const IPAMORELIN: BlendComponent = { name: 'Ipamorelin', casNumber: '170851-70-4', molecularFormula: 'C38H49N9O5', molecularWeight: '711.9 g/mol', purity: P }
 const TESAMORELIN: BlendComponent = { name: 'Tesamorelin', casNumber: '218949-48-5', molecularFormula: 'C221H366N72O67S', molecularWeight: '5135.9 g/mol', purity: P }
 
-// Component order matches vial-label subtitles (owner lock 2026-08-17):
+// Component order matches vial-label subtitles:
 //   GLOW 70: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg
-//   KLOW 80: KPV 10mg + BPC-157 10mg + GHK-Cu 50mg + TB-500 10mg
+//   KLOW 80: GHK-Cu 50mg + BPC-157 10mg + KPV 10mg + TB-500 10mg
 // Dose strings are slash-separated in the same order so PDP / labels line up.
 export const BLEND_COMPOSITIONS: Record<string, BlendComponent[]> = {
   'bpc-157-tb-500-blend': [BPC_157, TB_500],
   glow: [GHK_CU, BPC_157, TB_500],
-  klow: [KPV, BPC_157, GHK_CU, TB_500],
+  klow: [GHK_CU, BPC_157, KPV, TB_500],
   'cjc-1295-no-dac-ipamorelin': [CJC_1295_NO_DAC, IPAMORELIN],
   'tesamorelin-ipamorelin': [TESAMORELIN, IPAMORELIN],
 }

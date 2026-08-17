@@ -196,8 +196,8 @@ export function formatElevatedVitalityDose(dose: string, compoundCount: number):
 
 /**
  * Align a slash dose with the on-label compound order.
- * Legacy KLOW stock order was GHK/BPC/TB/KPV (50/10/10/10); labels now print
- * KPV/BPC/GHK/TB (10/10/50/10).
+ * KLOW prints GHK / BPC / KPV / TB as 50/10/10/10. Remap the brief KPV-first
+ * stock order (10/10/50/10) back so the black card matches.
  */
 export function alignNamedBlendDose(
   trade: 'GLOW' | 'KLOW' | null,
@@ -206,9 +206,14 @@ export function alignNamedBlendDose(
   const normalized = dose.replace(/\s+/g, '').toUpperCase()
   if (!trade || !normalized.includes('/')) return normalized
   const parts = normalized.split('/').filter(Boolean)
-  if (trade === 'KLOW' && parts.length === 4 && parts[0] === '50MG') {
-    // GHK / BPC / TB / KPV → KPV / BPC / GHK / TB
-    return [parts[3], parts[1], parts[0], parts[2]].join('/')
+  if (
+    trade === 'KLOW' &&
+    parts.length === 4 &&
+    parts[0] === '10MG' &&
+    parts[2] === '50MG'
+  ) {
+    // KPV / BPC / GHK / TB → GHK / BPC / KPV / TB
+    return [parts[2], parts[1], parts[0], parts[3]].join('/')
   }
   return normalized
 }

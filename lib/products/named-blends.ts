@@ -78,8 +78,8 @@ export function displayProductName(name: string, sku?: string | null): string {
 /** Canonical aka subtitle for a named blend (compound order matches label doses). */
 export function namedBlendCompoundSubtitle(trade: 'GLOW' | 'KLOW'): string {
   if (trade === 'GLOW') return 'GHK-Cu / BPC-157 / TB-500'
-  // Owner lock (2026-08-17): KPV first, then BPC / GHK / TB.
-  return 'KPV / BPC-157 / GHK-Cu / TB-500'
+  // Owner lock: GHK / BPC / KPV / TB so the dose card stays 50/10/10/10.
+  return 'GHK-Cu / BPC-157 / KPV / TB-500'
 }
 
 /** Turn "A and B and C" / "A / B / C Blend" into an aka subtitle. */
