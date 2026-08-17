@@ -25,6 +25,7 @@ import type { LabelAddress } from '@/components/shipping/FedExLabelModal'
 import {
   resolveWhiteLabelOrigin,
   looksLikePeptSciOrigin,
+  resolveFedExDestinationCompany,
   type ShipFromAddress,
 } from '@/lib/shipping/whiteLabelOrigin'
 import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
@@ -71,9 +72,20 @@ function str(v: unknown): string {
 /** Map an order's stored shipping address + client into the modal's address shape. */
 function toLabelAddress(order: OrderRow): Partial<LabelAddress> {
   const a = (order.shippingAddress || {}) as Record<string, unknown>
+  const whiteLabel =
+    order.source === 'SHOPIFY' || Boolean(order.client?.whiteLabelEnabled)
   return {
-    personName: str(a.name) || str(a.personName) || order.client?.contactName || order.client?.organizationName || '',
-    companyName: str(a.company) || str(a.companyName) || order.client?.organizationName || '',
+    personName:
+      str(a.name) ||
+      str(a.personName) ||
+      order.client?.contactName ||
+      (whiteLabel ? '' : order.client?.organizationName) ||
+      '',
+    companyName: resolveFedExDestinationCompany({
+      addressCompany: str(a.company) || str(a.companyName) || null,
+      clientOrganizationName: order.client?.organizationName,
+      whiteLabel,
+    }),
     phoneNumber: str(a.phone) || str(a.phoneNumber) || order.client?.contactPhone || '',
     address1: str(a.address1) || str(a.line1) || str(a.street),
     address2: str(a.address2) || str(a.line2),

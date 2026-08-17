@@ -129,3 +129,30 @@ export function fedexShipFromDisplayName(organizationName: string): string {
   const cleaned = organizationName.replace(/\s+Peptides\s*$/i, '').trim()
   return cleaned || organizationName.trim()
 }
+
+/** Normalize for comparing clinic vs address company lines. */
+function orgKey(name: string): string {
+  return fedexShipFromDisplayName(name).toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/**
+ * Recipient company line for FedEx.
+ *
+ * White-label / Shopify retail labels ship to the end customer — never put the
+ * practice organization on the TO company line (that printed under the customer
+ * name as e.g. "ELEVATED VITALITY PEPTIDES").
+ */
+export function resolveFedExDestinationCompany(input: {
+  addressCompany?: string | null
+  clientOrganizationName?: string | null
+  whiteLabel?: boolean
+}): string {
+  const fromAddr = str(input.addressCompany)
+  if (input.whiteLabel) {
+    const org = str(input.clientOrganizationName)
+    if (!fromAddr) return ''
+    if (org && orgKey(fromAddr) === orgKey(org)) return ''
+    return fromAddr
+  }
+  return fromAddr || str(input.clientOrganizationName)
+}
