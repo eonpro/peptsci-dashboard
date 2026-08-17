@@ -485,16 +485,20 @@ function drawLabel(
 }
 
 export async function generateElevatedVitalityLabelsPdf(
-  groups: ElevatedVitalityLabelGroup[]
-): Promise<Buffer> {
+  groups: ElevatedVitalityLabelGroup[],
+  options?: { startSlot?: number }
+): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
 
-  const { pageCount, placements } = planLabelSheets(
+  const startSlot = options?.startSlot ?? 0
+  const { pageCount, placements, nextStartSlot, labelsPrinted } = planLabelSheets(
     groups.map((group) => ({
       req: { label: group.req, proofMode: Boolean(group.proofMode) },
       quantity: group.quantity,
-    }))
+    })),
+    OL4891LP,
+    { startSlot }
   )
 
   // Nothing to print (e.g. no allocatable batches) still yields one blank
@@ -502,7 +506,12 @@ export async function generateElevatedVitalityLabelsPdf(
   // subsetting a font no glyph was ever drawn with.
   if (placements.length === 0) {
     doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-    return Buffer.from(await doc.save())
+    return {
+      pdf: Buffer.from(await doc.save()),
+      nextStartSlot: startSlot,
+      labelsPrinted: 0,
+      startSlot,
+    }
   }
 
   const templateBytes = await loadTemplateBytes()
@@ -524,22 +533,31 @@ export async function generateElevatedVitalityLabelsPdf(
   }
 
   const bytes = await doc.save()
-  return Buffer.from(bytes)
+  return {
+    pdf: Buffer.from(bytes),
+    nextStartSlot,
+    labelsPrinted,
+    startSlot,
+  }
 }
 
 export async function generateElevatedVitalityLabelSheetPdf(
   input: ElevatedVitalityLabelRequest
 ): Promise<Buffer> {
-  return generateElevatedVitalityLabelsPdf([
-    {
-      req: {
-        productName: input.productName,
-        dose: input.dose,
-        batchNumber: input.batchNumber,
-        budIsoDate: input.budIsoDate,
+  const { pdf } = await generateElevatedVitalityLabelsPdf(
+    [
+      {
+        req: {
+          productName: input.productName,
+          dose: input.dose,
+          batchNumber: input.batchNumber,
+          budIsoDate: input.budIsoDate,
+        },
+        quantity: input.quantity,
+        proofMode: input.proofMode,
       },
-      quantity: input.quantity,
-      proofMode: input.proofMode,
-    },
-  ])
+    ],
+    { startSlot: 0 }
+  )
+  return pdf
 }

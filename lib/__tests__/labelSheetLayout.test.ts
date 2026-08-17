@@ -76,6 +76,39 @@ describe('planLabelSheets packing', () => {
     )
   })
 
+  test('continues a partially used sheet from startSlot', () => {
+    const { placements, nextStartSlot, pageCount } = planLabelSheets([group('A', 2)], g, {
+      startSlot: 2,
+    })
+    assert.equal(pageCount, 1)
+    assert.deepEqual(
+      placements.map((p) => p.slot),
+      [2, 3]
+    )
+    assert.equal(nextStartSlot, 4)
+  })
+
+  test('wraps to a new page when startSlot is near the end of the sheet', () => {
+    const { placements, nextStartSlot, pageCount } = planLabelSheets([group('A', 3)], g, {
+      startSlot: 35,
+    })
+    assert.equal(pageCount, 2)
+    assert.deepEqual(
+      placements.map((p) => ({ page: p.pageIndex, slot: p.slot })),
+      [
+        { page: 0, slot: 35 },
+        { page: 1, slot: 0 },
+        { page: 1, slot: 1 },
+      ]
+    )
+    assert.equal(nextStartSlot, 2)
+  })
+
+  test('resets nextStartSlot to 0 after filling from slot 0 through 35', () => {
+    const { nextStartSlot } = planLabelSheets([group('A', 36)], g, { startSlot: 0 })
+    assert.equal(nextStartSlot, 0)
+  })
+
   test('skips zero, negative, and fractional-down quantities', () => {
     const { pageCount, placements } = planLabelSheets(
       [group('A', 0), group('B', -5), group('C', 2.9)],

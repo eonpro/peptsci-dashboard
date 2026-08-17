@@ -98,7 +98,8 @@ export function resolveWhiteLabelOrigin(input: {
   const parsed = parseStoredAddress(input.client.shippingAddress ?? null)
   if (!isCompleteShipFromAddress(parsed)) return pept
 
-  const org = str(input.client.organizationName) || pept.personName
+  const orgRaw = str(input.client.organizationName) || pept.personName
+  const org = fedexShipFromDisplayName(orgRaw)
   return {
     personName: org,
     companyName: org,
@@ -109,4 +110,13 @@ export function resolveWhiteLabelOrigin(input: {
     state: parsed.state,
     zip: parsed.zip,
   }
+}
+
+/**
+ * FedEx ship-from display name for a practice.
+ * Drops a trailing "Peptides" so "Elevated Vitality Peptides" → "Elevated Vitality".
+ */
+export function fedexShipFromDisplayName(organizationName: string): string {
+  const cleaned = organizationName.replace(/\s+Peptides\s*$/i, '').trim()
+  return cleaned || organizationName.trim()
 }

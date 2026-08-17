@@ -1,3 +1,193 @@
+# Label sheet continuation + FedEx EV name  [EXECUTOR — 2026-08-17]
+
+## Background and Motivation
+OL4891LP sheets were reprinted from space 1 every job, wasting peeled labels.
+FedEx ship-from for Elevated Vitality still showed “…Peptides”.
+
+## What shipped (this PR)
+- FedEx display name strips trailing “Peptides” → `Elevated Vitality`
+- Global sheet cursor (`AppSetting` / `vial_label_sheet_next_slot`): print continues
+  at next empty space (1–36), wraps after 36
+- Inventory + product print dialogs show next space + **Fresh sheet** reset
+- Order label PDF advances the same cursor; proof mode does not
+
+## Project Status Board
+- [x] Strip Peptides from FedEx EV name
+- [x] planLabelSheets startSlot + cursor persistence
+- [x] API + UI (products, inventory, fulfillment headers)
+- [ ] Commit / PR / deploy
+
+## Executor's Feedback or Assistance Requests
+After deploy: run admin DB migrate if needed; print 2 labels → next should start at 3.
+Use **Fresh sheet** when loading a new physical sheet.
+
+## Lessons
+- Cursor is shared across PeptSci + white-label vial prints (same stock).
+- Proof downloads must not advance the cursor.
+
+---
+
+# Elevated Vitality label typography (italic / GLOW dose / warning)  [EXECUTOR — 2026-08-17]
+
+## Background and Motivation
+EV white-label proofs showed compound names in Inter ExtraBold Italic, GLOW-style
+multi-dose strings spilling past the black card, and “NOT FOR HUMAN CONSUMPTION”
+bottom-aligned with the right-rail boxes. Owner shared a GLOW mock: trade name
+**GLOW** + compound line `GHK-CU / BPC-157 / TB-500` + `50MG/10MG/10MG` in the card.
+
+Follow-up (photo of printed KLOW): grow the black dose card instead of shrinking
+type; KLOW subtitle order is **KPV / BPC-157 / GHK-Cu / TB-500**; FedEx label
+modal should default One Rate + Envelope + 2Day.
+
+## What shipped
+- Inter Black (roman) for name + dose + subtitle
+- `resolveElevatedVitalityNameBlock`: GLOW/KLOW → hero + compound subtitle
+- `doseCardGeometry`: grow black card to keep preferred ~4.2pt dose size
+- Warning white-out + redraw centered on rail boxes
+- FedEx modal: One Rate on, `FEDEX_ENVELOPE`, `FEDEX_2_DAY`
+- PR #20 / #21 → production
+
+## Project Status Board
+- [x] Roman Inter Black (no italic)
+- [x] GLOW/KLOW hero + compound subtitle layout (KLOW order updated)
+- [x] Grow dose card (prefer size over shrink)
+- [x] Warning vertically centered with rail containers
+- [x] FedEx One Rate + Envelope 2-Day defaults
+- [x] Commit / PR / deploy follow-up (#21)
+
+## Executor's Feedback or Assistance Requests
+None — shipped.
+
+## Lessons
+- Named blends need trade name + aka compounds on EV labels (not trade name alone).
+- Do not expand a blend total (`80mg`) into `80MG×N` on the dose card.
+- Prefer growing the dose plate over shrinking Inter Black for multi-dose strings.
+
+---
+
+# Elevated Vitality #299 pricing (not old cost)  [EXECUTOR — 2026-08-13]
+
+## Background and Motivation
+Owner saw Recent Orders for Kyle Houlahan / order #299 with NAD+ 1000 mg at
+**$73.75 and $77.24** and thought Elevated Vitality was still billed the old
+list after updating client pricing to **$70 NAD+ / $75 Klow**.
+
+## Key Challenges and Analysis
+- Invoices 67 (#298 / Shopify #1286) and 68 (#299 / Shopify #1287) billed the
+  new prices + $15 2-day shipping. Card charges: $160 and $295.
+- Dashboard grouped by `customerName + date`, so two same-day EV orders glued
+  into one #299 row (customer history already groups by OrderID).
+- Per-vial used `order.total / vials`, smearing shipping into product prices
+  ($280+$15)/4 = $73.75; ($70+$75+$15) scaled = $77.24 / $82.76.
+- 1886% markup: NAD1000 `unitCost` is $0, so grouped COGS was only Klow $22.90.
+
+## What shipped
+- `recentOrderGroupKey` — Recent Orders groups by order number
+- `salesFromRecord` treats paidAmount above product lines as Shipping (does not
+  scale up vial prices); discounts still scale down
+- `syncSalesRecordFromOrder` writes a Shipping line going forward
+- Tests in `lib/__tests__/salesIngest.test.ts`
+
+## Project Status Board
+- [x] Pull prod invoices + live EV custom prices
+- [x] TDD: shipping surplus + order-id grouping
+- [x] Dashboard grouping + salesFromRecord + order sync
+- [ ] Deploy so peptsci.com Recent Orders splits #298 / #299 at $70 / $75 + $15
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh after deploy. #298 and #299 should be two rows; NAD+ $70, Klow $75,
+Shipping $15. Set NAD1000 catalog unit cost if markup should be real.
+
+## Lessons
+- White-label Shopify inbound invoices are the charge source of truth; Recent
+  Orders `AmountPerVial` was order total ÷ vials, not ClientPricing.
+
+---
+
+## Background and Motivation
+Creating a PO for a new/custom vendor (e.g. Archem Limited) left Unit Cost locked to catalog prices. Operators needed to enter the vendor's quoted per-vial cost, and typing a known supplier name should switch to that price list.
+
+## What shipped
+- Unit Cost on PO line items is editable; line Total recalculates
+- Vendor blur/Enter: if name matches an imported supplier, sync Price List and reprice matching lines
+- Price List changes reprice in place instead of wiping the sheet (unmatched products cleared)
+
+## Project Status Board
+- [x] Editable unit cost
+- [x] Vendor → supplier price list sync
+- [ ] Owner smoke: new vendor + manual costs; known vendor name auto-loads list
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh `/po-generator`. For a new vendor, type the name and edit Unit Cost. For an imported supplier, type their exact name and Tab/click away — Price List and costs should update.
+
+## Lessons
+- Vendor free-text and Price List Select were disconnected; blur-match bridges known suppliers without forcing Import for one-off quotes.
+
+---
+# Hide cancelled orders from home Recent Orders  [EXECUTOR — 2026-08-11]
+
+## Background and Motivation
+Order #266 (Kyle Houlahan) was cancelled/refunded but still appeared on the home dashboard Recent Orders with a yellow **Needs Fulfillment** badge and $0 totals. Ops queue treated "invoicePaid && !tracking" as needing ship work, ignoring `Order.status === CANCELLED`.
+
+## Key Challenges and Analysis
+- Recent Orders is fed by `SalesRecord` via `/api/sales` / `getSales()` — no order status on the row.
+- Cancel zeros amounts (via refund sync) but leaves `invoicePaid: true` when payment was CAPTURED, so the badge stays amber.
+- Fulfillment list already excludes CANCELLED from active tabs; the home table did not.
+
+## What shipped
+- `Sale.OrderStatus` + `isOpsRecentSale()` — `getSales()` batch-joins `Order.status` by `salesRecord.orderId`
+- Dashboard Recent Orders filters out CANCELLED / REJECTED / DRAFT
+- Badge: Cancelled (not Needs Fulfillment) if a cancelled row ever leaks through
+- `cancelOrder` also calls `syncSalesRecordFromOrder` (non-blocking)
+- Tests: `lib/__tests__/opsRecentSale.test.ts`
+
+## Project Status Board
+- [x] TDD helper + getSales status attach
+- [x] Dashboard filter + badge
+- [x] cancel → sales sync
+- [x] Deployed #17 + client-safe follow-up #18 → production READY (`dpl_8zaEzQpdC86dGFCiDSJ1WsVpGXJV`)
+- [ ] Owner hard-refresh home dashboard — #266 gone from Recent Orders (still on Fulfillment → Cancellations)
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh `/dashboard`. Cancelled #266 should no longer sit in Recent Orders as Needs Fulfillment.
+
+## Lessons
+- Ops badges on sales-backed tables must join live Order.status (or denormalize it); paidAmount/$0 alone cannot distinguish cancelled from open.
+
+---
+# Net 30 tab billing (InCare-style)  [EXECUTOR — 2026-08-11]
+
+## Background and Motivation
+InCare (and similar Net 30 clients) place orders by email. Ops needs: create manual orders → accumulate on unbilled tab → bill by create-date range on command. Also ship before invoicing for terms clients.
+
+## What shipped
+- `lib/invoicing/bill-period.ts` — local YMD range helpers + selection
+- `getUnbilledOrders(clientId, { from, to })` + unbilled API `?from=&to=`
+- Payment gate: `onTerms` allows ship/label/consume without invoice when `Client.paymentTermsDays != null`
+- Shared `components/invoices/NewInvoiceDialog` — Bill period dates, auto-select by create date, stamp periodStart/End, default terms from client
+- Client page (terms clients): Unbilled tab total, **New order**, **Bill period…** (defaults to month-to-date)
+- Invoices page deep-link: `?billClientId=&from=&to=`
+- Clients list API includes `paymentTermsDays`
+- NewOrderModal accepts `initialClientId`
+- Tests: billPeriod + paymentGate terms cases
+
+## Project Status Board
+- [x] TDD helpers + payment gate
+- [x] Service/API date filter
+- [x] Ship-on-terms in FedEx / disposition / labels consume
+- [x] New Invoice bill period UI
+- [x] Client page tab + actions
+- [x] `tsc --noEmit` clean; unit tests pass
+- [ ] Owner smoke: InCare Net 30 → New order → ship unpaid → Bill period for date range → invoice PDF shows period
+
+## Executor's Feedback or Assistance Requests
+Hard-refresh. Open InCare (or any Net 30 client) → Billing Terms shows Unbilled tab + New order / Bill period. Create a couple of PENDING orders, set Bill period from/to, create invoice.
+
+## Lessons
+- Tab = unbilled PENDING orders; do not invent a Tab model.
+- Shop terms checkout still invoices immediately per order — admin manual path is the batch tab.
+
+---
 # Guided fulfillment wizard (Start Fulfillment)  [EXECUTOR — 2026-08-11]
 
 ## Background and Motivation

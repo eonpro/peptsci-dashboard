@@ -21,6 +21,11 @@ import {
   type VialLabelGroup,
 } from '@/lib/labels/generateVialLabelsPdf'
 import { resolveLabelDose } from '@/lib/labels/peptsciLabelPdf'
+import {
+  advanceVialLabelSheetCursor,
+  getVialLabelSheetStartSlot,
+  toOperatorPosition,
+} from '@/lib/labels/sheet-cursor'
 import { resolveAdminUserId } from '@/lib/notifications/current-user'
 import { displayProductName } from '@/lib/products/named-blends'
 import {
@@ -265,7 +270,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const { pdf, brand } = await generateVialLabelsPdf(brandKey, labelGroups)
+    const startSlot = await getVialLabelSheetStartSlot()
+    const { pdf, brand, nextStartSlot, labelsPrinted } = await generateVialLabelsPdf(
+      brandKey,
+      labelGroups,
+      { startSlot }
+    )
+    if (labelsPrinted > 0) {
+      await advanceVialLabelSheetCursor(startSlot, labelsPrinted)
+    }
     const brandSlug = brand === 'peptsci' ? 'peptsci' : brand.replace(/_/g, '-')
 
     return new NextResponse(new Uint8Array(pdf), {
@@ -275,6 +288,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         'Cache-Control': 'no-store',
         'X-Label-Brand': brand,
         'X-Label-Shortfall': serializeLabelShortfall(shortfalls),
+        'X-Label-Start-Position': String(toOperatorPosition(startSlot)),
+        'X-Label-Next-Position': String(toOperatorPosition(nextStartSlot)),
+        'X-Label-Count': String(labelsPrinted),
       },
     })
   } catch (error) {

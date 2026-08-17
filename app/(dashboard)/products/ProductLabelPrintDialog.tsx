@@ -66,11 +66,23 @@ export default function ProductLabelPrintDialog({
   const [busy, setBusy] = useState(false)
   const [batchId, setBatchId] = useState('')
   const [printQty, setPrintQty] = useState(String(SHEET_MAX))
+  const [nextPosition, setNextPosition] = useState(1)
 
   const selected = useMemo(
     () => batches.find((b) => b.id === batchId) ?? null,
     [batches, batchId]
   )
+
+  const loadCursor = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/labels/sheet-cursor')
+      if (!res.ok) return
+      const data = await res.json()
+      if (typeof data.nextPosition === 'number') setNextPosition(data.nextPosition)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const load = useCallback(async () => {
     if (!variant) return
@@ -78,6 +90,7 @@ export default function ProductLabelPrintDialog({
     setBatches([])
     setBatchId('')
     try {
+      await loadCursor()
       const res = await fetch(
         `/api/admin/inventory/batches?status=ALL&variantId=${encodeURIComponent(variant.id)}&t=${Date.now()}`,
         { cache: 'no-store' }
@@ -91,16 +104,14 @@ export default function ProductLabelPrintDialog({
       const nextId = pickDefaultBatch(rows)
       setBatchId(nextId)
       const def = rows.find((b) => b.id === nextId)
-      setPrintQty(
-        String(Math.min(SHEET_MAX, Math.max(1, def?.qtyOnHand || SHEET_MAX)))
-      )
+      setPrintQty(String(Math.min(SHEET_MAX, Math.max(1, def?.qtyOnHand || SHEET_MAX))))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not load batches')
       onOpenChange(false)
     } finally {
       setLoading(false)
     }
-  }, [variant, onOpenChange])
+  }, [variant, onOpenChange, loadCursor])
 
   useEffect(() => {
     if (open && variant) void load()
@@ -111,6 +122,22 @@ export default function ProductLabelPrintDialog({
     const b = batches.find((row) => row.id === id)
     if (b) {
       setPrintQty(String(Math.min(SHEET_MAX, Math.max(1, b.qtyOnHand || SHEET_MAX))))
+    }
+  }
+
+  async function resetSheetCursor() {
+    try {
+      const res = await fetch('/api/admin/labels/sheet-cursor', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextPosition: 1 }),
+      })
+      if (!res.ok) throw new Error('Failed to reset')
+      const data = await res.json()
+      setNextPosition(data.nextPosition ?? 1)
+      toast.success('Next print starts at space 1 (fresh sheet)')
+    } catch {
+      toast.error('Could not reset sheet position')
     }
   }
 
@@ -127,6 +154,11 @@ export default function ProductLabelPrintDialog({
         const payload = await res.json().catch(() => ({}))
         throw new Error(payload.message || 'Failed to generate labels')
       }
+      const nextHdr = res.headers.get('X-Label-Next-Position')
+      if (nextHdr && !opts.proofMode) {
+        const n = Number.parseInt(nextHdr, 10)
+        if (Number.isFinite(n)) setNextPosition(n)
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -136,7 +168,11 @@ export default function ProductLabelPrintDialog({
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      toast.success(opts.proofMode ? 'Proof label downloaded' : 'Label sheet downloaded')
+      toast.success(
+        opts.proofMode
+          ? 'Proof label downloaded'
+          : `Label sheet downloaded · next space ${nextHdr || nextPosition}`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to generate labels')
     } finally {
@@ -176,6 +212,20 @@ export default function ProductLabelPrintDialog({
           </div>
         ) : (
           <div className="space-y-4 py-1">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-[#0a0e3a]/50 px-3 py-2 text-xs text-white/70">
+              <span>
+                Next print starts at space{' '}
+                <span className="font-semibold text-white">{nextPosition}</span> of {SHEET_MAX}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 text-[#5B8BFF] hover:underline"
+                onClick={() => void resetSheetCursor()}
+              >
+                Fresh sheet
+              </button>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">Batch</Label>
               <Select value={batchId} onValueChange={onBatchChange}>

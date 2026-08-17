@@ -38,10 +38,21 @@ export type VialLabelGroup = {
   accentColor?: string
 }
 
+export type VialLabelsPdfResult = {
+  pdf: Buffer
+  brand: 'peptsci' | LabelBrandKey
+  startSlot: number
+  nextStartSlot: number
+  labelsPrinted: number
+}
+
 export async function generateVialLabelsPdf(
   brandKey: LabelBrandKey | null,
-  groups: VialLabelGroup[]
-): Promise<{ pdf: Buffer; brand: 'peptsci' | LabelBrandKey }> {
+  groups: VialLabelGroup[],
+  options?: { startSlot?: number }
+): Promise<VialLabelsPdfResult> {
+  const startSlot = options?.startSlot ?? 0
+
   if (brandKey === ELEVATED_VITALITY_BRAND_KEY) {
     const evGroups: ElevatedVitalityLabelGroup[] = groups.map((g) => ({
       req: {
@@ -52,10 +63,8 @@ export async function generateVialLabelsPdf(
       },
       quantity: g.quantity,
     }))
-    return {
-      pdf: await generateElevatedVitalityLabelsPdf(evGroups),
-      brand: ELEVATED_VITALITY_BRAND_KEY,
-    }
+    const result = await generateElevatedVitalityLabelsPdf(evGroups, { startSlot })
+    return { brand: ELEVATED_VITALITY_BRAND_KEY, ...result }
   }
 
   if (brandKey === LIVBETR_BRAND_KEY) {
@@ -69,10 +78,8 @@ export async function generateVialLabelsPdf(
       },
       quantity: g.quantity,
     }))
-    return {
-      pdf: await generateLivbetrLabelsPdf(livGroups),
-      brand: LIVBETR_BRAND_KEY,
-    }
+    const result = await generateLivbetrLabelsPdf(livGroups, { startSlot })
+    return { brand: LIVBETR_BRAND_KEY, ...result }
   }
 
   const peptsciGroups: PeptSciLabelGroup[] = groups.map((g) => ({
@@ -86,5 +93,6 @@ export async function generateVialLabelsPdf(
     },
     quantity: g.quantity,
   }))
-  return { pdf: await generatePeptSciLabelsPdf(peptsciGroups), brand: 'peptsci' }
+  const result = await generatePeptSciLabelsPdf(peptsciGroups, { startSlot })
+  return { brand: 'peptsci', ...result }
 }

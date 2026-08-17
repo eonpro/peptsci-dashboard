@@ -79,15 +79,26 @@ export interface LabelPlacement<T> {
  * Lay every run out as one continuous stream of labels, wrapping to a new sheet
  * only once the current one is full. Runs with a non-positive quantity are
  * skipped; fractional quantities truncate toward zero.
+ *
+ * `startSlot` (0-based) continues a partially used physical sheet — e.g. after
+ * two labels were peeled, pass `2` so the next print begins at space 3.
  */
 export function planLabelSheets<T>(
   runs: readonly LabelRun<T>[],
-  geometry: SheetGeometry = OL4891LP
-): { pageCount: number; placements: LabelPlacement<T>[] } {
+  geometry: SheetGeometry = OL4891LP,
+  options?: { startSlot?: number }
+): {
+  pageCount: number
+  placements: LabelPlacement<T>[]
+  /** Zero-based slot where the *next* print should begin (0 after a full sheet). */
+  nextStartSlot: number
+  labelsPrinted: number
+} {
   const perSheet = labelsPerSheet(geometry)
+  const startSlot = ((options?.startSlot ?? 0) % perSheet + perSheet) % perSheet
   const placements: LabelPlacement<T>[] = []
 
-  let index = 0
+  let index = startSlot
   for (const run of runs) {
     const count = Math.max(0, Math.trunc(run.quantity))
     for (let n = 0; n < count; n += 1, index += 1) {
@@ -104,5 +115,20 @@ export function planLabelSheets<T>(
     }
   }
 
-  return { pageCount: Math.ceil(placements.length / perSheet), placements }
+  const labelsPrinted = placements.length
+  const lastIndex = labelsPrinted === 0 ? startSlot - 1 : startSlot + labelsPrinted - 1
+  const pageCount =
+    labelsPrinted === 0 ? 0 : Math.floor(lastIndex / perSheet) - Math.floor(startSlot / perSheet) + 1
+  // Remap pageIndex relative to the first page we actually emit (so PDFs start at 0).
+  const pageBase = labelsPrinted === 0 ? 0 : Math.floor(startSlot / perSheet)
+  for (const p of placements) {
+    p.pageIndex -= pageBase
+  }
+
+  return {
+    pageCount,
+    placements,
+    nextStartSlot: labelsPrinted === 0 ? startSlot : (startSlot + labelsPrinted) % perSheet,
+    labelsPrinted,
+  }
 }

@@ -240,7 +240,7 @@ export default function FulfillmentWizard({
    */
   const printLabels = () =>
     run(async () => {
-      const short = await downloadLabelSheet(order.id, order.orderNumber)
+      const { shortfall: short } = await downloadLabelSheet(order.id, order.orderNumber)
       setShortfall(short)
       setPrintedShort(short.length > 0)
       if (short.length > 0) return
