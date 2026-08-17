@@ -115,20 +115,6 @@ function parseLineItems(raw: unknown): StoredLineItem[] {
 }
 
 /**
- * Group Recent Orders by order number so two same-day orders for one practice
- * do not render as a single expanded row with mixed unit prices.
- */
-export function recentOrderGroupKey(
-  sale: Pick<Sale, 'OrderID' | 'CustomerName' | 'Date'>
-): string | null {
-  if (!sale.Date) return null
-  if (sale.OrderID) return `order_${sale.OrderID}`
-  const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-  const dateKey = Number.isNaN(dateObj.getTime()) ? '' : dateObj.toISOString().split('T')[0]
-  return `customer_${sale.CustomerName}_${dateKey}`
-}
-
-/**
  * Map a SalesRecord row into one or more `Sale` rows: multi-item orders with a
  * stored per-line breakdown become one Sale PER PRODUCT (so "Tirzepatide 60mg
  * +1 more" credits Tirzepatide 60mg AND the other product separately), while

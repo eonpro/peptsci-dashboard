@@ -4,7 +4,8 @@ import React, { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { recentOrderGroupKey, Sale } from '@/lib/sales'
+import { recentOrderGroupKey } from '@/lib/recent-order-group'
+import type { Sale } from '@/lib/sales'
 
 interface GroupedOrder {
   date: Date

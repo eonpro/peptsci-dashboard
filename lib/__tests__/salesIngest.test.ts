@@ -5,7 +5,8 @@ import {
   salesRecordDataFromPaymentIntent,
   summarizeInvoiceLines,
 } from '../stripe/sales-ingest.ts'
-import { recentOrderGroupKey, salesFromRecord } from '../sales.ts'
+import { recentOrderGroupKey } from '../recent-order-group.ts'
+import { salesFromRecord } from '../sales.ts'
 
 /** Minimal fake Stripe client: invoicePayments.list resolves to the given payments. */
 function fakeStripe(invoice: Record<string, unknown> | null = null): Stripe {
