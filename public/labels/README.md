@@ -74,13 +74,14 @@ Per-client vial brands live under `public/labels/clients/<slug>/`.
 - Engine: `lib/labels/elevatedVitalityLabelPdf.ts`
 - Dynamic overlays: compound name(s) @ Inter Black roman (centered between
   wordmark and black card; two compounds → two lines; GLOW/KLOW → trade name +
-  compound subtitle), dose in black card auto-fit (`10MG`, `10MG/10MG`, or
-  `50MG/10MG/10MG`), `BATCH#` / `EXP` on the right rail, warning vertically
-  centered with the rail boxes
+  compound subtitle in label order), dose in a grown black card at preferred
+  size (`10MG`, `50MG/10MG/10MG`, `10MG/10MG/50MG/10MG`), `BATCH#` / `EXP` on
+  the right rail, warning vertically centered with the rail boxes
 - Enable on **Clients → [practice] → White-label vial labels**
 
 Fonts: `public/fonts/labels/Inter-Black.ttf` (also embedded in
 `lib/labels/elevatedVitalityEmbeddedAssets.ts` for Vercel).
+GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `KPV / BPC-157 / GHK-Cu / TB-500`.
 
 ### LIVBETR (`livbetr`)
 

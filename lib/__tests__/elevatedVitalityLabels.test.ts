@@ -5,6 +5,8 @@ import path from 'node:path'
 import { PDFDocument, type PDFFont } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import {
+  alignNamedBlendDose,
+  doseCardGeometry,
   fitDoseSize,
   fitNameSize,
   formatElevatedVitalityDose,
@@ -44,6 +46,8 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
     assert.equal(formatElevatedVitalityDose('10mg/5mg', 2), '10MG/5MG')
     assert.equal(formatElevatedVitalityDose('10mg', 1), '10MG')
     assert.equal(formatElevatedVitalityDose('50mg/10mg/10mg', 3), '50MG/10MG/10MG')
+    // Named-blend totals must not explode into N copies of the same mg.
+    assert.equal(formatElevatedVitalityDose('80mg', 4), '80MG')
   })
 
   it('resolves GLOW / KLOW as trade name + compound subtitle', () => {
@@ -60,7 +64,15 @@ describe('Elevated Vitality name/dose overlay helpers', () => {
     const klow = resolveElevatedVitalityNameBlock('KLOW')
     assert.equal(klow.hero, 'KLOW')
     assert.equal(klow.compoundCount, 4)
-    assert.deepEqual(klow.lines, ['GHK-CU / BPC-157', 'TB-500 / KPV'])
+    assert.deepEqual(klow.lines, ['KPV / BPC-157', 'GHK-CU / TB-500'])
+  })
+
+  it('reorders legacy KLOW stock doses to on-label compound order', () => {
+    assert.equal(
+      alignNamedBlendDose('KLOW', '50MG/10MG/10MG/10MG'),
+      '10MG/10MG/50MG/10MG'
+    )
+    assert.equal(alignNamedBlendDose('GLOW', '50MG/10MG/10MG'), '50MG/10MG/10MG')
   })
 
   it('keeps GLOW compounds on one subtitle line', () => {
@@ -152,14 +164,17 @@ describe('Elevated Vitality product name sizing', () => {
     }
   })
 
-  it('fits GLOW / KLOW multi-dose strings inside the black card', () => {
-    const maxW = CARD_W - 5
-    for (const dose of ['50MG/10MG/10MG', '50MG/10MG/10MG/10MG', '10MG/10MG', '10MG']) {
-      const size = fitDoseSize(roman, dose)
-      const width = roman.widthOfTextAtSize(dose, size)
-      assert.ok(width <= maxW + 0.05, `${dose} at ${size}pt is ${width.toFixed(1)}pt wide > ${maxW}`)
-      assert.ok(size >= 1.8 - 1e-9, `${dose} shrunk below the floor (${size})`)
+  it('grows the black card so GLOW / KLOW doses keep the preferred size', () => {
+    for (const dose of ['50MG/10MG/10MG', '10MG/10MG/50MG/10MG', '10MG/10MG', '10MG']) {
+      const card = doseCardGeometry(roman, dose)
+      const width = roman.widthOfTextAtSize(dose, card.size)
+      assert.ok(width + 2 <= card.w + 0.05, `${dose}: text ${width.toFixed(1)} > card ${card.w}`)
+      assert.ok(card.w >= 29.73 - 0.01, `${dose}: card should be at least the template width`)
+      assert.ok(card.size >= 4.0, `${dose}: preferred size shrunk too far (${card.size})`)
+      assert.ok(card.x >= 30 - 0.01 && card.x + card.w <= 117 + 0.01, `${dose}: card outside column`)
     }
+    // Still exposes fitDoseSize for callers/tests that only need the type size.
+    assert.equal(fitDoseSize(roman, '10MG'), 4.2)
   })
 })
 

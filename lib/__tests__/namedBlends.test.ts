@@ -54,7 +54,7 @@ describe('resolveNamedBlendTradeName', () => {
     )
     assert.equal(displayProductName('Klow', 'KLOW-80'), 'KLOW')
     assert.equal(displayProductAka('Klow', 'KLOW-80', null), namedBlendCompoundSubtitle('KLOW'))
-    assert.equal(namedBlendCompoundSubtitle('KLOW'), 'GHK-Cu / BPC-157 / TB-500 / KPV')
+    assert.equal(namedBlendCompoundSubtitle('KLOW'), 'KPV / BPC-157 / GHK-Cu / TB-500')
   })
 
   it('maps compound fingerprints without relying on SKU', () => {
@@ -84,7 +84,7 @@ describe('resolveNamedBlendTradeName', () => {
     assert.equal(compoundListSubtitle('BPC-157 / TB-500 Blend'), 'BPC-157 / TB-500')
   })
 
-  it('aligns blend composition doses with GHK-first stock order', () => {
+  it('aligns blend composition with on-label compound order', () => {
     const glow = getBlendComposition('GLOW')
     const klow = getBlendComposition('KLOW')
     assert.deepEqual(
@@ -93,7 +93,7 @@ describe('resolveNamedBlendTradeName', () => {
     )
     assert.deepEqual(
       klow?.map((c) => c.name),
-      ['GHK-Cu', 'BPC-157', 'TB-500', 'KPV']
+      ['KPV', 'BPC-157', 'GHK-Cu', 'TB-500']
     )
   })
 })

@@ -101,9 +101,9 @@ export default function FedExLabelModal({
     zip: destination?.zip || '',
   })
 
-  const [oneRate, setOneRate] = useState(false)
-  const [serviceType, setServiceType] = useState('STANDARD_OVERNIGHT')
-  const [packagingType, setPackagingType] = useState('YOUR_PACKAGING')
+  const [oneRate, setOneRate] = useState(true)
+  const [serviceType, setServiceType] = useState('FEDEX_2_DAY')
+  const [packagingType, setPackagingType] = useState('FEDEX_ENVELOPE')
   const [weightLbs, setWeightLbs] = useState(1)
 
   const [rateQuote, setRateQuote] = useState<RateQuote | null>(null)
@@ -135,10 +135,10 @@ export default function FedExLabelModal({
     setRateQuote(null)
     if (enabled) {
       if (!FEDEX_SERVICE_TYPES.find((s) => s.code === serviceType && s.oneRateEligible)) {
-        setServiceType('STANDARD_OVERNIGHT')
+        setServiceType('FEDEX_2_DAY')
       }
       if (!FEDEX_PACKAGING_TYPES.find((p) => p.code === packagingType && p.oneRateEligible)) {
-        setPackagingType('FEDEX_PAK')
+        setPackagingType('FEDEX_ENVELOPE')
       }
     }
   }

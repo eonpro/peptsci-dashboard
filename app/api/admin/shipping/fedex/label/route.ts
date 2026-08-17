@@ -51,7 +51,7 @@ const createSchema = z.object({
   length: z.number().positive().optional(),
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),
-  oneRate: z.boolean().default(false),
+  oneRate: z.boolean().default(true),
   labelFormat: z.enum(['PDF', 'ZPLII', 'PNG']).default('PDF'),
   /** Explicit admin acknowledgement to ship an unpaid, un-invoiced order. */
   overrideUnpaidShip: z.boolean().default(false),
