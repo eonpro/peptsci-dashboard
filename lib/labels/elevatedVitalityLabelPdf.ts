@@ -72,11 +72,16 @@ const SUBTITLE_MAX_WIDTH = 58
 /** Breathing room kept at the top and bottom of the name band. */
 const NAME_BAND_PAD = 0.6
 const CAP_RATIO = 0.74
+/** Preferred dose size — grow the black card to fit; only shrink as a last resort. */
 const DOSE_SIZE = 4.2
-/** Hard floor so GLOW/KLOW multi-dose strings still fit inside the card. */
-const DOSE_SIZE_MIN = 1.8
-/** Keep ~2.5pt inset each side so multi-dose never kisses the card edge. */
-const DOSE_MAX_WIDTH = CARD.w - 5
+const DOSE_SIZE_MIN = 2.4
+const DOSE_PAD_X = 2.5
+const DOSE_PAD_Y = 1.6
+/** Keep the grown dose card clear of the trident and the warning rail. */
+const DOSE_CARD_MIN_X = 30
+const DOSE_CARD_MAX_X = 117
+/** Template card height; grown card may be taller but must clear RUO (~y=49.7). */
+const DOSE_CARD_MAX_BOTTOM = 48.2
 
 const RAIL_X = 132.89
 const BATCH_ORIGIN_Y = 49.81
@@ -176,12 +181,36 @@ export function resolveElevatedVitalityNameBlock(productName: string): ElevatedV
   return { hero: null, lines, compoundCount: lines.length }
 }
 
-/** Format dose for the black card; multi-compound blends get dose/dose when needed. */
+/**
+ * Format dose for the black card.
+ * Two-compound blends without a slash dose get dose/dose. Named 3+/4 blends
+ * must already carry a slash dose — never expand a total like "80mg" into
+ * "80MG/80MG/80MG/80MG".
+ */
 export function formatElevatedVitalityDose(dose: string, compoundCount: number): string {
   const normalized = normalizeDoseLabel(dose).replace(/\s+/g, '').toUpperCase()
-  if (compoundCount < 2) return normalized
   if (normalized.includes('/')) return normalized
-  return Array.from({ length: compoundCount }, () => normalized).join('/')
+  if (compoundCount === 2) return `${normalized}/${normalized}`
+  return normalized
+}
+
+/**
+ * Align a slash dose with the on-label compound order.
+ * Legacy KLOW stock order was GHK/BPC/TB/KPV (50/10/10/10); labels now print
+ * KPV/BPC/GHK/TB (10/10/50/10).
+ */
+export function alignNamedBlendDose(
+  trade: 'GLOW' | 'KLOW' | null,
+  dose: string
+): string {
+  const normalized = dose.replace(/\s+/g, '').toUpperCase()
+  if (!trade || !normalized.includes('/')) return normalized
+  const parts = normalized.split('/').filter(Boolean)
+  if (trade === 'KLOW' && parts.length === 4 && parts[0] === '50MG') {
+    // GHK / BPC / TB / KPV → KPV / BPC / GHK / TB
+    return [parts[3], parts[1], parts[0], parts[2]].join('/')
+  }
+  return normalized
 }
 
 /** EXP rail value — MM/DD/YY (two-digit year so it fits the white rail box). */
@@ -250,9 +279,48 @@ export function fitNameSize(font: PDFFont, lines: string[]): number {
   return Math.min(byWidth, byHeight)
 }
 
-/** Dose size that is guaranteed to fit inside the black card. */
+export type DoseCardGeometry = {
+  x: number
+  y: number
+  w: number
+  h: number
+  size: number
+}
+
+/**
+ * Grow the black dose card to fit the preferred font size. Only shrink the
+ * type if the text still cannot fit in the clear centre column.
+ */
+export function doseCardGeometry(font: PDFFont, dose: string): DoseCardGeometry {
+  const maxW = DOSE_CARD_MAX_X - DOSE_CARD_MIN_X
+  const textAtPreferred = font.widthOfTextAtSize(dose, DOSE_SIZE)
+  let size = DOSE_SIZE
+  let w = Math.max(CARD.w, textAtPreferred + 2 * DOSE_PAD_X)
+  if (w > maxW) {
+    w = maxW
+    size = fitTextWidth(font, dose, DOSE_SIZE, w - 2 * DOSE_PAD_X, DOSE_SIZE_MIN)
+  }
+  const textH = size * CAP_RATIO
+  let h = Math.max(CARD.h, textH + 2 * DOSE_PAD_Y)
+  const midY = CARD.y + CARD.h / 2
+  let y = midY - h / 2
+  if (y + h > DOSE_CARD_MAX_BOTTOM) {
+    y = DOSE_CARD_MAX_BOTTOM - h
+  }
+  if (y < CARD_TOP - 2) {
+    // Prefer not to climb into the name band; shorten height instead.
+    y = Math.max(CARD_TOP - 1, midY - CARD.h / 2)
+    h = Math.min(h, DOSE_CARD_MAX_BOTTOM - y)
+  }
+  let x = CARD_CX - w / 2
+  if (x < DOSE_CARD_MIN_X) x = DOSE_CARD_MIN_X
+  if (x + w > DOSE_CARD_MAX_X) x = DOSE_CARD_MAX_X - w
+  return { x, y, w, h, size }
+}
+
+/** @deprecated Prefer doseCardGeometry — kept for tests that assert size floors. */
 export function fitDoseSize(font: PDFFont, dose: string): number {
-  return fitTextWidth(font, dose, DOSE_SIZE, DOSE_MAX_WIDTH, DOSE_SIZE_MIN)
+  return doseCardGeometry(font, dose).size
 }
 
 function drawCenteredLine(
@@ -295,7 +363,11 @@ function drawLabel(
   })
 
   const block = resolveElevatedVitalityNameBlock(req.productName)
-  const dose = formatElevatedVitalityDose(req.dose, block.compoundCount)
+  const trade = block.hero === 'GLOW' || block.hero === 'KLOW' ? block.hero : null
+  const dose = alignNamedBlendDose(
+    trade,
+    formatElevatedVitalityDose(req.dose, block.compoundCount)
+  )
 
   if (block.hero) {
     // Named blend: large trade name + smaller roman compound subtitle.
@@ -342,13 +414,22 @@ function drawLabel(
     }
   }
 
-  const doseSize = fitDoseSize(roman, dose)
-  const doseBaselineSvg = CARD.y + CARD.h / 2 + doseSize * 0.35
-  const doseWidth = roman.widthOfTextAtSize(dose, doseSize)
+  // Cover the template card (and grow as needed) so multi-dose strings keep
+  // the preferred Inter Black size instead of shrinking to the old rect.
+  const card = doseCardGeometry(roman, dose)
+  page.drawRectangle({
+    x: ox + card.x,
+    y: oy + (LABEL_HEIGHT - (card.y + card.h)),
+    width: card.w,
+    height: card.h,
+    color: COLOR_BLACK,
+  })
+  const doseWidth = roman.widthOfTextAtSize(dose, card.size)
+  const doseBaselineSvg = card.y + card.h / 2 + card.size * 0.35
   page.drawText(dose, {
-    x: ox + CARD_CX - doseWidth / 2,
+    x: ox + card.x + card.w / 2 - doseWidth / 2,
     y: oy + (LABEL_HEIGHT - doseBaselineSvg),
-    size: doseSize,
+    size: card.size,
     font: roman,
     color: COLOR_WHITE,
   })

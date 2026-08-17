@@ -94,20 +94,20 @@ async function main() {
       ],
     },
     {
-      // "KLOW 80" blend: GHK-Cu 50mg + BPC-157 10mg + TB-500 10mg + KPV 10mg (80mg total).
+      // "KLOW 80" blend: KPV 10mg + BPC-157 10mg + GHK-Cu 50mg + TB-500 10mg (80mg total).
       name: 'KLOW',
-      description: 'Research blend of GHK-Cu, BPC-157, TB-500, and KPV.',
+      description: 'Research blend of KPV, BPC-157, GHK-Cu, and TB-500.',
       category: 'Blends',
       casNumber: null,
       molecularFormula: null,
       molecularWeight: null,
       pubchemCid: null,
       peptideLength: null,
-      aka: 'GHK-Cu / BPC-157 / TB-500 / KPV',
+      aka: 'KPV / BPC-157 / GHK-Cu / TB-500',
       intendedUse: 'Research use only',
       // Pricing is provisional until confirmed.
       variants: [
-        { sku: 'KLOW-80', dose: '50mg/10mg/10mg/10mg', unitCost: 85, srp: 219, inventoryOnHand: 10 },
+        { sku: 'KLOW-80', dose: '10mg/10mg/50mg/10mg', unitCost: 85, srp: 219, inventoryOnHand: 10 },
       ],
     },
   ]

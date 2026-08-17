@@ -24,7 +24,7 @@ const bodySchema = z.object({
   serviceType: z.string().min(1),
   packagingType: z.string().default('YOUR_PACKAGING'),
   weightLbs: z.number().positive().max(150).default(1),
-  oneRate: z.boolean().default(false),
+  oneRate: z.boolean().default(true),
 })
 
 /**
