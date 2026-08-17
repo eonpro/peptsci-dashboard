@@ -72,12 +72,12 @@ export default function BatchDetailSheet({
   const [busy, setBusy] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   const [printQty, setPrintQty] = useState(String(SHEET_MAX))
+  const [nextPosition, setNextPosition] = useState(1)
   const [voidOpen, setVoidOpen] = useState(false)
   const [voidReason, setVoidReason] = useState('')
 
   // Edit dialog (label-cosmetic fields; counts/BUD/batch # are immutable)
   const [editOpen, setEditOpen] = useState(false)
-  const [editDose, setEditDose] = useState('')
   const [editPurity, setEditPurity] = useState('')
   const [editVialSize, setEditVialSize] = useState('')
   const [editColor, setEditColor] = useState('#2b2c84')
@@ -106,6 +106,33 @@ export default function BatchDetailSheet({
     if (batchId) void load()
   }, [batchId, load])
 
+  async function loadSheetCursor() {
+    try {
+      const res = await fetch('/api/admin/labels/sheet-cursor')
+      if (!res.ok) return
+      const data = await res.json()
+      if (typeof data.nextPosition === 'number') setNextPosition(data.nextPosition)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function resetSheetCursor() {
+    try {
+      const res = await fetch('/api/admin/labels/sheet-cursor', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextPosition: 1 }),
+      })
+      if (!res.ok) throw new Error('Failed to reset')
+      const data = await res.json()
+      setNextPosition(data.nextPosition ?? 1)
+      toast.success('Next print starts at space 1 (fresh sheet)')
+    } catch {
+      toast.error('Could not reset sheet position')
+    }
+  }
+
   async function downloadLabels(opts: { proofMode?: boolean; quantity?: number }) {
     if (!detail) return
     setBusy(true)
@@ -119,6 +146,11 @@ export default function BatchDetailSheet({
         const payload = await res.json().catch(() => ({}))
         throw new Error(payload.message || 'Failed to generate labels')
       }
+      const nextHdr = res.headers.get('X-Label-Next-Position')
+      if (nextHdr && !opts.proofMode) {
+        const n = Number.parseInt(nextHdr, 10)
+        if (Number.isFinite(n)) setNextPosition(n)
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -128,7 +160,11 @@ export default function BatchDetailSheet({
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      toast.success(opts.proofMode ? 'Proof label downloaded' : 'Label sheet downloaded')
+      toast.success(
+        opts.proofMode
+          ? 'Proof label downloaded'
+          : `Label sheet downloaded · next space ${nextHdr || nextPosition}`
+      )
       await load()
       onChanged()
     } catch (err) {
@@ -140,7 +176,6 @@ export default function BatchDetailSheet({
 
   function openEdit() {
     if (!detail) return
-    setEditDose(detail.dose || '')
     setEditPurity(detail.purity)
     setEditVialSize(detail.vialSize ?? '')
     setEditColor(detail.yearColor ?? '#2b2c84')
@@ -150,17 +185,12 @@ export default function BatchDetailSheet({
 
   async function saveEdit() {
     if (!detail) return
-    if (!editDose.trim()) {
-      toast.error('Dose is required for labels (e.g. 5mg)')
-      return
-    }
     setBusy(true)
     try {
       const res = await fetch(`/api/admin/inventory/batches/${detail.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          dose: editDose.trim(),
           purity: editPurity.trim() || null,
           vialSize: editVialSize.trim() || null,
           yearColor: /^#[0-9a-fA-F]{6}$/.test(editColor.trim()) ? editColor.trim() : null,
@@ -309,6 +339,7 @@ export default function BatchDetailSheet({
                     setPrintQty(
                       String(Math.min(SHEET_MAX, Math.max(1, detail.qtyOnHand || SHEET_MAX)))
                     )
+                    void loadSheetCursor()
                     setPrintOpen(true)
                   }}
                 >
@@ -387,6 +418,20 @@ export default function BatchDetailSheet({
                     Batch {detail.batchNumber}. A full sheet holds {SHEET_MAX} labels.
                   </DialogDescription>
                 </DialogHeader>
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    Next print starts at space{' '}
+                    <span className="font-semibold text-foreground">{nextPosition}</span> of{' '}
+                    {SHEET_MAX}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-primary hover:underline"
+                    onClick={() => void resetSheetCursor()}
+                  >
+                    Fresh sheet
+                  </button>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="print-qty">Number of labels</Label>
                   <Input
@@ -435,15 +480,6 @@ export default function BatchDetailSheet({
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-dose">Dose (label)</Label>
-                    <Input
-                      id="edit-dose"
-                      value={editDose}
-                      onChange={(e) => setEditDose(e.target.value)}
-                      placeholder="5mg"
-                    />
-                  </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="edit-purity">Purity (label)</Label>
                     <Input

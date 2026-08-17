@@ -62,10 +62,13 @@ export async function fetchLabelShortfall(orderId: string): Promise<LabelShortfa
 export async function downloadLabelSheet(
   orderId: string,
   orderNumber: number
-): Promise<LabelShortfallEntry[]> {
+): Promise<{ shortfall: LabelShortfallEntry[]; nextPosition: number | null }> {
   const res = await fetch(`/api/admin/orders/${orderId}/labels/pdf`)
   if (!res.ok) throw await apiError(res, 'Failed to generate vial labels')
   const shortfall = parseLabelShortfall(res.headers.get('X-Label-Shortfall'))
+  const nextHdr = res.headers.get('X-Label-Next-Position')
+  const nextParsed = nextHdr ? Number.parseInt(nextHdr, 10) : NaN
+  const nextPosition = Number.isFinite(nextParsed) ? nextParsed : null
   const url = URL.createObjectURL(await res.blob())
   const link = document.createElement('a')
   link.href = url
@@ -74,7 +77,7 @@ export async function downloadLabelSheet(
   link.click()
   link.remove()
   URL.revokeObjectURL(url)
-  return shortfall
+  return { shortfall, nextPosition }
 }
 
 /**

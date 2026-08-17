@@ -5,6 +5,7 @@ import {
   isCompleteShipFromAddress,
   looksLikePeptSciOrigin,
   resolveWhiteLabelOrigin,
+  fedexShipFromDisplayName,
 } from '../shipping/whiteLabelOrigin.ts'
 
 const clientAddr = {
@@ -38,8 +39,8 @@ describe('resolveWhiteLabelOrigin', () => {
         shippingAddress: clientAddr,
       },
     })
-    assert.equal(origin.personName, 'Elevated Vitality Peptides')
-    assert.equal(origin.companyName, 'Elevated Vitality Peptides')
+    assert.equal(origin.personName, 'Elevated Vitality')
+    assert.equal(origin.companyName, 'Elevated Vitality')
     assert.equal(origin.phoneNumber, '5551112222')
     assert.equal(origin.address1, '100 Brand Ave')
     assert.equal(origin.address2, 'Suite 5')
@@ -103,5 +104,11 @@ describe('isCompleteShipFromAddress / looksLikePeptSciOrigin', () => {
       }),
       false
     )
+  })
+
+  test('strips trailing Peptides from FedEx ship-from names', () => {
+    assert.equal(fedexShipFromDisplayName('Elevated Vitality Peptides'), 'Elevated Vitality')
+    assert.equal(fedexShipFromDisplayName('LIVBETR'), 'LIVBETR')
+    assert.equal(fedexShipFromDisplayName('Acme Peptides'), 'Acme')
   })
 })

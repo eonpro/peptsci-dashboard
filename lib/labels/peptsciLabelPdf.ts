@@ -1016,10 +1016,14 @@ export type PeptSciLabelGroup = {
  * OL4891LP sheets (36/page), so an order for several compounds shares a sheet
  * rather than starting a new one per batch. Returns a PDF Buffer.
  */
-export async function generatePeptSciLabelsPdf(groups: PeptSciLabelGroup[]): Promise<Buffer> {
+export async function generatePeptSciLabelsPdf(
+  groups: PeptSciLabelGroup[],
+  options?: { startSlot?: number }
+): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   const doc = await PDFDocument.create()
 
-  const { pageCount, placements } = planLabelSheets(
+  const startSlot = options?.startSlot ?? 0
+  const { pageCount, placements, nextStartSlot, labelsPrinted } = planLabelSheets(
     groups.map((group) => {
       const count = Math.max(0, Math.trunc(group.quantity))
       const req = normalizeReq({ ...group.req, quantity: count })
@@ -1027,7 +1031,9 @@ export async function generatePeptSciLabelsPdf(groups: PeptSciLabelGroup[]): Pro
         req: { req, accent: req.accentColor ? hexToRgb(req.accentColor) : COLOR_INDIGO },
         quantity: count,
       }
-    })
+    }),
+    undefined,
+    { startSlot }
   )
 
   // Nothing to print (e.g. no allocatable batches) still yields one blank
@@ -1035,7 +1041,12 @@ export async function generatePeptSciLabelsPdf(groups: PeptSciLabelGroup[]): Pro
   // subsetting a font no glyph was ever drawn with.
   if (placements.length === 0) {
     doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-    return Buffer.from(await doc.save())
+    return {
+      pdf: Buffer.from(await doc.save()),
+      nextStartSlot: startSlot,
+      labelsPrinted: 0,
+      startSlot,
+    }
   }
 
   const fonts = await embedFonts(doc)
@@ -1057,14 +1068,22 @@ export async function generatePeptSciLabelsPdf(groups: PeptSciLabelGroup[]): Pro
   }
 
   const bytes = await doc.save()
-  return Buffer.from(bytes)
+  return {
+    pdf: Buffer.from(bytes),
+    nextStartSlot,
+    labelsPrinted,
+    startSlot,
+  }
 }
 
 /**
  * Render a print-ready OL4891LP label sheet (or a single centered proof label)
  * for one batch. Returns a PDF Buffer.
  */
-export async function generatePeptSciLabelSheetPdf(input: PeptSciLabelRequest): Promise<Buffer> {
+export async function generatePeptSciLabelSheetPdf(
+  input: PeptSciLabelRequest,
+  options?: { startSlot?: number }
+): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   if (input.proofMode) {
     const doc = await PDFDocument.create()
     const page = doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
@@ -1075,13 +1094,19 @@ export async function generatePeptSciLabelSheetPdf(input: PeptSciLabelRequest): 
     const x = (SHEET_WIDTH - LABEL_WIDTH) / 2
     const y = (SHEET_HEIGHT - LABEL_HEIGHT) / 2
     drawLabel({ page, x, y, req: normalizeReq(input), fonts, logo, template, accent })
-    return Buffer.from(await doc.save())
+    return {
+      pdf: Buffer.from(await doc.save()),
+      nextStartSlot: options?.startSlot ?? 0,
+      labelsPrinted: 0,
+      startSlot: options?.startSlot ?? 0,
+    }
   }
 
   const { productName, dose, purity, batchNumber, budIsoDate, accentColor, quantity } = input
-  return generatePeptSciLabelsPdf([
-    { req: { productName, dose, purity, batchNumber, budIsoDate, accentColor }, quantity },
-  ])
+  return generatePeptSciLabelsPdf(
+    [{ req: { productName, dose, purity, batchNumber, budIsoDate, accentColor }, quantity }],
+    options
+  )
 }
 
 /**

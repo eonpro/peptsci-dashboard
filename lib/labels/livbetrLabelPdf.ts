@@ -443,15 +443,21 @@ function drawLabel(
   }
 }
 
-export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Promise<Buffer> {
+export async function generateLivbetrLabelsPdf(
+  groups: LivbetrLabelGroup[],
+  options?: { startSlot?: number }
+): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
 
-  const { pageCount, placements } = planLabelSheets(
+  const startSlot = options?.startSlot ?? 0
+  const { pageCount, placements, nextStartSlot, labelsPrinted } = planLabelSheets(
     groups.map((group) => ({
       req: { label: group.req, proofMode: Boolean(group.proofMode) },
       quantity: group.quantity,
-    }))
+    })),
+    OL4891LP,
+    { startSlot }
   )
 
   // Nothing to print (e.g. no allocatable batches) still yields one blank
@@ -459,7 +465,12 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
   // subsetting a font no glyph was ever drawn with.
   if (placements.length === 0) {
     doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
-    return Buffer.from(await doc.save())
+    return {
+      pdf: Buffer.from(await doc.save()),
+      nextStartSlot: startSlot,
+      labelsPrinted: 0,
+      startSlot,
+    }
   }
 
   const template = await doc.embedPng(await loadTemplateBytes())
@@ -498,25 +509,34 @@ export async function generateLivbetrLabelsPdf(groups: LivbetrLabelGroup[]): Pro
     drawLabel(pages[pageIndex], x, y, template, fonts, req.label, req.proofMode)
   }
 
-  return Buffer.from(await doc.save())
+  return {
+    pdf: Buffer.from(await doc.save()),
+    nextStartSlot,
+    labelsPrinted,
+    startSlot,
+  }
 }
 
 export async function generateLivbetrLabelSheetPdf(
   input: LivbetrLabelRequest
 ): Promise<Buffer> {
-  return generateLivbetrLabelsPdf([
-    {
-      req: {
-        productName: input.productName,
-        dose: input.dose,
-        purity: input.purity,
-        batchNumber: input.batchNumber,
-        budIsoDate: input.budIsoDate,
+  const { pdf } = await generateLivbetrLabelsPdf(
+    [
+      {
+        req: {
+          productName: input.productName,
+          dose: input.dose,
+          purity: input.purity,
+          batchNumber: input.batchNumber,
+          budIsoDate: input.budIsoDate,
+        },
+        quantity: input.quantity,
+        proofMode: input.proofMode,
       },
-      quantity: input.quantity,
-      proofMode: input.proofMode,
-    },
-  ])
+    ],
+    { startSlot: 0 }
+  )
+  return pdf
 }
 
 /** Slots on one OL4891LP sheet (36). */

@@ -1343,6 +1343,14 @@ model AuditLog {
   @@index([entity, entityId])
 }
 
+/// Process-wide key/value settings (e.g. vial-label sheet continuation cursor).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
 // In-app notification for an admin user (ported from eonpro/eonpro, trimmed to
 // the B2B commerce/fulfillment domain). Created by transactional triggers and
 // the Vercel Cron jobs. Deduplicated by (userId, sourceType, sourceId) so a

@@ -150,10 +150,16 @@ export function FulfillmentOrderRow({
    */
   const printVialLabels = async () => {
     try {
-      const shortfall = await downloadLabelSheet(order.id, order.orderNumber)
+      const { shortfall, nextPosition } = await downloadLabelSheet(order.id, order.orderNumber)
       const warning = describeLabelShortfall(shortfall)
       if (warning) toast.warning(warning, { duration: 12000 })
-      else toast.success('Label sheet downloaded')
+      else {
+        toast.success(
+          nextPosition
+            ? `Label sheet downloaded · next space ${nextPosition}`
+            : 'Label sheet downloaded'
+        )
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to generate vial labels')
     }
