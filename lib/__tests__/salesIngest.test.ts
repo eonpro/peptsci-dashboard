@@ -5,7 +5,7 @@ import {
   salesRecordDataFromPaymentIntent,
   summarizeInvoiceLines,
 } from '../stripe/sales-ingest.ts'
-import { salesFromRecord } from '../sales.ts'
+import { recentOrderGroupKey, salesFromRecord } from '../sales.ts'
 
 /** Minimal fake Stripe client: invoicePayments.list resolves to the given payments. */
 function fakeStripe(invoice: Record<string, unknown> | null = null): Stripe {
@@ -306,6 +306,53 @@ describe('salesFromRecord line-item explosion', () => {
     assert.equal(sales[0].PaidAmount, 350)
   })
 
+  test('paidAmount above line sum is shipping, not a higher vial price', () => {
+    // Shopify inbound: NAD+ 4 × $70 = $280, plus $15 shipping captured on the order total.
+    const sales = salesFromRecord({
+      ...baseRow,
+      paidAmount: 295,
+      vials: 4,
+      amountPerVial: 73.75,
+      product: 'NAD+',
+      cogs: 0,
+      unitCost: 0,
+      lineItems: [{ product: 'NAD+ 1000 mg', quantity: 4, amount: 280, cogs: 0 }],
+    })
+    assert.equal(sales.length, 2)
+    const nad = sales.find((s) => s.Product === 'NAD+ 1000 mg')
+    const ship = sales.find((s) => s.Product === 'Shipping')
+    assert.ok(nad)
+    assert.ok(ship)
+    assert.equal(nad.PaidAmount, 280)
+    assert.equal(nad.Vials, 4)
+    assert.equal(nad.AmountPerVial, 70)
+    assert.equal(ship.PaidAmount, 15)
+    assert.equal(ship.Vials, 0)
+    assert.ok(Math.abs(sales.reduce((s, x) => s + x.PaidAmount, 0) - 295) < 1e-9)
+  })
+
+  test('multi-line surplus does not smear shipping across product unit prices', () => {
+    const sales = salesFromRecord({
+      ...baseRow,
+      paidAmount: 160,
+      vials: 2,
+      amountPerVial: 80,
+      product: 'NAD+ 1000 mg +1 more',
+      cogs: 22.9,
+      lineItems: [
+        { product: 'NAD+ 1000 mg', quantity: 1, amount: 70, cogs: 0 },
+        { product: 'Klow 80mg', quantity: 1, amount: 75, cogs: 22.9 },
+      ],
+    })
+    const nad = sales.find((s) => s.Product === 'NAD+ 1000 mg')
+    const klow = sales.find((s) => s.Product === 'Klow 80mg')
+    const ship = sales.find((s) => s.Product === 'Shipping')
+    assert.ok(nad && klow && ship)
+    assert.equal(nad.AmountPerVial, 70)
+    assert.equal(klow.AmountPerVial, 75)
+    assert.equal(ship.PaidAmount, 15)
+  })
+
   test('malformed lineItems entries are ignored safely', () => {
     const sales = salesFromRecord({
       ...baseRow,
@@ -313,5 +360,22 @@ describe('salesFromRecord line-item explosion', () => {
     })
     assert.equal(sales.length, 1)
     assert.equal(sales[0].Product, 'BPC-157 10mg +1 more')
+  })
+})
+
+describe('recentOrderGroupKey', () => {
+  const day = new Date('2026-08-13T19:09:00Z')
+
+  test('two same-day orders for one customer stay on separate keys', () => {
+    const a = recentOrderGroupKey({ OrderID: '#298', CustomerName: 'Kyle Houlahan', Date: day })
+    const b = recentOrderGroupKey({ OrderID: '#299', CustomerName: 'Kyle Houlahan', Date: day })
+    assert.equal(a, 'order_#298')
+    assert.equal(b, 'order_#299')
+    assert.notEqual(a, b)
+  })
+
+  test('rows without an order id still group by customer + date', () => {
+    const key = recentOrderGroupKey({ OrderID: '', CustomerName: 'Kyle Houlahan', Date: day })
+    assert.equal(key, 'customer_Kyle Houlahan_2026-08-13')
   })
 })

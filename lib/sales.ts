@@ -115,34 +115,71 @@ function parseLineItems(raw: unknown): StoredLineItem[] {
 }
 
 /**
+ * Group Recent Orders by order number so two same-day orders for one practice
+ * do not render as a single expanded row with mixed unit prices.
+ */
+export function recentOrderGroupKey(
+  sale: Pick<Sale, 'OrderID' | 'CustomerName' | 'Date'>
+): string | null {
+  if (!sale.Date) return null
+  if (sale.OrderID) return `order_${sale.OrderID}`
+  const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
+  const dateKey = Number.isNaN(dateObj.getTime()) ? '' : dateObj.toISOString().split('T')[0]
+  return `customer_${sale.CustomerName}_${dateKey}`
+}
+
+/**
  * Map a SalesRecord row into one or more `Sale` rows: multi-item orders with a
  * stored per-line breakdown become one Sale PER PRODUCT (so "Tirzepatide 60mg
  * +1 more" credits Tirzepatide 60mg AND the other product separately), while
- * everything else stays a single row. Line amounts/COGS are rescaled so they
- * always sum exactly to the record's paidAmount/COGS — totals never drift.
+ * everything else stays a single row. Product lines keep their unit prices;
+ * shipping captured on the order total (not on product lines) is emitted as
+ * its own row. Invoice-level discounts still scale lines down to paidAmount.
  */
 export function salesFromRecord(r: SalesRecordRow): Sale[] {
   const base = toSale(r)
   const lines = parseLineItems(r.lineItems)
   if (lines.length === 0) return [base]
-  // Single line: keep the record's totals but prefer the line's product name
-  // (order-sourced lines are dose-qualified, e.g. "Semaglutide 5mg").
-  if (lines.length === 1) return [{ ...base, Product: lines[0].product || base.Product }]
 
   const lineAmountSum = lines.reduce((s, li) => s + li.amount, 0)
   const lineCogsSum = lines.reduce((s, li) => s + li.cogs, 0)
+  const surplus = base.PaidAmount - lineAmountSum
+  // Shipping/fees live on Order.total but not on product lines. Do not smear
+  // that surplus into per-vial prices (that made $70 NAD+ look like $73.75).
+  // Invoice-level discounts (paidAmount < line sum) still scale down below.
+  const working: StoredLineItem[] =
+    lineAmountSum > 0 && surplus > 0.005
+      ? [
+          ...lines,
+          {
+            product: 'Shipping',
+            quantity: 0,
+            amount: surplus,
+            cogs: Math.max(0, base.COGS - lineCogsSum),
+          },
+        ]
+      : lines
+
+  // Single product line that already matches the captured total: keep totals,
+  // prefer the dose-qualified line product name.
+  if (working.length === 1) {
+    return [{ ...base, Product: working[0].product || base.Product }]
+  }
+
+  const workingAmountSum = working.reduce((s, li) => s + li.amount, 0)
+  const workingCogsSum = working.reduce((s, li) => s + li.cogs, 0)
   // Invoice-level discounts/adjustments mean line sums can differ from the
   // captured total; scale proportionally so the record's totals are preserved.
-  const amountFactor = lineAmountSum > 0 ? base.PaidAmount / lineAmountSum : 0
-  if (lineAmountSum <= 0 && base.PaidAmount > 0) return [base]
+  const amountFactor = workingAmountSum > 0 ? base.PaidAmount / workingAmountSum : 0
+  if (workingAmountSum <= 0 && base.PaidAmount > 0) return [base]
 
-  return lines.map((li) => {
+  return working.map((li) => {
     const paidAmount = li.amount * amountFactor
     const cogs =
-      lineCogsSum > 0
-        ? (li.cogs / lineCogsSum) * base.COGS
-        : lineAmountSum > 0
-          ? (li.amount / lineAmountSum) * base.COGS
+      workingCogsSum > 0
+        ? (li.cogs / workingCogsSum) * base.COGS
+        : workingAmountSum > 0
+          ? (li.amount / workingAmountSum) * base.COGS
           : 0
     const profit = paidAmount - cogs
     return {
@@ -306,14 +343,20 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
           : `${order.items[0].variant.product.name} +${order.items.length - 1} more`
     // Per-line breakdown (net of refunds, same scaling as the totals) so
     // analytics credits each real product instead of the "+N more" label.
+    // Include shipping as its own line so product unit prices stay catalog/
+    // client prices instead of (subtotal + shipping) / vials.
+    const productLines = order.items.map((it) => ({
+      product: [it.variant.product.name, it.variant.dose].filter(Boolean).join(' ').trim(),
+      quantity: it.quantity,
+      amount: Number(it.totalPrice) * paidFraction,
+      cogs: Number(it.variant.unitCost) * it.quantity * paidFraction,
+    }))
+    const shippingAmount = Number(order.shippingTotal) * paidFraction
     const lineItems =
-      order.items.length > 0
-        ? order.items.map((it) => ({
-            product: [it.variant.product.name, it.variant.dose].filter(Boolean).join(' ').trim(),
-            quantity: it.quantity,
-            amount: Number(it.totalPrice) * paidFraction,
-            cogs: Number(it.variant.unitCost) * it.quantity * paidFraction,
-          }))
+      productLines.length > 0
+        ? shippingAmount > 0.005
+          ? [...productLines, { product: 'Shipping', quantity: 0, amount: shippingAmount, cogs: 0 }]
+          : productLines
         : Prisma.JsonNull
     const addr = addressString(order.shippingAddress ?? order.client.shippingAddress)
 
