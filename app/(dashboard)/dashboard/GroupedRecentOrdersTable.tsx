@@ -4,7 +4,8 @@ import React, { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { Sale } from '@/lib/sales'
+import { recentOrderGroupKey } from '@/lib/recent-order-group'
+import type { Sale } from '@/lib/sales'
 
 interface GroupedOrder {
   date: Date
@@ -42,8 +43,8 @@ export default function GroupedRecentOrdersTable({ data }: GroupedRecentOrdersTa
     if (!sale.Date) return
 
     const dateObj = sale.Date instanceof Date ? sale.Date : new Date(sale.Date)
-    const dateKey = dateObj.toISOString().split('T')[0]
-    const customerKey = `${sale.CustomerName}_${dateKey}`
+    const customerKey = recentOrderGroupKey(sale)
+    if (!customerKey) return
 
     if (!orderMap.has(customerKey)) {
       orderMap.set(customerKey, {
