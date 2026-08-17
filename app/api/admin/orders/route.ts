@@ -87,8 +87,10 @@ export async function GET(request: NextRequest) {
               organizationName: true,
               contactName: true,
               contactPhone: true,
-              // White-label (Shopify) FedEx ship-from uses practice shipping address.
+              // White-label FedEx ship-from + packing-slip brand mark.
               shippingAddress: true,
+              whiteLabelEnabled: true,
+              labelBrandKey: true,
             },
           },
           items: {

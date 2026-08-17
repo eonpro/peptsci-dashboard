@@ -18,6 +18,7 @@ import { Prisma, type FulfillmentStage, type FulfillmentStep } from '@prisma/cli
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { displayProductName } from '../products/named-blends'
+import { resolveLabelBrandKey } from '../labels/brandKeys'
 import {
   allocatableBatchesForVariants,
   minAllocatableBud,
@@ -297,6 +298,8 @@ export interface OrderPickList extends PickList {
   orderNumber: number
   clientName: string | null
   createdAt: string
+  /** White-label brand key when the packing/pick docs should not show PeptSci. */
+  labelBrandKey: string | null
 }
 
 export interface PackingSlipData {
@@ -313,6 +316,8 @@ export interface PackingSlipData {
   shippingAddress: unknown
   lines: Array<{ productName: string; dose: string; sku: string; quantity: number }>
   totalUnits: number
+  /** White-label brand key when the packing slip should not show PeptSci. */
+  labelBrandKey: string | null
 }
 
 const ORDER_WITH_ITEMS = {
@@ -322,7 +327,13 @@ const ORDER_WITH_ITEMS = {
     },
   },
   client: {
-    select: { organizationName: true, contactName: true, contactPhone: true },
+    select: {
+      organizationName: true,
+      contactName: true,
+      contactPhone: true,
+      whiteLabelEnabled: true,
+      labelBrandKey: true,
+    },
   },
 } satisfies Prisma.OrderInclude
 
@@ -368,6 +379,10 @@ export async function buildOrderPickList(orderId: string): Promise<OrderPickList
     orderNumber: order.orderNumber,
     clientName: order.client?.organizationName ?? null,
     createdAt: order.createdAt.toISOString(),
+    labelBrandKey: resolveLabelBrandKey({
+      whiteLabelEnabled: order.client?.whiteLabelEnabled,
+      labelBrandKey: order.client?.labelBrandKey,
+    }),
   }
 }
 
@@ -392,10 +407,20 @@ export async function buildPackingSlipData(orderId: string): Promise<PackingSlip
     createdAt: order.createdAt.toISOString(),
     carrier: order.carrier,
     trackingNumber: order.trackingNumber,
-    client: order.client,
+    client: order.client
+      ? {
+          organizationName: order.client.organizationName,
+          contactName: order.client.contactName,
+          contactPhone: order.client.contactPhone,
+        }
+      : null,
     shippingAddress: order.shippingAddress,
     lines,
     totalUnits: lines.reduce((s, l) => s + l.quantity, 0),
+    labelBrandKey: resolveLabelBrandKey({
+      whiteLabelEnabled: order.client?.whiteLabelEnabled,
+      labelBrandKey: order.client?.labelBrandKey,
+    }),
   }
 }
 

@@ -83,7 +83,7 @@ function toLabelAddress(order: OrderRow): Partial<LabelAddress> {
   }
 }
 
-/** Shopify white-label: practice brand as FedEx From; else PeptSci defaults. */
+/** Shopify / white-label: practice brand as FedEx From; else PeptSci defaults. */
 function toWhiteLabelOrigin(order: OrderRow): ShipFromAddress {
   return resolveWhiteLabelOrigin({
     source: order.source,
@@ -92,6 +92,7 @@ function toWhiteLabelOrigin(order: OrderRow): ShipFromAddress {
           organizationName: order.client.organizationName,
           contactPhone: order.client.contactPhone,
           shippingAddress: (order.client.shippingAddress || null) as Record<string, unknown> | null,
+          whiteLabelEnabled: order.client.whiteLabelEnabled,
         }
       : null,
   })
@@ -277,7 +278,10 @@ export default function FulfillmentPage() {
 
   const openLabelModal = useCallback((order: OrderRow, fromWizard = false) => {
     const origin = toWhiteLabelOrigin(order)
-    const whiteLabel = order.source === 'SHOPIFY' && !looksLikePeptSciOrigin(origin)
+    const whiteLabel =
+      (order.source === 'SHOPIFY' || Boolean(order.client?.whiteLabelEnabled)) &&
+      Boolean(order.client?.organizationName) &&
+      !looksLikePeptSciOrigin(origin)
     setLabelTarget({
       id: order.id,
       orderNumber: order.orderNumber,

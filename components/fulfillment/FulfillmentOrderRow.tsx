@@ -53,6 +53,8 @@ export type OrderRow = {
     contactPhone: string | null
     /** Practice ship-from for Shopify white-label FedEx labels. */
     shippingAddress?: StoredAddress
+    whiteLabelEnabled?: boolean
+    labelBrandKey?: string | null
   } | null
   items: { name: string; dose: string | null; quantity: number }[]
   fulfillmentStage: FulfillmentStageName

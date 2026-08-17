@@ -1,9 +1,9 @@
 /**
  * Resolve FedEx ship-from (origin) for white-label Shopify fulfillment.
  *
- * Shopify orders print the practice brand on the label; packages still leave
- * PeptSci's warehouse on the PeptSci FedEx account. Non-Shopify orders and
- * incomplete client addresses fall back to PeptSci Tampa defaults.
+ * Shopify / white-label orders print the practice brand as the sender name.
+ * Street address prefers the practice shipping address when complete; otherwise
+ * packages still leave PeptSci's Tampa warehouse on the PeptSci FedEx account.
  */
 
 export type ShipFromAddress = {
@@ -21,6 +21,8 @@ export type WhiteLabelOriginClient = {
   organizationName?: string | null
   contactPhone?: string | null
   shippingAddress?: Record<string, unknown> | null
+  /** When set, treat as white-label even if order source is not SHOPIFY. */
+  whiteLabelEnabled?: boolean | null
 }
 
 function str(v: unknown): string {
@@ -85,30 +87,37 @@ export function looksLikePeptSciOrigin(origin: {
 
 /**
  * Resolve ship-from for a fulfillment order.
- * - SHOPIFY + complete client.shippingAddress → practice org + address
- * - otherwise → PeptSci defaults
+ * - SHOPIFY or whiteLabelEnabled + org name → practice brand as sender
+ * - Street: practice shippingAddress when complete, else PeptSci Tampa
  */
 export function resolveWhiteLabelOrigin(input: {
   source?: string | null
   client?: WhiteLabelOriginClient | null
 }): ShipFromAddress {
   const pept = getPeptSciOrigin()
-  if (input.source !== 'SHOPIFY' || !input.client) return pept
+  const orgRaw = str(input.client?.organizationName)
+  const useBrand =
+    Boolean(orgRaw) &&
+    (input.source === 'SHOPIFY' || Boolean(input.client?.whiteLabelEnabled))
 
-  const parsed = parseStoredAddress(input.client.shippingAddress ?? null)
-  if (!isCompleteShipFromAddress(parsed)) return pept
+  if (!useBrand || !input.client) return pept
 
-  const orgRaw = str(input.client.organizationName) || pept.personName
   const org = fedexShipFromDisplayName(orgRaw)
+  const parsed = parseStoredAddress(input.client.shippingAddress ?? null)
+  const addrComplete = isCompleteShipFromAddress(parsed)
+
   return {
     personName: org,
     companyName: org,
-    phoneNumber: str(input.client.contactPhone) || parsed.phone || pept.phoneNumber,
-    address1: parsed.address1,
-    address2: parsed.address2 || null,
-    city: parsed.city,
-    state: parsed.state,
-    zip: parsed.zip,
+    phoneNumber:
+      str(input.client.contactPhone) ||
+      (addrComplete ? parsed.phone : '') ||
+      pept.phoneNumber,
+    address1: addrComplete ? parsed.address1 : pept.address1,
+    address2: addrComplete ? parsed.address2 || null : pept.address2 || null,
+    city: addrComplete ? parsed.city : pept.city,
+    state: addrComplete ? parsed.state : pept.state,
+    zip: addrComplete ? parsed.zip : pept.zip,
   }
 }
 
