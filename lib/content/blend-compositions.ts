@@ -13,6 +13,8 @@ import { normalizeKey } from './peptide-monographs'
 
 export interface BlendComponent {
   name: string
+  /** Canonical per-vial amount when the variant dose is a total (e.g. "70mg"). */
+  amount?: string
   casNumber?: string
   molecularFormula?: string
   /** g/mol, formatted for display. */
@@ -37,8 +39,17 @@ const TESAMORELIN: BlendComponent = { name: 'Tesamorelin', casNumber: '218949-48
 // Dose strings are slash-separated in the same order so PDP / labels line up.
 export const BLEND_COMPOSITIONS: Record<string, BlendComponent[]> = {
   'bpc-157-tb-500-blend': [BPC_157, TB_500],
-  glow: [GHK_CU, BPC_157, TB_500],
-  klow: [GHK_CU, BPC_157, KPV, TB_500],
+  glow: [
+    { ...GHK_CU, amount: '50mg' },
+    { ...BPC_157, amount: '10mg' },
+    { ...TB_500, amount: '10mg' },
+  ],
+  klow: [
+    { ...GHK_CU, amount: '50mg' },
+    { ...BPC_157, amount: '10mg' },
+    { ...KPV, amount: '10mg' },
+    { ...TB_500, amount: '10mg' },
+  ],
   'cjc-1295-no-dac-ipamorelin': [CJC_1295_NO_DAC, IPAMORELIN],
   'tesamorelin-ipamorelin': [TESAMORELIN, IPAMORELIN],
 }
@@ -72,6 +83,25 @@ const ALIASES: Record<string, string> = {
   'tesamorelin-and-ipamorelin': 'tesamorelin-ipamorelin',
   'tesamorelin-ipamorelin-blend': 'tesamorelin-ipamorelin',
   'tesamorelin-10mg-ipamorelin-5mg-blend': 'tesamorelin-ipamorelin',
+}
+
+/**
+ * Blend components with per-peptide amounts. Slash-separated variant doses
+ * (`50mg/10mg/10mg`) win when they line up 1:1; otherwise canonical amounts
+ * fill in so a total-only dose (`70mg` / `80mg`) still lists every peptide.
+ */
+export function resolveBlendCompounds(name: string, dose: string | null): BlendComponent[] | null {
+  const composition = getBlendComposition(name)
+  if (!composition) return null
+  const doses = (dose || '')
+    .split(/\s*[/+]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const hasPartDoses = doses.length === composition.length
+  return composition.map((c, i) => ({
+    ...c,
+    amount: hasPartDoses ? doses[i] : c.amount || '',
+  }))
 }
 
 /** Resolve a blend's component list by product name, or null if not a known blend. */

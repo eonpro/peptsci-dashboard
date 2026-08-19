@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { ProductVial } from './ProductVial'
 import type { ShopProduct } from '@/lib/types/shop'
+import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
 
 // Types for detailed product information
 export interface CompoundInfo {
@@ -64,6 +65,8 @@ const PEPTSCI_LOGO_URL =
 const CARD_MIN_HEIGHT = '480px'
 
 export function ProductDetailCard({ product, vialProduct, className }: ProductDetailCardProps) {
+  const tradeName = resolveNamedBlendTradeName(product.name)
+
   return (
     <div
       className={cn(
@@ -99,10 +102,18 @@ export function ProductDetailCard({ product, vialProduct, className }: ProductDe
 
         {/* Compounds list - grow to fill space (right padding clears the vial) */}
         <div className={cn('space-y-6 grow', vialProduct && 'pr-28 md:pr-36')}>
+          {tradeName && (
+            <h2 className="text-2xl md:text-3xl font-bold text-brand-primary">{product.name}</h2>
+          )}
           {product.compounds.map((compound, index) => (
             <div key={index} className="space-y-2">
               {/* Compound name and amount - WHITE font */}
-              <h2 className="text-2xl md:text-3xl font-bold text-white">
+              <h2
+                className={cn(
+                  'font-bold text-white',
+                  tradeName ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl'
+                )}
+              >
                 {compound.name} {compound.amount}
               </h2>
 
@@ -148,8 +159,8 @@ export function ProductDetailCard({ product, vialProduct, className }: ProductDe
 
         {/* Bottom section - always at bottom */}
         <div className={cn('mt-auto pt-6', vialProduct && 'pr-28 md:pr-36')}>
-          {/* Total amount */}
-          {product.totalAmount && (
+          {/* Total amount — named trades already use GLOW/KLOW as the title */}
+          {!tradeName && product.totalAmount && (
             <p className="text-2xl md:text-3xl font-bold text-brand-primary mb-4">{product.totalAmount}</p>
           )}
 

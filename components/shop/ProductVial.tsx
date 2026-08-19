@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
+import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
 
 /**
  * ProductVial — renders the photoreal blank vial with a dynamically generated
@@ -86,6 +87,26 @@ export function getCompoundParts(product: VialProductInput): VialCompound[] {
   ]
 }
 
+/** First dose in the black band; remaining slash-doses share the blue band. */
+export function vialDoseBands(doses: string[]): { top: string; bottom: string } | null {
+  const parts = doses.map((d) => d.trim()).filter(Boolean)
+  if (parts.length < 2) return null
+  if (parts.length === 2) return { top: parts[0], bottom: parts[1] }
+  return { top: parts[0], bottom: parts.slice(1).join('/') }
+}
+
+/** Per-peptide amounts for the vial dose box (compounds first, else the dose string). */
+export function vialDoseParts(product: VialProductInput, compounds: VialCompound[]): string[] {
+  const fromCompounds = compounds.map((c) => c.dose).filter(Boolean)
+  if (fromCompounds.length >= 2) return fromCompounds
+  const raw =
+    fromCompounds[0] || product.dose || (product.milligrams ? `${product.milligrams}mg` : '')
+  return raw
+    .split(/\s*[/+]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 /**
  * Pull a trailing modifier off a peptide name so it can render on its own
  * line under the main name: "CJC-1295 (no DAC)" → ["CJC-1295", "no DAC"],
@@ -124,9 +145,9 @@ export function ProductVial({ product, className }: ProductVialProps) {
   }
 
   const compounds = getCompoundParts(product)
-  const isBlend = compounds.length >= 2
-  // Two-row dose box needs a dose per compound; otherwise show the total dose
-  const hasPartDoses = isBlend && compounds.every((c) => c.dose)
+  const trade = resolveNamedBlendTradeName(product.name)
+  const isBlend = !trade && compounds.length >= 2
+  const bands = vialDoseBands(vialDoseParts(product, compounds))
   const totalDose = product.dose || (product.milligrams ? `${product.milligrams}mg` : '')
   const purity = product.compounds?.[0]?.purity || '99%HPLC'
   // Compact purity for the tiny label ("99%+HPLC" style)
@@ -170,8 +191,12 @@ export function ProductVial({ product, className }: ProductVialProps) {
 
           {/* Main label content */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-[4cqw]">
-            {/* Product name */}
-            {isBlend ? (
+            {/* Product name — GLOW/KLOW print the trade name, not the first two peptides */}
+            {trade ? (
+              <div className="leading-none font-bold tracking-tight text-[#101123]">
+                <div className={cn(CLIP, 'text-[15cqw]')}>{trade}</div>
+              </div>
+            ) : isBlend ? (
               (() => {
                 const [firstMain, firstMod] = splitNameModifier(compounds[0].name)
                 const [secondMain, secondMod] = splitNameModifier(compounds[1].name)
@@ -234,16 +259,22 @@ export function ProductVial({ product, className }: ProductVialProps) {
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[3cqw]">
-                {hasPartDoses ? (
+                {bands ? (
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[1.8cqw]">
                       <span className={cn(CLIP, 'text-[8.5cqw] font-semibold text-white')}>
-                        {compounds[0].dose}
+                        {bands.top}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.8cqw]">
-                      <span className={cn(CLIP, 'text-[8.5cqw] font-semibold text-white')}>
-                        {compounds[1].dose}
+                      <span
+                        className={cn(
+                          CLIP,
+                          bands.bottom.length > 10 ? 'text-[6.5cqw]' : 'text-[8.5cqw]',
+                          'font-semibold text-white'
+                        )}
+                      >
+                        {bands.bottom}
                       </span>
                     </div>
                   </>
@@ -251,7 +282,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[2cqw]">
                       <span className={cn(CLIP, 'text-[9cqw] font-semibold text-white')}>
-                        {(isBlend ? totalDose : compounds[0].dose || totalDose) || '—'}
+                        {(isBlend || trade ? totalDose : compounds[0].dose || totalDose) || '—'}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.2cqw]">
@@ -263,7 +294,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
                 )}
               </div>
 
-              {hasPartDoses && (
+              {bands && (
                 <div className="flex items-center justify-center">
                   <span className="text-[4.5cqw] font-semibold tracking-tight text-[#101123] [writing-mode:vertical-rl] rotate-180">
                     {purityShort}

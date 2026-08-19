@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { ChevronRight, FileText, Pencil } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
+import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
 
 /** Per-SKU cost/SRP for Super Admin pricing cards (never sent to shop clients). */
 export interface AdminPricingSku {
@@ -123,6 +124,7 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
   // Compound breakdown drives both the card copy and the generated vial label
   const compounds = getCompoundParts(product)
   const isBlend = compounds.length >= 2
+  const tradeName = resolveNamedBlendTradeName(product.name)
 
   // Sizes line ("5mg · 10mg") — grouped doses when available
   const doseList =
@@ -406,12 +408,38 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
 
         <div className="px-5 pt-2">
           {isBlend && product.compounds && product.compounds.length >= 2 ? (
-            /* Blend layout: per-compound spec blocks */
-            <div className="space-y-3 pr-14 @[18rem]:pr-16">
-              {product.compounds.slice(0, 2).map((c, i) => (
-                <div key={i}>
-                  <h3 className="font-semibold tracking-tight text-white text-base @[16rem]:text-lg leading-tight">
-                    {i === 0 && !isAdmin ? (
+            /* Blend layout: named trades (GLOW/KLOW) as the hero, then every peptide */
+            <div
+              className={cn(
+                'pr-14 @[18rem]:pr-16',
+                product.compounds.length >= 3 ? 'space-y-1.5' : 'space-y-3'
+              )}
+            >
+              {tradeName ? (
+                <h3 className="font-semibold tracking-tight text-[#4d6bff] text-xl @[16rem]:text-2xl leading-tight">
+                  {isAdmin ? (
+                    <span>{product.name}</span>
+                  ) : (
+                    <Link
+                      href={pdpHref}
+                      className="transition-colors group-hover:text-blue-300"
+                    >
+                      {product.name}
+                    </Link>
+                  )}
+                </h3>
+              ) : null}
+              {product.compounds.map((c, i) => (
+                <div key={`${c.name}-${i}`}>
+                  <h3
+                    className={cn(
+                      'font-semibold tracking-tight text-white leading-tight',
+                      product.compounds!.length >= 3
+                        ? 'text-sm @[16rem]:text-base'
+                        : 'text-base @[16rem]:text-lg'
+                    )}
+                  >
+                    {!tradeName && i === 0 && !isAdmin ? (
                       <Link
                         href={pdpHref}
                         className="transition-colors group-hover:text-blue-300"
@@ -419,24 +447,42 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
                         {c.name} {c.amount}
                       </Link>
                     ) : (
-                      <span className={cn(!isAdmin && i === 0 && 'transition-colors group-hover:text-blue-300')}>
+                      <span
+                        className={cn(
+                          !isAdmin && !tradeName && i === 0 && 'transition-colors group-hover:text-blue-300'
+                        )}
+                      >
                         {c.name} {c.amount}
                       </span>
                     )}
                   </h3>
-                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug tracking-tight">
+                  <p
+                    className={cn(
+                      'text-white/70 leading-snug tracking-tight',
+                      product.compounds!.length >= 3
+                        ? 'text-[10px] @[16rem]:text-[11px]'
+                        : 'text-[11px] @[16rem]:text-xs'
+                    )}
+                  >
                     {c.casNumber && <>CAS #: {c.casNumber}</>}
                     {c.casNumber && c.molecularFormula && <span className="text-white/30"> | </span>}
                     {c.molecularFormula && formatMolecularFormula(c.molecularFormula)}
                   </p>
-                  <p className="text-white/70 text-[11px] @[16rem]:text-xs leading-snug tracking-tight">
+                  <p
+                    className={cn(
+                      'text-white/70 leading-snug tracking-tight',
+                      product.compounds!.length >= 3
+                        ? 'text-[10px] @[16rem]:text-[11px]'
+                        : 'text-[11px] @[16rem]:text-xs'
+                    )}
+                  >
                     {c.molecularWeight && <>MW: {c.molecularWeight}</>}
                     {c.molecularWeight && c.purity && <span className="text-white/30"> | </span>}
                     {c.purity && <>{c.purity} Purity</>}
                   </p>
                 </div>
               ))}
-              {totalMg && (
+              {!tradeName && totalMg && (
                 <p className="text-[#4d6bff] font-semibold tracking-tight text-base @[16rem]:text-lg pt-1">
                   Total {totalMg} (Blend)
                 </p>

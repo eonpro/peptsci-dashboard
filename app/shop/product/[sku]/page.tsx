@@ -37,28 +37,29 @@ function buildDetailData(product: ShopProduct): ProductDetailData | null {
   // verified chemistry instead.
   const blend = getBlendComposition(product.name)
 
-  const compounds = blend
-    ? blend.map((c) => ({
-        name: c.name,
-        amount: '',
-        casNumber: c.casNumber,
-        molecularFormula: c.molecularFormula,
-        molecularWeight: c.molecularWeight,
-        purity: c.purity,
-      }))
-    : product.compounds && product.compounds.length > 0
+  const compounds =
+    product.compounds && product.compounds.length > 0
       ? product.compounds
-      : product.casNumber || product.molecularFormula || product.molecularWeight
-        ? [
-            {
-              name: product.name,
-              amount: product.dose || '',
-              casNumber: product.casNumber ?? undefined,
-              molecularFormula: product.molecularFormula ?? undefined,
-              molecularWeight: product.molecularWeight ?? undefined,
-            },
-          ]
-        : null
+      : blend
+        ? blend.map((c) => ({
+            name: c.name,
+            amount: c.amount || '',
+            casNumber: c.casNumber,
+            molecularFormula: c.molecularFormula,
+            molecularWeight: c.molecularWeight,
+            purity: c.purity,
+          }))
+        : product.casNumber || product.molecularFormula || product.molecularWeight
+          ? [
+              {
+                name: product.name,
+                amount: product.dose || '',
+                casNumber: product.casNumber ?? undefined,
+                molecularFormula: product.molecularFormula ?? undefined,
+                molecularWeight: product.molecularWeight ?? undefined,
+              },
+            ]
+          : null
 
   if (!compounds) return null
 
