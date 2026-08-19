@@ -33,8 +33,17 @@ import {
   type RowError,
 } from '@/lib/client-pricing-import'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { toast } from 'sonner'
+import {
   AlertCircle,
   CheckCircle2,
+  Copy,
   Download,
   FileUp,
   Loader2,
@@ -66,16 +75,28 @@ interface ImportSummary {
   errors: RowError[]
 }
 
+interface CopySourceClient {
+  id: string
+  organizationName: string
+  paysAtCost: boolean
+  customPriceCount: number
+}
+
 interface ClientPricingPanelProps {
   clientId: string
   organizationName: string
+  onPricingChanged?: (customCount: number) => void
 }
 
 function formatMoney(n: number) {
   return `$${n.toFixed(2)}`
 }
 
-export function ClientPricingPanel({ clientId, organizationName }: ClientPricingPanelProps) {
+export function ClientPricingPanel({
+  clientId,
+  organizationName,
+  onPricingChanged,
+}: ClientPricingPanelProps) {
   const { isSuperAdmin } = useRole()
   const [prices, setPrices] = useState<PriceRow[]>([])
   const [paysAtCost, setPaysAtCost] = useState(false)
@@ -97,6 +118,12 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<ImportSummary | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copySources, setCopySources] = useState<CopySourceClient[]>([])
+  const [copySourcesLoading, setCopySourcesLoading] = useState(false)
+  const [copySourceId, setCopySourceId] = useState('')
+  const [copying, setCopying] = useState(false)
 
   const loadPricing = useCallback(async () => {
     setLoading(true)
@@ -141,10 +168,17 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
     )
   }, [prices, search])
 
+  const onPricingChangedRef = useRef(onPricingChanged)
+  onPricingChangedRef.current = onPricingChanged
+
   const customCount = useMemo(
     () => prices.filter((p) => p.customPrice != null && p.customPrice > 0).length,
     [prices]
   )
+
+  useEffect(() => {
+    onPricingChangedRef.current?.(customCount)
+  }, [customCount])
 
   const handlePaysAtCostChange = async (value: boolean) => {
     if (!isSuperAdmin) return
@@ -315,6 +349,63 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
     URL.revokeObjectURL(url)
   }
 
+  async function openCopy() {
+    setCopyOpen(true)
+    setCopySourceId('')
+    setCopySourcesLoading(true)
+    try {
+      const res = await fetch('/api/admin/clients')
+      if (!res.ok) throw await apiError(res, 'Failed to load clients')
+      const data = await res.json()
+      const list: CopySourceClient[] = (data.clients ?? [])
+        .filter((c: CopySourceClient) => c.id !== clientId)
+        .map((c: CopySourceClient) => ({
+          id: c.id,
+          organizationName: c.organizationName,
+          paysAtCost: Boolean(c.paysAtCost),
+          customPriceCount: Number(c.customPriceCount ?? 0),
+        }))
+      setCopySources(list)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load clients')
+      setCopyOpen(false)
+    } finally {
+      setCopySourcesLoading(false)
+    }
+  }
+
+  async function runCopy() {
+    if (!copySourceId) return
+    setCopying(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/client-pricing/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceClientId: copySourceId,
+          targetClientId: clientId,
+          replace: true,
+          copyPaysAtCost: true,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.message || 'Failed to copy pricing')
+      const sourceName =
+        copySources.find((c) => c.id === copySourceId)?.organizationName ?? 'the other client'
+      toast.success(
+        `Copied ${data.copied ?? 0} price${data.copied === 1 ? '' : 's'} from ${sourceName}` +
+          (data.cleared ? `, cleared ${data.cleared}` : '')
+      )
+      setCopyOpen(false)
+      await loadPricing()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to copy pricing')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   function openImport() {
     setCsvText('')
     setFileName(null)
@@ -356,13 +447,28 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
               Custom Pricing
             </CardTitle>
             <CardDescription className="text-white/50">
-              All catalog products with retail (SRP) and this clinic&apos;s offer price.
+              All catalog products with retail (SRP) and a field to type this
+              clinic&apos;s offer price. Copy another client&apos;s model to start
+              from an existing sheet.
               {customCount > 0
                 ? ` ${customCount} custom SKU${customCount === 1 ? '' : 's'} set.`
                 : ' Catalog SRP applies until a custom price is set.'}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-white/15 text-white hover:bg-white/10"
+                onClick={() => void openCopy()}
+                disabled={loading}
+              >
+                <Copy className="h-4 w-4 mr-1.5" />
+                Copy from client
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -605,6 +711,92 @@ export function ClientPricingPanel({ clientId, organizationName }: ClientPricing
           </p>
         )}
       </CardContent>
+
+      <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="text-white">Copy pricing model</DialogTitle>
+            <DialogDescription className="text-white/60">
+              Replace {organizationName}&apos;s custom prices with another clinic&apos;s
+              full model. SKUs the source does not price will be cleared. The
+              &ldquo;clinic pays cost&rdquo; flag is copied too.
+            </DialogDescription>
+          </DialogHeader>
+
+          {copySourcesLoading ? (
+            <div className="flex items-center justify-center py-8 text-white/50">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading clients…
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-white/80">Copy from</Label>
+                <Select value={copySourceId} onValueChange={setCopySourceId}>
+                  <SelectTrigger className="bg-[#0a0e3a] border-white/10 text-white">
+                    <SelectValue placeholder="Select a client" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-brand-onyx border-white/10 max-h-[300px]">
+                    {copySources
+                      .slice()
+                      .sort((a, b) => {
+                        const aRank = a.customPriceCount + (a.paysAtCost ? 1 : 0)
+                        const bRank = b.customPriceCount + (b.paysAtCost ? 1 : 0)
+                        if (bRank !== aRank) return bRank - aRank
+                        return a.organizationName.localeCompare(b.organizationName)
+                      })
+                      .map((c) => (
+                        <SelectItem
+                          key={c.id}
+                          value={c.id}
+                          className="text-white focus:bg-white/10 focus:text-white"
+                        >
+                          {c.organizationName}
+                          {c.customPriceCount > 0
+                            ? ` · ${c.customPriceCount} SKU${c.customPriceCount === 1 ? '' : 's'}`
+                            : ''}
+                          {c.paysAtCost ? ' · pays cost' : ''}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {copySourceId ? (
+                <p className="text-sm text-amber-200/90">
+                  This overwrites every custom price on {organizationName}.
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/15 text-white"
+              onClick={() => setCopyOpen(false)}
+              disabled={copying}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={copying || !copySourceId || copySourcesLoading}
+              onClick={() => void runCopy()}
+              className="bg-brand-primary hover:bg-[#1a30c0] text-white"
+            >
+              {copying ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Copying…
+                </>
+              ) : (
+                'Copy pricing'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">

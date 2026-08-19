@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/hooks/useRole'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { AddressFields } from '@/components/AddressFields'
 import type { Address } from '@/lib/address'
 import { addressSchema } from '@/lib/address'
@@ -38,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ArrowLeft,
   Building2,
@@ -99,6 +99,20 @@ const emptyAddress: Partial<Address> = { country: 'US' }
 const inputClass = 'h-12 bg-white/5 border-white/10 text-white rounded-xl'
 const labelClass = 'text-white/70'
 
+const CLIENT_TABS = [
+  'overview',
+  'pricing',
+  'documents',
+  'patients',
+  'integrations',
+  'users',
+] as const
+type ClientTab = (typeof CLIENT_TABS)[number]
+
+function isClientTab(value: string | null): value is ClientTab {
+  return CLIENT_TABS.includes(value as ClientTab)
+}
+
 /** Include a complete address in PATCH; omit empty; reject partial edits. */
 function addressForPatch(
   addr: Partial<Address>,
@@ -131,8 +145,21 @@ const statusStyles: Record<string, string> = {
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isSuperAdmin } = useRole()
   const id = params.id
+  const tab: ClientTab = isClientTab(searchParams.get('tab'))
+    ? (searchParams.get('tab') as ClientTab)
+    : 'overview'
+
+  const setTab = (value: string) => {
+    const next = isClientTab(value) ? value : 'overview'
+    const nextParams = new URLSearchParams(searchParams.toString())
+    if (next === 'overview') nextParams.delete('tab')
+    else nextParams.set('tab', next)
+    const qs = nextParams.toString()
+    router.replace(qs ? `/clients/${id}?${qs}` : `/clients/${id}`, { scroll: false })
+  }
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -408,6 +435,54 @@ export default function ClientDetailPage() {
         </div>
       )}
 
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-white/5 border border-white/10 p-1">
+          <TabsTrigger
+            value="overview"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Overview
+          </TabsTrigger>
+          <TabsTrigger
+            value="pricing"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Pricing
+            {setup && setup.customPricingCount > 0 ? (
+              <span className="ml-1.5 text-[10px] text-white/50">
+                {setup.customPricingCount}
+              </span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger
+            value="documents"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Documents
+          </TabsTrigger>
+          <TabsTrigger
+            value="patients"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Patients
+          </TabsTrigger>
+          <TabsTrigger
+            value="integrations"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Storefront
+          </TabsTrigger>
+          <TabsTrigger
+            value="users"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Users
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === 'overview' && (
+        <>
       {/* Approval actions */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
         <CardHeader>
@@ -471,7 +546,7 @@ export default function ClientDetailPage() {
                 </span>
               </div>
               <a
-                href="#client-pricing"
+                href="?tab=pricing"
                 className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
               >
                 Manage
@@ -547,7 +622,7 @@ export default function ClientDetailPage() {
                 </span>
               </div>
               <a
-                href="#documents"
+                href="?tab=documents"
                 className="text-xs text-brand-primary underline underline-offset-2 hover:text-white"
               >
                 Review
@@ -605,13 +680,6 @@ export default function ClientDetailPage() {
           </div>
         </CardContent>
       </Card>
-
-      {profile && (
-        <ClientPricingPanel
-          clientId={id}
-          organizationName={profile.organizationName || 'Client'}
-        />
-      )}
 
       {/* Billing terms */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
@@ -833,56 +901,74 @@ export default function ClientDetailPage() {
           'Save Changes'
         )}
       </Button>
+        </>
+      )}
 
-      <Separator className="bg-white/10" />
-
-      {/* Compliance documents */}
-      <div id="documents">
-        <ClientDocumentsCard clientId={id} />
-      </div>
-
-      {/* Saved patients + clinic <-> PeptSci message threads */}
-      <div id="patients">
-        <ClientPatientsCard clientId={id} />
-
-        <ClientCreditCard clientId={id} />
-        <ClientStripeCard
+      {tab === 'pricing' && (
+        <ClientPricingPanel
           clientId={id}
-          onLinked={() => {
-            // Refresh setup checklist (card on file) after link/sync.
-            void fetch(`/api/admin/clients/${id}`)
-              .then((r) => (r.ok ? r.json() : null))
-              .then((data) => {
-                if (data?.setup) {
-                  setSetup({
-                    ...data.setup,
-                    cardOnFile: data.setup.cardOnFile ?? {
-                      count: 0,
-                      cardBrand: null,
-                      cardLast4: null,
-                    },
-                  })
-                }
-              })
-          }}
+          organizationName={profile.organizationName || 'Client'}
+          onPricingChanged={(customPricingCount) =>
+            setSetup((prev) =>
+              prev && prev.customPricingCount !== customPricingCount
+                ? { ...prev, customPricingCount }
+                : prev
+            )
+          }
         />
-      </div>
+      )}
 
-      {/* Partner attribution — manual attach for clinics that signed up
-          directly but came from a partner (no referral link used). */}
-      <ClientPartnerCard clientId={id} />
-      <ClientShopifyCard clientId={id} />
-      <ClientCustomersCard clientId={id} />
-      <ClientWhiteLabelLabelsCard
-        clientId={id}
-        initialEnabled={whiteLabelEnabled}
-        initialBrandKey={labelBrandKey}
-        onChanged={({ whiteLabelEnabled: nextEnabled, labelBrandKey: nextBrand }) => {
-          setWhiteLabelEnabled(nextEnabled)
-          setLabelBrandKey(nextBrand)
-        }}
-      />
+      {tab === 'documents' && (
+        <div id="documents">
+          <ClientDocumentsCard clientId={id} />
+        </div>
+      )}
 
+      {tab === 'patients' && (
+        <div id="patients">
+          <ClientPatientsCard clientId={id} />
+          <ClientCreditCard clientId={id} />
+          <ClientStripeCard
+            clientId={id}
+            onLinked={() => {
+              void fetch(`/api/admin/clients/${id}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => {
+                  if (data?.setup) {
+                    setSetup({
+                      ...data.setup,
+                      cardOnFile: data.setup.cardOnFile ?? {
+                        count: 0,
+                        cardBrand: null,
+                        cardLast4: null,
+                      },
+                    })
+                  }
+                })
+            }}
+          />
+        </div>
+      )}
+
+      {tab === 'integrations' && (
+        <>
+          <ClientPartnerCard clientId={id} />
+          <ClientShopifyCard clientId={id} />
+          <ClientCustomersCard clientId={id} />
+          <ClientWhiteLabelLabelsCard
+            clientId={id}
+            initialEnabled={whiteLabelEnabled}
+            initialBrandKey={labelBrandKey}
+            onChanged={({ whiteLabelEnabled: nextEnabled, labelBrandKey: nextBrand }) => {
+              setWhiteLabelEnabled(nextEnabled)
+              setLabelBrandKey(nextBrand)
+            }}
+          />
+        </>
+      )}
+
+      {tab === 'users' && (
+        <>
       {/* Linked users */}
       <Card className="bg-[#0a0e3a]/50 border-white/10">
         <CardHeader>
@@ -990,6 +1076,8 @@ export default function ClientDetailPage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       <InviteUserDialog
         open={inviteOpen}
