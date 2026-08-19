@@ -54,6 +54,16 @@ export function mergeCatalogLinesForOrder(
   return Array.from(map.values())
 }
 
+/**
+ * Product-invoice mint ships to the practice. Shopify inbounds already have a
+ * dedicated fulfill path (patient ship-to). Never fall through to practice.
+ */
+export function platformInvoiceMintBlockReason(input: {
+  hasShopifyInbound: boolean
+}): string | null {
+  return input.hasShopifyInbound ? 'shopify_inbound' : null
+}
+
 export type FulfillPlatformInvoiceResult =
   | { status: 'created'; orderId: string; orderNumber: number }
   | { status: 'already_linked'; orderId: string }
@@ -74,10 +84,16 @@ export async function fulfillPlatformInvoiceProducts(
       lineItems: { orderBy: { createdAt: 'asc' } },
       payments: { orderBy: { paidAt: 'desc' }, take: 5 },
       client: { select: { id: true, shippingAddress: true } },
+      shopifyInbound: { select: { id: true } },
     },
   })
   if (!invoice) return { status: 'skipped', reason: 'not_found' }
   if (invoice.status !== 'PAID') return { status: 'skipped', reason: 'not_paid' }
+
+  const shopifyBlock = platformInvoiceMintBlockReason({
+    hasShopifyInbound: Boolean(invoice.shopifyInbound),
+  })
+  if (shopifyBlock) return { status: 'skipped', reason: shopifyBlock }
 
   // Already minted a fulfillment Order from catalog lines on this invoice.
   // (Order-rollup lines also have orderId — those are the *billed* orders, not

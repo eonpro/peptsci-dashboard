@@ -58,3 +58,25 @@ export function inboundLinesFullyMapped(
 ): boolean {
   return lines.length > 0 && lines.every((l) => Boolean(l.variantId))
 }
+
+/**
+ * Collapse Shopify lines that mapped to the same PeptSci variant (bundle apps
+ * often emit two line items for one SKU). createManualOrder rejects duplicates.
+ */
+export function mergeMappedInboundLines<T extends { variantId: string | null | undefined; quantity: number }>(
+  lines: T[]
+): Array<T & { variantId: string }> {
+  const map = new Map<string, T & { variantId: string }>()
+  for (const line of lines) {
+    const variantId = line.variantId?.trim()
+    if (!variantId) continue
+    const qty = Math.max(0, Math.floor(Number(line.quantity) || 0))
+    const existing = map.get(variantId)
+    if (!existing) {
+      map.set(variantId, { ...line, variantId, quantity: qty })
+    } else {
+      existing.quantity += qty
+    }
+  }
+  return Array.from(map.values()).filter((l) => l.quantity > 0)
+}

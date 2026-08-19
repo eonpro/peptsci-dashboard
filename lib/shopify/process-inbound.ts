@@ -18,6 +18,7 @@ import { syncSalesRecordFromOrder } from '@/lib/sales'
 import {
   buildShopifyInvoiceLines,
   inboundLinesFullyMapped,
+  mergeMappedInboundLines,
   type PricedInboundLine,
 } from './inbound-core'
 import {
@@ -167,10 +168,15 @@ export async function fulfillShopifyInboundAfterInvoicePaid(
     }
   }
 
-  const mappedLines = inbound.lines.map((l) => ({
-    variantId: l.variantId!,
-    quantity: l.quantity,
-  }))
+  const mappedLines = mergeMappedInboundLines(
+    inbound.lines.map((l) => ({
+      variantId: l.variantId,
+      quantity: l.quantity,
+    }))
+  )
+  if (mappedLines.length === 0) {
+    return { status: 'error', code: 'NO_LINES', message: 'No mapped line items' }
+  }
 
   const shippingAddress = enrichShippingAddressWithBuyer(
     inbound.shippingAddress,
