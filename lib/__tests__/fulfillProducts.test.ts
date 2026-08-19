@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   mergeCatalogLinesForOrder,
   matchVariantIdFromDescription,
+  platformInvoiceMintBlockReason,
 } from '../invoicing/fulfill-products.ts'
 
 describe('mergeCatalogLinesForOrder', () => {
@@ -16,6 +17,19 @@ describe('mergeCatalogLinesForOrder', () => {
       { variantId: 'a', quantity: 5, unitPrice: 10 },
       { variantId: 'b', quantity: 1, unitPrice: 20 },
     ])
+  })
+})
+
+describe('platformInvoiceMintBlockReason', () => {
+  test('blocks practice-address mint when the invoice is a Shopify inbound', () => {
+    assert.equal(
+      platformInvoiceMintBlockReason({ hasShopifyInbound: true }),
+      'shopify_inbound'
+    )
+  })
+
+  test('allows mint for ordinary admin product invoices', () => {
+    assert.equal(platformInvoiceMintBlockReason({ hasShopifyInbound: false }), null)
   })
 })
 

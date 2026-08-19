@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   buildShopifyInvoiceLines,
   inboundLinesFullyMapped,
+  mergeMappedInboundLines,
 } from '../shopify/inbound-core.ts'
 
 describe('inboundLinesFullyMapped', () => {
@@ -58,5 +59,36 @@ describe('buildShopifyInvoiceLines', () => {
       shopifyOrderName: '#9',
     })
     assert.match(built.lineItems[1].description, /Next-day shipping/)
+  })
+})
+
+describe('mergeMappedInboundLines', () => {
+  test('sums quantities when Kaching-style bundles repeat the same mapped SKU', () => {
+    const merged = mergeMappedInboundLines([
+      { variantId: 'bac', quantity: 1 },
+      { variantId: 'bb20', quantity: 1 },
+      { variantId: 'bb20', quantity: 1 },
+    ])
+    assert.deepEqual(merged, [
+      { variantId: 'bac', quantity: 1 },
+      { variantId: 'bb20', quantity: 2 },
+    ])
+  })
+
+  test('leaves distinct variants unchanged', () => {
+    const lines = [
+      { variantId: 'a', quantity: 2 },
+      { variantId: 'b', quantity: 1 },
+    ]
+    assert.deepEqual(mergeMappedInboundLines(lines), lines)
+  })
+
+  test('drops unmapped lines', () => {
+    const merged = mergeMappedInboundLines([
+      { variantId: 'a', quantity: 1 },
+      { variantId: null, quantity: 1 },
+      { variantId: undefined, quantity: 3 },
+    ])
+    assert.deepEqual(merged, [{ variantId: 'a', quantity: 1 }])
   })
 })
