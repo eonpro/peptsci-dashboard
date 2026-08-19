@@ -10,7 +10,7 @@ import { stockEnforcementEnabled } from './stock-enforcement'
 import { logger } from './logger'
 import type { ShopProduct, ProductImage, CompoundInfo } from './types/shop'
 import { parseMonograph } from './types/monograph'
-import { getBlendComposition } from './content/blend-compositions'
+import { resolveBlendCompounds } from './content/blend-compositions'
 import { getCompoundChemistry } from './content/compound-chemistry'
 import { displayProductAka, displayProductName } from './products/named-blends'
 
@@ -62,16 +62,11 @@ function toImages(
  * so the catalog card, vial label, and PDP all render the same breakdown.
  */
 function blendCompounds(name: string, dose: string | null): CompoundInfo[] | null {
-  const composition = getBlendComposition(name)
+  const composition = resolveBlendCompounds(name, dose)
   if (!composition) return null
-  const doses = (dose || '')
-    .split(/\s*[/+]\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const hasPartDoses = doses.length === composition.length
-  return composition.map((c, i) => ({
+  return composition.map((c) => ({
     name: c.name,
-    amount: hasPartDoses ? doses[i] : '',
+    amount: c.amount || '',
     casNumber: c.casNumber,
     molecularFormula: c.molecularFormula,
     molecularWeight: c.molecularWeight,

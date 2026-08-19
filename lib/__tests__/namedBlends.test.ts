@@ -11,7 +11,7 @@ import {
   namedBlendSkuKey,
   resolveNamedBlendTradeName,
 } from '../products/named-blends'
-import { getBlendComposition } from '../content/blend-compositions'
+import { getBlendComposition, resolveBlendCompounds } from '../content/blend-compositions'
 
 describe('looksLikeCompoundList', () => {
   it('detects and-joined and slash-joined names', () => {
@@ -94,6 +94,38 @@ describe('resolveNamedBlendTradeName', () => {
     assert.deepEqual(
       klow?.map((c) => c.name),
       ['GHK-Cu', 'BPC-157', 'KPV', 'TB-500']
+    )
+  })
+})
+
+describe('resolveBlendCompounds', () => {
+  it('lists all three GLOW peptides with slash-dose amounts', () => {
+    const glow = resolveBlendCompounds('GLOW', '50mg/10mg/10mg')
+    assert.deepEqual(
+      glow?.map((c) => `${c.name} ${c.amount}`),
+      ['GHK-Cu 50mg', 'BPC-157 10mg', 'TB-500 10mg']
+    )
+  })
+
+  it('fills canonical GLOW amounts when the variant dose is a 70mg total', () => {
+    const glow = resolveBlendCompounds('GLOW', '70mg')
+    assert.deepEqual(
+      glow?.map((c) => `${c.name} ${c.amount}`),
+      ['GHK-Cu 50mg', 'BPC-157 10mg', 'TB-500 10mg']
+    )
+  })
+
+  it('lists all four KLOW peptides, including from an 80mg total dose', () => {
+    const fromParts = resolveBlendCompounds('KLOW', '50mg/10mg/10mg/10mg')
+    const fromTotal = resolveBlendCompounds('KLOW', '80mg')
+    const expected = ['GHK-Cu 50mg', 'BPC-157 10mg', 'KPV 10mg', 'TB-500 10mg']
+    assert.deepEqual(
+      fromParts?.map((c) => `${c.name} ${c.amount}`),
+      expected
+    )
+    assert.deepEqual(
+      fromTotal?.map((c) => `${c.name} ${c.amount}`),
+      expected
     )
   })
 })
