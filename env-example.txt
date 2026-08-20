@@ -211,6 +211,19 @@ TWILIO_FROM_NUMBER=""
 TWILIO_MESSAGING_SERVICE_SID=""
 
 # ===========================================
+# FEDEX (Ship/Rate vs Track are SEPARATE developer projects)
+# ===========================================
+# Ship + Rate live on one API project (labels, quotes).
+# FEDEX_CLIENT_ID=""
+# FEDEX_CLIENT_SECRET=""
+# FEDEX_ACCOUNT_NUMBER=""
+# FEDEX_SANDBOX="false"
+# Basic Integrated Visibility cannot share that project. Track poller uses:
+# FEDEX_TRACK_CLIENT_ID=""
+# FEDEX_TRACK_CLIENT_SECRET=""
+# Optional: FEDEX_TRACK_ACCOUNT_NUMBER=""  (defaults to FEDEX_ACCOUNT_NUMBER)
+
+# ===========================================
 # CRON (Vercel Scheduled Functions)
 # ===========================================
 # Shared secret for the /api/cron/* routes (vercel.json). Vercel sends it as

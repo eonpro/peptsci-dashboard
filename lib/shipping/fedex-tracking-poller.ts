@@ -10,10 +10,12 @@
  * Server-only. Degrades to a no-op (`skipped: true`) when FedEx is unconfigured.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { getCredentials, trackShipment, fedexTrackingUrl } from '@/lib/fedex'
+import { getTrackCredentials, trackShipment, fedexTrackingUrl } from '@/lib/fedex'
 import { notifyAdmins } from '@/lib/notifications/service'
+import { FedExApiError, shouldAbortTrackingPoll } from '@/lib/shipping/fedex-api-error'
 import { mapFedExStatusToShipping } from '@/lib/shipping/fedex-status'
 import { sendOrderDeliveredEmail, sendOrderExceptionEmail } from '@/lib/email'
 import { sendOrderDeliveredSms, sendOrderExceptionSms } from '@/lib/sms'
@@ -25,6 +27,8 @@ export interface PollResult {
   updated: number
   delivered: number
   errors: number
+  aborted?: boolean
+  abortReason?: string
 }
 
 const DEFAULT_LIMIT = 200
@@ -32,9 +36,9 @@ const DEFAULT_LIMIT = 200
 export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<PollResult> {
   if (!prisma) return { skipped: true, reason: 'db_unconfigured', scanned: 0, updated: 0, delivered: 0, errors: 0 }
 
-  const creds = getCredentials()
+  const creds = getTrackCredentials()
   if (!creds) {
-    return { skipped: true, reason: 'fedex_unconfigured', scanned: 0, updated: 0, delivered: 0, errors: 0 }
+    return { skipped: true, reason: 'fedex_track_unconfigured', scanned: 0, updated: 0, delivered: 0, errors: 0 }
   }
 
   const orders = await prisma.order.findMany({
@@ -182,6 +186,48 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
       }
     } catch (err) {
       errors += 1
+      if (shouldAbortTrackingPoll(err)) {
+        logger.error(
+          '[fedex-poller] Track API unauthorized — aborting remaining scans',
+          {
+            scanned: orders.length,
+            failedOnOrderId: order.id,
+            remaining: orders.length - errors,
+            code: err instanceof FedExApiError ? err.code : null,
+          },
+          err instanceof Error ? err : undefined
+        )
+        Sentry.captureException(err, {
+          fingerprint: ['fedex', 'track', '403'],
+          tags: { component: 'fedex-poller' },
+        })
+        await notifyAdmins({
+          category: 'SHIPMENT',
+          priority: 'HIGH',
+          title: 'FedEx Track API unauthorized',
+          message:
+            'Hourly tracking updates stopped after FedEx returned 403 FORBIDDEN. Labels still print. Confirm FEDEX_TRACK_CLIENT_ID is the Basic Integrated Visibility project key, not the Ship project.',
+          actionUrl: '/fulfillment',
+          metadata: {
+            code: err instanceof FedExApiError ? err.code : null,
+            path: err instanceof FedExApiError ? err.path : '/track/v1/trackingnumbers',
+          },
+          sourceType: 'cron:fedex-tracking',
+          sourceId: 'AUTH_FORBIDDEN',
+        }).catch((notifyErr) =>
+          logger.warn('[fedex-poller] unauthorized alert failed (non-blocking)', {
+            error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+          })
+        )
+        return {
+          scanned: orders.length,
+          updated,
+          delivered,
+          errors,
+          aborted: true,
+          abortReason: 'fedex_track_forbidden',
+        }
+      }
       logger.error('[fedex-poller] tracking failed', {
         orderId: order.id,
         trackingNumber: order.trackingNumber,
