@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Search, Trash2, ShoppingCart, UserPlus, AlertCircle } from 'lucide-react'
+import { Loader2, Plus, Search, Trash2, ShoppingCart, UserPlus, AlertCircle, UserRound } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { computeCartTotals } from '@/lib/checkout-core'
 import { filterCatalogVariantsForPicker } from '@/lib/catalog-variant-picker'
+import { AddressFields } from '@/components/AddressFields'
+import { formatAddress, type Address } from '@/lib/address'
+import { patientCreateSchema } from '@/lib/patient'
 
 const inputCls =
   'rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring'
@@ -50,6 +53,23 @@ type Line = {
   priceSource: 'auto' | 'manual'
 }
 
+type PatientRow = {
+  id: string
+  firstName: string
+  lastName: string
+  address: Address
+  phone: string | null
+  email: string | null
+}
+
+const emptyPatientForm = {
+  firstName: '',
+  lastName: '',
+  phone: '',
+  email: '',
+  address: { country: 'US' } as Partial<Address>,
+}
+
 export type NewOrderModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -84,6 +104,13 @@ export default function NewOrderModal({
   const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
   const [notes, setNotes] = useState('')
 
+  const [patients, setPatients] = useState<PatientRow[]>([])
+  const [loadingPatients, setLoadingPatients] = useState(false)
+  const [patientQuery, setPatientQuery] = useState('')
+  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [showAddPatient, setShowAddPatient] = useState(false)
+  const [newPatient, setNewPatient] = useState(emptyPatientForm)
+
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,6 +125,11 @@ export default function NewOrderModal({
     setShipTo('PRACTICE')
     setShipSpeed('TWO_DAY')
     setNotes('')
+    setPatients([])
+    setPatientQuery('')
+    setSelectedPatientId('')
+    setShowAddPatient(false)
+    setNewPatient(emptyPatientForm)
     setError(null)
   }, [])
 
@@ -167,7 +199,63 @@ export default function NewOrderModal({
     }
   }, [clientId, variants, clients])
 
+  useEffect(() => {
+    if (!open || !clientId) {
+      setPatients([])
+      setSelectedPatientId('')
+      setShowAddPatient(false)
+      setNewPatient(emptyPatientForm)
+      setPatientQuery('')
+      return
+    }
+    let cancelled = false
+    setLoadingPatients(true)
+    fetch(`/api/admin/clients/${encodeURIComponent(clientId)}/patients`)
+      .then((r) => (r.ok ? r.json() : { patients: [] }))
+      .then((data) => {
+        if (cancelled) return
+        const list: PatientRow[] = data.patients ?? []
+        setPatients(list)
+        setSelectedPatientId('')
+        setShowAddPatient(list.length === 0)
+        setNewPatient(emptyPatientForm)
+        setPatientQuery('')
+      })
+      .catch(() => {
+        if (!cancelled) setPatients([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPatients(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, clientId])
+
   const selectedClient = clients.find((c) => c.id === clientId) || null
+  const filteredPatients = useMemo(() => {
+    const q = patientQuery.trim().toLowerCase()
+    if (!q) return patients
+    return patients.filter((p) => {
+      const hay = [p.firstName, p.lastName, p.email, p.phone, formatAddress(p.address)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [patients, patientQuery])
+
+  const newPatientParsed = useMemo(
+    () =>
+      patientCreateSchema.safeParse({
+        firstName: newPatient.firstName,
+        lastName: newPatient.lastName,
+        phone: newPatient.phone,
+        email: newPatient.email,
+        address: newPatient.address,
+      }),
+    [newPatient]
+  )
 
   const filteredClients = useMemo(() => {
     const q = clientQuery.trim().toLowerCase()
@@ -273,6 +361,17 @@ export default function NewOrderModal({
     if (!clientId) return setError('Select a client')
     if (lines.length === 0) return setError('Add at least one product')
     if (lines.some((l) => l.quantity < 1)) return setError('Each line needs a quantity of at least 1')
+    if (shipTo === 'PATIENT') {
+      if (showAddPatient) {
+        if (!newPatientParsed.success) {
+          return setError(
+            newPatientParsed.error.errors[0]?.message || 'Enter the patient name and shipping address'
+          )
+        }
+      } else if (!selectedPatientId) {
+        return setError('Select or add a patient to ship to')
+      }
+    }
     setSubmitting(true)
     try {
       const res = await fetch('/api/admin/orders', {
@@ -283,6 +382,11 @@ export default function NewOrderModal({
           shipTo,
           shipSpeed,
           notes: notes.trim() || undefined,
+          ...(shipTo === 'PATIENT' && showAddPatient && newPatientParsed.success
+            ? { patient: newPatientParsed.data }
+            : shipTo === 'PATIENT' && selectedPatientId
+              ? { patientId: selectedPatientId }
+              : {}),
           // Auto-priced lines omit unitPrice so the SERVER resolves the
           // client's current effective price (stale UI or a race before custom
           // prices load can never lock in list price). Only explicit admin
@@ -500,7 +604,15 @@ export default function NewOrderModal({
             <fieldset className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label className="mb-1 block text-xs font-medium text-muted-foreground">Ship to</Label>
-                <select value={shipTo} onChange={(e) => setShipTo(e.target.value as typeof shipTo)} className={`w-full ${selectCls}`}>
+                <select
+                  value={shipTo}
+                  onChange={(e) => {
+                    const next = e.target.value as typeof shipTo
+                    setShipTo(next)
+                    if (next === 'PATIENT' && patients.length === 0) setShowAddPatient(true)
+                  }}
+                  className={`w-full ${selectCls}`}
+                >
                   <option value="PRACTICE">Practice</option>
                   <option value="PATIENT">Patient</option>
                 </select>
@@ -513,6 +625,141 @@ export default function NewOrderModal({
                 </select>
               </div>
             </fieldset>
+
+            {shipTo === 'PATIENT' && (
+              <fieldset className="space-y-3 rounded-lg border border-border p-3">
+                <legend className="px-1 text-sm font-semibold text-foreground/90">Patient</legend>
+                {!clientId ? (
+                  <p className="text-sm text-muted-foreground">Select a customer first to add or pick a patient.</p>
+                ) : loadingPatients ? (
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading patients…
+                  </p>
+                ) : (
+                  <>
+                    {patients.length > 0 && !showAddPatient && (
+                      <div className="space-y-2">
+                        {patients.length > 6 && (
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                            <input
+                              className={`w-full pl-9 ${inputCls}`}
+                              placeholder="Search saved patients…"
+                              value={patientQuery}
+                              onChange={(e) => setPatientQuery(e.target.value)}
+                            />
+                          </div>
+                        )}
+                        <div className="max-h-44 space-y-1 overflow-y-auto">
+                          {filteredPatients.length === 0 ? (
+                            <p className="px-1 py-2 text-sm text-muted-foreground">No matching patients.</p>
+                          ) : (
+                            filteredPatients.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => setSelectedPatientId(p.id)}
+                                className={`flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left ${
+                                  selectedPatientId === p.id
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-border hover:bg-muted/60'
+                                }`}
+                              >
+                                <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-medium text-foreground">
+                                    {p.firstName} {p.lastName}
+                                  </span>
+                                  <span className="block text-xs text-muted-foreground">
+                                    {formatAddress(p.address) || [p.email, p.phone].filter(Boolean).join(' · ') || 'No address on file'}
+                                  </span>
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {showAddPatient ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Saved on this clinic&apos;s customer list and used as the ship-to for this order.
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <Label className="mb-1 block text-xs font-medium text-muted-foreground">First name *</Label>
+                            <Input
+                              value={newPatient.firstName}
+                              onChange={(e) => setNewPatient((p) => ({ ...p, firstName: e.target.value }))}
+                              autoComplete="given-name"
+                            />
+                          </div>
+                          <div>
+                            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Last name *</Label>
+                            <Input
+                              value={newPatient.lastName}
+                              onChange={(e) => setNewPatient((p) => ({ ...p, lastName: e.target.value }))}
+                              autoComplete="family-name"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Phone</Label>
+                            <Input
+                              type="tel"
+                              value={newPatient.phone}
+                              onChange={(e) => setNewPatient((p) => ({ ...p, phone: e.target.value }))}
+                              autoComplete="tel"
+                            />
+                          </div>
+                          <div>
+                            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Email</Label>
+                            <Input
+                              type="email"
+                              value={newPatient.email}
+                              onChange={(e) => setNewPatient((p) => ({ ...p, email: e.target.value }))}
+                              autoComplete="email"
+                            />
+                          </div>
+                        </div>
+                        <AddressFields
+                          value={newPatient.address}
+                          onChange={(address) => setNewPatient((p) => ({ ...p, address }))}
+                          idPrefix="new-order-patient"
+                        />
+                        {patients.length > 0 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowAddPatient(false)
+                              setNewPatient(emptyPatientForm)
+                            }}
+                          >
+                            Choose a saved patient instead
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setShowAddPatient(true)
+                          setSelectedPatientId('')
+                        }}
+                      >
+                        <UserPlus className="mr-2 h-4 w-4" /> New patient
+                      </Button>
+                    )}
+                  </>
+                )}
+              </fieldset>
+            )}
 
             <div>
               <Label className="mb-1 block text-xs font-medium text-muted-foreground">Notes (optional)</Label>
