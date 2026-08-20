@@ -12,14 +12,7 @@ export type FedExCredentials = {
   accountNumber: string
 }
 
-export type FedExCredentialEnv = {
-  FEDEX_CLIENT_ID?: string
-  FEDEX_CLIENT_SECRET?: string
-  FEDEX_ACCOUNT_NUMBER?: string
-  FEDEX_TRACK_CLIENT_ID?: string
-  FEDEX_TRACK_CLIENT_SECRET?: string
-  FEDEX_TRACK_ACCOUNT_NUMBER?: string
-}
+export type FedExCredentialEnv = Record<string, string | undefined>
 
 function present(value: string | undefined): value is string {
   return typeof value === 'string' && value.length > 0
