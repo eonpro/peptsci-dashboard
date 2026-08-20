@@ -13,6 +13,7 @@ import { shopifyGidToNumeric } from './ids'
 import { mapShopifyShipSpeed } from './ship-speed'
 import { inboundLinesFullyMapped } from './inbound-core'
 import { processShopifyInbound, type ProcessShopifyInboundResult } from './process-inbound'
+import { correctMappedVariantForTitle } from '@/lib/invoicing/match-variant'
 
 export type ShopifyLineItem = {
   id?: number | string
@@ -172,6 +173,18 @@ export async function ingestShopifyPaidOrder(params: {
     if (m.shopifySku?.trim()) bySku.set(m.shopifySku.trim().toLowerCase(), m.variantId)
   }
 
+  const catalogRows = (
+    await prisma.productVariant.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, sku: true, dose: true, product: { select: { name: true } } },
+    })
+  ).map((v) => ({
+    id: v.id,
+    sku: v.sku,
+    productName: v.product.name,
+    dose: v.dose,
+  }))
+
   const lineRows: Array<{
     shopifyVariantId: string | null
     shopifySku: string | null
@@ -188,6 +201,7 @@ export async function ingestShopifyPaidOrder(params: {
     let variantId: string | null = null
     if (shopifyVariantId) variantId = byVariantId.get(shopifyVariantId) ?? null
     if (!variantId && shopifySku) variantId = bySku.get(shopifySku.toLowerCase()) ?? null
+    variantId = correctMappedVariantForTitle(shopifyTitle, variantId, catalogRows)
     lineRows.push({ shopifyVariantId, shopifySku, shopifyTitle, quantity, variantId })
   }
 
