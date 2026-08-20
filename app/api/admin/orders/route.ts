@@ -14,6 +14,7 @@ import {
   manualPatientShipToError,
 } from '@/lib/patient'
 import { createPatientForClient } from '@/lib/patients/create'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
           items: {
             select: {
               quantity: true,
-              variant: { select: { dose: true, product: { select: { name: true } } } },
+              variant: { select: { sku: true, dose: true, product: { select: { name: true } } } },
             },
           },
           fulfillment: {
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
       shippingAddress: o.shippingAddress,
       client: o.client,
       items: o.items.map((it) => ({
-        name: it.variant.product.name,
+        name: displayProductName(it.variant.product.name, it.variant.sku),
         dose: it.variant.dose,
         quantity: it.quantity,
       })),

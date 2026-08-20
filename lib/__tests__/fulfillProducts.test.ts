@@ -5,6 +5,10 @@ import {
   matchVariantIdFromDescription,
   platformInvoiceMintBlockReason,
 } from '../invoicing/fulfill-products.ts'
+import {
+  correctMappedVariantForTitle,
+  descriptionLooksLikeBlend,
+} from '../invoicing/match-variant.ts'
 
 describe('mergeCatalogLinesForOrder', () => {
   test('sums quantities for duplicate variants', () => {
@@ -66,5 +70,59 @@ describe('matchVariantIdFromDescription', () => {
 
   test('returns null when unknown', () => {
     assert.equal(matchVariantIdFromDescription('Custom consulting fee', catalog), null)
+  })
+
+  test('maps a Shopify blend title to the blend SKU, not TB-500 10mg', () => {
+    const withBlend = [
+      ...catalog,
+      { id: 'tb10', sku: 'TB-10', productName: 'TB-500', dose: '10.0mg' },
+      {
+        id: 'blend10',
+        sku: 'BPC-TB-10',
+        productName: 'BPC-157 / TB-500 Blend',
+        dose: '10mg/10mg',
+      },
+      {
+        id: 'blend5',
+        sku: 'BPC-TB-5',
+        productName: 'BPC-157 / TB-500 Blend',
+        dose: '5mg/5mg',
+      },
+    ]
+    assert.equal(
+      matchVariantIdFromDescription('BPC-157 10MG+TB-500 10MG BLEND', withBlend),
+      'blend10'
+    )
+    assert.equal(matchVariantIdFromDescription('TB-500 10mg', withBlend), 'tb10')
+  })
+})
+
+describe('descriptionLooksLikeBlend', () => {
+  test('detects plus-joined Shopify blend titles', () => {
+    assert.equal(descriptionLooksLikeBlend('BPC-157 10MG+TB-500 10MG BLEND'), true)
+    assert.equal(descriptionLooksLikeBlend('TB-500 10mg'), false)
+  })
+})
+
+describe('correctMappedVariantForTitle', () => {
+  const catalog = [
+    { id: 'tb10', sku: 'TB-10', productName: 'TB-500', dose: '10mg' },
+    {
+      id: 'blend10',
+      sku: 'BPC-TB-10',
+      productName: 'BPC-157 / TB-500 Blend',
+      dose: '10mg/10mg',
+    },
+  ]
+
+  test('overrides a single-peptide mapping when the Shopify title is the blend', () => {
+    assert.equal(
+      correctMappedVariantForTitle('BPC-157 10MG+TB-500 10MG BLEND', 'tb10', catalog),
+      'blend10'
+    )
+  })
+
+  test('keeps a single-peptide mapping when the title is not a blend', () => {
+    assert.equal(correctMappedVariantForTitle('TB-500 10mg', 'tb10', catalog), 'tb10')
   })
 })
