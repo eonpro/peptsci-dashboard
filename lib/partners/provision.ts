@@ -112,9 +112,16 @@ async function linkExistingClerkAccount(org: {
   if (!user) return false
 
   const meta = (user.publicMetadata ?? {}) as { role?: string; clientId?: string }
-  if (meta.role === 'ADMIN' || meta.role === 'SUPER_ADMIN') {
+  if (
+    meta.role === 'ADMIN' ||
+    meta.role === 'SUPER_ADMIN' ||
+    meta.role === 'FULFILLMENT' ||
+    meta.role === 'BILLING' ||
+    meta.role === 'CATALOG' ||
+    meta.role === 'FINANCE_VIEWER'
+  ) {
     throw new PartnerProvisionError(
-      'The contact email belongs to a PeptSci admin account. Change the application contact email before approving.',
+      'The contact email belongs to a PeptSci staff account. Change the application contact email before approving.',
       'EMAIL_IS_ADMIN',
       409
     )

@@ -11,8 +11,9 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import type { UserRole, UserStatus } from '@/lib/roles'
+import { VALID_USER_ROLES } from '@/lib/roles'
 
-const VALID_ROLES: UserRole[] = ['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'PARTNER']
+const VALID_ROLES: UserRole[] = VALID_USER_ROLES
 const VALID_STATUSES: UserStatus[] = ['PENDING', 'ACTIVE', 'SUSPENDED']
 
 export interface InviteClientClaims {

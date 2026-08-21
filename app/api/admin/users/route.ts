@@ -10,12 +10,19 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { resolvePermissions, sanitizePermissions } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
-type Metadata = { role?: string; status?: string; clientId?: string }
+type Metadata = {
+  role?: string
+  status?: string
+  clientId?: string
+  permissionsGrant?: string[]
+  permissionsDeny?: string[]
+}
 
 const createUserSchema = z.object({
   email: z.string().trim().email('Enter a valid email').max(200),
@@ -60,15 +67,25 @@ export async function GET(request: NextRequest) {
         u.emailAddresses.find((e) => e.id === u.primaryEmailAddressId)?.emailAddress ??
         u.emailAddresses[0]?.emailAddress ??
         null
+      const role = metadata.role || 'CLIENT'
+      const permissionsGrant = sanitizePermissions(metadata.permissionsGrant)
+      const permissionsDeny = sanitizePermissions(metadata.permissionsDeny)
       return {
         id: u.id,
         email: primaryEmail,
         firstName: u.firstName,
         lastName: u.lastName,
         imageUrl: u.imageUrl,
-        role: metadata.role || 'CLIENT',
+        role,
         status: metadata.status || 'PENDING',
         clientId: metadata.clientId || null,
+        permissionsGrant,
+        permissionsDeny,
+        permissions: resolvePermissions({
+          role,
+          permissionsGrant,
+          permissionsDeny,
+        }),
         createdAt: u.createdAt,
         lastSignInAt: u.lastSignInAt,
       }

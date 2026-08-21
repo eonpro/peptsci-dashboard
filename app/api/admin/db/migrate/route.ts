@@ -138,6 +138,9 @@ interface SchemaProbe {
   clientShippingRateTwoDayColumn: boolean
   clientShippingRateOvernightColumn: boolean
   invoiceLineItemVariantIdColumn: boolean
+  userRoleFulfillmentValue: boolean
+  userPermissionsGrantColumn: boolean
+  userPermissionsDenyColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -186,7 +189,9 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'DistributorOrderLine' AND column_name = 'receivedQty')
         OR (table_name = 'Client' AND column_name = 'shippingRateTwoDay')
         OR (table_name = 'Client' AND column_name = 'shippingRateOvernight')
-        OR (table_name = 'InvoiceLineItem' AND column_name = 'variantId'))
+        OR (table_name = 'InvoiceLineItem' AND column_name = 'variantId')
+        OR (table_name = 'User' AND column_name = 'permissionsGrant')
+        OR (table_name = 'User' AND column_name = 'permissionsDeny'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -194,6 +199,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     WHERE (t.typname = 'OrderSource' AND e.enumlabel = 'STRIPE_INVOICE')
        OR (t.typname = 'ClientDocumentType' AND e.enumlabel = 'RESALE_CERT')
        OR (t.typname = 'UserRole' AND e.enumlabel = 'PARTNER')
+       OR (t.typname = 'UserRole' AND e.enumlabel = 'FULFILLMENT')
   `
   const tableNames = new Set(tables.map((t) => t.table_name))
   const colKeys = new Set(cols.map((c) => `${c.table_name}.${c.column_name}`))
@@ -265,6 +271,11 @@ async function probeSchema(): Promise<SchemaProbe> {
     clientShippingRateTwoDayColumn: colKeys.has('Client.shippingRateTwoDay'),
     clientShippingRateOvernightColumn: colKeys.has('Client.shippingRateOvernight'),
     invoiceLineItemVariantIdColumn: colKeys.has('InvoiceLineItem.variantId'),
+    userRoleFulfillmentValue: enumValues.some(
+      (v) => v.typname === 'UserRole' && v.enumlabel === 'FULFILLMENT'
+    ),
+    userPermissionsGrantColumn: colKeys.has('User.permissionsGrant'),
+    userPermissionsDenyColumn: colKeys.has('User.permissionsDeny'),
   }
 }
 

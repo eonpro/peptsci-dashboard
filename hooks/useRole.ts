@@ -3,14 +3,21 @@
 import { useMemo } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { isClerkConfigured } from '@/lib/clerk-config'
+import { isStaffRole, type UserRole, type UserStatus } from '@/lib/access'
+import {
+  resolvePermissions,
+  type Permission,
+} from '@/lib/permissions'
 
-export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
-export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
+export type { UserRole, UserStatus }
 
 export interface UserRoleInfo {
   role: UserRole
   status: UserStatus
   clientId?: string
+  permissions: Permission[]
+  permissionsGrant: Permission[]
+  permissionsDeny: Permission[]
   isAdmin: boolean
   isSuperAdmin: boolean
   isClient: boolean
@@ -20,19 +27,20 @@ export interface UserRoleInfo {
 }
 
 /**
- * Client-side hook to get the current user's role and status.
- * Uses Clerk's useUser hook and reads from publicMetadata.
- * Falls back to mock data when Clerk is not configured.
+ * Client-side hook to get the current user's role, status, and effective
+ * staff permissions. Uses Clerk's useUser and publicMetadata.
  */
 export function useRole(): UserRoleInfo {
-  // When Clerk is not configured, return mock admin data for development
   const mockData = useMemo(
     () => ({
-      role: 'ADMIN' as UserRole,
+      role: 'SUPER_ADMIN' as UserRole,
       status: 'ACTIVE' as UserStatus,
       clientId: undefined,
+      permissions: resolvePermissions({ role: 'SUPER_ADMIN' }),
+      permissionsGrant: [] as Permission[],
+      permissionsDeny: [] as Permission[],
       isAdmin: true,
-      isSuperAdmin: false,
+      isSuperAdmin: true,
       isClient: false,
       isApproved: true,
       isPending: false,
@@ -57,17 +65,32 @@ export function useRole(): UserRoleInfo {
           role?: UserRole
           status?: UserStatus
           clientId?: string
+          permissionsGrant?: Permission[]
+          permissionsDeny?: Permission[]
         }
       | undefined
 
-    const role = metadata?.role || 'CLIENT'
-    const status = metadata?.status || 'PENDING'
+    const role = (metadata?.role || 'CLIENT') as UserRole
+    const status = (metadata?.status || 'PENDING') as UserStatus
+    const permissionsGrant = Array.isArray(metadata?.permissionsGrant)
+      ? metadata!.permissionsGrant!
+      : []
+    const permissionsDeny = Array.isArray(metadata?.permissionsDeny)
+      ? metadata!.permissionsDeny!
+      : []
 
     return {
       role,
       status,
       clientId: metadata?.clientId,
-      isAdmin: role === 'ADMIN' || role === 'SUPER_ADMIN',
+      permissionsGrant,
+      permissionsDeny,
+      permissions: resolvePermissions({
+        role,
+        permissionsGrant,
+        permissionsDeny,
+      }),
+      isAdmin: isStaffRole(role),
       isSuperAdmin: role === 'SUPER_ADMIN',
       isClient: role === 'CLIENT',
       isApproved: status === 'ACTIVE',

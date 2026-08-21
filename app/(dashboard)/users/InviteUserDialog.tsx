@@ -26,11 +26,27 @@ export interface ClientOption {
   organizationName: string
 }
 
-type Role = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
+type Role =
+  | 'CLIENT'
+  | 'ADMIN'
+  | 'SUPER_ADMIN'
+  | 'FULFILLMENT'
+  | 'BILLING'
+  | 'CATALOG'
+  | 'FINANCE_VIEWER'
 
 const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
 const labelClass = 'text-white/70 text-xs'
 const NO_CLIENT = '__none__'
+
+const STAFF_INVITE_ROLES: { value: Role; label: string }[] = [
+  { value: 'FULFILLMENT', label: 'Fulfillment' },
+  { value: 'BILLING', label: 'Billing' },
+  { value: 'CATALOG', label: 'Catalog' },
+  { value: 'FINANCE_VIEWER', label: 'Finance (read-only)' },
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+]
 
 /**
  * Send an email invitation to a new user. Role + practice assignment ride along
@@ -132,20 +148,17 @@ export default function InviteUserDialog({
                 <SelectItem value="CLIENT" className="text-white focus:bg-white/10 focus:text-white">
                   Client
                 </SelectItem>
-                <SelectItem
-                  value="ADMIN"
-                  disabled={!isSuperAdmin}
-                  className="text-white focus:bg-white/10 focus:text-white"
-                >
-                  Admin {!isSuperAdmin && '(Super Admin only)'}
-                </SelectItem>
-                <SelectItem
-                  value="SUPER_ADMIN"
-                  disabled={!isSuperAdmin}
-                  className="text-white focus:bg-white/10 focus:text-white"
-                >
-                  Super Admin {!isSuperAdmin && '(Super Admin only)'}
-                </SelectItem>
+                {STAFF_INVITE_ROLES.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    disabled={!isSuperAdmin}
+                    className="text-white focus:bg-white/10 focus:text-white"
+                  >
+                    {opt.label}
+                    {!isSuperAdmin ? ' (Super Admin only)' : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

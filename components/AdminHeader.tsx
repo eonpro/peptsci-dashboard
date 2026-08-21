@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, ReactNode } from 'react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -39,6 +39,9 @@ import { isClerkConfigured } from '@/lib/clerk-config'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { NotificationBell } from '@/components/NotificationBell'
+import { useRole } from '@/hooks/useRole'
+import { NAV_LINK_PERMISSIONS } from '@/lib/admin-route-permissions'
+import { hasAnyPermission, type Permission } from '@/lib/permissions'
 
 // The command palette pulls in `cmdk` and renders on every admin page. Load it
 // lazily and only mount it once the user first opens search, so it stays out of
@@ -133,7 +136,7 @@ const navGroups: NavGroupDef[] = [
       { name: 'Products', href: '/products', icon: Boxes, desc: 'Catalog, SKUs, and COAs' },
       { name: 'Inventory', href: '/inventory', icon: Package, desc: 'Stock, batches, activity log' },
       { name: 'Pricing', href: '/pricing', icon: DollarSign, desc: 'Cost and SRP price sheet' },
-      { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag, desc: 'Per-clinic custom prices' },
+      { name: 'Client Pricing', href: '/pricing/client-pricing', icon: Tag, desc: 'Open a clinic to edit the full catalog' },
       { name: 'PO Generator', href: '/po-generator', icon: FileText, desc: 'Purchase order PDFs' },
     ],
   },
@@ -174,12 +177,38 @@ const isLinkActive = (pathname: string, link: NavLink, siblings: NavLink[]) => {
   )
 }
 
+function canSeeNavLink(href: string, permissions: readonly Permission[]): boolean {
+  const need = NAV_LINK_PERMISSIONS[href]
+  if (!need) return true
+  const list = Array.isArray(need) ? need : [need]
+  return hasAnyPermission(permissions, list)
+}
+
 export function AdminHeader() {
   const pathname = usePathname()
+  const { permissions, isLoading: roleLoading } = useRole()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   // Stays true after the first open so the lazy palette keeps its mounted state.
   const [searchMounted, setSearchMounted] = useState(false)
+
+  const visibleDirectLinks = useMemo(
+    () =>
+      roleLoading
+        ? directLinks
+        : directLinks.filter((l) => canSeeNavLink(l.href, permissions)),
+    [permissions, roleLoading]
+  )
+
+  const visibleNavGroups = useMemo(() => {
+    if (roleLoading) return navGroups
+    return navGroups
+      .map((group) => ({
+        ...group,
+        links: group.links.filter((l) => canSeeNavLink(l.href, permissions)),
+      }))
+      .filter((group) => group.links.length > 0)
+  }, [permissions, roleLoading])
 
   const openSearch = () => {
     setSearchMounted(true)
@@ -230,7 +259,7 @@ export function AdminHeader() {
         {/* Desktop Navigation: 2 direct links + 4 intent groups. shrink-0 —
             the pills must never compress and spill under the search bar. */}
         <nav className="hidden shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-sm lg:flex">
-          {directLinks.map((item) => {
+          {visibleDirectLinks.map((item) => {
             const Icon = item.icon
             const isActive = isPathActive(pathname, item.href)
             return (
@@ -250,7 +279,7 @@ export function AdminHeader() {
             )
           })}
 
-          {navGroups.map((group) => {
+          {visibleNavGroups.map((group) => {
             const GroupIcon = group.icon
             const groupActive = group.links.some((l) => isPathActive(pathname, l.href))
             return (
@@ -367,33 +396,39 @@ export function AdminHeader() {
             >
               <DropdownMenuLabel className="text-white/60">Admin Settings</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuItem
-                className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
-                asChild
-              >
-                <Link href="/settings/stripe">
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Payments (Stripe)
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
-                asChild
-              >
-                <Link href="/settings/webhooks">
-                  <Webhook className="mr-2 h-4 w-4" />
-                  Webhook Events
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
-                asChild
-              >
-                <Link href="/users">
-                  <Users className="mr-2 h-4 w-4" />
-                  User Management
-                </Link>
-              </DropdownMenuItem>
+              {canSeeNavLink('/settings/stripe', permissions) ? (
+                <DropdownMenuItem
+                  className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+                  asChild
+                >
+                  <Link href="/settings/stripe">
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Payments (Stripe)
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
+              {canSeeNavLink('/settings/webhooks', permissions) ? (
+                <DropdownMenuItem
+                  className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+                  asChild
+                >
+                  <Link href="/settings/webhooks">
+                    <Webhook className="mr-2 h-4 w-4" />
+                    Webhook Events
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
+              {canSeeNavLink('/users', permissions) ? (
+                <DropdownMenuItem
+                  className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
+                  asChild
+                >
+                  <Link href="/users">
+                    <Users className="mr-2 h-4 w-4" />
+                    User Management
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator className="bg-white/10" />
               <DropdownMenuItem
                 className="hover:bg-white/10 cursor-pointer focus:bg-white/10 focus:text-white"
@@ -454,7 +489,7 @@ export function AdminHeader() {
           {/* Mobile navigation: same grouped IA as desktop */}
           <nav className="flex-1 overflow-y-auto p-4 pb-24">
             <ul className="space-y-1">
-              {directLinks.map((item) => {
+              {visibleDirectLinks.map((item) => {
                 const Icon = item.icon
                 const isActive = isPathActive(pathname, item.href)
                 return (
@@ -477,7 +512,7 @@ export function AdminHeader() {
               })}
             </ul>
 
-            {navGroups.map((group) => (
+            {visibleNavGroups.map((group) => (
               <div key={group.name} className="mt-6">
                 <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
                   {group.name}

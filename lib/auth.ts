@@ -1,7 +1,13 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { logger } from './logger'
-import { isAdminRole, isSuperAdminRole, type UserRole, type UserStatus } from './access'
+import { isAdminRole, isStaffRole, isSuperAdminRole, type UserRole, type UserStatus } from './access'
+import {
+  hasAllPermissions,
+  hasAnyPermission,
+  resolvePermissions,
+  type Permission,
+} from './permissions'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -23,6 +29,16 @@ export interface AdminAuthResult extends AuthResult {
   role: UserRole | null
   isAdmin: boolean
   isSuperAdmin: boolean
+  /** Effective staff permissions (role defaults ∪ grant \\ deny). */
+  permissions: Permission[]
+}
+
+type SessionMetadata = {
+  role?: UserRole
+  status?: UserStatus
+  clientId?: string
+  permissionsGrant?: unknown
+  permissionsDeny?: unknown
 }
 
 /**
@@ -32,6 +48,20 @@ export interface AdminAuthResult extends AuthResult {
 function statusFromClaims(sessionClaims: unknown): UserStatus {
   const meta = (sessionClaims as { metadata?: { status?: UserStatus } } | null)?.metadata
   return meta?.status ?? 'PENDING'
+}
+
+function metadataFromClaims(sessionClaims: unknown): SessionMetadata {
+  return ((sessionClaims as { metadata?: SessionMetadata } | null)?.metadata ??
+    {}) as SessionMetadata
+}
+
+function permissionsFromMetadata(meta: SessionMetadata, role: UserRole | null): Permission[] {
+  if (!role || !isStaffRole(role)) return []
+  return resolvePermissions({
+    role,
+    permissionsGrant: meta.permissionsGrant,
+    permissionsDeny: meta.permissionsDeny,
+  })
 }
 
 /**
@@ -112,26 +142,36 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
   if (!isClerkConfigured) {
     if (isProduction) {
       logger.error('Clerk not configured in production - denying admin request (fail closed)')
-      return { userId: null, isAuthenticated: false, role: null, isAdmin: false, isSuperAdmin: false }
+      return {
+        userId: null,
+        isAuthenticated: false,
+        role: null,
+        isAdmin: false,
+        isSuperAdmin: false,
+        permissions: [],
+      }
     }
     logger.warn('Clerk not configured - admin auth bypassed (dev mode)')
+    const role = 'SUPER_ADMIN' as const
     return {
       userId: 'dev-user',
       isAuthenticated: true,
-      role: 'SUPER_ADMIN',
+      role,
       isAdmin: true,
       isSuperAdmin: true,
+      permissions: resolvePermissions({ role }),
     }
   }
 
   try {
     const { userId, sessionClaims } = await auth()
-    const role =
-      ((sessionClaims?.metadata as { role?: UserRole } | undefined)?.role as UserRole) ?? 'CLIENT'
+    const meta = metadataFromClaims(sessionClaims)
+    const role = (meta.role as UserRole | undefined) ?? 'CLIENT'
     const status = userId ? statusFromClaims(sessionClaims) : null
     const isSuspended = status === 'SUSPENDED'
     // Suspended accounts lose admin access regardless of their role.
     const authed = !!userId && !isSuspended
+    const permissions = authed ? permissionsFromMetadata(meta, role) : []
     return {
       userId,
       isAuthenticated: authed,
@@ -140,6 +180,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       role,
       isAdmin: authed && isAdminRole(role),
       isSuperAdmin: authed && isSuperAdminRole(role),
+      permissions,
     }
   } catch (error) {
     logger.error('Admin auth error', {}, error instanceof Error ? error : new Error(String(error)))
@@ -151,6 +192,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       role: null,
       isAdmin: false,
       isSuperAdmin: false,
+      permissions: [],
     }
   }
 }
@@ -169,6 +211,42 @@ export async function requireSuperAdmin(): Promise<AdminAuthResult> {
     return { ...result, isAdmin: false }
   }
   return result
+}
+
+/**
+ * Require staff auth plus one or more permissions (ALL must match).
+ * Sets `isAdmin=false` when the permission check fails so existing
+ * `if (!isAdmin) return forbidden` call sites stay correct when migrated.
+ */
+export async function requirePermission(
+  ...need: Permission[]
+): Promise<AdminAuthResult & { allowed: boolean }> {
+  const result = await requireAdmin()
+  if (!result.isAuthenticated || !result.isAdmin) {
+    return { ...result, allowed: false }
+  }
+  const allowed = need.length === 0 || hasAllPermissions(result.permissions, need)
+  if (!allowed) {
+    return { ...result, isAdmin: false, allowed: false }
+  }
+  return { ...result, allowed: true }
+}
+
+/**
+ * Require staff auth plus ANY of the listed permissions.
+ */
+export async function requireAnyPermission(
+  ...need: Permission[]
+): Promise<AdminAuthResult & { allowed: boolean }> {
+  const result = await requireAdmin()
+  if (!result.isAuthenticated || !result.isAdmin) {
+    return { ...result, allowed: false }
+  }
+  const allowed = need.length === 0 || hasAnyPermission(result.permissions, need)
+  if (!allowed) {
+    return { ...result, isAdmin: false, allowed: false }
+  }
+  return { ...result, allowed: true }
 }
 
 /**

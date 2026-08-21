@@ -1,12 +1,37 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
+import {
+  defaultRouteForRole,
+  isStaffRole,
+  type UserRole,
+  type UserStatus,
+} from './access'
+import { resolvePermissions, type Permission } from './permissions'
 
-export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN' | 'PARTNER'
-export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
+export type { UserRole, UserStatus }
+
+export const VALID_USER_ROLES: UserRole[] = [
+  'CLIENT',
+  'ADMIN',
+  'SUPER_ADMIN',
+  'PARTNER',
+  'FULFILLMENT',
+  'BILLING',
+  'CATALOG',
+  'FINANCE_VIEWER',
+]
 
 export interface UserMetadata {
   role: UserRole
   status: UserStatus
   clientId?: string
+  permissionsGrant?: Permission[]
+  permissionsDeny?: Permission[]
+}
+
+function asRole(value: unknown): UserRole {
+  return typeof value === 'string' && VALID_USER_ROLES.includes(value as UserRole)
+    ? (value as UserRole)
+    : 'CLIENT'
 }
 
 /**
@@ -15,7 +40,7 @@ export interface UserMetadata {
  */
 export async function getUserRole(): Promise<UserRole> {
   const { sessionClaims } = await auth()
-  return (sessionClaims?.metadata as UserMetadata)?.role || 'CLIENT'
+  return asRole((sessionClaims?.metadata as UserMetadata | undefined)?.role)
 }
 
 /**
@@ -37,10 +62,13 @@ export async function getUserMetadata(): Promise<UserMetadata> {
   try {
     const { sessionClaims } = await auth()
     const metadata = sessionClaims?.metadata as UserMetadata | undefined
+    const role = asRole(metadata?.role)
     return {
-      role: metadata?.role || 'CLIENT',
+      role,
       status: metadata?.status || 'PENDING',
       clientId: metadata?.clientId,
+      permissionsGrant: metadata?.permissionsGrant,
+      permissionsDeny: metadata?.permissionsDeny,
     }
   } catch {
     if (process.env.NODE_ENV !== 'development') throw new Error('Authentication unavailable')
@@ -49,11 +77,23 @@ export async function getUserMetadata(): Promise<UserMetadata> {
 }
 
 /**
- * Check if the current user is an admin.
+ * Effective staff permissions for the current session.
+ */
+export async function getUserPermissions(): Promise<Permission[]> {
+  const meta = await getUserMetadata()
+  return resolvePermissions({
+    role: meta.role,
+    permissionsGrant: meta.permissionsGrant,
+    permissionsDeny: meta.permissionsDeny,
+  })
+}
+
+/**
+ * Check if the current user is staff (any admin console role).
  */
 export async function isAdmin(): Promise<boolean> {
   const role = await getUserRole()
-  return role === 'ADMIN' || role === 'SUPER_ADMIN'
+  return isStaffRole(role)
 }
 
 /**
@@ -80,6 +120,7 @@ export async function getCurrentUserWithMetadata() {
   if (!user) return null
 
   const metadata = user.publicMetadata as unknown as UserMetadata | undefined
+  const role = asRole(metadata?.role)
 
   return {
     id: user.id,
@@ -87,9 +128,16 @@ export async function getCurrentUserWithMetadata() {
     firstName: user.firstName,
     lastName: user.lastName,
     imageUrl: user.imageUrl,
-    role: metadata?.role || 'CLIENT',
+    role,
     status: metadata?.status || 'PENDING',
     clientId: metadata?.clientId,
+    permissionsGrant: metadata?.permissionsGrant ?? [],
+    permissionsDeny: metadata?.permissionsDeny ?? [],
+    permissions: resolvePermissions({
+      role,
+      permissionsGrant: metadata?.permissionsGrant,
+      permissionsDeny: metadata?.permissionsDeny,
+    }),
   }
 }
 
@@ -97,14 +145,5 @@ export async function getCurrentUserWithMetadata() {
  * Determine the correct redirect URL based on user role.
  */
 export function getRedirectUrl(role: UserRole): string {
-  switch (role) {
-    case 'ADMIN':
-    case 'SUPER_ADMIN':
-      return '/dashboard'
-    case 'PARTNER':
-      return '/partners'
-    case 'CLIENT':
-    default:
-      return '/shop'
-  }
+  return defaultRouteForRole(role)
 }

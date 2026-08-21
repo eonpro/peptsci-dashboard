@@ -8,6 +8,7 @@ import {
   errorResponse,
   successResponse,
 } from '@/lib/auth'
+import { isStaffRole } from '@/lib/access'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
@@ -58,9 +59,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return errorResponse('User is not linked to this practice.', 400, 'CLIENT_MISMATCH')
     }
 
-    // Never let this admin path reset platform admin accounts from a client page.
-    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
-      return forbiddenResponse('Cannot reset password for admin accounts from this path')
+    // Never let this admin path reset platform staff accounts from a client page.
+    if (isStaffRole(user.role)) {
+      return forbiddenResponse('Cannot reset password for staff accounts from this path')
     }
 
     if (!isClerkConfigured) {

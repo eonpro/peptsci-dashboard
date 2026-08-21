@@ -21,7 +21,17 @@ const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').repla
 
 const inviteSchema = z.object({
   email: z.string().trim().email('Enter a valid email').max(200),
-  role: z.enum(['CLIENT', 'ADMIN', 'SUPER_ADMIN']).default('CLIENT'),
+  role: z
+    .enum([
+      'CLIENT',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'FULFILLMENT',
+      'BILLING',
+      'CATALOG',
+      'FINANCE_VIEWER',
+    ])
+    .default('CLIENT'),
   clientId: z.string().trim().min(1).optional(),
 })
 
@@ -89,11 +99,11 @@ export async function POST(request: NextRequest) {
     }
     const { email, role, clientId } = parsed.data
 
-    // Only super admins may grant elevated roles.
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+    // Only super admins may grant elevated / staff roles.
+    if (role !== 'CLIENT') {
       const { isSuperAdmin } = await requireSuperAdmin()
       if (!isSuperAdmin) {
-        return forbiddenResponse('Super Admin access required to grant admin roles')
+        return forbiddenResponse('Super Admin access required to grant staff roles')
       }
     }
 
