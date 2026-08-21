@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { requireAuth, unauthorizedResponse, errorResponse, successResponse } from '@/lib/auth'
 import { checkRateLimit, getRateLimitKey, getRateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
 import { patientCreateSchema, serializePatient } from '@/lib/patient'
+import { createPatientForClient } from '@/lib/patients/create'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,21 +68,8 @@ export async function POST(request: NextRequest) {
         'VALIDATION_ERROR'
       )
     }
-    const d = parsed.data
-
-    const patient = await prisma.patient.create({
-      data: {
-        clientId,
-        firstName: d.firstName,
-        lastName: d.lastName,
-        address: d.address as unknown as Prisma.InputJsonValue,
-        phone: d.phone || null,
-        email: d.email || null,
-        notes: d.notes || null,
-      },
-      select: patientSelect,
-    })
-    return successResponse({ patient: serializePatient(patient) }, 201)
+    const patient = await createPatientForClient(clientId, parsed.data)
+    return successResponse({ patient }, 201)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to add patient'
     logger.error('[PATIENTS] create error', { message }, error as Error)

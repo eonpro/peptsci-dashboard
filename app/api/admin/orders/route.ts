@@ -8,6 +8,13 @@ import { addressSchema } from '@/lib/address'
 import { createManualOrder } from '@/lib/orders/create'
 import { resolveOrderCreatorId, NoOrderActorError } from '@/lib/orders/actor'
 import { ManualOrderError } from '@/lib/orders/order-core'
+import {
+  patientCreateSchema,
+  orderShippingAddressFromPatient,
+  manualPatientShipToError,
+} from '@/lib/patient'
+import { createPatientForClient } from '@/lib/patients/create'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,7 +103,7 @@ export async function GET(request: NextRequest) {
           items: {
             select: {
               quantity: true,
-              variant: { select: { dose: true, product: { select: { name: true } } } },
+              variant: { select: { sku: true, dose: true, product: { select: { name: true } } } },
             },
           },
           fulfillment: {
@@ -125,7 +132,7 @@ export async function GET(request: NextRequest) {
       shippingAddress: o.shippingAddress,
       client: o.client,
       items: o.items.map((it) => ({
-        name: it.variant.product.name,
+        name: displayProductName(it.variant.product.name, it.variant.sku),
         dose: it.variant.dose,
         quantity: it.quantity,
       })),
@@ -149,25 +156,33 @@ export async function GET(request: NextRequest) {
   }
 }
 
-const createOrderSchema = z.object({
-  clientId: z.string().trim().min(1, 'A client is required'),
-  patientId: z.string().trim().min(1).optional(),
-  lines: z
-    .array(
-      z.object({
-        variantId: z.string().trim().min(1),
-        quantity: z.number().int().positive(),
-        unitPrice: z.number().min(0).optional(),
-      })
-    )
-    .min(1, 'Add at least one product'),
-  shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
-  shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
-  shippingAddress: addressSchema.optional(),
-  notes: z.string().trim().max(2000).optional(),
-  internalNotes: z.string().trim().max(2000).optional(),
-  status: z.enum(['DRAFT', 'SUBMITTED']).optional(),
-})
+const createOrderSchema = z
+  .object({
+    clientId: z.string().trim().min(1, 'A client is required'),
+    patientId: z.string().trim().min(1).optional(),
+    patient: patientCreateSchema.optional(),
+    lines: z
+      .array(
+        z.object({
+          variantId: z.string().trim().min(1),
+          quantity: z.number().int().positive(),
+          unitPrice: z.number().min(0).optional(),
+        })
+      )
+      .min(1, 'Add at least one product'),
+    shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
+    shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+    shippingAddress: addressSchema.optional(),
+    notes: z.string().trim().max(2000).optional(),
+    internalNotes: z.string().trim().max(2000).optional(),
+    status: z.enum(['DRAFT', 'SUBMITTED']).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const message = manualPatientShipToError(data)
+    if (message) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ['patientId'] })
+    }
+  })
 
 /**
  * POST /api/admin/orders — create a manual order from the Fulfillment "New
@@ -193,15 +208,47 @@ export async function POST(request: NextRequest) {
 
     const createdById = await resolveOrderCreatorId(userId)
 
+    let patientId = input.patientId ?? null
+    let shippingAddress: Prisma.InputJsonValue | null = input.shippingAddress
+      ? (input.shippingAddress as unknown as Prisma.InputJsonValue)
+      : null
+
+    if (input.shipTo === 'PATIENT') {
+      if (!patientId && input.patient) {
+        const created = await createPatientForClient(
+          input.clientId,
+          input.patient,
+          'Created from admin New Order'
+        )
+        patientId = created.id
+      }
+      if (!patientId) {
+        return errorResponse('Select or add a patient to ship to', 400, 'PATIENT_REQUIRED')
+      }
+      const patient = await prisma.patient.findFirst({
+        where: { id: patientId, clientId: input.clientId, isActive: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          address: true,
+          phone: true,
+          email: true,
+        },
+      })
+      if (!patient) {
+        return errorResponse('Selected patient was not found for this client', 400, 'PATIENT_UNKNOWN')
+      }
+      shippingAddress = orderShippingAddressFromPatient(patient) as Prisma.InputJsonValue
+    }
+
     const result = await createManualOrder({
       clientId: input.clientId,
-      patientId: input.patientId ?? null,
+      patientId,
       lines: input.lines,
       shipTo: input.shipTo,
       shipSpeed: input.shipSpeed,
-      shippingAddress: input.shippingAddress
-        ? (input.shippingAddress as unknown as Prisma.InputJsonValue)
-        : null,
+      shippingAddress,
       notes: input.notes ?? null,
       internalNotes: input.internalNotes ?? null,
       createdById,
