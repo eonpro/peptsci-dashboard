@@ -5,13 +5,6 @@ import { useRole } from '@/hooks/useRole'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -36,9 +29,15 @@ import {
 } from 'lucide-react'
 import InviteUserDialog, { type ClientOption } from './InviteUserDialog'
 import EditUserDialog, { type EditableUser } from './EditUserDialog'
+import EditPermissionsDialog, {
+  type PermissionsEditableUser,
+  type StaffAssignableRole,
+} from './EditPermissionsDialog'
 import { apiError } from '@/lib/api-error'
+import { isStaffRole } from '@/lib/access'
+import type { Permission } from '@/lib/permissions'
 
-type Role = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
+type Role = StaffAssignableRole
 type Status = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
 
 interface PlatformUser {
@@ -50,6 +49,8 @@ interface PlatformUser {
   role: Role
   status: Status
   clientId: string | null
+  permissionsGrant: Permission[]
+  permissionsDeny: Permission[]
   createdAt: number
   lastSignInAt: number | null
 }
@@ -81,6 +82,7 @@ export default function UsersPage() {
 
   const [inviteOpen, setInviteOpen] = useState(false)
   const [editUser, setEditUser] = useState<EditableUser | null>(null)
+  const [permissionsUser, setPermissionsUser] = useState<PermissionsEditableUser | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -162,27 +164,6 @@ export default function UsersPage() {
       )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function changeRole(id: string, role: Role) {
-    setBusyId(id)
-    setError(null)
-    try {
-      const res = await fetch(`/api/admin/users/${id}/role`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.message || 'Failed to change role')
-      }
-      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to change role')
     } finally {
       setBusyId(null)
     }
@@ -355,32 +336,29 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell>
                         {isSuperAdmin ? (
-                          <Select
-                            value={u.role}
-                            onValueChange={(v) => changeRole(u.id, v as Role)}
+                          <Button
+                            size="sm"
+                            variant="outline"
                             disabled={busy}
+                            className="border-white/20 text-white/80 hover:bg-white/10"
+                            onClick={() =>
+                              setPermissionsUser({
+                                id: u.id,
+                                email: u.email,
+                                role: u.role,
+                                permissionsGrant: u.permissionsGrant ?? [],
+                                permissionsDeny: u.permissionsDeny ?? [],
+                              })
+                            }
                           >
-                            <SelectTrigger className="w-[150px] bg-[#0a0e3a] border-white/10 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-brand-onyx border-white/10">
-                              <SelectItem value="CLIENT" className="text-white focus:bg-white/10">
-                                Client
-                              </SelectItem>
-                              <SelectItem value="ADMIN" className="text-white focus:bg-white/10">
-                                Admin
-                              </SelectItem>
-                              <SelectItem
-                                value="SUPER_ADMIN"
-                                className="text-white focus:bg-white/10"
-                              >
-                                Super Admin
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            {(isStaffRole(u.role) || u.role === 'SUPER_ADMIN') && (
+                              <ShieldCheck className="h-3.5 w-3.5 mr-1 text-brand-primary" />
+                            )}
+                            {u.role}
+                          </Button>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-white/80">
-                            {(u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') && (
+                            {isStaffRole(u.role) && (
                               <ShieldCheck className="h-3.5 w-3.5 text-brand-primary" />
                             )}
                             {u.role}
@@ -466,6 +444,14 @@ export default function UsersPage() {
         }}
         user={editUser}
         clients={clients}
+        onSaved={load}
+      />
+      <EditPermissionsDialog
+        open={permissionsUser !== null}
+        onOpenChange={(o) => {
+          if (!o) setPermissionsUser(null)
+        }}
+        user={permissionsUser}
         onSaved={load}
       />
     </div>

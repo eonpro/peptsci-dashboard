@@ -8,10 +8,11 @@ import { ThemeScope } from '@/components/ThemeScope'
 export const dynamic = 'force-dynamic'
 
 /**
- * Admin 2FA enforcement: when ADMIN_REQUIRE_2FA=true, admins without a second
- * factor enrolled in Clerk are bounced to /enable-2fa before they can use the
- * admin console. Checked in the layout (server-side, once per navigation).
- * Fails open on Clerk errors so a Clerk outage can't lock out the console.
+ * Admin 2FA enforcement: when ADMIN_REQUIRE_2FA=true, ADMIN/SUPER_ADMIN without
+ * a second factor enrolled in Clerk are bounced to /enable-2fa before they can
+ * use the admin console. Warehouse presets (FULFILLMENT, etc.) are not forced
+ * through this gate. Fails open on Clerk errors so an outage can't lock out
+ * the console.
  */
 async function assertAdmin2fa() {
   if (process.env.ADMIN_REQUIRE_2FA !== 'true') return

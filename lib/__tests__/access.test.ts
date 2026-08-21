@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   isAdminRole,
+  isStaffRole,
   isSuperAdminRole,
   isActiveStatus,
   defaultRouteForRole,
@@ -9,10 +10,20 @@ import {
 } from '../access.ts'
 
 describe('role helpers', () => {
-  test('isAdminRole is true for ADMIN and SUPER_ADMIN only', () => {
-    assert.equal(isAdminRole('ADMIN'), true)
-    assert.equal(isAdminRole('SUPER_ADMIN'), true)
+  test('isStaffRole / isAdminRole true for ADMIN, SUPER_ADMIN, and presets', () => {
+    for (const role of [
+      'ADMIN',
+      'SUPER_ADMIN',
+      'FULFILLMENT',
+      'BILLING',
+      'CATALOG',
+      'FINANCE_VIEWER',
+    ]) {
+      assert.equal(isStaffRole(role), true)
+      assert.equal(isAdminRole(role), true)
+    }
     assert.equal(isAdminRole('CLIENT'), false)
+    assert.equal(isAdminRole('PARTNER'), false)
     assert.equal(isAdminRole(undefined), false)
     assert.equal(isAdminRole(null), false)
   })
@@ -20,6 +31,7 @@ describe('role helpers', () => {
   test('isSuperAdminRole is true only for SUPER_ADMIN', () => {
     assert.equal(isSuperAdminRole('SUPER_ADMIN'), true)
     assert.equal(isSuperAdminRole('ADMIN'), false)
+    assert.equal(isSuperAdminRole('FULFILLMENT'), false)
     assert.equal(isSuperAdminRole('CLIENT'), false)
   })
 
@@ -29,10 +41,15 @@ describe('role helpers', () => {
     assert.equal(isActiveStatus('SUSPENDED'), false)
   })
 
-  test('defaultRouteForRole routes admins to dashboard, others to shop', () => {
+  test('defaultRouteForRole routes staff presets to their home surfaces', () => {
     assert.equal(defaultRouteForRole('ADMIN'), '/dashboard')
     assert.equal(defaultRouteForRole('SUPER_ADMIN'), '/dashboard')
+    assert.equal(defaultRouteForRole('FULFILLMENT'), '/fulfillment')
+    assert.equal(defaultRouteForRole('BILLING'), '/invoices')
+    assert.equal(defaultRouteForRole('CATALOG'), '/products')
+    assert.equal(defaultRouteForRole('FINANCE_VIEWER'), '/profit-loss')
     assert.equal(defaultRouteForRole('CLIENT'), '/shop')
+    assert.equal(defaultRouteForRole('PARTNER'), '/partners')
     assert.equal(defaultRouteForRole(undefined), '/shop')
   })
 })

@@ -19,7 +19,7 @@ export async function resolveAdminUserId(clerkUserId: string | null): Promise<st
 
   if (process.env.NODE_ENV !== 'production') {
     const admin = await prisma.user.findFirst({
-      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE' },
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'FULFILLMENT', 'BILLING', 'CATALOG', 'FINANCE_VIEWER'] }, status: 'ACTIVE' },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     })

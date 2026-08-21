@@ -22,6 +22,8 @@ interface ClerkUserEventData {
     role?: string
     status?: string
     clientId?: string
+    permissionsGrant?: string[]
+    permissionsDeny?: string[]
     // Affiliate partner provisioning (seeded by the partner approval / invite
     // flows) — links the new Clerk account to its partner identity row.
     partnerOrgId?: string
@@ -37,7 +39,16 @@ interface ClerkWebhookEvent {
 
 const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET
 
-const VALID_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'PARTNER'] as const
+const VALID_ROLES = [
+  'CLIENT',
+  'ADMIN',
+  'SUPER_ADMIN',
+  'PARTNER',
+  'FULFILLMENT',
+  'BILLING',
+  'CATALOG',
+  'FINANCE_VIEWER',
+] as const
 const VALID_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED'] as const
 type UserRole = (typeof VALID_ROLES)[number]
 type UserStatus = (typeof VALID_STATUSES)[number]
@@ -48,6 +59,11 @@ function asRole(value: string | undefined): UserRole | undefined {
 
 function asStatus(value: string | undefined): UserStatus | undefined {
   return VALID_STATUSES.includes(value as UserStatus) ? (value as UserStatus) : undefined
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.filter((v): v is string => typeof v === 'string')
 }
 
 /** Resolve a clientId from Clerk metadata only if the client actually exists locally. */
@@ -194,6 +210,12 @@ export async function POST(req: Request) {
             lastName: last_name ?? undefined,
             ...(isInvited && { role, status }),
             ...(seededClientId && { clientId: seededClientId }),
+            ...(asStringArray(public_metadata?.permissionsGrant) && {
+              permissionsGrant: asStringArray(public_metadata?.permissionsGrant),
+            }),
+            ...(asStringArray(public_metadata?.permissionsDeny) && {
+              permissionsDeny: asStringArray(public_metadata?.permissionsDeny),
+            }),
           },
           create: {
             clerkUserId: id,
@@ -203,6 +225,8 @@ export async function POST(req: Request) {
             role,
             status,
             ...(seededClientId && { clientId: seededClientId }),
+            permissionsGrant: asStringArray(public_metadata?.permissionsGrant) ?? [],
+            permissionsDeny: asStringArray(public_metadata?.permissionsDeny) ?? [],
           },
         })
         logger.info('User created in database', { userId: id, status })
@@ -238,6 +262,8 @@ export async function POST(req: Request) {
         const metadataRole = asRole(public_metadata?.role)
         const metadataStatus = asStatus(public_metadata?.status)
         const metadataClientId = await resolveExistingClientId(public_metadata?.clientId)
+        const grant = asStringArray(public_metadata?.permissionsGrant)
+        const deny = asStringArray(public_metadata?.permissionsDeny)
 
         await prisma.user.upsert({
           where: { clerkUserId: id },
@@ -249,6 +275,8 @@ export async function POST(req: Request) {
             ...(metadataRole && { role: metadataRole }),
             ...(metadataStatus && { status: metadataStatus }),
             ...(metadataClientId && { clientId: metadataClientId }),
+            ...(grant && { permissionsGrant: grant }),
+            ...(deny && { permissionsDeny: deny }),
           },
           create: {
             clerkUserId: id,
@@ -258,6 +286,8 @@ export async function POST(req: Request) {
             role: metadataRole || 'CLIENT',
             status: metadataStatus || 'PENDING',
             ...(metadataClientId && { clientId: metadataClientId }),
+            permissionsGrant: grant ?? [],
+            permissionsDeny: deny ?? [],
           },
         })
         logger.info('User updated in database', { userId: id })

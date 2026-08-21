@@ -23,10 +23,25 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
 import { getPoolConfig } from '../lib/db-url'
 
-type Role = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN'
+type Role =
+  | 'CLIENT'
+  | 'ADMIN'
+  | 'SUPER_ADMIN'
+  | 'FULFILLMENT'
+  | 'BILLING'
+  | 'CATALOG'
+  | 'FINANCE_VIEWER'
 type Status = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
 
-const VALID_ROLES: Role[] = ['CLIENT', 'ADMIN', 'SUPER_ADMIN']
+const VALID_ROLES: Role[] = [
+  'CLIENT',
+  'ADMIN',
+  'SUPER_ADMIN',
+  'FULFILLMENT',
+  'BILLING',
+  'CATALOG',
+  'FINANCE_VIEWER',
+]
 const VALID_STATUS: Status[] = ['PENDING', 'ACTIVE', 'SUSPENDED']
 
 async function main() {

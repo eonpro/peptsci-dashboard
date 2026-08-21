@@ -5,11 +5,37 @@
  * between server guards (lib/auth.ts), middleware, and client hooks.
  */
 
-export type UserRole = 'CLIENT' | 'ADMIN' | 'SUPER_ADMIN' | 'PARTNER'
+export type UserRole =
+  | 'CLIENT'
+  | 'ADMIN'
+  | 'SUPER_ADMIN'
+  | 'PARTNER'
+  | 'FULFILLMENT'
+  | 'BILLING'
+  | 'CATALOG'
+  | 'FINANCE_VIEWER'
+
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED'
 
+/** Staff presets that enter the admin console (not CLIENT / PARTNER). */
+export const STAFF_ROLES: readonly UserRole[] = [
+  'ADMIN',
+  'SUPER_ADMIN',
+  'FULFILLMENT',
+  'BILLING',
+  'CATALOG',
+  'FINANCE_VIEWER',
+] as const
+
+const STAFF_ROLE_SET = new Set<string>(STAFF_ROLES)
+
+export function isStaffRole(role: string | undefined | null): boolean {
+  return !!role && STAFF_ROLE_SET.has(role)
+}
+
+/** @deprecated Prefer isStaffRole — kept as alias for existing call sites. */
 export function isAdminRole(role: string | undefined | null): boolean {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN'
+  return isStaffRole(role)
 }
 
 export function isSuperAdminRole(role: string | undefined | null): boolean {
@@ -27,9 +53,24 @@ export function isActiveStatus(status: string | undefined | null): boolean {
 
 /**
  * Where a user should land after auth, based on role.
+ * Staff presets that lack dashboard:read are refined later via
+ * staffHomeForPermissions once grant/deny are known.
  */
 export function defaultRouteForRole(role: string | undefined | null): string {
-  if (isAdminRole(role)) return '/dashboard'
+  if (isStaffRole(role)) {
+    switch (role) {
+      case 'FULFILLMENT':
+        return '/fulfillment'
+      case 'FINANCE_VIEWER':
+        return '/profit-loss'
+      case 'BILLING':
+        return '/invoices'
+      case 'CATALOG':
+        return '/products'
+      default:
+        return '/dashboard'
+    }
+  }
   if (isPartnerRole(role)) return '/partners'
   return '/shop'
 }

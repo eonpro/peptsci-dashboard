@@ -1,6 +1,13 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { defaultRouteForRole, isStaffRole } from '@/lib/access'
+import {
+  permissionForAdminApi,
+  permissionForAdminPage,
+  satisfiesRoutePermission,
+} from '@/lib/admin-route-permissions'
+import { resolvePermissions, staffHomeForPermissions, type Permission } from '@/lib/permissions'
 
 // Check if Clerk is configured
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
@@ -79,7 +86,15 @@ const isAdminRoute = createRouteMatcher([
   '/partners-admin(.*)',
   // Clinic support-ticket queue.
   '/support(.*)',
+  '/package-photos(.*)',
+  '/fulfillment(.*)',
+  '/settings(.*)',
   '/api/admin(.*)',
+  // Legacy staff APIs that sit outside /api/admin.
+  '/api/inventory(.*)',
+  '/api/sales(.*)',
+  '/api/competitors(.*)',
+  '/api/orders(.*)',
 ])
 
 // Client-only routes (shop)
@@ -104,12 +119,54 @@ const isProtectedRoute = createRouteMatcher([
   '/partners/(.*)',
 ])
 
-/** Landing route by role (PARTNER → portal, admins → dashboard, else shop). */
-function homeForRole(role: string): string {
-  if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/dashboard'
+type SessionMeta = {
+  role?: string
+  status?: string
+  clientId?: string
+  permissionsGrant?: unknown
+  permissionsDeny?: unknown
+}
+
+/** Landing route by role (+ staff permission-aware home). */
+function homeForRole(role: string, permissions?: readonly Permission[]): string {
+  if (isStaffRole(role)) {
+    if (permissions && permissions.length > 0) {
+      return staffHomeForPermissions(permissions, role)
+    }
+    return defaultRouteForRole(role)
+  }
   if (role === 'PARTNER') return '/partners'
   return '/shop'
 }
+
+function staffPermissionsFromMeta(meta: SessionMeta | undefined, role: string): Permission[] {
+  if (!isStaffRole(role)) return []
+  return resolvePermissions({
+    role,
+    permissionsGrant: meta?.permissionsGrant,
+    permissionsDeny: meta?.permissionsDeny,
+  })
+}
+
+function forbidStaffAccess(
+  request: NextRequest,
+  role: string,
+  permissions: readonly Permission[],
+  pathname: string
+): NextResponse {
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json(
+      {
+        error: 'Forbidden',
+        message: 'Insufficient permissions',
+        code: 'INSUFFICIENT_PERMISSIONS',
+      },
+      { status: 403 }
+    )
+  }
+  return NextResponse.redirect(new URL(homeForRole(role, permissions), request.url))
+}
+
 
 // Onboarding page + the APIs it relies on. Always reachable for a signed-in
 // user (even before they have a linked practice / while PENDING).
@@ -187,8 +244,10 @@ const middleware = isClerkConfigured
           (request.nextUrl.pathname.startsWith('/sign-in') ||
             request.nextUrl.pathname.startsWith('/sign-up'))
         ) {
-          const role = (sessionClaims?.metadata as { role?: string })?.role || 'CLIENT'
-          return NextResponse.redirect(new URL(homeForRole(role), request.url))
+          const meta = sessionClaims?.metadata as SessionMeta | undefined
+          const role = meta?.role || 'CLIENT'
+          const permissions = staffPermissionsFromMeta(meta, role)
+          return NextResponse.redirect(new URL(homeForRole(role, permissions), request.url))
         }
         return NextResponse.next()
       }
@@ -201,13 +260,13 @@ const middleware = isClerkConfigured
       }
 
       // Get user role/status/clientId from session claims (set via Clerk metadata)
-      const meta = sessionClaims?.metadata as
-        | { role?: string; status?: string; clientId?: string }
-        | undefined
+      const meta = sessionClaims?.metadata as SessionMeta | undefined
       const role = meta?.role || 'CLIENT'
       const status = meta?.status || 'PENDING'
       const clientId = meta?.clientId
       const pathname = request.nextUrl.pathname
+      const permissions = staffPermissionsFromMeta(meta, role)
+      const staffHome = homeForRole(role, permissions)
 
       // Onboarding + its supporting APIs are always allowed for signed-in users.
       // Except invitees who already carry a practice (or partner identity) in
@@ -220,7 +279,7 @@ const middleware = isClerkConfigured
             return NextResponse.redirect(new URL('/partners', request.url))
           }
           if (role === 'CLIENT' && clientId) {
-            return NextResponse.redirect(new URL(homeForRole(role), request.url))
+            return NextResponse.redirect(new URL(staffHome, request.url))
           }
         }
         return NextResponse.next()
@@ -275,14 +334,33 @@ const middleware = isClerkConfigured
       // on (this is what makes the page's "Check Status" reload work once an
       // admin approves; session claims refresh within ~60s of the approval).
       if (status === 'ACTIVE' && pathname.startsWith('/pending-approval')) {
-        return NextResponse.redirect(new URL(homeForRole(role), request.url))
+        return NextResponse.redirect(new URL(staffHome, request.url))
       }
 
-      // Role-based access control
+      // Staff console + staff APIs: must be a staff role, then pass the
+      // fine-grained permission map for the specific path.
       if (isAdminRoute(request)) {
-        if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-          // Non-admin trying to access admin routes - send them home
+        if (!isStaffRole(role)) {
+          if (pathname.startsWith('/api/')) {
+            return NextResponse.json(
+              {
+                error: 'Forbidden',
+                message: 'Staff access required',
+                code: 'STAFF_REQUIRED',
+              },
+              { status: 403 }
+            )
+          }
           return NextResponse.redirect(new URL(homeForRole(role), request.url))
+        }
+
+        const requirement =
+          permissionForAdminApi(pathname) ?? permissionForAdminPage(pathname)
+        if (
+          requirement &&
+          !satisfiesRoutePermission(permissions, requirement, true)
+        ) {
+          return forbidStaffAccess(request, role, permissions, pathname)
         }
       }
 
@@ -295,17 +373,17 @@ const middleware = isClerkConfigured
             { status: 403 }
           )
         }
-        return NextResponse.redirect(new URL(homeForRole(role), request.url))
+        return NextResponse.redirect(new URL(staffHome, request.url))
       }
 
-      // Shop is for clinic + admin accounts; partners are portal-only.
+      // Shop is for clinic + staff accounts; partners are portal-only.
       if (isClientRoute(request) && role === 'PARTNER') {
         return NextResponse.redirect(new URL('/partners', request.url))
       }
 
       // Handle root path - redirect based on role
       if (request.nextUrl.pathname === '/') {
-        return NextResponse.redirect(new URL(homeForRole(role), request.url))
+        return NextResponse.redirect(new URL(staffHome, request.url))
       }
 
       return NextResponse.next()
