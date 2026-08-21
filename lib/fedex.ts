@@ -11,16 +11,18 @@
  */
 
 import { logger } from './logger'
+import { FedExApiError } from './shipping/fedex-api-error'
+import {
+  resolveShipCredentials,
+  resolveTrackCredentials,
+  type FedExCredentials,
+} from './shipping/fedex-credentials'
+
+export type { FedExCredentials }
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export type FedExCredentials = {
-  clientId: string
-  clientSecret: string
-  accountNumber: string
-}
 
 export type FedExEnvironment = 'sandbox' | 'production'
 
@@ -101,19 +103,27 @@ export function fedexEnvironment(): FedExEnvironment {
 }
 
 /**
- * Resolve FedEx API credentials from the environment.
+ * Resolve FedEx Ship/Rate credentials from the environment.
  * Returns null when not fully configured (caller decides how to degrade).
  */
 export function getCredentials(): FedExCredentials | null {
-  const clientId = process.env.FEDEX_CLIENT_ID
-  const clientSecret = process.env.FEDEX_CLIENT_SECRET
-  const accountNumber = process.env.FEDEX_ACCOUNT_NUMBER
-  if (!clientId || !clientSecret || !accountNumber) return null
-  return { clientId, clientSecret, accountNumber }
+  return resolveShipCredentials(process.env)
+}
+
+/**
+ * Resolve FedEx Track (Basic Integrated Visibility) credentials.
+ * BIV cannot share a project with Ship — these are a dedicated key pair.
+ */
+export function getTrackCredentials(): FedExCredentials | null {
+  return resolveTrackCredentials(process.env)
 }
 
 export function isFedExConfigured(): boolean {
   return getCredentials() !== null
+}
+
+export function isFedExTrackConfigured(): boolean {
+  return getTrackCredentials() !== null
 }
 
 /**
@@ -197,7 +207,8 @@ async function fedexRequest<T>(
   credentials: FedExCredentials,
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
+  extraHeaders?: Record<string, string>
 ): Promise<T> {
   let lastError: unknown
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -208,6 +219,7 @@ async function fedexRequest<T>(
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          ...extraHeaders,
         },
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -221,22 +233,28 @@ async function fedexRequest<T>(
         if (response.status === 401) {
           tokenCache.delete(credentials.clientId)
           if (attempt < MAX_RETRIES) {
-            lastError = new Error(`FedEx API error: 401`)
+            lastError = new FedExApiError({ status: 401, path, body: errorBody })
             continue
           }
         }
         // Retry only on 5xx / 429 — client errors (4xx) are deterministic.
         if ((response.status >= 500 || response.status === 429) && attempt < MAX_RETRIES) {
-          lastError = new Error(`FedEx API error: ${response.status}`)
+          lastError = new FedExApiError({ status: response.status, path, body: errorBody })
           await new Promise((r) => setTimeout(r, 500 * (attempt + 1)))
           continue
         }
-        logger.error('FedEx API error', {
-          status: response.status,
-          path,
-          error: errorBody.slice(0, 500),
-        })
-        throw new Error(`FedEx API error: ${response.status} - ${errorBody.slice(0, 200)}`)
+        const apiError = new FedExApiError({ status: response.status, path, body: errorBody })
+        // Track 403 = project lacks Track API. The poller logs once and aborts.
+        // Still log 403s on Ship/Rate so warehouse failures stay visible.
+        if (!(apiError.isForbidden && path.startsWith('/track/'))) {
+          logger.error('FedEx API error', {
+            status: response.status,
+            path,
+            code: apiError.code,
+            error: errorBody.slice(0, 500),
+          })
+        }
+        throw apiError
       }
 
       return (await response.json()) as T
@@ -508,10 +526,16 @@ export async function trackShipment(
   credentials: FedExCredentials,
   trackingNumber: string
 ): Promise<FedExTrackResult> {
-  const result = await fedexRequest<any>(credentials, 'POST', '/track/v1/trackingnumbers', {
-    includeDetailedScans: false,
-    trackingInfo: [{ trackingNumberInfo: { trackingNumber } }],
-  })
+  const result = await fedexRequest<any>(
+    credentials,
+    'POST',
+    '/track/v1/trackingnumbers',
+    {
+      includeDetailedScans: false,
+      trackingInfo: [{ trackingNumberInfo: { trackingNumber } }],
+    },
+    { 'x-locale': 'en_US' }
+  )
 
   const trackResult = result.output?.completeTrackResults?.[0]?.trackResults?.[0]
   const latest = trackResult?.latestStatusDetail
