@@ -8,6 +8,8 @@
  * the aka subtitle when the name is the trade name.
  */
 
+import { glpGenericName, resolveGlpTradeName } from './glp-trade-names'
+
 /** True when a stored product name looks like a joined compound list. */
 export function looksLikeCompoundList(name: string): boolean {
   const trimmed = name.trim()
@@ -72,7 +74,7 @@ export function resolveNamedBlendTradeName(
 
 /** Display name: trade name when applicable, otherwise the stored product name. */
 export function displayProductName(name: string, sku?: string | null): string {
-  return resolveNamedBlendTradeName(name, sku) ?? name
+  return resolveNamedBlendTradeName(name, sku) ?? resolveGlpTradeName(name) ?? name
 }
 
 /** Canonical aka subtitle for a named blend (compound order matches label doses). */
@@ -103,6 +105,12 @@ export function displayProductAka(
   aka: string | null | undefined
 ): string | null {
   const existing = aka?.trim() || null
+  const glp = resolveGlpTradeName(name)
+  if (glp) {
+    const generic = glpGenericName(glp)
+    if (existing && existing.toLowerCase() !== generic.toLowerCase()) return existing
+    return generic
+  }
   if (existing) return existing
   const trade = resolveNamedBlendTradeName(name, sku)
   if (!trade) return aka ?? null

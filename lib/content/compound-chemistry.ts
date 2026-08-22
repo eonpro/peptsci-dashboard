@@ -439,6 +439,12 @@ const ALIASES: Record<string, string> = {
   'des-1-3-igf-1': 'igf-des',
   'des-igf-1': 'igf-des',
   motsc: 'mots-c',
+  'glp-sm': 'semaglutide',
+  glpsm: 'semaglutide',
+  'glp-tz': 'tirzepatide',
+  glptz: 'tirzepatide',
+  'glp-rt': 'retatrutide',
+  glprt: 'retatrutide',
 }
 
 function resolveKey(name: string): string | null {

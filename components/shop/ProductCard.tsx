@@ -503,6 +503,9 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
                   </Link>
                 )}
               </h3>
+              {product.aka && (
+                <p className="mt-0.5 text-sm text-white/50">{product.aka}</p>
+              )}
               {product.category && (
                 <p className="mt-0.5 text-[#4d6bff] text-[10px] @[16rem]:text-[11px] font-medium uppercase tracking-tight line-clamp-2">
                   {product.category}

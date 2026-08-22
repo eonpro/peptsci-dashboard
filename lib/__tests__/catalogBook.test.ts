@@ -5,6 +5,7 @@ import {
   buildCatalogBookManifest,
   catalogBookCategories,
   catalogBookMeta,
+  catalogProductSummary,
   formatListPrice,
   isOfferedProduct,
   offeredSizeOptions,
@@ -148,6 +149,41 @@ describe('buildCatalogBookManifest', () => {
     )
   })
 
+  it('puts GLOW and KLOW on the Skin & Beauty divider, not Recovery', () => {
+    const pages = buildCatalogBookManifest([
+      product({ name: 'GHK-Cu', sku: 'GHK-50', dose: '50mg', displayPrice: 80 }),
+      product({
+        name: 'GLOW',
+        sku: 'GLOW-70',
+        category: 'Blends',
+        sizeOptions: [{ sku: 'GLOW-70', dose: '50mg/10mg/10mg', displayPrice: 189 }],
+      }),
+      product({
+        name: 'KLOW',
+        sku: 'KLOW-80',
+        category: 'Blends',
+        sizeOptions: [{ sku: 'KLOW-80', dose: '50mg/10mg/10mg/10mg', displayPrice: 219 }],
+      }),
+      product({ name: 'BPC-157', sku: 'BPC-5', dose: '5mg', displayPrice: 50 }),
+    ])
+    const skin = pages.find((p) => p.kind === 'category' && p.bucket === 'Skin & Beauty')
+    assert.equal(skin?.kind, 'category')
+    if (skin?.kind === 'category') {
+      assert.deepEqual(
+        skin.entries.map((e) => e.product.name).sort(),
+        ['GHK-Cu', 'GLOW', 'KLOW']
+      )
+    }
+    const recovery = pages.find((p) => p.kind === 'category' && p.bucket === 'Recovery & Repair')
+    assert.equal(recovery?.kind, 'category')
+    if (recovery?.kind === 'category') {
+      assert.deepEqual(
+        recovery.entries.map((e) => e.product.name),
+        ['BPC-157']
+      )
+    }
+  })
+
   it('does not invent PDF volume SKUs that are not in the live catalog', () => {
     const pages = buildCatalogBookManifest([
       product({
@@ -185,5 +221,45 @@ describe('formatListPrice', () => {
     assert.equal(formatListPrice(0), null)
     assert.equal(formatListPrice(Number.NaN), null)
     assert.equal(formatListPrice(90), '$90.00')
+  })
+})
+
+describe('catalogProductSummary', () => {
+  it('exposes aka, CAS, and the lowest list price for a category tile', () => {
+    const summary = catalogProductSummary(
+      product({
+        name: 'Tesamorelin',
+        sku: 'TES-10',
+        aka: 'TH9507; Egrifta',
+        casNumber: '218949-48-5',
+        category: 'GHRH analog',
+        displayPrice: 129,
+        sizeOptions: [
+          { sku: 'TES-10', dose: '10mg', displayPrice: 129 },
+          { sku: 'TES-5', dose: '5mg', displayPrice: 99 },
+        ],
+      })
+    )
+    assert.equal(summary.aka, 'TH9507; Egrifta')
+    assert.equal(summary.chemistry, 'CAS 218949-48-5')
+    assert.equal(summary.categoryLine, 'GHRH analog')
+    assert.equal(summary.fromPrice, '$99.00')
+  })
+
+  it('summarizes blend composition instead of a single CAS', () => {
+    const summary = catalogProductSummary(
+      product({
+        name: 'Tesamorelin / Ipamorelin',
+        sku: 'TES-IPA',
+        dose: '10mg/5mg',
+        productType: 'Blend',
+        compounds: [
+          { name: 'Tesamorelin', amount: '10mg' },
+          { name: 'Ipamorelin', amount: '5mg' },
+        ],
+        displayPrice: 159,
+      })
+    )
+    assert.equal(summary.chemistry, 'Tesamorelin 10mg + Ipamorelin 5mg')
   })
 })

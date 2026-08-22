@@ -251,3 +251,37 @@ export function formatListPrice(price: number): string | null {
     currency: 'USD',
   }).format(price)
 }
+
+export interface CatalogProductSummary {
+  aka: string | null
+  chemistry: string | null
+  categoryLine: string | null
+  fromPrice: string | null
+}
+
+const GENERIC_CATEGORY = /^(peptides?|blends?|research)$/i
+
+/** Tile copy for a category divider — aka, CAS or blend parts, list price. */
+export function catalogProductSummary(product: ShopProduct): CatalogProductSummary {
+  const aka = product.aka?.trim() || null
+  const categoryLine =
+    product.category && !GENERIC_CATEGORY.test(product.category.trim())
+      ? product.category.trim()
+      : null
+
+  let chemistry: string | null = null
+  if (product.compounds && product.compounds.length >= 2) {
+    chemistry = product.compounds
+      .map((c) => (c.amount ? `${c.name} ${c.amount}` : c.name))
+      .join(' + ')
+  } else if (product.casNumber?.trim()) {
+    chemistry = `CAS ${product.casNumber.trim()}`
+  }
+
+  const prices = offeredSizeOptions(product)
+    .map((s) => s.displayPrice)
+    .filter((n) => Number.isFinite(n) && n > 0)
+  const fromPrice = prices.length > 0 ? formatListPrice(Math.min(...prices)) : null
+
+  return { aka, chemistry, categoryLine, fromPrice }
+}

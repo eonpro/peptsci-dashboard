@@ -31,6 +31,9 @@ describe('getMonographForName', () => {
       'AOD-9604',
       'Thymosin alpha-1',
       'DSIP',
+      'CJC-1295 (no DAC)',
+      'hGH',
+      'Tesamorelin / Ipamorelin',
     ]) {
       assert.ok(getMonographForName(name), `missing monograph for ${name}`)
     }

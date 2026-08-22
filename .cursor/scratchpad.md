@@ -1,3 +1,114 @@
+# Catalog GLP names, aligned vials, richer product pages  [EXECUTOR — 2026-08-22]
+
+## Background and Motivation
+Weight-management category tiles in `/catalog` bottom-aligned vials, so
+Retatrutide/Tirzepatide (two rows of dose chips) sat higher than AOD/Sema.
+Clinics also want incretin vials labeled GLP-SM / GLP-TZ / GLP-RT, with more
+research copy on each product page. Skin & Beauty omitted GLOW/KLOW because
+the trade names no longer contain “GHK”, so they fell through to Specialty
+(or Recovery, when the stored name is still the compound list).
+
+## Key Challenges and Analysis
+- `items-end` on a flex-wrap row makes extra chips lift the vial. Fix: top-aligned
+  grid plus a reserved dose-chip slot (`min-h`) so wrap cannot move the shelf.
+- Keep DB Product.name as the INN so Shopify/imports still match; display layer
+  (same pattern as GLOW/KLOW) shows the GLP code and puts the INN in aka.
+- Bucket GLOW/KLOW as Skin & Beauty *before* Recovery matches BPC / TB-500 / KPV.
+
+## High-level Task Breakdown
+1. TDD GLP trade-name mapping, Weight Loss bucket, monograph aliases, shop search.
+2. Align category vials; show full monograph on book product pages.
+3. Expand GLP / AOD / Cagrilintide research copy.
+4. TDD + bucket GLOW/KLOW into Skin & Beauty.
+
+## Project Status Board
+- [x] GLP-SM / GLP-TZ / GLP-RT display names + tests
+- [x] Category vial shelf (no dose-chip lift)
+- [x] Expanded book + shop product information
+- [x] GLOW / KLOW on Skin & Beauty
+- [ ] Deploy
+
+## Executor's Feedback or Assistance Requests
+Needs a production deploy for `/catalog` and `/shop` to show the new names
+and GLOW/KLOW on Skin & Beauty.
+
+## Lessons
+- Never `items-end` a row of product tiles whose footers have variable height.
+- Trade-name remaps must update merchandising keywords, or blends vanish from
+  the category they belong in.
+
+
+## Background and Motivation
+Weight-management category tiles in `/catalog` bottom-aligned vials, so
+Retatrutide/Tirzepatide (two rows of dose chips) sat higher than AOD/Sema.
+Clinics also want incretin vials labeled GLP-SM / GLP-TZ / GLP-RT, with more
+research copy on each product page.
+
+## Key Challenges and Analysis
+- `items-end` on a flex-wrap row makes extra chips lift the vial. Fix: top-aligned
+  grid plus a reserved dose-chip slot (`min-h`) so wrap cannot move the shelf.
+- Keep DB Product.name as the INN so Shopify/imports still match; display layer
+  (same pattern as GLOW/KLOW) shows the GLP code and puts the INN in aka.
+
+## High-level Task Breakdown
+1. TDD GLP trade-name mapping, Weight Loss bucket, monograph aliases, shop search.
+2. Align category vials; show full monograph on book product pages.
+3. Expand GLP / AOD / Cagrilintide research copy.
+
+## Project Status Board
+- [x] GLP-SM / GLP-TZ / GLP-RT display names + tests
+- [x] Category vial shelf (no dose-chip lift)
+- [x] Expanded book + shop product information
+- [ ] Deploy
+
+## Executor's Feedback or Assistance Requests
+Needs a production deploy for `/catalog` and `/shop` to show the new names.
+
+## Lessons
+- Never `items-end` a row of product tiles whose footers have variable height.
+
+---
+
+# Catalog GH lineup + product info  [EXECUTOR — 2026-08-22]
+
+
+## Background and Motivation
+The shareable `/catalog` Growth Hormone page showed two identical Tesamorelin
+vials and claimed “2 currently offered products.” Clinics actually offer
+Ipamorelin, CJC-1295, Sermorelin, Tesamorelin/Ipamorelin, Tesamorelin, hGH,
+and more. Category tiles only showed name + dose.
+
+## Key Challenges and Analysis
+- Local Postgres has duplicate Product rows with the same display name
+  (sci-demo `TES-10` vs import `TESAMORELIN-10MG` at $0). Grouping keyed on
+  `parentProductId`, so identical compounds became two cards.
+- Local demo seed never included the rest of the GH lineup, so the book could
+  only render what was in the DB. Do not invent production SKUs; demo seed
+  SKUs are local-preview only (same pattern as existing `TES-10` / `BPC-5`).
+- `hGH` / somatropin did not match the GH merchandising regex.
+
+## High-level Task Breakdown
+1. TDD: merge same-name parents; keep Tesamorelin/Ipamorelin distinct; bucket hGH.
+2. Group by normalized name; collapse duplicate doses preferring priced + sci data.
+3. Enrich category tiles (aka, CAS/blend, list price) and product pages (mechanism).
+4. Seed local GH offerings; expand GH keyword list.
+
+## Project Status Board
+- [x] Grouping + category tests
+- [x] Dedup grouping + richer catalog pages
+- [x] Local GH seed + hGH bucket
+- [x] Verify `/catalog` GH divider (`productCount: 6`, no `tesamorelin-2`)
+
+## Executor's Feedback or Assistance Requests
+Local preview still uses demo SRPs. Production `/catalog` will show whatever
+ACTIVE variants exist there — deploy this branch to see the live lineup.
+
+## Lessons
+- Two Product rows named Tesamorelin with different ids will never collapse if
+  grouping keys on `parentProductId` first.
+
+---
+
 # Checkout smoothness (shipping-speed stock + payment UX)  [EXECUTOR — 2026-08-22]
 
 ## Background and Motivation
