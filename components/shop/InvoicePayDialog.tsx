@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import type { Appearance } from '@stripe/stripe-js'
 import { getStripePromise } from '@/lib/stripe-client'
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Loader2, Lock, CreditCard, Plus, CheckCircle2 } from 'lucide-react'
+import { paymentIntentIdFromClientSecret } from '@/lib/checkout-draft'
 
 interface SavedMethod {
   id: string
@@ -58,6 +59,7 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
     connectedAccountId?: string
   } | null>(null)
   const [creatingPi, setCreatingPi] = useState(false)
+  const piAttemptedRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -79,6 +81,7 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
   }, [open])
 
   const createNewCardIntent = useCallback(async () => {
+    piAttemptedRef.current = true
     setCreatingPi(true)
     setError(null)
     try {
@@ -105,7 +108,15 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
   }, [invoiceId])
 
   useEffect(() => {
-    if (open && selected === 'new' && !pi && !creatingPi) void createNewCardIntent()
+    if (!open) {
+      piAttemptedRef.current = false
+      return
+    }
+    if (selected !== 'new') {
+      piAttemptedRef.current = false
+      return
+    }
+    if (!pi && !creatingPi && !piAttemptedRef.current) void createNewCardIntent()
   }, [open, selected, pi, creatingPi, createNewCardIntent])
 
   const paySaved = useCallback(async () => {
@@ -223,15 +234,31 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
           )}
 
           {selected === 'new' &&
-            (creatingPi || !pi || !stripePromise ? (
+            (creatingPi || (!pi && !error) ? (
               <div className="flex items-center justify-center py-10 text-white/50">
                 <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !pi || !stripePromise ? (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <p className="text-sm text-white/60 text-center">
+                  {error || 'Could not start payment. Please try again.'}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/20 text-white hover:bg-white/10"
+                  onClick={() => void createNewCardIntent()}
+                >
+                  Try again
+                </Button>
               </div>
             ) : (
               <Elements stripe={stripePromise} options={{ clientSecret: pi.clientSecret, appearance }}>
                 <NewCardPayForm
                   invoiceId={invoiceId}
                   amountDue={amountDue}
+                  clientSecret={pi.clientSecret}
+                  paymentIntentId={pi.paymentIntentId}
                   onPaid={onPaid}
                   onError={setError}
                 />
@@ -251,11 +278,15 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
 function NewCardPayForm({
   invoiceId,
   amountDue,
+  clientSecret,
+  paymentIntentId,
   onPaid,
   onError,
 }: {
   invoiceId: string
   amountDue: number
+  clientSecret: string
+  paymentIntentId?: string
   onPaid: (opts?: { pending?: boolean }) => void
   onError: (msg: string | null) => void
 }) {
@@ -278,10 +309,16 @@ function NewCardPayForm({
       })
       if (confirmError) throw new Error(confirmError.message || 'Payment could not be completed')
 
+      const confirmedId =
+        paymentIntent?.id ?? paymentIntentId ?? paymentIntentIdFromClientSecret(clientSecret)
+      if (!confirmedId) {
+        throw new Error('Payment succeeded but we could not confirm it. Please refresh and try again.')
+      }
+
       const confirm = await fetch(`/api/shop/invoices/${invoiceId}/pay/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId: paymentIntent?.id }),
+        body: JSON.stringify({ paymentIntentId: confirmedId }),
       })
       const confirmData = await confirm.json()
       // ACH bank debits settle over days — `pending` means the debit was

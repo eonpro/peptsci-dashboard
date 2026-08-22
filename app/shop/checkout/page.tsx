@@ -38,7 +38,7 @@ import {
   BACKORDER_LEAD_TIME,
   BACKORDER_MIN_QUANTITY,
 } from '@/lib/shop/backorder'
-import type { Address } from '@/lib/address'
+import { buildPracticeCheckoutAddress, type Address } from '@/lib/address'
 
 type CheckoutStep = 'shipping' | 'payment'
 
@@ -184,16 +184,16 @@ export default function CheckoutPage() {
       return {
         firstName: selectedPatient.firstName,
         lastName: selectedPatient.lastName,
-        phone: selectedPatient.phone ?? undefined,
+        ...(selectedPatient.phone ? { phone: selectedPatient.phone } : {}),
         ...selectedPatient.address,
       }
     }
-    return {
+    return buildPracticeCheckoutAddress({
       company: practiceName,
       email: contactEmail,
       phone: contactPhone,
-      ...practiceAddr,
-    }
+      address: practiceAddr,
+    })
   }, [shipTo, selectedPatient, practiceName, contactEmail, contactPhone, practiceAddr])
 
   const handleOrderSuccess = (orderId: string, opts?: { pending?: boolean }) => {
@@ -596,7 +596,8 @@ export default function CheckoutPage() {
                       id="notes"
                       placeholder="Special instructions for your order..."
                       value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                      maxLength={500}
+                      onChange={(e) => setNotes(e.target.value.slice(0, 500))}
                       className="bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-xl min-h-[80px]"
                     />
                   </div>

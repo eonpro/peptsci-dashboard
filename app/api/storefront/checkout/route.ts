@@ -29,7 +29,7 @@ const addressSchema = z.object({
 
 const checkoutSchema = z.object({
   slug: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   shippingAddress: addressSchema,
   billingAddress: addressSchema.optional(),
   notes: z.string().max(500).optional(),

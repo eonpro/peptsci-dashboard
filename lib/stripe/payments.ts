@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
 import { releaseForOrder, reserveForOrder } from '@/lib/inventory/reservations'
 import { toCents } from '@/lib/stripe'
+import { isSupersededCheckoutDraft } from '@/lib/checkout-draft'
 import { sendOrderConfirmationForOrder } from '@/lib/orders/confirmation-email'
 import { notifyAdmins } from '@/lib/notifications/service'
 import { accrueCommissionForOrder } from '@/lib/partners/accrual'
@@ -99,6 +100,19 @@ export async function reconcileOrderFromPaymentIntent(
   }
 
   const mappedStatus = mapPaymentIntentStatus(pi.status, pi.last_payment_error)
+
+  // Abandoned drafts from a shipping/credit change must not be resurrected if
+  // a stale PaymentIntent still succeeds (cancel is best-effort).
+  if (
+    isSupersededCheckoutDraft(order.paymentStatus, order.paymentFailureReason) &&
+    (mappedStatus === PaymentStatus.CAPTURED || mappedStatus === PaymentStatus.AUTHORIZED)
+  ) {
+    logger.error('[STRIPE] Ignoring capture on superseded checkout draft', {
+      orderId: order.id,
+      paymentIntentId: pi.id,
+    })
+    return { orderId: order.id, paymentStatus: order.paymentStatus, matched: true }
+  }
 
   // Monotonic guard: never let a stale/out-of-order event move the order to a
   // lower-progress status than it already has (e.g. a late `processing` event

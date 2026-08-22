@@ -1,3 +1,126 @@
+# Checkout smoothness (shipping-speed stock + payment UX)  [EXECUTOR — 2026-08-22]
+
+## Background and Motivation
+After the InCare empty-email fix, card checkouts could still fail when the
+buyer changed 2-day ↔ overnight (or toggled store credit): each option minted
+a new DRAFT that reserved the same SKUs, then `INSUFFICIENT_STOCK`. Failed
+PaymentIntent creates also left an infinite spinner with no retry.
+
+## Key Challenges and Analysis
+- Draft reuse is keyed on `shipSpeed` + credit semantics, so a speed change is
+  a new draft while the old one keeps ACTIVE reservations for ~45 minutes.
+- A stale PaymentIntent on a superseded draft must not capture via webhook.
+- Confirm/terms were still on the 10/min auth limit; notes over 500 chars
+  failed the server with no client cap; Stripe sometimes omits `paymentIntent.id`.
+
+## High-level Task Breakdown
+1. TDD cart fingerprint + which sibling drafts to supersede.
+2. Inside `createDraftOrder` lock: release sibling reservations, fail those
+   drafts, zero credit holds, cancel leftover PaymentIntents.
+3. Payment UI retry, confirm/terms rate limits, notes maxLength, PI id fallback.
+
+## Project Status Board
+- [x] Helper tests (`lib/checkout-draft.ts`)
+- [x] Supersede siblings in `createDraftOrder` + ignore capture on superseded
+- [x] Shop / invoice / admin charge retry + PI id fallback
+- [x] Confirm + terms rate limits; notes cap; storefront email trim
+- [ ] Deploy so clinics (including InCare on card or Net 30) get the fixes
+
+## Executor's Feedback or Assistance Requests
+Deploy still required. After deploy: toggle 2-day ↔ overnight then place the
+order (card or terms) — should not hit insufficient stock from the abandoned
+draft. If a payment start fails, **Try again** should appear instead of a
+spinner.
+
+## Lessons
+- Changing ship speed or credit is a new draft; always release the previous
+  attempt's reservations before reserving again.
+- `creatingPi || !pi` after a failed fetch is an infinite spinner — treat
+  failure as a retryable empty state.
+
+---
+
+# InCare shipping-change checkout error  [EXECUTOR — 2026-08-21]
+
+## Background and Motivation
+InCare reported an error when changing shipping on orders. They are a Net 30
+practice that usually ships to the office. Shop checkout sent `email: ""` (or
+let a stored empty email overwrite the contact email), and Zod
+`z.string().email().optional()` rejects empty strings. Admin New Order also
+left `shippingAddress` null for practice ship-to, so FedEx had no destination.
+
+## Key Challenges and Analysis
+- `.optional()` allows missing keys, not `""`. Patient create already used
+  `.or(z.literal(''))`; checkout process/terms did not.
+- Spreading `practiceAddr` after contact email/phone let a stored empty email
+  wipe a valid contact email.
+- Checkout `/process` used the auth rate limit (10/min); going back to edit
+  shipping recreates the PaymentIntent and could 429.
+
+## High-level Task Breakdown
+1. TDD `checkoutShippingAddressSchema` + practice address helpers.
+2. Wire schema into shop checkout process/terms; fix client payload.
+3. Stamp client shipping onto admin PRACTICE orders; relax process rate limit.
+
+## Project Status Board
+- [x] Schema + helpers + tests
+- [x] Shop checkout payload + API
+- [x] Admin order practice ship-to fallback
+- [ ] Deploy so InCare can retry checkout / we can create labels on email orders
+
+## Executor's Feedback or Assistance Requests
+Ask InCare to retry: edit shipping (2-day vs overnight or office address),
+place the Net 30 order. If they still fail, get the exact on-screen message.
+
+## Lessons
+- Never put `z.string().email().optional()` on a field the client always sends
+  as `""`. Treat blank as omitted.
+- Don't spread a stored address object after contact identity fields.
+
+---
+
+# Shareable visual catalog book  [PLANNER → EXECUTOR — 2026-08-21]
+
+## Background and Motivation
+Clinics currently share a 30-page print PDF (`peptsci catalog final new 2025.pdf`).
+Logos RX already has a native HTML catalog-book (`/download/catalog/view`) with
+pager, TOC, and live SKU prices. PeptSci needs the same shareable experience,
+but better: use the labeled vials clinics already see in `/shop`, keep chemistry
+and list prices accurate, and include **only ACTIVE SKUs we currently offer**.
+
+## Key Challenges and Analysis
+- Do not hardcode the 2025 PDF SKU/price tables — they include discontinued
+  sizes and stale volume tiers (1–24 / 25–99 / 100+). Source from
+  `getProductCatalog()` + `groupProductsByParent()`.
+- Never serialize `unitCost` or client-specific rates. Public book shows SRP
+  as “List price”; practice pricing unlocks after sign-in.
+- Category dividers only for buckets that have live products (PDF faded unused
+  categories). Copy for shipping/white-label must match current policy
+  (`lib/legal/shipping-policy.ts`), not the PDF’s 50-vial free-ship claim.
+- Public `/catalog`, `robots: noindex`, same RUO / 503A/503B disclosure.
+
+## High-level Task Breakdown
+1. TDD `lib/catalog-book.ts`: skip inactive/empty SKUs; group by shop buckets.
+2. CatalogBook pager (hash, TOC, swipe) + pages using `ProductVial`.
+3. `/catalog` public route + middleware + landing link + e2e.
+
+## Project Status Board
+- [x] Builder + tests
+- [x] Pager + product/static pages
+- [x] Public route + middleware + landing
+- [x] e2e: `/catalog` is public
+
+## Executor's Feedback or Assistance Requests
+Share URL is `/catalog` (noindex). SKUs/list prices come from live ACTIVE
+variants — not the 2025 PDF tables. Confirm production catalog looks right
+after deploy (especially GLOW/KLOW vials and any SKU you no longer offer).
+
+## Lessons
+- Logos RX book: `src/data/catalog-book.ts` + `CatalogBook.tsx`. Reuse the
+  pager pattern; do not copy their hardcoded skuIds manifest.
+
+---
+
 # Label sheet continuation + FedEx EV name  [EXECUTOR — 2026-08-17]
 
 ## Background and Motivation

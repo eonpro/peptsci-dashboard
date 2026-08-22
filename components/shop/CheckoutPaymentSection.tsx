@@ -12,6 +12,7 @@ import { getStripePromise } from '@/lib/stripe-client'
 import { Button } from '@/components/ui/button'
 import { Loader2, Lock, CreditCard, Plus, CheckCircle2, FileText } from 'lucide-react'
 import { formatPaymentTermsLabel } from '@/lib/checkout-terms'
+import { paymentIntentIdFromClientSecret } from '@/lib/checkout-draft'
 
 interface CheckoutItem {
   sku: string
@@ -591,18 +592,29 @@ export function CheckoutPaymentSection({
       {/* New-card Stripe Payment Element */}
       {selected === 'new' && !fullyCovered && (
         <div className="space-y-4">
-          {creatingPi || !pi || !stripePromise ? (
+          {creatingPi || (!pi && !error) ? (
             <div className="flex items-center justify-center py-10 text-white/50">
               <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : !pi || !stripePromise ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <p className="text-sm text-white/60 text-center">
+                {error || 'Could not start payment. Please try again.'}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/20 text-white hover:bg-white/10"
+                onClick={() => void createNewCardIntent()}
+              >
+                Try again
+              </Button>
             </div>
           ) : (
             <Elements stripe={stripePromise} options={{ clientSecret: pi.clientSecret, appearance }}>
               <NewCardForm
                 orderId={pi.orderId}
-                paymentIntentId={pi.clientSecret}
-                // The SERVER's amount is what Stripe charges — display that,
-                // not the locally computed total (which can go stale when
-                // per-client pricing changed since items were carted).
+                clientSecret={pi.clientSecret}
                 total={pi.amount != null ? pi.amount / 100 : total}
                 saveCard={saveCard}
                 onToggleSave={setSaveCard}
@@ -624,6 +636,7 @@ export function CheckoutPaymentSection({
 
 function NewCardForm({
   orderId,
+  clientSecret,
   total,
   saveCard,
   onToggleSave,
@@ -631,7 +644,7 @@ function NewCardForm({
   onError,
 }: {
   orderId: string
-  paymentIntentId: string
+  clientSecret: string
   total: number
   saveCard: boolean
   onToggleSave: (v: boolean) => void
@@ -664,10 +677,16 @@ function NewCardForm({
       })
       if (confirmError) throw new Error(confirmError.message || 'Payment could not be completed')
 
+      const paymentIntentId =
+        paymentIntent?.id ?? paymentIntentIdFromClientSecret(clientSecret)
+      if (!paymentIntentId) {
+        throw new Error('Payment succeeded but we could not confirm it. Please refresh and try again.')
+      }
+
       const confirm = await fetch('/api/shop/checkout/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId: paymentIntent?.id, saveCard }),
+        body: JSON.stringify({ paymentIntentId, saveCard }),
       })
       const confirmData = await confirm.json()
       // `pending` = ACH bank debit accepted but still settling — the order is
