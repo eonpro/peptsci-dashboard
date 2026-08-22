@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Loader2, CreditCard, Plus, CheckCircle2, Lock, AlertCircle } from 'lucide-react'
+import { paymentIntentIdFromClientSecret } from '@/lib/checkout-draft'
 
 const ACCENT = '#2b2c84'
 
@@ -219,14 +220,31 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
                 {placing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
                 Pay {formatPrice(total)}
               </Button>
-            ) : creatingPi || !pi || !stripePromise ? (
+            ) : creatingPi || (!pi && !error) ? (
               <div className="flex items-center justify-center py-10 text-muted-foreground/70">
                 <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !pi || !stripePromise ? (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <p className="text-sm text-muted-foreground text-center">
+                  {error || 'Could not start payment. Please try again.'}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    requestedRef.current = false
+                    void createNewCardIntent()
+                  }}
+                >
+                  Try again
+                </Button>
               </div>
             ) : (
               <Elements stripe={stripePromise} options={{ clientSecret: pi.clientSecret, appearance }}>
                 <NewCardForm
                   orderId={orderId}
+                  clientSecret={pi.clientSecret}
                   total={total}
                   saveCard={saveCard}
                   onToggleSave={setSaveCard}
@@ -252,6 +270,7 @@ export default function ChargeOrderModal({ open, onOpenChange, orderId, orderNum
 
 function NewCardForm({
   orderId,
+  clientSecret,
   total,
   saveCard,
   onToggleSave,
@@ -259,6 +278,7 @@ function NewCardForm({
   onError,
 }: {
   orderId: string
+  clientSecret: string
   total: number
   saveCard: boolean
   onToggleSave: (v: boolean) => void
@@ -286,10 +306,16 @@ function NewCardForm({
       })
       if (confirmError) throw new Error(confirmError.message || 'Payment could not be completed')
 
+      const paymentIntentId =
+        paymentIntent?.id ?? paymentIntentIdFromClientSecret(clientSecret)
+      if (!paymentIntentId) {
+        throw new Error('Payment succeeded but we could not confirm it. Please refresh and try again.')
+      }
+
       const confirm = await fetch(`/api/admin/orders/${orderId}/charge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId: paymentIntent?.id, saveCard }),
+        body: JSON.stringify({ paymentIntentId, saveCard }),
       })
       const cData = await confirm.json()
       if (!confirm.ok || !cData.success) throw new Error(cData.message || 'Payment was not completed')

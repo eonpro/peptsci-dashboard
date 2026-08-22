@@ -28,6 +28,7 @@ export const viewport: Viewport = {
 const isClerkConfigured = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_')
 
 const FOOTER_LINKS = [
+  { label: 'Catalog', href: '/catalog' },
   { label: 'Terms of Use', href: '/termsandconditions' },
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Refunds', href: '/refunds' },
@@ -86,12 +87,20 @@ export default async function RootPage() {
         {/* Top bar: logo + quick log-in */}
         <header className="flex items-center justify-between">
           <Logo variant="light" width={132} height={44} />
-          <Link
-            href="/sign-in"
-            className="rounded-full px-4 py-2 text-sm font-medium text-white/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] transition-colors hover:bg-white/5 hover:text-white"
-          >
-            Log in
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/catalog"
+              className="rounded-full px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Catalog
+            </Link>
+            <Link
+              href="/sign-in"
+              className="rounded-full px-4 py-2 text-sm font-medium text-white/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Log in
+            </Link>
+          </div>
         </header>
 
         {/* Hero banner */}

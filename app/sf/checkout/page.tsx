@@ -46,14 +46,16 @@ export default function CheckoutPage() {
   const total = Math.round((safeSubtotal + shippingCost + tax) * 100) / 100
 
   function isShippingValid() {
+    const trimmedEmail = email.trim()
     return (
-      email &&
-      shipping.firstName &&
-      shipping.lastName &&
-      shipping.address1 &&
-      shipping.city &&
-      shipping.state &&
-      shipping.zip
+      trimmedEmail.includes('@') &&
+      trimmedEmail.includes('.') &&
+      shipping.firstName.trim() &&
+      shipping.lastName.trim() &&
+      shipping.address1.trim() &&
+      shipping.city.trim() &&
+      shipping.state.trim() &&
+      shipping.zip.trim()
     )
   }
 
@@ -67,7 +69,7 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug,
-          email,
+          email: email.trim(),
           shippingAddress: shipping,
           items: cart.items.map((i) => ({
             storefrontProductId: i.storefrontProductId,

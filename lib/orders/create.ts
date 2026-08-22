@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { displayProductName } from '@/lib/products/named-blends'
 import { computeCartTotals, type ShipSpeed, type ShipTo } from '@/lib/checkout-core'
+import { practiceOrderShippingAddress } from '@/lib/address'
 import {
   buildManualOrderLines,
   validateManualLines,
@@ -92,6 +93,12 @@ export async function createManualOrder(
       select: {
         id: true,
         paysAtCost: true,
+        organizationName: true,
+        contactName: true,
+        contactEmail: true,
+        contactPhone: true,
+        shippingAddress: true,
+        billingAddress: true,
       },
     })
     .then(async (row) => {
@@ -143,6 +150,7 @@ export async function createManualOrder(
 
   const resolvedLines = buildManualOrderLines(lines, info, { paysAtCost: client.paysAtCost })
   const shipSpeed = params.shipSpeed ?? 'TWO_DAY'
+  const shipTo = params.shipTo ?? 'PRACTICE'
   const shippingOverrides = {
     twoDay: client.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
     overnight: client.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
@@ -164,6 +172,12 @@ export async function createManualOrder(
     )
   }
 
+  let shippingAddress = params.shippingAddress ?? null
+  if (shippingAddress == null && shipTo === 'PRACTICE') {
+    const fromClient = practiceOrderShippingAddress(client)
+    shippingAddress = fromClient as Prisma.InputJsonValue | null
+  }
+
   const order = await prisma.order.create({
     data: {
       clientId,
@@ -177,8 +191,8 @@ export async function createManualOrder(
       currency: 'USD',
       notes: params.notes ?? null,
       internalNotes: params.internalNotes ?? null,
-      shippingAddress: params.shippingAddress ?? Prisma.JsonNull,
-      shipTo: params.shipTo ?? 'PRACTICE',
+      shippingAddress: shippingAddress ?? Prisma.JsonNull,
+      shipTo,
       shipSpeed,
       patientId: params.patientId ?? null,
       createdById: params.createdById,

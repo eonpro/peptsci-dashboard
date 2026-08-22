@@ -566,6 +566,36 @@ textarea {
   animation: cardTap 0.15s ease-out;
 }
 
+@keyframes bookInRight {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bookInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-book-in-right {
+  animation: bookInRight 0.35s ease-out;
+}
+
+.animate-book-in-left {
+  animation: bookInLeft 0.35s ease-out;
+}
+
 /* Focus ring for accessibility */
 *:focus-visible {
   outline: 2px solid hsl(var(--ring));

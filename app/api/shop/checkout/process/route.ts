@@ -16,6 +16,7 @@ import {
 } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
+import { checkoutShippingAddressSchema } from '@/lib/address'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import {
@@ -34,22 +35,6 @@ import { notifyAdmins } from '@/lib/notifications/service'
 
 export const dynamic = 'force-dynamic'
 
-const addressSchema = z
-  .object({
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    company: z.string().optional(),
-    email: z.string().email().optional(),
-    phone: z.string().optional(),
-    address1: z.string().optional(),
-    address2: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zip: z.string().optional(),
-    country: z.string().optional(),
-  })
-  .passthrough()
-
 const bodySchema = z.object({
   items: z
     .array(
@@ -59,7 +44,7 @@ const bodySchema = z.object({
       })
     )
     .min(1),
-  shippingAddress: addressSchema.optional(),
+  shippingAddress: checkoutShippingAddressSchema.optional(),
   notes: z.string().max(500).optional(),
   saveCard: z.boolean().optional(),
   savedPaymentMethodId: z.string().optional(),
@@ -79,11 +64,11 @@ export async function POST(request: NextRequest) {
     if (!isAuthenticated || !userId) return unauthorizedResponse()
 
     const rateLimitKey = getRateLimitKey(request, userId)
-    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
+    const { limited, remaining, retryAfter } = await checkRateLimit(rateLimitKey, RATE_LIMITS.standard)
     if (limited) {
       return NextResponse.json(
         { error: 'Too Many Requests', message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
-        { status: 429, headers: getRateLimitHeaders(remaining, RATE_LIMITS.auth, retryAfter) }
+        { status: 429, headers: getRateLimitHeaders(remaining, RATE_LIMITS.standard, retryAfter) }
       )
     }
 

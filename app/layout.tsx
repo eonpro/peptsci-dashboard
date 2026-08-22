@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import './globals.css'
 import { cn } from '@/lib/utils'
 import { Providers } from '@/components/Providers'
+import { clerkPublishableKeyForHost } from '@/lib/clerk-host'
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').replace(/\/$/, '')
 
@@ -32,11 +34,18 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const headerList = await headers()
+  const host = headerList.get('x-forwarded-host') ?? headerList.get('host') ?? ''
+  const publishableKey = clerkPublishableKeyForHost(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    host
+  )
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -54,7 +63,7 @@ export default function RootLayout({
           resizes and overscroll expose a light-beige band around the dark
           UI. :root --background === brand-bg, so light pages are unchanged. */}
       <body className={cn('min-h-screen bg-background antialiased font-sofia')}>
-        <Providers publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+        <Providers publishableKey={publishableKey}>
           {children}
         </Providers>
       </body>

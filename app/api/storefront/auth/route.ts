@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 const registerSchema = z.object({
   slug: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(8).max(128),
   firstName: z.string().max(100).optional(),
   lastName: z.string().max(100).optional(),
@@ -19,7 +19,7 @@ const registerSchema = z.object({
 
 const loginSchema = z.object({
   slug: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(1),
 })
 

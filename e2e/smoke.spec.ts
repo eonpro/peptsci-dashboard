@@ -45,6 +45,14 @@ test('legal pages are public', async ({ page }) => {
   await expect(page.getByText('STOP', { exact: true }).first()).toBeVisible()
 })
 
+test('visual catalog is public and shareable', async ({ page }) => {
+  const res = await page.goto('/catalog')
+  expect(res?.status()).toBe(200)
+  await expect(page).not.toHaveURL(/sign-in/)
+  await expect(page.getByRole('button', { name: 'Browse catalog' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Share' })).toBeVisible()
+})
+
 test('protected routes redirect anonymous users to sign-in', async ({ page }) => {
   await page.goto('/shop')
   await page.waitForURL(/sign-in/)

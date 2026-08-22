@@ -30,6 +30,14 @@ import {
   isZeroStock,
   validateBackorderQuantity,
 } from '@/lib/shop/backorder'
+import {
+  checkoutCartFingerprint,
+  selectSupersededDraftIds,
+  SUPERSEDED_CHECKOUT_REASON,
+} from '@/lib/checkout-draft'
+import { closeReservationsTx } from '@/lib/inventory/reservations'
+import { getStripeClient } from '@/lib/stripe/config'
+import { connectRequestOptions } from '@/lib/stripe/connect'
 
 export interface ResolvedCart {
   lines: Array<ResolvedLine & { isBackorder?: boolean }>
@@ -186,14 +194,43 @@ export async function resolveCart(params: {
  */
 /** Stable fingerprint of a cart's lines (variant + qty + unit price). */
 function cartLineFingerprint(lines: ResolvedCart['lines']): string {
-  return lines
-    .map((l) => `${l.variantId}:${l.quantity}:${l.unitPrice}`)
-    .sort()
-    .join('|')
+  return checkoutCartFingerprint(lines)
 }
 
 /** How long a DRAFT/PENDING order stays reusable for de-duping resubmits. */
 const REUSABLE_DRAFT_WINDOW_MS = 30 * 60 * 1000
+
+function draftLineFingerprintItems(
+  items: Array<{ variantId: string; quantity: number; unitPrice: unknown }>
+) {
+  return items.map((it) => ({
+    variantId: it.variantId,
+    quantity: it.quantity,
+    unitPrice: Number(it.unitPrice),
+  }))
+}
+
+/**
+ * Best-effort cancel of PaymentIntents left on abandoned checkout drafts so a
+ * stale Elements tab cannot capture a superseded order.
+ */
+export async function cancelAbandonedPaymentIntents(paymentIntentIds: string[]): Promise<void> {
+  const unique = [...new Set(paymentIntentIds.filter(Boolean))]
+  if (unique.length === 0) return
+  const stripe = getStripeClient()
+  if (!stripe) return
+  const opts = connectRequestOptions()
+  await Promise.all(
+    unique.map((id) =>
+      stripe.paymentIntents.cancel(id, undefined, opts).catch((err) => {
+        logger.warn('[CHECKOUT] Could not cancel superseded PaymentIntent', {
+          paymentIntentId: id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+    )
+  )
+}
 
 /** Stripe rejects charges under $0.50 — credit either covers ALL of the total
  * or must leave at least this much on the card. */
@@ -236,36 +273,50 @@ export async function createDraftOrder(params: {
   // (double-click, two tabs) are serialized: the second waits, then finds and
   // reuses the first one's draft instead of creating a parallel payable order
   // (which would have produced a second PaymentIntent → double charge).
-  const { order, reused } = await prisma.$transaction(async (tx) => {
+  const { order, reused, supersededPiIds } = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('draft-order'), hashtext(${params.clientId}))`
 
-    // Reuse only drafts with matching credit semantics (both with or both
-    // without credit): the credit amount is frozen on the draft, so a shopper
-    // who toggled the credit box between submits must get a fresh draft.
-    const candidates = await tx.order.findMany({
+    const pendingDrafts = await tx.order.findMany({
       where: {
         clientId: params.clientId,
         status: 'DRAFT',
         paymentStatus: 'PENDING',
-        shipTo,
-        shipSpeed,
-        patientId,
-        creditApplied: requestedCreditCents > 0 ? { gt: 0 } : { equals: 0 },
         createdAt: { gte: new Date(Date.now() - REUSABLE_DRAFT_WINDOW_MS) },
       },
       orderBy: { createdAt: 'desc' },
       include: { items: { select: { variantId: true, quantity: true, unitPrice: true } } },
-      take: 5,
     })
-    const reusable = candidates.find(
+
+    const fingerprintItems = (o: (typeof pendingDrafts)[number]) =>
+      draftLineFingerprintItems(o.items)
+
+    const supersededPiIds: string[] = []
+    const supersede = async (ids: string[]) => {
+      for (const id of ids) {
+        await closeReservationsTx(tx, id, 'RELEASED')
+        const updated = await tx.order.update({
+          where: { id },
+          data: {
+            paymentStatus: 'FAILED',
+            creditApplied: 0,
+            paymentFailureReason: SUPERSEDED_CHECKOUT_REASON,
+          },
+          select: { stripePaymentIntentId: true },
+        })
+        if (updated.stripePaymentIntentId) supersededPiIds.push(updated.stripePaymentIntentId)
+      }
+    }
+
+    // Reuse only drafts with matching credit semantics (both with or both
+    // without credit): the credit amount is frozen on the draft, so a shopper
+    // who toggled the credit box between submits must get a fresh draft.
+    const reusable = pendingDrafts.find(
       (o) =>
-        cartLineFingerprint(
-          o.items.map((it) => ({
-            variantId: it.variantId,
-            quantity: it.quantity,
-            unitPrice: Number(it.unitPrice),
-          })) as ResolvedCart['lines']
-        ) === fingerprint
+        o.shipTo === shipTo &&
+        o.shipSpeed === shipSpeed &&
+        o.patientId === patientId &&
+        (requestedCreditCents > 0 ? Number(o.creditApplied) > 0 : Number(o.creditApplied) === 0) &&
+        cartLineFingerprint(fingerprintItems(o) as ResolvedCart['lines']) === fingerprint
     )
     if (reusable) {
       // Same cart, but the shopper may have edited the shipping address or
@@ -287,8 +338,26 @@ export async function createDraftOrder(params: {
           notes: mergedNotes,
         },
       })
-      return { order: refreshed, reused: true }
+      await supersede(
+        selectSupersededDraftIds(
+          pendingDrafts.map((d) => ({ id: d.id, items: fingerprintItems(d) })),
+          fingerprint,
+          reusable.id
+        )
+      )
+      return { order: refreshed, reused: true, supersededPiIds }
     }
+
+    // Shipping-speed / credit / ship-to changes mint a new draft. Release the
+    // previous attempt's stock reservations and credit hold first so this one
+    // can check out instead of failing INSUFFICIENT_STOCK.
+    await supersede(
+      selectSupersededDraftIds(
+        pendingDrafts.map((d) => ({ id: d.id, items: fingerprintItems(d) })),
+        fingerprint,
+        null
+      )
+    )
 
     // ── Referral-credit clamp (inside the lock, race-safe) ──
     const totalCents = Math.round(cart.totals.total * 100)
@@ -363,8 +432,12 @@ export async function createDraftOrder(params: {
         },
       },
     })
-    return { order: created, reused: false }
+    return { order: created, reused: false, supersededPiIds }
   })
+
+  if (supersededPiIds.length > 0) {
+    await cancelAbandonedPaymentIntents(supersededPiIds)
+  }
 
   if (reused) {
     logger.info('[CHECKOUT] Reusing existing draft order for resubmit', {
