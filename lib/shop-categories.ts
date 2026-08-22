@@ -9,6 +9,7 @@
  */
 
 import type { ShopProduct } from '@/lib/types/shop'
+import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
 
 /** Display order for the storefront category chips/filters. */
 export const SHOP_CATEGORY_ORDER = [
@@ -30,12 +31,12 @@ const RULES: { bucket: ShopCategoryBucket; pattern: RegExp }[] = [
   {
     bucket: 'Weight Loss',
     pattern:
-      /weight|glp-?1|glp\b|incretin|semaglutide|tirzepatide|retatrutide|cagrilintide|amylin|dual agonist|triple agonist|aod|lipotropic/i,
+      /weight|glp-?1|glp\b|glp-?sm|glp-?tz|glp-?rt|incretin|semaglutide|tirzepatide|retatrutide|cagrilintide|amylin|dual agonist|triple agonist|aod|lipotropic/i,
   },
   {
     bucket: 'Growth Hormone',
     pattern:
-      /growth hormone|ghrh|ghs|secretagogue|sermorelin|tesamorelin|ipamorelin|cjc|hexarelin|mk-?677|igf/i,
+      /growth hormone|ghrh|ghs|secretagogue|sermorelin|tesamorelin|ipamorelin|cjc|hexarelin|mk-?677|igf|\bhgh\b|somatropin|ghrp/i,
   },
   {
     bucket: 'Recovery & Repair',
@@ -52,7 +53,7 @@ const RULES: { bucket: ShopCategoryBucket; pattern: RegExp }[] = [
   },
   {
     bucket: 'Skin & Beauty',
-    pattern: /skin|beauty|cosmetic|ghk|melanotan|melanocortin|tanning|collagen|snap-?8/i,
+    pattern: /skin|beauty|cosmetic|ghk|melanotan|melanocortin|tanning|collagen|snap-?8|\bglow\b|\bklow\b/i,
   },
   {
     bucket: 'Wellness',
@@ -63,6 +64,9 @@ const RULES: { bucket: ShopCategoryBucket; pattern: RegExp }[] = [
 
 /** Map a raw catalog category (+ product name fallback) to its bucket. */
 export function bucketForProduct(category: string | null | undefined, name?: string): ShopCategoryBucket {
+  // Named GHK blends (GLOW / KLOW) must win before Recovery matches BPC / TB-500 / KPV.
+  if (name && resolveNamedBlendTradeName(name)) return 'Skin & Beauty'
+
   const haystacks = [category ?? '', name ?? '']
   for (const rule of RULES) {
     if (haystacks.some((h) => h && rule.pattern.test(h))) return rule.bucket

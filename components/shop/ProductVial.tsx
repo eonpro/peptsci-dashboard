@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
 import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
+import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
 
 /**
  * ProductVial — renders the photoreal blank vial with a dynamically generated
@@ -145,7 +146,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
   }
 
   const compounds = getCompoundParts(product)
-  const trade = resolveNamedBlendTradeName(product.name)
+  const trade = resolveNamedBlendTradeName(product.name) ?? resolveGlpTradeName(product.name)
   const isBlend = !trade && compounds.length >= 2
   const bands = vialDoseBands(vialDoseParts(product, compounds))
   const totalDose = product.dose || (product.milligrams ? `${product.milligrams}mg` : '')

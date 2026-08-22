@@ -33,7 +33,9 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
   const bucket = bucketForProduct(product.category, product.name)
   const categoryLabel = CATEGORY_BOOK_LABEL[bucket]
   const monograph = product.monograph ?? getMonographForName(product.name)
-  const overview = monograph?.overview?.slice(0, 2) ?? []
+  const overview = monograph?.overview ?? []
+  const mechanism = monograph?.mechanismOfAction ?? []
+  const observations = monograph?.observations ?? []
   const description =
     overview.length > 0
       ? overview
@@ -73,6 +75,21 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
               </p>
             ))}
           </div>
+          {monograph?.disclaimer && (
+            <p className="mt-4 text-xs leading-relaxed text-black/45">{monograph.disclaimer}</p>
+          )}
+          {mechanism.length > 0 && (
+            <div className="mt-5">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-brand-onyx">
+                Mechanism (research)
+              </h3>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-black/70">
+                {mechanism.map((item) => (
+                  <li key={item.slice(0, 48)}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
@@ -128,6 +145,19 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
                 {spec.label}
               </p>
               <p className="mt-1 truncate text-sm font-semibold text-brand-onyx">{spec.value}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {observations.length > 0 && (
+        <section className="mt-8 grid gap-3 sm:grid-cols-2">
+          {observations.map((obs) => (
+            <div key={obs.title} className="rounded-2xl border border-black/8 bg-[#f7f6f2] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-black/45">
+                {obs.title}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-black/70">{obs.detail}</p>
             </div>
           ))}
         </section>

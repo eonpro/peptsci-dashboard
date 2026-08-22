@@ -126,15 +126,48 @@ function doseValue(dose: string): number {
 
 /**
  * Collapse a variant-level catalog (one ShopProduct per mg size) into one
- * ShopProduct per compound. The representative is the cheapest priced size
- * (so price sorting/"From $X" works naturally) and carries `sizeOptions`
- * for every sellable size. Must run AFTER client pricing is applied so the
- * size prices reflect the viewing client's rates.
+ * ShopProduct per compound. Duplicate Product rows that share a display name
+ * (common after overlapping imports) merge; same-dose SKUs keep the priced
+ * / scientifically complete variant.
  */
+export function catalogGroupKey(product: Pick<ShopProduct, 'name' | 'sku' | 'parentProductId' | 'id'>): string {
+  const slug = (product.name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || product.parentProductId || product.sku || product.id
+}
+
+function doseKey(dose: string): string {
+  return (dose || '').trim().toLowerCase().replace(/\s+/g, '')
+}
+
+function preferCatalogVariant(a: ShopProduct, b: ShopProduct): ShopProduct {
+  const aPriced = a.displayPrice > 0
+  const bPriced = b.displayPrice > 0
+  if (aPriced !== bPriced) return bPriced ? b : a
+  const aSci = Boolean(a.casNumber || a.aka || a.monograph)
+  const bSci = Boolean(b.casNumber || b.aka || b.monograph)
+  if (aSci !== bSci) return bSci ? b : a
+  return a
+}
+
+/** Collapse imported duplicate SKUs that share the same displayed dose. */
+function uniqueVariantsByDose(variants: ShopProduct[]): ShopProduct[] {
+  const byDose = new Map<string, ShopProduct>()
+  for (const v of variants) {
+    const key = doseKey(v.dose) || v.sku
+    const existing = byDose.get(key)
+    byDose.set(key, existing ? preferCatalogVariant(existing, v) : v)
+  }
+  return [...byDose.values()]
+}
+
 export function groupProductsByParent(products: ShopProduct[]): ShopProduct[] {
   const groups = new Map<string, ShopProduct[]>()
   for (const p of products) {
-    const key = p.parentProductId || p.name
+    const key = catalogGroupKey(p)
     const list = groups.get(key)
     if (list) list.push(p)
     else groups.set(key, [p])
@@ -142,7 +175,8 @@ export function groupProductsByParent(products: ShopProduct[]): ShopProduct[] {
 
   const grouped: ShopProduct[] = []
   for (const variants of groups.values()) {
-    const byDose = [...variants].sort((a, b) => doseValue(a.dose) - doseValue(b.dose))
+    const unique = uniqueVariantsByDose(variants)
+    const byDose = [...unique].sort((a, b) => doseValue(a.dose) - doseValue(b.dose))
     // Cheapest priced size fronts the card; fall back to the smallest dose.
     const priced = byDose.filter((v) => v.displayPrice > 0)
     const representative =
@@ -196,7 +230,7 @@ export function filterProducts(products: ShopProduct[], filters: ProductFilters)
         p.name.toLowerCase().includes(query) ||
         p.dose.toLowerCase().includes(query) ||
         p.sku.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query) ||
+        p.aka?.toLowerCase().includes(query) ||
         p.category?.toLowerCase().includes(query) ||
         // Grouped cards: match any of the sibling sizes' SKUs/doses too.
         p.sizeOptions?.some(

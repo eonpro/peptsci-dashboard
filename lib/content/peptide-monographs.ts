@@ -122,16 +122,19 @@ export const PEPTIDE_MONOGRAPHS: Record<string, PeptideMonograph> = {
 
   'aod-9604': {
     overview: [
-      'AOD-9604 is a synthetic peptide based on a C-terminal fragment (residues 176-191) of human growth hormone, investigated in metabolic and lipolysis-related research.',
-      'It is not an FDA-approved medicine for weight loss. This profile is educational reference only.',
+      'AOD-9604 is a synthetic C-terminal fragment of human growth hormone (residues 176–191) studied in metabolic and adipose-tissue research. It was designed to isolate a fat-metabolism–related region of hGH without the full anabolic profile of the intact hormone.',
+      'Published work is largely preclinical, with a smaller set of early human metabolic studies. It is not an FDA-approved medicine for weight loss, sports, or any other indication.',
+      'PeptSci supplies this sequence as a high-purity research material for licensed laboratory and physician research use only. This profile summarizes publicly reported literature and is not a protocol or purchasing guide.',
     ],
     mechanismOfAction: [
-      'Lipid metabolism: preclinical research examines effects on fat metabolism distinct from the full growth-hormone molecule.',
-      'Limited GH-axis activity: designed to retain a fat-related fragment without the full metabolic profile of growth hormone.',
+      'Lipid metabolism: animal and in vitro studies examine effects on lipolysis and fat oxidation that are distinct from intact growth hormone.',
+      'Limited GH-axis activity: the fragment was engineered to avoid the broader IGF-1 / growth effects associated with full-length somatropin in research models.',
+      'Cartilage signaling: a separate literature strand has explored AOD-9604 in joint and cartilage experimental systems.',
     ],
     observations: [
-      { title: 'Metabolic Research', detail: 'Animal studies report interest in lipolysis and fat-metabolism endpoints.' },
-      { title: 'Cartilage Models', detail: 'Some research has explored AOD-9604 in joint and cartilage contexts.' },
+      { title: 'Metabolic Research', detail: 'Preclinical models report interest in adipose and energy-expenditure endpoints; human data remain limited and mixed.' },
+      { title: 'Cartilage Models', detail: 'Some studies have examined the fragment in cartilage-repair and osteoarthritis-related experimental designs.' },
+      { title: 'Research-use posture', detail: 'Not a substitute for approved metabolic medicines. Any handling must follow institutional RUO policy.' },
     ],
     references: [pubmed('AOD-9604'), pubmed('hGH fragment 176-191')],
     disclaimer: RUO_DISCLAIMER,
@@ -459,53 +462,61 @@ export const PEPTIDE_MONOGRAPHS: Record<string, PeptideMonograph> = {
 
   semaglutide: {
     overview: [
-      'Semaglutide is a GLP-1 receptor agonist and an FDA-approved prescription medicine for specific indications, including type 2 diabetes and chronic weight management.',
-      'Dosing must follow the prescription and product labeling. This profile does not replace medical advice.',
+      'GLP-SM is PeptSci’s research designation for semaglutide, a long-acting GLP-1 receptor agonist analog. The INN is also used in FDA-approved prescription products for specific labeled indications; those approved drugs are not what this research catalog supplies.',
+      'Incretin research describes GLP-1 receptor engagement as affecting glucose-dependent insulin secretion, glucagon suppression, gastric emptying, and central appetite pathways. Most human outcome data come from regulated clinical trials of approved products — not from research-grade vials.',
+      'This profile is educational. PeptSci material is for licensed laboratory and physician research use only and is not a substitute for a prescribed medicine or medical advice.',
     ],
     mechanismOfAction: [
-      'GLP-1 receptor agonism: enhances glucose-dependent insulin secretion and suppresses glucagon.',
-      'Gastric emptying: slows gastric emptying, contributing to satiety.',
-      'Appetite signaling: acts on central pathways associated with reduced appetite.',
+      'GLP-1 receptor agonism: research reports enhanced glucose-dependent insulin secretion and reduced glucagon in model systems and in labeled clinical use of approved products.',
+      'Gastric emptying: slowed emptying is a frequently described contributor to satiety in incretin literature.',
+      'Appetite signaling: central GLP-1 pathways are studied for effects on energy intake.',
     ],
     observations: [
-      { title: 'Glycemic Research', detail: 'Clinical trials support improved glycemic control in the approved population.' },
-      { title: 'Weight Management', detail: 'Clinical research supports weight-related outcomes under labeled use.' },
+      { title: 'Glycemic literature', detail: 'Approved-product trials support glycemic endpoints in labeled populations; that evidence does not transfer as a claim for research vials.' },
+      { title: 'Weight-management literature', detail: 'Large outcome trials of labeled semaglutide products report weight-related endpoints under medical supervision.' },
+      { title: 'Research-use posture', detail: 'Handle as RUO. Do not present catalog material as Ozempic, Wegovy, or any other branded finished drug.' },
     ],
-    references: [dailymed('semaglutide'), pubmed('semaglutide')],
-    disclaimer: RX_DISCLAIMER,
+    references: [dailymed('semaglutide'), pubmed('semaglutide GLP-1')],
+    disclaimer: RUO_DISCLAIMER,
   },
 
   tirzepatide: {
     overview: [
-      'Tirzepatide is an FDA-approved dual GIP and GLP-1 receptor agonist for specific indications, including type 2 diabetes and chronic weight management.',
-      'Dosing must follow the prescription and product labeling. This profile does not replace medical advice.',
+      'GLP-TZ is PeptSci’s research designation for tirzepatide, a dual GIP and GLP-1 receptor agonist analog. The INN is also used in FDA-approved prescription products for specific labeled indications; this catalog does not supply those finished drugs.',
+      'Dual-incretin research examines combined GIP and GLP-1 receptor engagement for glycemic and energy-balance endpoints. Human outcome data are from regulated trials of approved products.',
+      'Educational reference only. PeptSci vials are for licensed laboratory and physician research use — not a prescribed therapy.',
     ],
     mechanismOfAction: [
-      'Dual incretin agonism: activates both GIP and GLP-1 receptors.',
-      'Glycemic control: enhances glucose-dependent insulin secretion and suppresses glucagon.',
-      'Appetite & gastric emptying: contributes to satiety and delayed gastric emptying.',
+      'Dual incretin agonism: activates both GIP and GLP-1 receptors in published mechanistic work.',
+      'Glycemic control: literature describes glucose-dependent insulin secretion and glucagon suppression.',
+      'Appetite and gastric emptying: studied as contributors to reduced energy intake in clinical incretin research.',
     ],
     observations: [
-      { title: 'Glycemic Research', detail: 'Clinical trials support glycemic outcomes in the approved population.' },
-      { title: 'Weight Management', detail: 'Clinical research supports weight-related outcomes under labeled use.' },
+      { title: 'Glycemic literature', detail: 'Approved-product trials report glycemic outcomes in labeled populations.' },
+      { title: 'Weight-management literature', detail: 'Clinical programs for labeled tirzepatide products report weight-related endpoints under supervision.' },
+      { title: 'Research-use posture', detail: 'Do not equate research-grade GLP-TZ with Mounjaro, Zepbound, or any finished drug product.' },
     ],
-    references: [dailymed('tirzepatide'), pubmed('tirzepatide')],
-    disclaimer: RX_DISCLAIMER,
+    references: [dailymed('tirzepatide'), pubmed('tirzepatide GIP GLP-1')],
+    disclaimer: RUO_DISCLAIMER,
   },
 
   retatrutide: {
     overview: [
-      'Retatrutide is an investigational triple agonist (GLP-1 / GIP / glucagon receptors) studied in obesity and metabolic clinical trials.',
-      'It is investigational and not an approved medicine. Any use outside controlled trials would be inappropriate. Educational reference only.',
+      'GLP-RT is PeptSci’s research designation for retatrutide, an investigational triple agonist at GLP-1, GIP, and glucagon receptors. It is not an approved medicine.',
+      'Early clinical programs have studied obesity and metabolic endpoints; the molecule remains investigational. Any use outside controlled research would be inappropriate.',
+      'This catalog listing is for licensed laboratory and physician research only. The summary below reflects publicly reported science, not a treatment recommendation.',
     ],
     mechanismOfAction: [
-      'Triple incretin agonism: activates GLP-1, GIP, and glucagon receptors in clinical investigation.',
-      'Metabolic effects: studied for combined effects on glycemic control and energy expenditure.',
+      'Triple agonism: concurrent GLP-1, GIP, and glucagon receptor engagement in published investigational work.',
+      'Energy expenditure: glucagon-receptor activity is studied for effects on metabolic rate alongside incretin satiety pathways.',
+      'Glycemic and weight endpoints: trial literature examines combined metabolic outcomes while the product remains unapproved.',
     ],
     observations: [
-      { title: 'Clinical Trial Research', detail: 'Investigational trials examine weight and metabolic endpoints.' },
+      { title: 'Clinical-trial research', detail: 'Phase 2 programs have reported substantial weight and metabolic changes in study populations; confirmation in later-stage, labeled products is not established.' },
+      { title: 'Investigational status', detail: 'Not FDA-approved. Research handling only, under institutional controls.' },
+      { title: 'Research-use posture', detail: 'GLP-RT on this catalog is a research peptide identity, not a marketed drug brand.' },
     ],
-    references: [pubmed('retatrutide')],
+    references: [pubmed('retatrutide triple agonist')],
     disclaimer: RUO_DISCLAIMER,
   },
 
@@ -612,17 +623,21 @@ export const PEPTIDE_MONOGRAPHS: Record<string, PeptideMonograph> = {
 
   cagrilintide: {
     overview: [
-      'Cagrilintide is an investigational long-acting amylin analog studied in obesity and metabolic clinical trials, often in combination with GLP-1 receptor agonists.',
-      'It is investigational and not an approved medicine. Educational reference only.',
+      'Cagrilintide is a long-acting amylin analog studied in obesity and metabolic research, including combination regimens with GLP-1 receptor agonists.',
+      'Amylin is a pancreatic peptide that, in published work, contributes to satiety and slowed gastric emptying alongside insulin. Cagrilintide is investigational and is not an approved medicine.',
+      'PeptSci lists this sequence for licensed laboratory and physician research. The notes below summarize public literature only.',
     ],
     mechanismOfAction: [
-      'Amylin receptor agonism: activates amylin/calcitonin receptor pathways implicated in satiety.',
-      'Appetite & gastric emptying: studied for effects that complement incretin-based mechanisms.',
+      'Amylin receptor agonism: activates amylin / calcitonin receptor pathways implicated in meal termination.',
+      'Gastric emptying: studied for delayed emptying that can complement incretin-based mechanisms.',
+      'Combination research: clinical programs have examined co-administration with GLP-1 agonists for additive metabolic endpoints.',
     ],
     observations: [
-      { title: 'Clinical Trial Research', detail: 'Investigational trials examine weight and metabolic endpoints, including combination regimens.' },
+      { title: 'Clinical-trial research', detail: 'Investigational studies report weight and metabolic endpoints, including dual-agonist combination arms.' },
+      { title: 'Investigational status', detail: 'Not an approved standalone or combination product in the U.S. as of this writing.' },
+      { title: 'Research-use posture', detail: 'Handle as RUO. Not a protocol for human administration.' },
     ],
-    references: [pubmed('cagrilintide')],
+    references: [pubmed('cagrilintide'), pubmed('cagrilintide semaglutide')],
     disclaimer: RUO_DISCLAIMER,
   },
 
@@ -898,6 +913,7 @@ const ALIASES: Record<string, string> = {
   aod9604: 'aod-9604',
   cjc1295: 'cjc-1295',
   'cjc-1295-without-dac': 'cjc-1295',
+  'cjc-1295-no-dac': 'cjc-1295',
   'cjc-1295-dac': 'cjc-1295',
   'mod-grf-1-29': 'cjc-1295',
   ghrp2: 'ghrp-2',
@@ -921,6 +937,12 @@ const ALIASES: Record<string, string> = {
   thymalfasin: 'thymosin-alpha-1',
   'ta1': 'thymosin-alpha-1',
   'ly3437943': 'retatrutide',
+  'glp-sm': 'semaglutide',
+  glpsm: 'semaglutide',
+  'glp-tz': 'tirzepatide',
+  glptz: 'tirzepatide',
+  'glp-rt': 'retatrutide',
+  glprt: 'retatrutide',
   nad: 'nad-plus',
   'nad-nasal-spray': 'nad-plus',
   'nad-plus-nasal-spray': 'nad-plus',
