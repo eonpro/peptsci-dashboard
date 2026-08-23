@@ -1,76 +1,58 @@
 'use client'
 
 import Link from 'next/link'
-import { Phone, Mail, Clock } from 'lucide-react'
+import { Mail, Clock } from 'lucide-react'
+import { SHOP_FOOTER } from '@/lib/shop/portal'
 
 export function ClientFooter() {
   return (
-    <footer className="bg-brand-onyx border-t border-white/10">
+    <footer className="bg-brand-onyx border-t border-white/10 pb-20 md:pb-0">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {/* Contact */}
           <div>
             <h3 className="font-semibold text-white mb-3">Contact Us</h3>
             <div className="space-y-2 text-sm text-white/60">
               <a
-                href="tel:+18005551234"
-                className="flex items-center gap-2 hover:text-brand-primary transition-colors"
-              >
-                <Phone className="h-4 w-4" />
-                1-800-555-1234
-              </a>
-              <a
-                href="mailto:orders@peptsci.com"
+                href={`mailto:${SHOP_FOOTER.email}`}
                 className="flex items-center gap-2 hover:text-brand-primary transition-colors"
               >
                 <Mail className="h-4 w-4" />
-                orders@peptsci.com
+                {SHOP_FOOTER.email}
               </a>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                Mon-Fri 9am-5pm PST
+                {SHOP_FOOTER.hours}
               </div>
             </div>
           </div>
 
-          {/* Quick Links */}
           <div>
             <h3 className="font-semibold text-white mb-3">Quick Links</h3>
             <div className="space-y-2 text-sm">
-              <Link
-                href="/shop"
-                className="block text-white/60 hover:text-brand-primary transition-colors"
-              >
-                Browse Products
-              </Link>
-              <Link
-                href="/shop/orders"
-                className="block text-white/60 hover:text-brand-primary transition-colors"
-              >
-                Track Orders
-              </Link>
-              <Link
-                href="/shop/account"
-                className="block text-white/60 hover:text-brand-primary transition-colors"
-              >
-                Account Settings
-              </Link>
+              {SHOP_FOOTER.quick.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="block text-white/60 hover:text-brand-primary transition-colors"
+                >
+                  {link.name}
+                </Link>
+              ))}
             </div>
           </div>
 
-          {/* Support */}
           <div>
             <h3 className="font-semibold text-white mb-3">Support</h3>
             <div className="space-y-2 text-sm">
-              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
-                FAQ
-              </Link>
-              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
-                Shipping Information
-              </Link>
-              <Link href="#" className="block text-white/60 hover:text-brand-primary transition-colors">
-                Return Policy
-              </Link>
+              {SHOP_FOOTER.support.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="block text-white/60 hover:text-brand-primary transition-colors"
+                >
+                  {link.name}
+                </Link>
+              ))}
             </div>
           </div>
         </div>
@@ -82,12 +64,11 @@ export function ClientFooter() {
             <span>Client Portal</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="#" className="hover:text-white transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="#" className="hover:text-white transition-colors">
-              Terms of Service
-            </Link>
+            {SHOP_FOOTER.legal.map((link) => (
+              <Link key={link.href} href={link.href} className="hover:text-white transition-colors">
+                {link.name}
+              </Link>
+            ))}
           </div>
         </div>
       </div>

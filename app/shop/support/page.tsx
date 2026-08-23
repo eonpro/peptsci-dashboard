@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { SupportChat } from '@/components/support/SupportChat'
+import { SHOP_FAQS, SUPPORT_EMAIL } from '@/lib/shop/portal'
 
 interface TicketRow {
   id: string
@@ -90,7 +91,11 @@ export default function ShopSupportPage() {
             Support
           </h1>
           <p className="text-white/50 text-sm mt-1">
-            Open a ticket and our team will reply here and by notification.
+            Open a ticket and our team will reply here and by notification. You can also email{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand-primary hover:underline">
+              {SUPPORT_EMAIL}
+            </a>
+            .
           </p>
         </div>
         <Button
@@ -99,6 +104,19 @@ export default function ShopSupportPage() {
         >
           <Plus className="h-4 w-4 mr-1" /> New ticket
         </Button>
+      </div>
+
+      <div className="space-y-3">
+        {SHOP_FAQS.map((faq) => (
+          <details
+            key={faq.question}
+            id={faq.id}
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+          >
+            <summary className="cursor-pointer text-sm font-medium text-white">{faq.question}</summary>
+            <p className="mt-2 text-sm text-white/60">{faq.answer}</p>
+          </details>
+        ))}
       </div>
 
       {showForm && (

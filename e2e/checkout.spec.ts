@@ -39,6 +39,8 @@ test('client can browse the catalog and reach checkout with server-priced totals
   // Server-computed order summary must show a subtotal and shipping line.
   await expect(page.getByText(/subtotal/i).first()).toBeVisible({ timeout: 20_000 })
   await expect(page.getByText(/shipping/i).first()).toBeVisible()
+  // One-page checkout: Pay is on the same screen as shipping (no Continue step).
+  await expect(page.getByRole('button', { name: /continue to payment/i })).toHaveCount(0)
 })
 
 test('card checkout completes with the Stripe test card', async ({ page }) => {

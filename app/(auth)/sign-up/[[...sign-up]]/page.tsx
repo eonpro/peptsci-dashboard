@@ -2,6 +2,7 @@ import { SignUp } from '@clerk/nextjs'
 import Link from 'next/link'
 import { authAppearance } from '@/lib/clerk-appearance'
 import { SmsOptInConsent } from '@/components/auth/SmsOptInConsent'
+import { ACCOUNT_REVIEW_SLA } from '@/lib/shop/portal'
 
 export default function SignUpPage() {
   return (
@@ -24,7 +25,8 @@ export default function SignUpPage() {
         </Link>
       </p>
       <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-white/35">
-        New accounts require approval before platform access. Approval typically takes 24–48 hours.
+        New accounts require approval before platform access. Approval typically takes{' '}
+        {ACCOUNT_REVIEW_SLA}.
       </p>
     </div>
   )

@@ -26,8 +26,8 @@ export function CustomerDetailClient({ customer }: { customer: ShopCustomerDetai
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" className="mb-2 -ml-2 text-white/60" asChild>
-          <Link href="/shop/customers">
-            <ArrowLeft className="mr-1 h-4 w-4" /> Customers
+          <Link href="/shop/patients">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Patients
           </Link>
         </Button>
         <h1 className="text-3xl font-bold text-white">{customer.displayName}</h1>

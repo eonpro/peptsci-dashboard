@@ -28,10 +28,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         <main className="container mx-auto w-full flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:py-8 md:pb-8">
           {children}
         </main>
-        {/* Footer hidden on mobile, shown on desktop */}
-        <div className="hidden md:block">
-          <ClientFooter />
-        </div>
+        <ClientFooter />
         {/* Mobile bottom navigation */}
         <MobileBottomNav />
         <CartDrawer />

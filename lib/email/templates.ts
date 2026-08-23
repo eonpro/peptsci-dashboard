@@ -2,8 +2,11 @@
 // Inline styles only (email clients strip <style>/external CSS). Palette matches
 // the PeptSci brand: navy #050722, blue #213cef, cream #F2F0EA.
 
+import { ACCOUNT_REVIEW_SLA } from '../shop/portal'
+
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://peptsci.com').replace(/\/$/, '')
 const SUPPORT_EMAIL = process.env.EMAIL_REPLY_TO || 'support@peptsci.com'
+const REVIEW_SLA_HTML = ACCOUNT_REVIEW_SLA.replace(/–/g, '&ndash;')
 
 export interface EmailContent {
   subject: string
@@ -113,14 +116,14 @@ export function welcomeEmail(opts: { firstName?: string | null }): EmailContent 
     body:
       para(greetingHtml(opts.firstName)) +
       para('Thanks for creating your PeptSci account. Our team is reviewing your registration to verify your practice credentials.') +
-      para('You&rsquo;ll receive another email as soon as your account is approved and ready to place orders. This usually takes 1&ndash;2 business days.'),
+      para(`You&rsquo;ll receive another email as soon as your account is approved and ready to place orders. This usually takes ${REVIEW_SLA_HTML}.`),
     cta: { label: 'View your account', href: `${APP_URL}/pending-approval` },
   })
   const text = `${greeting(opts.firstName)}
 
 Thanks for creating your PeptSci account. Our team is reviewing your registration to verify your practice credentials.
 
-You'll receive another email as soon as your account is approved and ready to place orders (usually 1-2 business days).
+You'll receive another email as soon as your account is approved and ready to place orders (usually ${ACCOUNT_REVIEW_SLA}).
 
 Account: ${APP_URL}/pending-approval
 
