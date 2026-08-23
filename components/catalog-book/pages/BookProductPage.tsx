@@ -5,6 +5,11 @@ import { CATEGORY_BOOK_LABEL, formatListPrice, offeredSizeOptions } from '@/lib/
 import { bucketForProduct } from '@/lib/shop-categories'
 import { getMonographForName } from '@/lib/content/peptide-monographs'
 import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
+import {
+  BAC_WATER_CATALOG_BLURB,
+  bacWaterCatalogRows,
+  omitsPeptideSciSpecs,
+} from '@/lib/shop/bac-water'
 import type { ShopProduct } from '@/lib/types/shop'
 
 function formatMolecularFormula(formula: string | null | undefined) {
@@ -26,13 +31,16 @@ function formatMolecularFormula(formula: string | null | undefined) {
 }
 
 export function BookProductPage({ product }: { product: ShopProduct }) {
-  const sizes = offeredSizeOptions(product)
   const compounds = getCompoundParts(product)
   const isBlend = compounds.length >= 2 || product.productType === 'Blend'
   const trade = resolveNamedBlendTradeName(product.name, product.sku)
   const bucket = bucketForProduct(product.category, product.name)
   const categoryLabel = CATEGORY_BOOK_LABEL[bucket]
-  const monograph = product.monograph ?? getMonographForName(product.name)
+  const isBacWater = omitsPeptideSciSpecs(product.name, product.sku)
+  const sizes = isBacWater
+    ? bacWaterCatalogRows(offeredSizeOptions(product))
+    : offeredSizeOptions(product)
+  const monograph = isBacWater ? null : (product.monograph ?? getMonographForName(product.name))
   const overview = monograph?.overview ?? []
   const mechanism = monograph?.mechanismOfAction ?? []
   const observations = monograph?.observations ?? []
@@ -41,9 +49,11 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
       ? overview
       : product.description
         ? [product.description]
-        : [
-            'High-purity investigational peptide supplied for licensed laboratory and physician research use only.',
-          ]
+        : isBacWater
+          ? [...BAC_WATER_CATALOG_BLURB]
+          : [
+              'High-purity investigational peptide supplied for licensed laboratory and physician research use only.',
+            ]
   const purity = product.purity || product.compounds?.[0]?.purity || '99%'
 
   return (
@@ -53,10 +63,26 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.28),transparent_55%)]"
         />
-        <ProductVial
-          product={product}
-          className="animate-book-fade-up relative h-72 w-auto drop-shadow-[0_28px_50px_rgba(0,0,0,0.35)] sm:h-80 lg:h-[28rem]"
-        />
+        {isBacWater && sizes.length > 1 ? (
+          <div className="animate-book-fade-up relative flex flex-wrap items-end justify-center gap-4 sm:gap-6">
+            {sizes.map((size) => (
+              <div key={size.sku} className="flex flex-col items-center gap-2">
+                <ProductVial
+                  product={{ ...product, dose: size.dose, sku: size.sku }}
+                  className="relative h-52 w-auto drop-shadow-[0_28px_50px_rgba(0,0,0,0.35)] sm:h-64 lg:h-72"
+                />
+                <span className="text-xs font-semibold uppercase tracking-wider text-white/80">
+                  {size.dose}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ProductVial
+            product={product}
+            className="animate-book-fade-up relative h-72 w-auto drop-shadow-[0_28px_50px_rgba(0,0,0,0.35)] sm:h-80 lg:h-[28rem]"
+          />
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col px-6 py-10 sm:px-10 lg:px-14 xl:px-16">
@@ -91,7 +117,8 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
           </div>
         )}
 
-        {isBlend && product.compounds && product.compounds.length >= 2 ? (
+        {!isBacWater &&
+          (isBlend && product.compounds && product.compounds.length >= 2 ? (
           <section className="mt-10">
             <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-brand-onyx">
               {trade ? 'Blend composition' : 'Compounds'}
@@ -146,7 +173,7 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
               </div>
             ))}
           </section>
-        )}
+        ))}
 
         {observations.length > 0 && (
           <section className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -162,14 +189,28 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
         )}
 
         <section className="mt-10">
-          <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-brand-onyx">
-            Available dosage strengths
+          <h3
+            className={
+              isBacWater
+                ? 'text-sm font-bold tracking-[0.16em] text-brand-onyx'
+                : 'text-sm font-bold uppercase tracking-[0.16em] text-brand-onyx'
+            }
+          >
+            {isBacWater ? 'AVAILABLE mL SIZES' : 'Available dosage strengths'}
           </h3>
           <div className="mt-4 overflow-hidden rounded-2xl border border-black/8">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-brand-onyx text-white">
-                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider">Strength</th>
+                  <th
+                    className={
+                      isBacWater
+                        ? 'px-5 py-3.5 text-[11px] font-bold tracking-wider'
+                        : 'px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider'
+                    }
+                  >
+                    {isBacWater ? 'mL SIZE' : 'Strength'}
+                  </th>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider">SKU</th>
                   <th className="px-5 py-3.5 text-right text-[11px] font-bold uppercase tracking-wider">
                     List price

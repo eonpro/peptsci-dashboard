@@ -60,7 +60,7 @@ export function PdpAddToCart({ product }: PdpAddToCartProps) {
       sku: product.sku || 'N/A',
       price: product.displayPrice,
       quantity: clampQty(qty),
-      image: getProductDisplayImage(product.name) ?? undefined,
+      image: getProductDisplayImage(product.name, product.dose, product.sku) ?? undefined,
       isBackorder: soldOut,
     })
     setQty(minQty)

@@ -9,6 +9,7 @@
  */
 
 import { glpGenericName, resolveGlpTradeName } from './glp-trade-names'
+import { formatBacWaterSizeLabel, isBacteriostaticWaterProduct } from '../shop/bac-water'
 
 /** True when a stored product name looks like a joined compound list. */
 export function looksLikeCompoundList(name: string): boolean {
@@ -121,6 +122,9 @@ export function displayCatalogDose(
   sku: string | null | undefined,
   dose: string
 ): string {
+  if (isBacteriostaticWaterProduct(name, sku)) {
+    return formatBacWaterSizeLabel(dose, sku)
+  }
   const next = namedBlendCardDose(name, sku, dose)
   if (sku && /semax[-_]?30/i.test(sku)) return '10mg'
   if (/^semax$/i.test(name.trim()) && /^30mg$/i.test(next.replace(/\s+/g, ''))) return '10mg'

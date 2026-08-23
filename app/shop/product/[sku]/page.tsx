@@ -14,6 +14,7 @@ import { ProductMonograph } from '@/components/shop/ProductMonograph'
 import { ReconstitutionCalculator } from '@/components/shop/ReconstitutionCalculator'
 import { getBlendComposition } from '@/lib/content/blend-compositions'
 import { isReconstitutableProduct } from '@/lib/reconstitution'
+import { omitsPeptideSciSpecs } from '@/lib/shop/bac-water'
 import { PdpAddToCart } from '@/components/shop/PdpAddToCart'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -33,8 +34,7 @@ export const dynamic = 'force-dynamic'
  * page falls back to a basic info panel.
  */
 function buildDetailData(product: ShopProduct): ProductDetailData | null {
-  // Multi-peptide blends have no single CAS/MW; show each component's own
-  // verified chemistry instead.
+  if (omitsPeptideSciSpecs(product.name, product.sku)) return null
   const blend = getBlendComposition(product.name)
 
   const compounds =

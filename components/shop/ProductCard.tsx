@@ -10,6 +10,7 @@ import { ChevronRight, FileText, Pencil } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
 import { resolveNamedBlendTradeName, displayCatalogDose } from '@/lib/products/named-blends'
+import { omitsPeptideSciSpecs } from '@/lib/shop/bac-water'
 
 /** Per-SKU cost/SRP for Super Admin pricing cards (never sent to shop clients). */
 export interface AdminPricingSku {
@@ -152,8 +153,10 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
     product.dose ||
     (product.milligrams ? `${product.milligrams}mg` : null)
 
+  const hideSci = omitsPeptideSciSpecs(product.name, product.sku)
   const purityDisplay = product.purity || product.compounds?.[0]?.purity || '99%'
-  const hasSciSpecs = !!(product.casNumber || product.molecularFormula || product.molecularWeight)
+  const hasSciSpecs =
+    !hideSci && !!(product.casNumber || product.molecularFormula || product.molecularWeight)
 
   // Admin: match size pills to Cost/SRP rows (by dose, then sku fallback)
   const adminSkus = adminPricing?.skus ?? []
@@ -513,6 +516,7 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
                 </p>
               )}
 
+              {!hideSci && (
               <div
                 className={
                   hasSciSpecs
@@ -527,6 +531,7 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
                 {product.molecularWeight && <p className="truncate">MW: {product.molecularWeight}</p>}
                 <p className="truncate">Purity: {purityDisplay}</p>
               </div>
+              )}
 
               {isBlend && totalMg && (
                 <p className="mt-3 text-[#4d6bff] font-semibold tracking-tight text-base @[16rem]:text-lg">
