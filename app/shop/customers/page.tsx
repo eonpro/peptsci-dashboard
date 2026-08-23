@@ -36,7 +36,7 @@ export default async function CustomersPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Customers</h1>
+          <h1 className="text-3xl font-bold text-white">Patients</h1>
           <p className="mt-1 text-white/60">Ship-to recipients and their orders</p>
         </div>
         <Card>

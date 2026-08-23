@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card'
 import { Logo } from '@/components/Logo'
 import { Clock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
+import { ACCOUNT_REVIEW_SLA, SUPPORT_EMAIL } from '@/lib/shop/portal'
 
 export function PendingApprovalContent() {
   const { signOut } = useClerk()
@@ -62,7 +63,7 @@ export function PendingApprovalContent() {
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
             <h4 className="font-semibold text-blue-900 mb-2">What happens next?</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Our team will review your account within 24-48 hours</li>
+              <li>• Our team will review your account within {ACCOUNT_REVIEW_SLA}</li>
               <li>• You&apos;ll receive an email once approved</li>
               <li>• After approval, you can browse products and place orders</li>
             </ul>
@@ -73,11 +74,11 @@ export function PendingApprovalContent() {
             <h4 className="font-semibold text-gray-900 mb-3">Need to expedite approval?</h4>
             <div className="space-y-2">
               <a
-                href="mailto:support@peptsci.com"
+                href={`mailto:${SUPPORT_EMAIL}`}
                 className="flex items-center gap-2 text-sm text-gray-600 hover:text-brand-primary transition-colors"
               >
                 <Mail className="h-4 w-4" />
-                support@peptsci.com
+                {SUPPORT_EMAIL}
               </a>
               <p className="text-xs text-gray-500">
                 Include your practice name and NPI for the fastest turnaround.

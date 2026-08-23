@@ -13,6 +13,7 @@ import { AddressFields } from '@/components/AddressFields'
 import { SavedCards } from '@/components/shop/SavedCards'
 import { PatientsManager } from '@/components/shop/PatientsManager'
 import { DocumentsManager } from '@/components/shop/DocumentsManager'
+import { AccountHub } from '@/components/shop/AccountHub'
 import type { Address } from '@/lib/address'
 import type { ClientProfile } from '@/lib/profile'
 import { useClerk } from '@clerk/nextjs'
@@ -204,6 +205,8 @@ export default function AccountPage() {
           Manage your practice profile, payment methods, and patients
         </p>
       </div>
+
+      <AccountHub />
 
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
@@ -431,7 +434,10 @@ export default function AccountPage() {
                 Patients
               </CardTitle>
               <CardDescription className="text-white/60">
-                Saved recipients for &quot;ship to patient&quot; orders
+                Saved ship-to recipients for checkout.{' '}
+                <Link href="/shop/patients" className="text-brand-primary hover:underline">
+                  View patients with order history
+                </Link>
               </CardDescription>
             </CardHeader>
             <CardContent>

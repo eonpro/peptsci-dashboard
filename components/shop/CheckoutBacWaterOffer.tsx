@@ -21,6 +21,11 @@ interface BacWaterOption {
   presentation: 'peptsci-label' | 'hospira'
 }
 
+interface CheckoutBacWaterOfferProps {
+  /** One-line add-on instead of a full card — used on one-page checkout. */
+  compact?: boolean
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price)
 }
@@ -29,7 +34,7 @@ function formatPrice(price: number) {
  * Checkout reconstitution offer: one BAC-water vial per peptide vial, hidden
  * once the clinic has already added BAC water.
  */
-export function CheckoutBacWaterOffer() {
+export function CheckoutBacWaterOffer({ compact = false }: CheckoutBacWaterOfferProps) {
   const { items, addItem } = useCart()
   const [options, setOptions] = useState<BacWaterOption[]>([])
   const [selectedSku, setSelectedSku] = useState<string | null>(null)
@@ -76,6 +81,51 @@ export function CheckoutBacWaterOffer() {
       image: selected.presentation === 'hospira' ? BACTERIOSTATIC_WATER_IMAGE : undefined,
     })
     setAdding(false)
+  }
+
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Droplets className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" />
+          <div className="min-w-0 space-y-2">
+            <p className="text-sm text-white">
+              Bacteriostatic water · {qty}× {selected.dose} ·{' '}
+              <span className="font-medium">{formatPrice(lineTotal)}</span>
+            </p>
+            <p className="text-xs text-white/50">One vial per peptide. Skip if you already have stock.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((option) => {
+                const active = option.sku === selected.sku
+                return (
+                  <button
+                    key={option.sku}
+                    type="button"
+                    onClick={() => setSelectedSku(option.sku)}
+                    className={cn(
+                      'rounded-lg border px-2 py-1 text-xs transition-colors',
+                      active
+                        ? 'border-brand-primary bg-brand-primary/10 text-white'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
+                    )}
+                  >
+                    {option.dose}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        <Button
+          type="button"
+          onClick={handleAdd}
+          disabled={adding}
+          className="h-10 shrink-0 rounded-xl bg-brand-primary px-4 font-semibold text-white hover:bg-[#1a30c0]"
+        >
+          Add
+        </Button>
+      </div>
+    )
   }
 
   return (

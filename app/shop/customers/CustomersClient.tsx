@@ -42,9 +42,9 @@ export function CustomersClient({ customers }: { customers: ShopCustomerListItem
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Customers</h1>
+        <h1 className="text-3xl font-bold text-white">Patients</h1>
         <p className="mt-1 text-white/60">
-          Ship-to recipients from Shopify and patient orders — name, contact, and order history.
+          Ship-to recipients from your storefront and shop orders — name, contact, and order history.
         </p>
       </div>
 
@@ -64,18 +64,18 @@ export function CustomersClient({ customers }: { customers: ShopCustomerListItem
             <div className="mb-4 rounded-full bg-white/10 p-6">
               <Users className="h-12 w-12 text-white/40" />
             </div>
-            <h3 className="text-lg font-medium text-white">No customers yet</h3>
+            <h3 className="text-lg font-medium text-white">No patients yet</h3>
             <p className="mt-1 max-w-sm text-center text-white/60">
               {q
                 ? 'Try a different search'
-                : 'When paid Shopify orders (or patient ship-to orders) sync, customers appear here.'}
+                : 'When paid storefront orders (or patient ship-to orders) sync, patients appear here.'}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           {filtered.map((c) => (
-            <Link key={c.id} href={`/shop/customers/${c.id}`} className="block">
+            <Link key={c.id} href={`/shop/patients/${c.id}`} className="block">
               <Card className="overflow-hidden transition-shadow hover:shadow-md">
                 <CardContent className="flex items-center justify-between gap-4 p-4">
                   <div className="min-w-0">

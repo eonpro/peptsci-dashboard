@@ -16,10 +16,11 @@ import {
   Receipt,
   Gift,
   BookOpen,
-  Users,
+  FileCheck,
   LogOut,
 } from 'lucide-react'
 import { useCart } from './CartContext'
+import { SHOP_ACCOUNT_LINKS, SHOP_PRIMARY_NAV } from '@/lib/shop/portal'
 import { useRole } from '@/hooks/useRole'
 import { NotificationBell } from '@/components/NotificationBell'
 import {
@@ -67,16 +68,28 @@ function AuthUserButton() {
   )
 }
 
-const navigation = [
-  { name: 'Products', href: '/shop', icon: Package, exact: true },
-  { name: 'My Orders', href: '/shop/orders', icon: ClipboardList },
-  { name: 'Customers', href: '/shop/customers', icon: Users },
-  { name: 'Invoices', href: '/shop/invoices', icon: Receipt },
-  { name: 'My Storefront', href: '/shop/storefront-manage', icon: Store },
-  { name: 'Resources', href: '/shop/resources', icon: BookOpen },
-  { name: 'Refer & Earn', href: '/shop/referrals', icon: Gift },
-  { name: 'Account', href: '/shop/account', icon: User },
-]
+const NAV_ICONS = {
+  '/shop': Package,
+  '/shop/orders': ClipboardList,
+  '/shop/invoices': Receipt,
+  '/shop/account': User,
+} as const
+
+const ACCOUNT_ICONS = {
+  '/shop/invoices': Receipt,
+  '/shop/support': HelpCircle,
+  '/shop/patients': User,
+  '/shop/coas': FileCheck,
+  '/catalog': BookOpen,
+  '/shop/resources': BookOpen,
+  '/shop/referrals': Gift,
+  '/shop/storefront-manage': Store,
+} as const
+
+const navigation = SHOP_PRIMARY_NAV.map((item) => ({
+  ...item,
+  icon: NAV_ICONS[item.href as keyof typeof NAV_ICONS] ?? Package,
+}))
 
 export function ClientHeader() {
   const pathname = usePathname()
@@ -183,42 +196,21 @@ export function ClientHeader() {
                     Profile & Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
-                >
-                  <Link href="/shop/orders">
-                    <ClipboardList className="mr-2 h-4 w-4" />
-                    Order History
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
-                >
-                  <Link href="/shop/invoices">
-                    <Receipt className="mr-2 h-4 w-4" />
-                    Invoices &amp; Billing
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
-                >
-                  <Link href="/shop/referrals">
-                    <Gift className="mr-2 h-4 w-4" />
-                    Refer &amp; Earn
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
-                >
-                  <Link href="/shop/resources">
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Resources
-                  </Link>
-                </DropdownMenuItem>
+                {SHOP_ACCOUNT_LINKS.map((item) => {
+                  const Icon = ACCOUNT_ICONS[item.href as keyof typeof ACCOUNT_ICONS] ?? User
+                  return (
+                    <DropdownMenuItem
+                      key={item.href}
+                      asChild
+                      className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
+                    >
+                      <Link href={item.href}>
+                        <Icon className="mr-2 h-4 w-4" />
+                        {item.name}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
                 <DropdownMenuSeparator className="bg-white/10" />
                 {!isLoading && isAdmin && (
                   <>
@@ -234,15 +226,6 @@ export function ClientHeader() {
                     <DropdownMenuSeparator className="bg-white/10" />
                   </>
                 )}
-                <DropdownMenuItem
-                  asChild
-                  className="hover:bg-white/10 focus:bg-white/10 focus:text-white cursor-pointer"
-                >
-                  <Link href="/shop/support">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Help & Support
-                  </Link>
-                </DropdownMenuItem>
                 {isClerkConfigured && (
                   <>
                     <DropdownMenuSeparator className="bg-white/10" />

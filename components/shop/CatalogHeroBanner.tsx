@@ -85,6 +85,12 @@ export function CatalogHeroBanner() {
             >
               Reorder from history
             </Link>
+            <Link
+              href="/catalog"
+              className="rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+            >
+              Share lookbook
+            </Link>
           </div>
         </div>
 

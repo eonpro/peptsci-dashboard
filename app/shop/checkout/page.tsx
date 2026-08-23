@@ -15,7 +15,6 @@ import {
   CreditCard,
   Package,
   Truck,
-  ChevronRight,
   CheckCircle2,
   Building2,
   UserRound,
@@ -40,8 +39,12 @@ import {
 } from '@/lib/shop/backorder'
 import { buildPracticeCheckoutAddress, type Address } from '@/lib/address'
 import { CheckoutBacWaterOffer } from '@/components/shop/CheckoutBacWaterOffer'
-
-type CheckoutStep = 'shipping' | 'payment'
+import {
+  checkoutCanPay,
+  formatAddressOneLine,
+  isPracticeAddressComplete,
+  shouldExpandPracticeForm,
+} from '@/lib/shop/checkout-ux'
 
 interface Patient {
   id: string
@@ -58,7 +61,8 @@ export default function CheckoutPage() {
   const router = useRouter()
   const { items, subtotal, clearCart, totalItems } = useCart()
   const hasBackorder = items.some((item) => item.isBackorder)
-  const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping')
+  const [editingPractice, setEditingPractice] = useState(false)
+  const [profileReady, setProfileReady] = useState(false)
 
   const [shipTo, setShipTo] = useState<ShipTo>('PRACTICE')
   const [shipSpeed, setShipSpeed] = useState<ShipSpeed>('TWO_DAY')
@@ -119,6 +123,9 @@ export default function CheckoutPage() {
       .catch(() => {
         if (active) setPrefillFailed(true)
       })
+      .finally(() => {
+        if (active) setProfileReady(true)
+      })
     return () => {
       active = false
     }
@@ -159,21 +166,26 @@ export default function CheckoutPage() {
     return errors
   }
 
-  const shippingValid =
-    shipTo === 'PRACTICE'
-      ? Boolean(practiceAddr.address1 && practiceAddr.city && practiceAddr.state && practiceAddr.zip)
-      : Boolean(selectedPatientId)
-
-  /** Validate then move to payment; on failure surface field errors inline. */
-  const continueToPayment = () => {
-    if (shipTo === 'PRACTICE') {
-      const errors = validatePracticeStep()
-      setFieldErrors(errors)
-      if (Object.keys(errors).length > 0) return
-    }
-    setFieldErrors({})
-    setCurrentStep('payment')
-  }
+  const practiceComplete = isPracticeAddressComplete(practiceAddr)
+  const contactBlocking =
+    shipTo === 'PRACTICE' &&
+    ((contactEmail.trim().length > 0 &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) ||
+      (contactPhone.trim().length > 0 && contactPhone.replace(/\D/g, '').length < 10))
+  const expandPractice =
+    shouldExpandPracticeForm({
+      prefillFailed,
+      practiceComplete,
+      editing: editingPractice,
+    }) || contactBlocking
+  const canPay =
+    profileReady &&
+    checkoutCanPay({
+      shipTo,
+      practiceComplete,
+      selectedPatientId,
+    }) &&
+    !contactBlocking
 
   const paymentItems = useMemo(
     () => items.map((i) => ({ sku: i.sku, quantity: i.quantity })),
@@ -263,12 +275,6 @@ export default function CheckoutPage() {
     )
   }
 
-  const steps = [
-    { id: 'shipping', label: 'Shipping', shortLabel: 'Ship', icon: Truck },
-    { id: 'payment', label: 'Payment', shortLabel: 'Pay', icon: CreditCard },
-  ]
-  const currentStepIndex = steps.findIndex((s) => s.id === currentStep)
-
   const speedOptions: { id: ShipSpeed; label: string; desc: string; price: number }[] = [
     {
       id: 'TWO_DAY',
@@ -284,8 +290,83 @@ export default function CheckoutPage() {
     },
   ]
 
+
+  const destinationLabel =
+    shipTo === 'PATIENT' && selectedPatient
+      ? `${selectedPatient.firstName} ${selectedPatient.lastName}`
+      : practiceName || 'your practice'
+  const destinationLine =
+    shipTo === 'PATIENT' && selectedPatient
+      ? formatAddressOneLine(selectedPatient.address)
+      : formatAddressOneLine(practiceAddr)
+
+  const summaryItems = (
+    <>
+      {hasBackorder && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200/90">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <span>
+            Includes sold-out backorder items (min {BACKORDER_MIN_QUANTITY} vials).
+            Fulfillment may take {BACKORDER_LEAD_TIME}.
+          </span>
+        </div>
+      )}
+      <div className="space-y-3 max-h-48 overflow-y-auto">
+        {items.map((item) => (
+          <div key={item.id} className="flex gap-3">
+            <div className="h-12 w-12 rounded-lg bg-linear-to-br from-brand-primary/20 to-brand-primary/5 flex items-center justify-center shrink-0 overflow-hidden">
+              {item.image ? (
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  width={48}
+                  height={48}
+                  className="object-contain"
+                />
+              ) : (
+                <span className="text-sm font-bold text-brand-primary">
+                  {item.name.charAt(0)}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{item.name}</p>
+              <p className="text-xs text-white/50">
+                {item.dose} × {item.quantity}
+                {item.isBackorder ? ' · Sold Out backorder' : ''}
+              </p>
+            </div>
+            <p className="text-sm font-medium text-white">
+              {formatPrice(item.price * item.quantity)}
+            </p>
+          </div>
+        ))}
+      </div>
+      <Separator className="bg-white/10" />
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-white/60">Subtotal</span>
+          <span className="text-white">{formatPrice(subtotal)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-white/60">
+            Shipping ({shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'})
+          </span>
+          <span className={shipping === 0 ? 'text-green-400' : 'text-white'}>
+            {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+          </span>
+        </div>
+      </div>
+      <Separator className="bg-white/10" />
+      <div className="flex justify-between text-lg font-bold text-white">
+        <span>Total</span>
+        <span>{formatPrice(total)}</span>
+      </div>
+    </>
+  )
+
   return (
-    <div className="pb-32 md:pb-8">
+    <div className="pb-24 md:pb-8">
       <div className="flex items-center gap-4 mb-6">
         <Link
           href="/shop"
@@ -301,84 +382,49 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-8 px-2">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-center flex-1">
-            <button
-              onClick={() => {
-                if (index < currentStepIndex) setCurrentStep(step.id as CheckoutStep)
-              }}
-              disabled={index > currentStepIndex}
-              className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-2.5 rounded-xl transition-all ${
-                currentStep === step.id
-                  ? 'bg-brand-primary text-white'
-                  : index < currentStepIndex
-                    ? 'bg-green-500/20 text-green-400 cursor-pointer hover:bg-green-500/30'
-                    : 'bg-white/5 text-white/40'
-              }`}
-            >
-              {index < currentStepIndex ? (
-                <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5" />
-              ) : (
-                <step.icon className="h-4 w-4 md:h-5 md:w-5" />
-              )}
-              <span className="font-medium text-xs md:text-sm hidden sm:inline">{step.label}</span>
-              <span className="font-medium text-xs sm:hidden">{step.shortLabel}</span>
-            </button>
-            {index < steps.length - 1 && (
-              <div
-                className={`flex-1 h-0.5 mx-2 ${
-                  index < currentStepIndex ? 'bg-green-500/50' : 'bg-white/10'
-                }`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
-          {currentStep === 'shipping' && (
-            <>
-              <CheckoutBacWaterOffer />
-              {/* Ship to */}
-              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-white/10 bg-white/5">
-                  <CardTitle className="flex items-center gap-3 text-white">
-                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
-                      <Truck className="h-5 w-5 text-brand-primary" />
-                    </div>
-                    Ship To
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 md:p-6 space-y-5">
-                  <div className="grid grid-cols-2 gap-3">
-                    {(
-                      [
-                        { id: 'PRACTICE', label: 'My Practice', icon: Building2 },
-                        { id: 'PATIENT', label: 'A Patient', icon: UserRound },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setShipTo(opt.id)}
-                        className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
-                          shipTo === opt.id
-                            ? 'border-brand-primary bg-brand-primary/10'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        }`}
-                      >
-                        <opt.icon className="h-5 w-5 text-white/70" />
-                        <span className="text-white font-medium text-sm">{opt.label}</span>
-                        {shipTo === opt.id && (
-                          <CheckCircle2 className="h-5 w-5 text-brand-primary ml-auto" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
+          <CheckoutBacWaterOffer compact />
 
-                  {shipTo === 'PRACTICE' ? (
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-white/10 bg-white/5">
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                  <Truck className="h-5 w-5 text-brand-primary" />
+                </div>
+                Shipping
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6 space-y-5">
+              {shipTo === 'PRACTICE' ? (
+                <div className="space-y-4">
+                  {!profileReady ? (
+                    <p className="text-sm text-white/50">Loading practice address…</p>
+                  ) : !expandPractice ? (
+                    <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-sm font-medium text-white">
+                          <Building2 className="h-4 w-4 text-white/70" />
+                          {practiceName || 'Your practice'}
+                        </p>
+                        <p className="mt-1 text-sm text-white/60">{formatAddressOneLine(practiceAddr)}</p>
+                        {(contactEmail || contactPhone) && (
+                          <p className="mt-1 text-xs text-white/40">
+                            {[contactEmail, contactPhone].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-white/20 text-white hover:bg-white/10 rounded-lg"
+                        onClick={() => setEditingPractice(true)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  ) : (
                     <div className="space-y-4">
                       {prefillFailed && (
                         <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
@@ -431,229 +477,247 @@ export default function CheckoutPage() {
                           {fieldErrors.address || fieldErrors.zip}
                         </p>
                       )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {patients.length > 0 && (
-                        <div className="space-y-2">
-                          {patients.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => setSelectedPatientId(p.id)}
-                              className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
-                                selectedPatientId === p.id
-                                  ? 'border-brand-primary bg-brand-primary/10'
-                                  : 'border-white/10 bg-white/5 hover:bg-white/10'
-                              }`}
-                            >
-                              <UserRound className="h-5 w-5 text-white/70 mt-0.5" />
-                              <span className="min-w-0">
-                                <span className="block text-white text-sm font-medium">
-                                  {p.firstName} {p.lastName}
-                                </span>
-                                <span className="block text-white/50 text-xs">
-                                  {p.address.address1}, {p.address.city}, {p.address.state}{' '}
-                                  {p.address.zip}
-                                </span>
-                              </span>
-                              {selectedPatientId === p.id && (
-                                <CheckCircle2 className="h-5 w-5 text-brand-primary ml-auto" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {!showAddPatient ? (
+                      {editingPractice && practiceComplete && (
                         <Button
+                          type="button"
                           variant="outline"
-                          className="w-full border-white/20 text-white hover:bg-white/10 rounded-xl"
-                          onClick={() => setShowAddPatient(true)}
+                          className="border-white/20 text-white hover:bg-white/10 rounded-xl"
+                          onClick={() => {
+                            const errors = validatePracticeStep()
+                            setFieldErrors(errors)
+                            if (Object.keys(errors).length > 0) return
+                            setFieldErrors({})
+                            setEditingPractice(false)
+                          }}
                         >
-                          <Plus className="mr-2 h-4 w-4" /> Add a patient
+                          Done
                         </Button>
-                      ) : (
-                        <div className="space-y-4 p-4 rounded-xl border border-white/10 bg-white/5">
-                          <div className="grid gap-4 grid-cols-2">
-                            <div className="space-y-2">
-                              <Label className="text-white/70">First Name *</Label>
-                              <Input
-                                value={newPatient.firstName}
-                                onChange={(e) =>
-                                  setNewPatient((p) => ({ ...p, firstName: e.target.value }))
-                                }
-                                className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-white/70">Last Name *</Label>
-                              <Input
-                                value={newPatient.lastName}
-                                onChange={(e) =>
-                                  setNewPatient((p) => ({ ...p, lastName: e.target.value }))
-                                }
-                                className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-white/70">Phone</Label>
-                            <Input
-                              type="tel"
-                              value={newPatient.phone}
-                              onChange={(e) =>
-                                setNewPatient((p) => ({ ...p, phone: e.target.value }))
-                              }
-                              className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
-                            />
-                          </div>
-                          <AddressFields
-                            value={newPatient.address}
-                            onChange={(addr) => setNewPatient((p) => ({ ...p, address: addr }))}
-                            idPrefix="new-patient"
-                            dark
-                          />
-                          {addPatientError && (
-                            <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
-                              {addPatientError}
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            <Button
-                              className="flex-1 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
-                              onClick={handleAddPatient}
-                              disabled={savingPatient || !canSaveNewPatient}
-                            >
-                              {savingPatient ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                'Save Patient'
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className="border-white/20 text-white hover:bg-white/10 rounded-xl"
-                              onClick={() => {
-                                setShowAddPatient(false)
-                                setAddPatientError(null)
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
                       )}
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Shipping speed */}
-              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-white/10 bg-white/5">
-                  <CardTitle className="flex items-center gap-3 text-white">
-                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
-                      <Zap className="h-5 w-5 text-brand-primary" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShipTo('PATIENT')
+                      setEditingPractice(false)
+                      setFieldErrors({})
+                    }}
+                    className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline"
+                  >
+                    Ship to a patient instead
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 text-sm font-medium text-white">
+                      <UserRound className="h-4 w-4 text-white/70" />
+                      Ship to a patient
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShipTo('PRACTICE')
+                        setShowAddPatient(false)
+                        setAddPatientError(null)
+                      }}
+                      className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline"
+                    >
+                      Ship to my practice
+                    </button>
+                  </div>
+                  {patients.length > 0 && (
+                    <div className="space-y-2">
+                      {patients.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSelectedPatientId(p.id)}
+                          className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
+                            selectedPatientId === p.id
+                              ? 'border-brand-primary bg-brand-primary/10'
+                              : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
+                        >
+                          <UserRound className="h-5 w-5 text-white/70 mt-0.5" />
+                          <span className="min-w-0">
+                            <span className="block text-white text-sm font-medium">
+                              {p.firstName} {p.lastName}
+                            </span>
+                            <span className="block text-white/50 text-xs">
+                              {formatAddressOneLine(p.address)}
+                            </span>
+                          </span>
+                          {selectedPatientId === p.id && (
+                            <CheckCircle2 className="h-5 w-5 text-brand-primary ml-auto" />
+                          )}
+                        </button>
+                      ))}
                     </div>
-                    Shipping Speed
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 md:p-6 space-y-3">
+                  )}
+                  {!showAddPatient ? (
+                    <Button
+                      variant="outline"
+                      className="w-full border-white/20 text-white hover:bg-white/10 rounded-xl"
+                      onClick={() => setShowAddPatient(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Add a patient
+                    </Button>
+                  ) : (
+                    <div className="space-y-4 p-4 rounded-xl border border-white/10 bg-white/5">
+                      <div className="grid gap-4 grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-white/70">First Name *</Label>
+                          <Input
+                            value={newPatient.firstName}
+                            onChange={(e) =>
+                              setNewPatient((p) => ({ ...p, firstName: e.target.value }))
+                            }
+                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-white/70">Last Name *</Label>
+                          <Input
+                            value={newPatient.lastName}
+                            onChange={(e) =>
+                              setNewPatient((p) => ({ ...p, lastName: e.target.value }))
+                            }
+                            className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-white/70">Phone</Label>
+                        <Input
+                          type="tel"
+                          value={newPatient.phone}
+                          onChange={(e) =>
+                            setNewPatient((p) => ({ ...p, phone: e.target.value }))
+                          }
+                          className="h-12 bg-white/5 border-white/10 text-white rounded-xl"
+                        />
+                      </div>
+                      <AddressFields
+                        value={newPatient.address}
+                        onChange={(addr) => setNewPatient((p) => ({ ...p, address: addr }))}
+                        idPrefix="new-patient"
+                        dark
+                      />
+                      {addPatientError && (
+                        <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
+                          {addPatientError}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl"
+                          onClick={handleAddPatient}
+                          disabled={savingPatient || !canSaveNewPatient}
+                        >
+                          {savingPatient ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'Save Patient'
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="border-white/20 text-white hover:bg-white/10 rounded-xl"
+                          onClick={() => {
+                            setShowAddPatient(false)
+                            setAddPatientError(null)
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <Zap className="h-4 w-4 text-brand-primary" />
+                  Speed
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   {speedOptions.map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
                       onClick={() => setShipSpeed(opt.id)}
-                      className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ${
+                      className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${
                         shipSpeed === opt.id
                           ? 'border-brand-primary bg-brand-primary/10'
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">{opt.label}</p>
-                        <p className="text-white/50 text-xs">{opt.desc}</p>
-                      </div>
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-white">{opt.label}</span>
+                        {shipSpeed === opt.id && (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-primary" />
+                        )}
+                      </span>
+                      <span className="text-xs text-white/50">{opt.desc}</span>
                       <span
                         className={`text-sm font-semibold ${opt.price === 0 ? 'text-green-400' : 'text-white'}`}
                       >
                         {opt.price === 0 ? 'FREE' : formatPrice(opt.price)}
                       </span>
-                      {shipSpeed === opt.id && <CheckCircle2 className="h-5 w-5 text-brand-primary" />}
                     </button>
                   ))}
-                  {subtotal < FREE_SHIPPING_THRESHOLD && (
-                    <p className="text-xs text-white/50">
-                      Spend {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} more to unlock FREE
-                      2-day shipping and {formatPrice(SHIPPING_RATES.QUALIFIED.OVERNIGHT)} overnight.
-                    </p>
-                  )}
+                </div>
+                {subtotal < FREE_SHIPPING_THRESHOLD && (
+                  <p className="text-xs text-white/50">
+                    Spend {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} more to unlock FREE
+                    2-day shipping and {formatPrice(SHIPPING_RATES.QUALIFIED.OVERNIGHT)} overnight.
+                  </p>
+                )}
+              </div>
 
-                  <div className="space-y-2 pt-2">
-                    <Label htmlFor="notes" className="text-white/70">
-                      Order Notes (optional)
-                    </Label>
-                    <Textarea
-                      id="notes"
-                      placeholder="Special instructions for your order..."
-                      value={notes}
-                      maxLength={500}
-                      onChange={(e) => setNotes(e.target.value.slice(0, 500))}
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-xl min-h-[80px]"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-white/70">
+                  Order Notes (optional)
+                </Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Special instructions for your order..."
+                  value={notes}
+                  maxLength={500}
+                  onChange={(e) => setNotes(e.target.value.slice(0, 500))}
+                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-xl min-h-[72px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-          {currentStep === 'payment' && (
-            <>
-              {/* Review before pay: editable summary of where and how this ships. */}
-              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-                <CardContent className="p-4 md:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 text-sm">
-                      <p className="mb-1 flex items-center gap-2 font-medium text-white">
-                        <Truck className="h-4 w-4 text-brand-primary" />
-                        Shipping to{' '}
-                        {shipTo === 'PATIENT' && selectedPatient
-                          ? `${selectedPatient.firstName} ${selectedPatient.lastName}`
-                          : practiceName || 'your practice'}
-                      </p>
-                      <p className="text-white/60">
-                        {shipTo === 'PATIENT' && selectedPatient
-                          ? `${selectedPatient.address.address1}, ${selectedPatient.address.city}, ${selectedPatient.address.state} ${selectedPatient.address.zip}`
-                          : `${practiceAddr.address1 ?? ''}, ${practiceAddr.city ?? ''}, ${practiceAddr.state ?? ''} ${practiceAddr.zip ?? ''}`}
-                      </p>
-                      <p className="mt-1 text-white/60">
-                        {shipSpeed === 'TWO_DAY' ? '2-Day Shipping' : 'Overnight Shipping'} ·{' '}
-                        {shipping === 0 ? 'FREE' : formatPrice(shipping)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-white/20 text-white hover:bg-white/10 rounded-lg"
-                      onClick={() => setCurrentStep('shipping')}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden lg:hidden">
+            <CardHeader className="border-b border-white/10 bg-white/5">
+              <CardTitle className="text-white">Order Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">{summaryItems}</CardContent>
+          </Card>
 
-              <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-white/10 bg-white/5">
-                  <CardTitle className="flex items-center gap-3 text-white">
-                    <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
-                      <CreditCard className="h-5 w-5 text-brand-primary" />
-                    </div>
-                    Payment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 md:p-6">
+          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-white/10 bg-white/5">
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
+                  <CreditCard className="h-5 w-5 text-brand-primary" />
+                </div>
+                Payment
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6">
+              {canPay ? (
+                <>
+                  <p className="mb-4 text-sm text-white/60">
+                    Shipping to {destinationLabel}
+                    {destinationLine ? ` · ${destinationLine}` : ''} ·{' '}
+                    {shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'} ·{' '}
+                    {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+                  </p>
                   <CheckoutPaymentSection
                     items={paymentItems}
                     shippingAddress={shippingAddressForOrder}
@@ -664,144 +728,30 @@ export default function CheckoutPage() {
                     patientId={shipTo === 'PATIENT' ? selectedPatientId : null}
                     onSuccess={handleOrderSuccess}
                   />
-                </CardContent>
-              </Card>
-            </>
-          )}
+                </>
+              ) : (
+                <p className="text-sm text-white/50">
+                  {!profileReady
+                    ? 'Loading shipping details…'
+                    : shipTo === 'PATIENT'
+                      ? 'Select a patient to pay.'
+                      : 'Add a complete shipping address to pay.'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Order Summary Sidebar */}
         <div className="hidden lg:block">
           <div className="sticky top-24">
             <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
               <CardHeader className="border-b border-white/10 bg-white/5">
                 <CardTitle className="text-white">Order Summary</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                {hasBackorder && (
-                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200/90">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    <span>
-                      Includes sold-out backorder items (min {BACKORDER_MIN_QUANTITY} vials).
-                      Fulfillment may take {BACKORDER_LEAD_TIME}.
-                    </span>
-                  </div>
-                )}
-                <div className="space-y-3 max-h-48 overflow-y-auto">
-                  {items.map((item) => (
-                    <div key={item.id} className="flex gap-3">
-                      <div className="h-12 w-12 rounded-lg bg-linear-to-br from-brand-primary/20 to-brand-primary/5 flex items-center justify-center shrink-0 overflow-hidden">
-                        {item.image ? (
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={48}
-                            height={48}
-                            className="object-contain"
-                          />
-                        ) : (
-                          <span className="text-sm font-bold text-brand-primary">
-                            {item.name.charAt(0)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                        <p className="text-xs text-white/50">
-                          {item.dose} × {item.quantity}
-                          {item.isBackorder ? ' · Sold Out backorder' : ''}
-                        </p>
-                      </div>
-                      <p className="text-sm font-medium text-white">
-                        {formatPrice(item.price * item.quantity)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <Separator className="bg-white/10" />
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/60">Subtotal</span>
-                    <span className="text-white">{formatPrice(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/60">
-                      Shipping ({shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'})
-                    </span>
-                    <span className={shipping === 0 ? 'text-green-400' : 'text-white'}>
-                      {shipping === 0 ? 'FREE' : formatPrice(shipping)}
-                    </span>
-                  </div>
-                </div>
-
-                <Separator className="bg-white/10" />
-
-                <div className="flex justify-between text-lg font-bold text-white">
-                  <span>Total</span>
-                  <span>{formatPrice(total)}</span>
-                </div>
-
-                {currentStep === 'shipping' && (
-                  <Button
-                    className="w-full h-12 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-xl font-semibold disabled:opacity-50"
-                    onClick={continueToPayment}
-                    disabled={shipTo === 'PATIENT' ? !selectedPatientId : !shippingValid}
-                  >
-                    Continue to Payment
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-                {currentStep === 'payment' && (
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 border-white/20 text-white hover:bg-white/10 rounded-xl"
-                    onClick={() => setCurrentStep('shipping')}
-                  >
-                    Back to Shipping
-                  </Button>
-                )}
-              </CardContent>
+              <CardContent className="p-4 space-y-4">{summaryItems}</CardContent>
             </Card>
           </div>
         </div>
-      </div>
-
-      {/* Mobile fixed bottom bar. On the payment step it stays compact (total
-          + back link) so it never competes with the Pay button inside the
-          payment card. */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 lg:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 p-4 safe-area-bottom">
-        {currentStep === 'shipping' ? (
-          <>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white/60">Total</span>
-              <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
-            </div>
-            <Button
-              className="w-full h-14 bg-brand-primary hover:bg-[#1a30c0] text-white rounded-2xl text-lg font-semibold disabled:opacity-50"
-              onClick={continueToPayment}
-              disabled={shipTo === 'PATIENT' ? !selectedPatientId : !shippingValid}
-            >
-              Continue to Payment
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Button>
-          </>
-        ) : (
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setCurrentStep('shipping')}
-              className="flex items-center gap-1 text-sm text-white/60 hover:text-white"
-            >
-              <ArrowLeft className="h-4 w-4" /> Shipping
-            </button>
-            <div className="text-right">
-              <span className="mr-2 text-sm text-white/60">Total</span>
-              <span className="text-xl font-bold text-white">{formatPrice(total)}</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

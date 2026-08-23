@@ -20,6 +20,7 @@ import { NpiLookup } from '@/components/NpiLookup'
 import type { Address } from '@/lib/address'
 import { isValidNpi, cleanNpi, isNpiBypass, NPI_BYPASS, type NormalizedProvider } from '@/lib/npi'
 import { SMS_OPT_IN_STORAGE_KEY } from '@/components/auth/SmsOptInConsent'
+import { ACCOUNT_REVIEW_SLA, completedOnboardingSteps, ONBOARDING_STEPS } from '@/lib/shop/portal'
 import {
   Building2,
   Stethoscope,
@@ -217,9 +218,23 @@ export default function OnboardingPage() {
           <h1 className="text-2xl font-bold text-gray-900">Complete your practice profile</h1>
           <p className="text-gray-600 mt-2 max-w-lg mx-auto">
             Welcome{user?.firstName ? `, ${user.firstName}` : ''}! Tell us about your practice so we
-            can verify your provider credentials and set up your account for approval.
+            can verify your provider credentials. Review usually takes {ACCOUNT_REVIEW_SLA} after
+            you submit.
           </p>
         </div>
+
+        <OnboardingStepper
+          completed={completedOnboardingSteps({
+            npi: npiNumber,
+            org: organizationName,
+            contactName,
+            email: contactEmail,
+            phone: contactPhone,
+            billingZip: billing.zip ?? '',
+            shippingSame: sameAsBilling,
+            shippingZip: shipping.zip ?? '',
+          })}
+        />
 
         {/* Partners (sales orgs / reps) are not clinics — route them to the
             partner application instead of the clinic profile below. */}
@@ -422,5 +437,28 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function OnboardingStepper({ completed }: { completed: number }) {
+  return (
+    <ol className="mb-8 grid grid-cols-4 gap-2">
+      {ONBOARDING_STEPS.map((label, i) => {
+        const done = i < completed
+        return (
+          <li
+            key={label}
+            className={`rounded-xl border px-2 py-2 text-center text-xs font-medium sm:text-sm ${
+              done
+                ? 'border-brand-primary/30 bg-brand-primary/10 text-brand-primary'
+                : 'border-gray-200 bg-white text-gray-400'
+            }`}
+          >
+            <span className="block text-[10px] uppercase tracking-wide">{i + 1}</span>
+            {label}
+          </li>
+        )
+      })}
+    </ol>
   )
 }

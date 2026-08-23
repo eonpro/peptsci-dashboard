@@ -4,16 +4,16 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCart } from './CartContext'
-import { Home, Search, BookOpen, ShoppingCart, ClipboardList, User } from 'lucide-react'
+import { SHOP_MOBILE_NAV } from '@/lib/shop/portal'
+import { Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react'
 
-const navItems = [
-  { href: '/shop', icon: Home, label: 'Shop', exact: true },
-  { href: '/shop#search', icon: Search, label: 'Search', action: 'search' },
-  { href: '/shop/resources', icon: BookOpen, label: 'Learn' },
-  { href: '#cart', icon: ShoppingCart, label: 'Cart', action: 'cart' },
-  { href: '/shop/orders', icon: ClipboardList, label: 'Orders' },
-  { href: '/shop/account', icon: User, label: 'Account' },
-]
+const ICONS = {
+  Shop: Home,
+  Search: Search,
+  Cart: ShoppingCart,
+  Orders: ClipboardList,
+  Account: User,
+} as const
 
 export function MobileBottomNav() {
   const pathname = usePathname()
@@ -22,10 +22,13 @@ export function MobileBottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
       <div className="flex items-center justify-around h-16 px-2">
-        {navItems.map((item) => {
+        {SHOP_MOBILE_NAV.map((item) => {
+          const Icon = ICONS[item.label as keyof typeof ICONS] ?? Home
           const isActive = item.exact
             ? pathname === item.href
-            : pathname.startsWith(item.href) && item.href !== '#cart'
+            : item.action
+              ? false
+              : pathname.startsWith(item.href)
 
           const isCart = item.action === 'cart'
 
@@ -46,8 +49,7 @@ export function MobileBottomNav() {
                     : 'text-white/50 hover:text-white active:scale-95'
                 )}
               >
-                <item.icon className="h-5 w-5" />
-                {/* Cart badge */}
+                <Icon className="h-5 w-5" />
                 {isCart && totalItems > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
                     {totalItems > 99 ? '99+' : totalItems}
