@@ -1,4 +1,32 @@
+# Catalog lookbook UX  [EXECUTOR — 2026-08-22]
+
+## Background and Motivation
+The shareable `/catalog` still reads like a padded card in a frame (`max-w-6xl`,
+small vials, short slide). It should feel like a full-bleed lookbook: cinema
+width, page-turn motion, and product tiles that fill the screen.
+
+## Key Challenges and Analysis
+- Keep hash paging, keyboard, swipe, and TOC. Do not break `data-book-goto`.
+- Honor `prefers-reduced-motion`.
+- Category vials must stay on a shared shelf while gaining hover/stagger.
+
+## High-level Task Breakdown
+1. Full-bleed pager chrome + stronger page-turn animation.
+2. Cover / categories / product / divider layouts at viewport width.
+3. Stagger + hover motion; verify `/catalog` in the browser.
+
+## Project Status Board
+- [x] Full-bleed CatalogBook
+- [x] Page layouts + motion
+- [x] Browser pass
+
+## Executor's Feedback or Assistance Requests
+Catalog lookbook is local-only until a PR/deploy. Cover, categories, GH (6-up), Skin & Beauty, product PDPs, shipping, and white-label were verified in the browser.
+
+---
+
 # Catalog GLP names, aligned vials, richer product pages  [EXECUTOR — 2026-08-22]
+
 
 ## Background and Motivation
 Weight-management category tiles in `/catalog` bottom-aligned vials, so
