@@ -4,36 +4,12 @@ import {
   getCompoundParts,
   getProductDisplayImage,
   isBacteriostaticWaterProduct,
+  vialPowderColor,
   BACTERIOSTATIC_WATER_IMAGE,
   namedBlendFaceDose,
   vialDoseBands,
   vialDoseParts,
-  vialPowderColor,
 } from '@/components/shop/ProductVial'
-
-describe('vialPowderColor', () => {
-  it('is purple for GHK-Cu and the GLOW/KLOW blends that contain it', () => {
-    assert.equal(vialPowderColor('GHK-Cu'), 'purple')
-    assert.equal(vialPowderColor('GHK Cu 50mg'), 'purple')
-    assert.equal(vialPowderColor('Copper Peptide GHK'), 'purple')
-    assert.equal(vialPowderColor('GLOW', 'GLOW-70'), 'purple')
-    assert.equal(vialPowderColor('KLOW', 'KLOW-80'), 'purple')
-    assert.equal(vialPowderColor('GHK-Cu / BPC-157 / TB-500 Blend', 'GLOW-70'), 'purple')
-  })
-
-  it('is orange for 5-Amino-1MQ in any spelling', () => {
-    assert.equal(vialPowderColor('5-Amino-1MQ'), 'orange')
-    assert.equal(vialPowderColor('5 Amino 1MQ 50mg'), 'orange')
-    assert.equal(vialPowderColor('5-AMINO-1MQ', '5A1MQ-50'), 'orange')
-  })
-
-  it('is white for everything else', () => {
-    assert.equal(vialPowderColor('BPC-157'), 'white')
-    assert.equal(vialPowderColor('Semax', 'SEMAX-10MG'), 'white')
-    assert.equal(vialPowderColor('CJC-1295 (no DAC)'), 'white')
-    assert.equal(vialPowderColor('Bacteriostatic Water'), 'white')
-  })
-})
 
 describe('getCompoundParts', () => {
   it('uses name + dose for a single peptide line item', () => {
@@ -157,6 +133,30 @@ describe('vialDoseParts', () => {
   })
 })
 
+describe('vialPowderColor', () => {
+  it('is purple for GHK-Cu and the GLOW/KLOW blends that contain it', () => {
+    assert.equal(vialPowderColor('GHK-Cu'), 'purple')
+    assert.equal(vialPowderColor('GHK Cu 50mg'), 'purple')
+    assert.equal(vialPowderColor('Copper Peptide GHK'), 'purple')
+    assert.equal(vialPowderColor('GLOW', 'GLOW-70'), 'purple')
+    assert.equal(vialPowderColor('KLOW', 'KLOW-80'), 'purple')
+    assert.equal(vialPowderColor('GHK-Cu / BPC-157 / TB-500 Blend', 'GLOW-70'), 'purple')
+  })
+
+  it('is orange for 5-Amino-1MQ in any spelling', () => {
+    assert.equal(vialPowderColor('5-Amino-1MQ'), 'orange')
+    assert.equal(vialPowderColor('5 Amino 1MQ 50mg'), 'orange')
+    assert.equal(vialPowderColor('5-AMINO-1MQ', '5A1MQ-50'), 'orange')
+  })
+
+  it('is white for everything else', () => {
+    assert.equal(vialPowderColor('BPC-157'), 'white')
+    assert.equal(vialPowderColor('Semax', 'SEMAX-10MG'), 'white')
+    assert.equal(vialPowderColor('CJC-1295 (no DAC)'), 'white')
+    assert.equal(vialPowderColor('Bacteriostatic Water'), 'white')
+  })
+})
+
 describe('bacteriostatic water display image', () => {
   it('detects bacteriostatic / BAC water names', () => {
     assert.equal(isBacteriostaticWaterProduct('Bacteriostatic Water'), true)
@@ -165,8 +165,14 @@ describe('bacteriostatic water display image', () => {
     assert.equal(isBacteriostaticWaterProduct('BPC-157'), false)
   })
 
-  it('returns the dedicated photo for BAC water only', () => {
-    assert.equal(getProductDisplayImage('Bacteriostatic Water'), BACTERIOSTATIC_WATER_IMAGE)
+  it('returns the Hospira photo for 30mL BAC water, not labeled 3mL/10mL', () => {
+    assert.equal(getProductDisplayImage('Bacteriostatic Water', '30mL'), BACTERIOSTATIC_WATER_IMAGE)
+    assert.equal(getProductDisplayImage('Bacteriostatic Water', '3mL'), null)
+    assert.equal(getProductDisplayImage('Bacteriostatic Water', '10mL'), null)
     assert.equal(getProductDisplayImage('Retatrutide'), null)
+  })
+
+  it('falls back to the Hospira photo when BAC water has no size', () => {
+    assert.equal(getProductDisplayImage('Bacteriostatic Water'), BACTERIOSTATIC_WATER_IMAGE)
   })
 })

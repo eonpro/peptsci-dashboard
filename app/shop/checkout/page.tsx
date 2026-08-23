@@ -39,6 +39,7 @@ import {
   BACKORDER_MIN_QUANTITY,
 } from '@/lib/shop/backorder'
 import { buildPracticeCheckoutAddress, type Address } from '@/lib/address'
+import { CheckoutBacWaterOffer } from '@/components/shop/CheckoutBacWaterOffer'
 
 type CheckoutStep = 'shipping' | 'payment'
 
@@ -339,6 +340,7 @@ export default function CheckoutPage() {
         <div className="space-y-6">
           {currentStep === 'shipping' && (
             <>
+              <CheckoutBacWaterOffer />
               {/* Ship to */}
               <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
                 <CardHeader className="border-b border-white/10 bg-white/5">

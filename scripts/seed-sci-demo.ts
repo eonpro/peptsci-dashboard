@@ -178,6 +178,31 @@ async function main() {
         { sku: 'KLOW-80', dose: '50mg/10mg/10mg/10mg', unitCost: 85, srp: 219, inventoryOnHand: 10 },
       ],
     },
+    {
+      name: 'Bacteriostatic Water',
+      description:
+        'Sterile bacteriostatic water (0.9% benzyl alcohol) for reconstituting lyophilized research peptides.',
+      category: 'Supplies',
+      casNumber: null,
+      molecularFormula: null,
+      molecularWeight: null,
+      pubchemCid: null,
+      peptideLength: null,
+      aka: 'BAC Water; BAC-H2O',
+      intendedUse: 'Research reconstitution',
+      variants: [
+        { sku: 'BAC-H2O-3ML', dose: '3mL', unitCost: 1.5, srp: 5, inventoryOnHand: 200 },
+        { sku: 'BAC-H2O-10ML', dose: '10mL', unitCost: 3, srp: 10, inventoryOnHand: 120 },
+        {
+          sku: 'BAC-H2O-30ML',
+          dose: '30mL',
+          unitCost: 6,
+          srp: 20,
+          inventoryOnHand: 80,
+          supplierName: 'Hospira',
+        },
+      ],
+    },
   ]
 
   // Demo vial photos (served from public/demo-products in local dev)
@@ -194,7 +219,7 @@ async function main() {
     const monograph = getMonographForName(p.name)
     const productDataWithContent = {
       ...productData,
-      purity: '99%',
+      purity: /bacteriostatic/i.test(p.name) ? null : '99%',
       ...(monograph ? { monograph } : {}),
     }
     const existing = await prisma.product.findFirst({ where: { name: p.name } })

@@ -152,4 +152,9 @@ describe('displayCatalogDose', () => {
     assert.equal(displayCatalogDose('Semax', 'SEMAX-30MG', '30mg'), '10mg')
     assert.equal(displayCatalogDose('Semax', 'SEMAX-10MG', '10mg'), '10mg')
   })
+
+  it('prints bacteriostatic water as mL, never 0mg', () => {
+    assert.equal(displayCatalogDose('Bacteriostatic Water', 'BAC-H20', '0mg'), '30mL')
+    assert.equal(displayCatalogDose('Bacteriostatic Water', 'BAC-H2O-3ML', '3mL'), '3mL')
+  })
 })

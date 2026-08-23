@@ -2,6 +2,13 @@ import { cn } from '@/lib/utils'
 import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
 import { resolveNamedBlendTradeName, namedBlendCardDose, displayCatalogDose } from '@/lib/products/named-blends'
 import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
+import {
+  bacWaterLabelVolume,
+  usesHospiraBacPhoto,
+  usesPeptSciBacLabel,
+} from '@/lib/shop/bac-water'
+
+export { isBacteriostaticWaterProduct } from '@/lib/shop/bac-water'
 
 /**
  * ProductVial — renders the photoreal blank vial with a dynamically generated
@@ -13,8 +20,8 @@ import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
  * filled with live HTML sized in container-query units so it scales with the
  * vial.
  *
- * Bacteriostatic water uses a dedicated product photo instead of the
- * generated PeptSci peptide label.
+ * 30 mL bacteriostatic water uses the Hospira product photo. 3 mL / 10 mL
+ * use a PeptSci label with volume only (no mg, purity, or RUO).
  */
 
 // Label rectangle as % of the cropped vial image (measured from the render)
@@ -85,19 +92,13 @@ function VialPowder({ color }: { color: PowderColor }) {
 /** Dedicated catalog photo for bacteriostatic water (not a peptide vial label). */
 export const BACTERIOSTATIC_WATER_IMAGE = '/shop/bacteriostatic-water.png?v=cutout'
 
-/** True when this catalog name is bacteriostatic / BAC water. */
-export function isBacteriostaticWaterProduct(name: string): boolean {
-  const n = (name || '').toLowerCase()
-  if (!n.trim()) return false
-  if (n.includes('bacteriostatic')) return true
-  if (n.includes('bac water') || n.includes('bac-water')) return true
-  if (n.includes('bac-h2o') || n.includes('bach2o') || n.includes('bacwater')) return true
-  return false
-}
-
-/** Override image for products that should not use the generated peptide label. */
-export function getProductDisplayImage(name: string): string | null {
-  if (isBacteriostaticWaterProduct(name)) return BACTERIOSTATIC_WATER_IMAGE
+/** Override image for Hospira 30 mL BAC water (labeled sizes use generated art). */
+export function getProductDisplayImage(
+  name: string,
+  dose?: string | null,
+  sku?: string | null
+): string | null {
+  if (usesHospiraBacPhoto(name, dose, sku)) return BACTERIOSTATIC_WATER_IMAGE
   return null
 }
 
@@ -203,7 +204,7 @@ interface ProductVialProps {
 }
 
 export function ProductVial({ product, className }: ProductVialProps) {
-  const photo = getProductDisplayImage(product.name)
+  const photo = getProductDisplayImage(product.name, product.dose, product.sku)
   if (photo) {
     return (
       <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
@@ -214,6 +215,59 @@ export function ProductVial({ product, className }: ProductVialProps) {
           draggable={false}
           className="absolute inset-0 h-full w-full object-contain"
         />
+      </div>
+    )
+  }
+
+  if (usesPeptSciBacLabel(product.name, product.dose, product.sku)) {
+    const volume = bacWaterLabelVolume(product.name, product.dose, product.sku)
+    return (
+      <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/vial/vial-blank.png"
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+        <div
+          className="absolute overflow-hidden"
+          style={{
+            left: `${LABEL.left}%`,
+            top: `${LABEL.top}%`,
+            width: `${LABEL.width}%`,
+            height: `${LABEL.height}%`,
+            containerType: 'size',
+          }}
+        >
+          <div className="flex h-full w-full items-stretch px-[5cqw] py-[6cqw] text-[#101123]">
+            <div className="relative h-full w-[20cqw] shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/vial/label-logo-vertical.png"
+                alt=""
+                draggable={false}
+                className="absolute inset-0 h-full w-full object-contain object-center"
+              />
+            </div>
+            <div className="mx-[3.5cqw] my-[2cqw] w-[0.6cqw] shrink-0 rounded-full bg-[#2b2c84]/80" />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-[5cqw]">
+              <div className="leading-[1.05] font-bold tracking-tight text-[#101123]">
+                <div className="overflow-hidden whitespace-nowrap text-clip text-[9.5cqw]">BAC</div>
+                <div className="overflow-hidden whitespace-nowrap text-clip text-[9.5cqw] text-brand-primary">
+                  Water
+                </div>
+              </div>
+              <div className="flex min-w-0 overflow-hidden rounded-[3cqw] bg-[#0b0d2b]">
+                <div className="flex w-full items-center justify-center py-[3cqw]">
+                  <span className="overflow-hidden whitespace-nowrap text-clip text-[11cqw] font-semibold text-white">
+                    {volume}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
