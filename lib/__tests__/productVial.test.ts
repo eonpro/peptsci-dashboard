@@ -5,6 +5,7 @@ import {
   getProductDisplayImage,
   isBacteriostaticWaterProduct,
   BACTERIOSTATIC_WATER_IMAGE,
+  namedBlendFaceDose,
   vialDoseBands,
   vialDoseParts,
 } from '@/components/shop/ProductVial'
@@ -55,18 +56,57 @@ describe('getCompoundParts', () => {
 })
 
 describe('vialDoseBands', () => {
-  it('puts the first GLOW dose in the black band and the rest in blue', () => {
-    assert.deepEqual(vialDoseBands(['50mg', '10mg', '10mg']), {
-      top: '50mg',
-      bottom: '10mg/10mg',
+  it('splits a two-peptide blend across black and blue bands', () => {
+    assert.deepEqual(vialDoseBands(['10mg', '10mg']), {
+      top: '10mg',
+      bottom: '10mg',
     })
   })
 
-  it('joins all remaining KLOW doses in the blue band', () => {
-    assert.deepEqual(vialDoseBands(['50mg', '10mg', '10mg', '10mg']), {
-      top: '50mg',
-      bottom: '10mg/10mg/10mg',
+  it('joins leftover parts in the blue band for unlabeled blends', () => {
+    assert.deepEqual(vialDoseBands(['5mg', '5mg', '5mg']), {
+      top: '5mg',
+      bottom: '5mg/5mg',
     })
+  })
+})
+
+describe('namedBlendFaceDose', () => {
+  it('prints GLOW as 70mg, not the GHK 50mg plus leftover milligrams', () => {
+    assert.equal(
+      namedBlendFaceDose({
+        name: 'GLOW',
+        sku: 'GLOW-70',
+        dose: '50mg/10mg/10mg',
+        compounds: [
+          { name: 'GHK-Cu', amount: '50mg' },
+          { name: 'BPC-157', amount: '10mg' },
+          { name: 'TB-500', amount: '10mg' },
+        ],
+      }),
+      '70mg'
+    )
+  })
+
+  it('prints KLOW as 80mg, not the GHK 50mg plus leftover milligrams', () => {
+    assert.equal(
+      namedBlendFaceDose({
+        name: 'KLOW',
+        sku: 'KLOW-80',
+        dose: '50mg/10mg/10mg/10mg',
+        compounds: [
+          { name: 'GHK-Cu', amount: '50mg' },
+          { name: 'BPC-157', amount: '10mg' },
+          { name: 'KPV', amount: '10mg' },
+          { name: 'TB-500', amount: '10mg' },
+        ],
+      }),
+      '80mg'
+    )
+  })
+
+  it('does not rewrite a single-peptide dose', () => {
+    assert.equal(namedBlendFaceDose({ name: 'Semax', sku: 'SEMAX-10MG', dose: '10mg' }), null)
   })
 })
 

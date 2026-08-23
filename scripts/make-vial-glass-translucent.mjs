@@ -1,16 +1,15 @@
 /**
- * Dev utility: make the blank vial's GLASS body translucent so the card
- * background shows through like a real glass vial.
+ * @deprecated Use scripts/punch-vial-backdrop.py instead.
+ *
+ * The 32% glass-fill alpha this script leaves still reads as a darker
+ * rectangle on brand-primary. The Python punch keys leftover studio blue
+ * around the cap and drops gray glass fill to true transparency.
  *
  * Regions (as % of image height, matching components/shop/ProductVial.tsx):
  *   0%–13%    blue cap + crimp seal  → untouched
  *   13%–44.4% glass shoulder/neck    → translucent body
  *   44.4%–87.6% printed label band   → untouched (must stay readable)
  *   87.6%–100% glass base            → translucent body
- *
- * Within glass rows, alpha is scaled by tone: bright specular highlights and
- * dark edge lines keep their opacity (they define the vial's shape); flat
- * mid-tone "glass fill" drops to ~35% so the background reads through.
  *
  * Usage: node scripts/make-vial-glass-translucent.mjs public/vial/vial-blank.png
  */

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { ChevronRight, FileText, Pencil } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
-import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
+import { resolveNamedBlendTradeName, displayCatalogDose } from '@/lib/products/named-blends'
 
 /** Per-SKU cost/SRP for Super Admin pricing cards (never sent to shop clients). */
 export interface AdminPricingSku {
@@ -127,10 +127,11 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
   const tradeName = resolveNamedBlendTradeName(product.name)
 
   // Sizes line ("5mg · 10mg") — grouped doses when available
-  const doseList =
+  const doseList = (
     product.availableDoses && product.availableDoses.length > 0
       ? product.availableDoses
       : sizes.map((s) => s.dose).filter(Boolean)
+  ).map((dose) => displayCatalogDose(product.name, product.sku, dose))
   const doseDisplay =
     doseList.join(' · ') ||
     product.dose ||
