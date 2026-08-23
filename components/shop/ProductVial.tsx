@@ -20,6 +20,68 @@ import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
 // Label rectangle as % of the cropped vial image (measured from the render)
 const LABEL = { left: 1.6, top: 44.4, width: 95.8, height: 43.2 }
 
+// Lyophilized powder cake in the glass strip below the label. Rendered BEHIND
+// the vial PNG: the glass there is ~32% alpha, so the cake reads as inside
+// the bottle instead of painted on top of it.
+const POWDER = { left: 7, top: 89.4, width: 86, height: 9.2 }
+
+export type PowderColor = 'white' | 'purple' | 'orange'
+
+/**
+ * Lyophilized cake color. GHK-Cu products and the GLOW/KLOW blends (which
+ * contain GHK-Cu) are purple, 5-Amino-1MQ is orange, everything else is white.
+ */
+export function vialPowderColor(name: string, sku?: string | null): PowderColor {
+  const trade = resolveNamedBlendTradeName(name, sku)
+  if (trade === 'GLOW' || trade === 'KLOW') return 'purple'
+  if (/ghk[\s-]?cu|copper\s+peptide/i.test(name || '')) return 'purple'
+  if (/5[\s-]?amino[\s-]?1[\s-]?mq/i.test(name || '')) return 'orange'
+  return 'white'
+}
+
+// Gradients are stronger than the target color: the ~32% alpha gray glass
+// in front mutes whatever renders behind it.
+const POWDER_STYLE: Record<PowderColor, { background: string; boxShadow: string }> = {
+  white: {
+    background: 'linear-gradient(180deg, #ffffff 0%, #f0f2f8 55%, #dde2ee 100%)',
+    boxShadow:
+      'inset 0 4cqh 8cqh rgba(255,255,255,0.9), inset 0 -8cqh 14cqh rgba(150,158,182,0.5)',
+  },
+  purple: {
+    background: 'linear-gradient(180deg, #9166dd 0%, #6a3fc0 55%, #542fa6 100%)',
+    boxShadow:
+      'inset 0 4cqh 8cqh rgba(255,255,255,0.5), inset 0 -8cqh 14cqh rgba(70,40,130,0.45)',
+  },
+  orange: {
+    background: 'linear-gradient(180deg, #ffab45 0%, #f58a1f 55%, #d96f0a 100%)',
+    boxShadow:
+      'inset 0 4cqh 8cqh rgba(255,255,255,0.55), inset 0 -8cqh 14cqh rgba(150,70,10,0.45)',
+  },
+}
+
+function VialPowder({ color }: { color: PowderColor }) {
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{
+        left: `${POWDER.left}%`,
+        top: `${POWDER.top}%`,
+        width: `${POWDER.width}%`,
+        height: `${POWDER.height}%`,
+        containerType: 'size',
+      }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          ...POWDER_STYLE[color],
+          borderRadius: '48% 52% 42% 42% / 26% 30% 58% 58%',
+        }}
+      />
+    </div>
+  )
+}
+
 /** Dedicated catalog photo for bacteriostatic water (not a peptide vial label). */
 export const BACTERIOSTATIC_WATER_IMAGE = '/shop/bacteriostatic-water.png?v=cutout'
 
@@ -176,6 +238,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
 
   return (
     <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
+      <VialPowder color={vialPowderColor(product.name, product.sku)} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/vial/vial-blank.png"

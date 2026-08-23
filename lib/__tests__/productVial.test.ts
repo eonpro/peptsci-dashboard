@@ -8,7 +8,32 @@ import {
   namedBlendFaceDose,
   vialDoseBands,
   vialDoseParts,
+  vialPowderColor,
 } from '@/components/shop/ProductVial'
+
+describe('vialPowderColor', () => {
+  it('is purple for GHK-Cu and the GLOW/KLOW blends that contain it', () => {
+    assert.equal(vialPowderColor('GHK-Cu'), 'purple')
+    assert.equal(vialPowderColor('GHK Cu 50mg'), 'purple')
+    assert.equal(vialPowderColor('Copper Peptide GHK'), 'purple')
+    assert.equal(vialPowderColor('GLOW', 'GLOW-70'), 'purple')
+    assert.equal(vialPowderColor('KLOW', 'KLOW-80'), 'purple')
+    assert.equal(vialPowderColor('GHK-Cu / BPC-157 / TB-500 Blend', 'GLOW-70'), 'purple')
+  })
+
+  it('is orange for 5-Amino-1MQ in any spelling', () => {
+    assert.equal(vialPowderColor('5-Amino-1MQ'), 'orange')
+    assert.equal(vialPowderColor('5 Amino 1MQ 50mg'), 'orange')
+    assert.equal(vialPowderColor('5-AMINO-1MQ', '5A1MQ-50'), 'orange')
+  })
+
+  it('is white for everything else', () => {
+    assert.equal(vialPowderColor('BPC-157'), 'white')
+    assert.equal(vialPowderColor('Semax', 'SEMAX-10MG'), 'white')
+    assert.equal(vialPowderColor('CJC-1295 (no DAC)'), 'white')
+    assert.equal(vialPowderColor('Bacteriostatic Water'), 'white')
+  })
+})
 
 describe('getCompoundParts', () => {
   it('uses name + dose for a single peptide line item', () => {
