@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
-import { resolveNamedBlendTradeName } from '@/lib/products/named-blends'
+import { resolveNamedBlendTradeName, namedBlendCardDose, displayCatalogDose } from '@/lib/products/named-blends'
 import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
 
 /**
@@ -21,7 +21,7 @@ import { resolveGlpTradeName } from '@/lib/products/glp-trade-names'
 const LABEL = { left: 1.6, top: 44.4, width: 95.8, height: 43.2 }
 
 /** Dedicated catalog photo for bacteriostatic water (not a peptide vial label). */
-export const BACTERIOSTATIC_WATER_IMAGE = '/shop/bacteriostatic-water.png'
+export const BACTERIOSTATIC_WATER_IMAGE = '/shop/bacteriostatic-water.png?v=cutout'
 
 /** True when this catalog name is bacteriostatic / BAC water. */
 export function isBacteriostaticWaterProduct(name: string): boolean {
@@ -49,7 +49,7 @@ export interface VialCompound {
  * order/cart line items only need name + dose.
  */
 export type VialProductInput = Pick<ShopProduct, 'name'> &
-  Partial<Pick<ShopProduct, 'dose' | 'milligrams' | 'compounds'>>
+  Partial<Pick<ShopProduct, 'dose' | 'milligrams' | 'compounds' | 'sku'>>
 
 /** Split a blend product into its component peptides (best effort). */
 export function getCompoundParts(product: VialProductInput): VialCompound[] {
@@ -109,6 +109,17 @@ export function vialDoseParts(product: VialProductInput, compounds: VialCompound
 }
 
 /**
+ * Named blends (GLOW/KLOW) print the vial total (70mg / 80mg). Other products
+ * return null so the label can use per-component bands or the stored dose.
+ */
+export function namedBlendFaceDose(product: VialProductInput): string | null {
+  const trade = resolveNamedBlendTradeName(product.name, product.sku)
+  if (!trade) return null
+  const parts = vialDoseParts(product, getCompoundParts(product))
+  return namedBlendCardDose(product.name, product.sku, parts.join('/') || product.dose || '')
+}
+
+/**
  * Pull a trailing modifier off a peptide name so it can render on its own
  * line under the main name: "CJC-1295 (no DAC)" → ["CJC-1295", "no DAC"],
  * "CJC-1295 Without DAC" → ["CJC-1295", "Without DAC"].
@@ -146,19 +157,28 @@ export function ProductVial({ product, className }: ProductVialProps) {
   }
 
   const compounds = getCompoundParts(product)
-  const trade = resolveNamedBlendTradeName(product.name) ?? resolveGlpTradeName(product.name)
+  const trade = resolveNamedBlendTradeName(product.name, product.sku) ?? resolveGlpTradeName(product.name)
   const isBlend = !trade && compounds.length >= 2
-  const bands = vialDoseBands(vialDoseParts(product, compounds))
-  const totalDose = product.dose || (product.milligrams ? `${product.milligrams}mg` : '')
+  const faceDose = namedBlendFaceDose(product)
+  const bands = faceDose ? null : vialDoseBands(vialDoseParts(product, compounds))
+  const totalDose =
+    faceDose ||
+    displayCatalogDose(
+      product.name,
+      product.sku,
+      product.dose || (product.milligrams ? `${product.milligrams}mg` : '')
+    )
   const purity = product.compounds?.[0]?.purity || '99%HPLC'
   // Compact purity for the tiny label ("99%+HPLC" style)
-  const purityShort = purity.replace(/\s+/g, '').toUpperCase()
+  const purityShort = (
+    faceDose ? (purity.replace(/hplc/gi, '').replace(/\s+/g, '') || '99%') : purity.replace(/\s+/g, '')
+  ).toUpperCase()
 
   return (
     <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/vial/vial-blank.png"
+        src="/vial/vial-blank.png?v=cutout"
         alt=""
         draggable={false}
         className="absolute inset-0 h-full w-full object-contain"
@@ -283,7 +303,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
                   <>
                     <div className="flex items-center justify-center bg-[#0b0d2b] py-[2cqw]">
                       <span className={cn(CLIP, 'text-[9cqw] font-semibold text-white')}>
-                        {(isBlend || trade ? totalDose : compounds[0].dose || totalDose) || '—'}
+                        {totalDose || compounds[0].dose || '—'}
                       </span>
                     </div>
                     <div className="flex items-center justify-center bg-[#2134d6] py-[1.2cqw]">

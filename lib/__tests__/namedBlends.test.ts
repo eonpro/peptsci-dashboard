@@ -6,10 +6,13 @@ import {
   displayProductAka,
   displayProductName,
   looksLikeCompoundList,
+  namedBlendCardDose,
   namedBlendCompoundSubtitle,
   namedBlendFromCompounds,
   namedBlendSkuKey,
   resolveNamedBlendTradeName,
+  displayCatalogDose,
+  sumSlashMgDose,
 } from '../products/named-blends'
 import { getBlendComposition, resolveBlendCompounds } from '../content/blend-compositions'
 
@@ -127,5 +130,26 @@ describe('resolveBlendCompounds', () => {
       fromTotal?.map((c) => `${c.name} ${c.amount}`),
       expected
     )
+  })
+})
+
+describe('namedBlendCardDose', () => {
+  it('sums GLOW and KLOW slash doses to the vial total', () => {
+    assert.equal(sumSlashMgDose('50mg/10mg/10mg'), '70mg')
+    assert.equal(sumSlashMgDose('50mg/10mg/10mg/10mg'), '80mg')
+    assert.equal(namedBlendCardDose('GLOW', 'GLOW-70', '50mg/10mg/10mg'), '70mg')
+    assert.equal(namedBlendCardDose('KLOW', 'KLOW-80', '50mg/10mg/10mg/10mg'), '80mg')
+  })
+
+  it('leaves Semax and other singles unchanged', () => {
+    assert.equal(namedBlendCardDose('Semax', 'SEMAX-10MG', '10mg'), '10mg')
+    assert.equal(namedBlendCardDose('GHK-Cu', 'GHK-50', '50mg'), '50mg')
+  })
+})
+
+describe('displayCatalogDose', () => {
+  it('shows the 10mg Semax we stock, not the leftover 30mg SKU label', () => {
+    assert.equal(displayCatalogDose('Semax', 'SEMAX-30MG', '30mg'), '10mg')
+    assert.equal(displayCatalogDose('Semax', 'SEMAX-10MG', '10mg'), '10mg')
   })
 })

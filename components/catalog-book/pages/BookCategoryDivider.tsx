@@ -1,5 +1,6 @@
 import { ProductVial } from '@/components/shop/ProductVial'
 import { BookCopyright, BookDisclaimer } from '../BookDisclaimer'
+import { displayCatalogDose } from '@/lib/products/named-blends'
 import {
   CATEGORY_BOOK_LABEL,
   catalogProductSummary,
@@ -11,7 +12,7 @@ function doseList(product: CategoryManifestPage['entries'][number]['product']): 
     product.availableDoses && product.availableDoses.length > 0
       ? product.availableDoses
       : [product.dose]
-  return doses.filter(Boolean)
+  return doses.filter(Boolean).map((dose) => displayCatalogDose(product.name, product.sku, dose))
 }
 
 function gridClass(count: number): string {
@@ -66,9 +67,7 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
                 className="animate-book-fade-up group flex h-full w-full flex-col items-center text-left"
                 style={{ animationDelay: `${i * 70}ms` }}
               >
-                <div
-                  className={`flex ${vialHeight} w-full items-end justify-center rounded-[1.75rem] bg-white/[0.03] ring-1 ring-white/8 transition-all duration-500 group-hover:bg-white/[0.06] group-hover:ring-brand-primary/40 group-hover:shadow-[0_24px_60px_rgba(33,60,239,0.18)]`}
-                >
+                <div className={`flex ${vialHeight} w-full items-end justify-center`}>
                   <ProductVial
                     product={product}
                     className={`${vialHeight} w-auto drop-shadow-[0_22px_36px_rgba(0,0,0,0.55)] transition-transform duration-500 ease-out group-hover:scale-[1.06]`}

@@ -77,7 +77,56 @@ export function displayProductName(name: string, sku?: string | null): string {
   return resolveNamedBlendTradeName(name, sku) ?? resolveGlpTradeName(name) ?? name
 }
 
-/** Canonical aka subtitle for a named blend (compound order matches label doses). */
+export const NAMED_BLEND_TOTAL_DOSE: Record<'GLOW' | 'KLOW', string> = {
+  GLOW: '70mg',
+  KLOW: '80mg',
+}
+
+/** Sum slash-separated milligram parts: "50mg/10mg/10mg" → "70mg". */
+export function sumSlashMgDose(dose: string): string | null {
+  const parts = dose
+    .split(/\s*[/+]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (parts.length < 2) return null
+  let total = 0
+  for (const part of parts) {
+    const match = part.match(/^(\d+(?:\.\d+)?)\s*mg$/i)
+    if (!match) return null
+    total += Number(match[1])
+  }
+  return `${Number.isInteger(total) ? String(total) : String(total)}mg`
+}
+
+/**
+ * Face dose for catalog vials and chips. GLOW/KLOW print the blend total
+ * (70mg / 80mg) instead of the first-component GHK amount.
+ */
+export function namedBlendCardDose(
+  name: string,
+  sku: string | null | undefined,
+  dose: string
+): string {
+  const trade = resolveNamedBlendTradeName(name, sku)
+  if (!trade) return dose
+  return sumSlashMgDose(dose) || NAMED_BLEND_TOTAL_DOSE[trade] || dose
+}
+
+/**
+ * Dose printed on catalog vials and chips. Named blends use the total;
+ * Semax is stocked at 10mg even if an older SKU still says 30mg.
+ */
+export function displayCatalogDose(
+  name: string,
+  sku: string | null | undefined,
+  dose: string
+): string {
+  const next = namedBlendCardDose(name, sku, dose)
+  if (sku && /semax[-_]?30/i.test(sku)) return '10mg'
+  if (/^semax$/i.test(name.trim()) && /^30mg$/i.test(next.replace(/\s+/g, ''))) return '10mg'
+  return next
+}
+
 export function namedBlendCompoundSubtitle(trade: 'GLOW' | 'KLOW'): string {
   if (trade === 'GLOW') return 'GHK-Cu / BPC-157 / TB-500'
   // Owner lock: GHK / BPC / KPV / TB so the dose card stays 50/10/10/10.
