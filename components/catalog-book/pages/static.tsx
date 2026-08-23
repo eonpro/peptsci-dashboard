@@ -222,17 +222,28 @@ export function BookCategoriesPage({
 export function BookShippingPage() {
   return (
     <div className="flex min-h-full flex-col bg-[#f4f5f8] px-8 py-10 text-brand-onyx sm:px-12 lg:px-16 xl:px-24">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
-        Fulfillment
-      </p>
-      <h2 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-        2-day nationwide <span className="text-brand-primary">shipping</span>
-      </h2>
-      <p className="mt-5 max-w-2xl text-sm leading-relaxed text-black/60 sm:text-base">
-        Controlled domestic distribution of research-grade materials throughout the United States.
-        Complimentary standard delivery on verified institutional orders over $500. Custom
-        formulations or large orders may take additional time after quality release.
-      </p>
+      <div className="grid items-center gap-8 lg:grid-cols-[1fr_minmax(0,26rem)]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
+            Fulfillment
+          </p>
+          <h2 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+            2-day nationwide <span className="text-brand-primary">shipping</span>
+          </h2>
+          <p className="mt-5 max-w-2xl text-sm leading-relaxed text-black/60 sm:text-base">
+            Controlled domestic distribution of research-grade materials throughout the United
+            States. Complimentary standard delivery on verified institutional orders over $500.
+            Custom formulations or large orders may take additional time after quality release.
+          </p>
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/catalog/shipping-bags.jpg"
+          alt="PeptSci discreet black and branded white shipping mailers"
+          draggable={false}
+          className="animate-book-fade-up hidden w-full rounded-3xl border border-black/6 object-cover shadow-[0_20px_50px_rgba(5,7,34,0.08)] lg:block"
+        />
+      </div>
       <div className="mt-12 grid flex-1 gap-5 sm:grid-cols-3">
         {[
           { title: 'Standard', detail: '3–4 business days in transit after quality release.' },
