@@ -18,8 +18,12 @@ interface CatalogBookProps {
   children: ReactNode
 }
 
+function padPage(n: number) {
+  return String(n).padStart(2, '0')
+}
+
 /**
- * Full-screen catalog pager: one page at a time, hash deep links, searchable
+ * Full-bleed catalog pager: one page at a time, hash deep links, searchable
  * TOC, keyboard + swipe. Page bodies are server-rendered and passed in so the
  * labeled vials match the shop without shipping catalog data to the client.
  */
@@ -159,13 +163,14 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
   const current = pages[index]
   const nextLabel = pages[index + 1]?.tocLabel
   const prevLabel = pages[index - 1]?.tocLabel
+  const progress = total === 0 ? 0 : ((index + 1) / total) * 100
 
   return (
-    <div className="flex h-dvh flex-col bg-brand-onyx">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-brand-onyx">
+      <header className="relative z-20 flex items-center justify-between gap-3 border-b border-white/8 bg-brand-onyx/80 px-4 py-2.5 backdrop-blur-xl sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
+          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/65 transition-colors hover:text-white"
         >
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path
@@ -177,13 +182,13 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
           Home
         </Link>
 
-        <div className="hidden min-w-0 text-center sm:block" aria-live="polite">
+        <div className="min-w-0 flex-1 text-center" aria-live="polite">
           {current?.tocGroup && (
-            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
               {current.tocGroup}
             </p>
           )}
-          <p className="truncate text-sm font-semibold uppercase tracking-[0.14em] text-white/90">
+          <p className="truncate text-sm font-semibold uppercase tracking-[0.16em] text-white">
             {current?.tocLabel ?? `${CATALOG_YEAR} Catalog`}
           </p>
         </div>
@@ -195,35 +200,35 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
               setTocQuery('')
               setTocOpen(true)
             }}
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-white/20"
+            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-all hover:border-white/25 hover:bg-white/14"
           >
             Contents
           </button>
           <button
             type="button"
             onClick={() => void copyShareLink()}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-110"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-all hover:brightness-110 active:scale-95"
           >
             {copied ? 'Copied' : 'Share'}
           </button>
         </div>
       </header>
 
-      <div className="mx-4 h-0.5 overflow-hidden rounded-full bg-white/10 sm:mx-6">
+      <div className="relative z-20 h-[2px] bg-white/8">
         <div
-          className="h-full rounded-full bg-brand-primary transition-[width] duration-500 ease-out"
-          style={{ width: `${total === 0 ? 0 : ((index + 1) / total) * 100}%` }}
+          className="h-full bg-brand-primary transition-[width] duration-500 ease-out"
+          style={{ width: `${progress}%` }}
         />
       </div>
 
       <div
         ref={stageRef}
-        className="relative flex-1 overflow-y-auto px-2 pb-2 pt-2 sm:px-6 sm:pt-3"
+        className="relative min-h-0 flex-1 overflow-y-auto"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onClick={onStageClick}
       >
-        <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
+        <div className="flex min-h-full w-full flex-col">
           {pagesContent.map((page, i) => {
             if (Math.abs(i - index) > 1) return null
             return (
@@ -232,7 +237,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
                 hidden={i !== index}
                 className={
                   i === index
-                    ? `flex flex-1 flex-col overflow-hidden rounded-2xl [&_>_div]:flex-1 [&_>_div]:min-h-full ${
+                    ? `flex min-h-full flex-1 flex-col [&_>_div]:min-h-full [&_>_div]:flex-1 ${
                         direction === 'fwd' ? 'animate-book-in-right' : 'animate-book-in-left'
                       }`
                     : undefined
@@ -246,7 +251,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
 
         <nav
           aria-label="Pages"
-          className="fixed right-2 top-1/2 hidden -translate-y-1/2 flex-col items-center gap-[5px] lg:flex"
+          className="pointer-events-none absolute right-3 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-center gap-1.5 lg:flex"
         >
           {pages.map((p, i) => (
             <button
@@ -256,19 +261,19 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
               aria-label={`Go to page ${i + 1}${p.tocLabel ? ` — ${p.tocLabel}` : ''}`}
               aria-current={i === index ? 'page' : undefined}
               onClick={() => goTo(i)}
-              className={`rounded-full transition-all duration-300 ${
+              className={`pointer-events-auto rounded-full transition-all duration-300 ${
                 i === index
-                  ? 'h-5 w-1.5 bg-brand-primary'
-                  : 'h-1.5 w-1.5 bg-white/25 hover:scale-150 hover:bg-white/70'
+                  ? 'h-7 w-1.5 bg-brand-primary shadow-[0_0_12px_rgba(33,60,239,0.8)]'
+                  : 'h-1.5 w-1.5 bg-white/30 hover:scale-150 hover:bg-white'
               }`}
             />
           ))}
         </nav>
       </div>
 
-      <footer className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3.5 sm:px-6">
+      <footer className="relative z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-white/8 bg-brand-onyx/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
         <div className="flex items-center justify-end gap-3">
-          <span className="hidden max-w-[180px] truncate text-right text-xs text-white/45 md:block">
+          <span className="hidden max-w-[220px] truncate text-right text-xs text-white/40 md:block">
             {prevLabel}
           </span>
           <button
@@ -276,7 +281,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
             onClick={prev}
             disabled={index <= 0}
             aria-label="Previous page"
-            className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-full border border-white/12 bg-white/8 text-white transition-all hover:border-white/25 hover:bg-white/16 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path
@@ -290,9 +295,9 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
 
         <span
           aria-live="polite"
-          className="min-w-[5.5rem] text-center text-sm font-medium tabular-nums text-white/80"
+          className="min-w-[7rem] text-center text-xs font-semibold uppercase tracking-[0.22em] tabular-nums text-white/80"
         >
-          {total === 0 ? '0 / 0' : `${index + 1} / ${total}`}
+          {total === 0 ? '00 / 00' : `${padPage(index + 1)} / ${padPage(total)}`}
         </span>
 
         <div className="flex items-center justify-start gap-3">
@@ -301,7 +306,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
             onClick={next}
             disabled={index >= total - 1}
             aria-label="Next page"
-            className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-white/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-brand-primary text-white shadow-[0_8px_24px_rgba(33,60,239,0.35)] transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25 disabled:shadow-none"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path
@@ -311,7 +316,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
               />
             </svg>
           </button>
-          <span className="hidden max-w-[180px] truncate text-xs text-white/45 md:block">
+          <span className="hidden max-w-[220px] truncate text-xs text-white/40 md:block">
             {nextLabel}
           </span>
         </div>
@@ -323,44 +328,44 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
             type="button"
             aria-label="Close table of contents"
             onClick={() => setTocOpen(false)}
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
-          <div className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-black/8 px-5 py-4">
-              <span className="text-sm font-bold uppercase tracking-wider text-brand-onyx">
+          <div className="absolute inset-y-0 right-0 flex w-full max-w-md animate-book-in-right flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-black/8 px-6 py-5">
+              <span className="text-sm font-bold uppercase tracking-[0.2em] text-brand-onyx">
                 Contents
               </span>
               <button
                 type="button"
                 onClick={() => setTocOpen(false)}
                 aria-label="Close"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-brand-onyx/60 hover:bg-black/5"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-brand-onyx/60 transition-colors hover:bg-black/5"
               >
                 ×
               </button>
             </div>
-            <div className="border-b border-black/8 px-5 py-3">
+            <div className="border-b border-black/8 px-6 py-4">
               <input
                 type="search"
                 value={tocQuery}
                 onChange={(e) => setTocQuery(e.target.value)}
                 placeholder="Search products…"
                 autoFocus
-                className="w-full rounded-full bg-[#f4f5f8] px-4 py-2 text-sm text-brand-onyx placeholder:text-black/40 focus:outline-none"
+                className="w-full rounded-full bg-[#f4f5f8] px-5 py-2.5 text-sm text-brand-onyx placeholder:text-black/40 focus:outline-none"
               />
             </div>
-            <nav className="flex-1 overflow-y-auto px-3 py-4">
+            <nav className="flex-1 overflow-y-auto px-4 py-5">
               {tocGroups.length === 0 && (
                 <p className="px-2 py-6 text-center text-sm text-black/50">
                   No pages match “{tocQuery}”
                 </p>
               )}
               {tocGroups.map(({ group, entries }) => (
-                <div key={group} className="mb-5">
-                  <p className="px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black/40">
+                <div key={group} className="mb-6">
+                  <p className="px-3 text-[11px] font-bold uppercase tracking-[0.2em] text-black/35">
                     {group}
                   </p>
-                  <ul className="mt-1.5">
+                  <ul className="mt-2">
                     {entries.map(({ label, index: i }) => (
                       <li key={i}>
                         <button
@@ -370,12 +375,12 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
                             setTocOpen(false)
                           }}
                           aria-current={i === index ? 'page' : undefined}
-                          className={`flex w-full items-baseline justify-between gap-3 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-[#f4f5f8] ${
+                          className={`flex w-full items-baseline justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-[#f4f5f8] ${
                             i === index ? 'bg-[#f4f5f8] font-semibold text-brand-primary' : 'text-brand-onyx/80'
                           }`}
                         >
                           <span>{label}</span>
-                          <span className="text-xs tabular-nums text-black/35">{i + 1}</span>
+                          <span className="text-xs tabular-nums text-black/30">{padPage(i + 1)}</span>
                         </button>
                       </li>
                     ))}

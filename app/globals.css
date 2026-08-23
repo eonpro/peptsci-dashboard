@@ -569,31 +569,69 @@ textarea {
 @keyframes bookInRight {
   from {
     opacity: 0;
-    transform: translateX(28px);
+    transform: translateX(4.5%) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
   }
 }
 
 @keyframes bookInLeft {
   from {
     opacity: 0;
-    transform: translateX(-28px);
+    transform: translateX(-4.5%) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes bookFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bookOrb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -6%, 0) scale(1.08);
   }
 }
 
 .animate-book-in-right {
-  animation: bookInRight 0.35s ease-out;
+  animation: bookInRight 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .animate-book-in-left {
-  animation: bookInLeft 0.35s ease-out;
+  animation: bookInLeft 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-book-fade-up {
+  animation: bookFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-book-orb {
+  animation: bookOrb 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-book-in-right,
+  .animate-book-in-left,
+  .animate-book-fade-up,
+  .animate-book-orb {
+    animation: none !important;
+  }
 }
 
 /* Focus ring for accessibility */
