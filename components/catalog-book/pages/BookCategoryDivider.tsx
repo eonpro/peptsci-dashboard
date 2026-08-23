@@ -6,6 +6,20 @@ import {
   catalogProductSummary,
   type CategoryManifestPage,
 } from '@/lib/catalog-book'
+import type { ShopCategoryBucket } from '@/lib/shop-categories'
+
+// Themed chapter art (derived from the print-catalog look): each bucket gets
+// scientific imagery matching the peptide class, dimmed under the content.
+const CATEGORY_BACKDROP: Record<ShopCategoryBucket, string> = {
+  'Weight Loss': '/catalog/backdrops/weight-loss.jpg',
+  'Growth Hormone': '/catalog/backdrops/growth-hormone.jpg',
+  'Recovery & Repair': '/catalog/backdrops/recovery.jpg',
+  Longevity: '/catalog/backdrops/longevity.jpg',
+  Cognitive: '/catalog/backdrops/cognitive.jpg',
+  'Skin & Beauty': '/catalog/backdrops/skin-beauty.jpg',
+  Wellness: '/catalog/backdrops/wellness.jpg',
+  Specialty: '/catalog/backdrops/specialty.jpg',
+}
 
 function doseList(product: CategoryManifestPage['entries'][number]['product']): string[] {
   const doses =
@@ -36,6 +50,19 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
 
   return (
     <div className="relative flex min-h-full flex-col overflow-hidden bg-[#050722] px-6 py-8 text-white sm:px-10 lg:px-14 xl:px-20">
+      {/* Chapter art, dimmed so vials and copy stay legible */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={CATEGORY_BACKDROP[page.bucket]}
+        alt=""
+        aria-hidden
+        draggable={false}
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-55"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050722]/60 via-[#050722]/45 to-[#050722]/85"
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(33,60,239,0.22),transparent_70%)]"
