@@ -178,7 +178,7 @@ export function ProductVial({ product, className }: ProductVialProps) {
     <div className={cn('relative aspect-400/911 select-none', className)} aria-hidden="true">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/vial/vial-blank.png?v=restore"
+        src="/vial/vial-blank.png"
         alt=""
         draggable={false}
         className="absolute inset-0 h-full w-full object-contain"

@@ -55,7 +55,7 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
         />
         <ProductVial
           product={product}
-          className="animate-book-fade-up relative h-72 w-auto drop-shadow-[0_18px_24px_rgba(0,0,0,0.22)] sm:h-80 lg:h-[28rem]"
+          className="animate-book-fade-up relative h-72 w-auto drop-shadow-[0_28px_50px_rgba(0,0,0,0.35)] sm:h-80 lg:h-[28rem]"
         />
       </aside>
 
