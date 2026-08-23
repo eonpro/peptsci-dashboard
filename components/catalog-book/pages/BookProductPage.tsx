@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Fingerprint, Hexagon, Scale, ShieldCheck } from 'lucide-react'
 import { ProductVial, getCompoundParts } from '@/components/shop/ProductVial'
 import { BookCopyright, BookDisclaimer } from '../BookDisclaimer'
 import { CATEGORY_BOOK_LABEL, formatListPrice, offeredSizeOptions } from '@/lib/catalog-book'
@@ -155,36 +156,85 @@ export function BookProductPage({ product }: { product: ShopProduct }) {
             </div>
           </section>
         ) : (
-          <section className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: 'CAS', value: product.casNumber || '—' },
-              {
-                label: 'Formula',
-                value: formatMolecularFormula(product.molecularFormula) ?? '—',
-              },
-              { label: 'MW', value: product.molecularWeight || '—' },
-              { label: 'Purity', value: purity },
-            ].map((spec) => (
-              <div key={spec.label} className="rounded-2xl border border-black/8 bg-[#f7f6f2] px-4 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-black/45">
-                  {spec.label}
-                </p>
-                <p className="mt-1.5 truncate text-sm font-semibold text-brand-onyx">{spec.value}</p>
+          <section className="mt-10">
+            <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-brand-onyx">
+              Specifications
+            </h3>
+            {/* Dark lab-data plate echoing the catalog's navy chapters */}
+            <div className="relative mt-4 overflow-hidden rounded-3xl bg-[#050722] shadow-[0_24px_60px_rgba(5,7,34,0.3)]">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(33,60,239,0.32),transparent_58%)]"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-primary/60 to-transparent"
+              />
+              <div className="relative grid grid-cols-2 sm:grid-cols-4 sm:divide-x sm:divide-white/8">
+                {[
+                  { icon: Fingerprint, label: 'CAS Number', value: product.casNumber || '—' },
+                  {
+                    icon: Hexagon,
+                    label: 'Formula',
+                    value: formatMolecularFormula(product.molecularFormula) ?? '—',
+                  },
+                  { icon: Scale, label: 'Molar Mass', value: product.molecularWeight || '—' },
+                  {
+                    icon: ShieldCheck,
+                    label: 'Purity · HPLC',
+                    value: <span className="text-[#8da0ff]">{purity}</span>,
+                  },
+                ].map((spec) => (
+                  <div key={spec.label} className="px-5 py-5 sm:px-6">
+                    <div className="flex items-center gap-2 text-white/40">
+                      <spec.icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em]">
+                        {spec.label}
+                      </p>
+                    </div>
+                    <p className="mt-2 break-words text-[15px] font-semibold leading-snug tracking-tight text-white">
+                      {spec.value}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </section>
         ))}
 
         {observations.length > 0 && (
-          <section className="mt-8 grid gap-3 sm:grid-cols-2">
-            {observations.map((obs) => (
-              <div key={obs.title} className="rounded-2xl border border-black/8 bg-[#f7f6f2] px-5 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-black/45">
-                  {obs.title}
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-black/70">{obs.detail}</p>
-              </div>
-            ))}
+          <section className="mt-10">
+            <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-brand-onyx">
+              Research highlights
+            </h3>
+            <p className="mt-1.5 text-xs text-black/45">
+              Reported in preclinical, in-vitro, and early-phase research. Not treatment claims.
+            </p>
+            {/* Odd counts: the last card spans the row so no orphan gap is left. */}
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 [&>*:last-child:nth-child(odd)]:sm:col-span-2">
+              {observations.map((obs, i) => (
+                <div
+                  key={obs.title}
+                  className="group relative overflow-hidden rounded-3xl border border-black/6 bg-white p-6 shadow-[0_14px_36px_rgba(5,7,34,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-primary/25 hover:shadow-[0_24px_52px_rgba(33,60,239,0.12)]"
+                >
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-brand-primary/[0.07] blur-2xl transition-colors duration-300 group-hover:bg-brand-primary/[0.14]"
+                  />
+                  <div className="relative flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-sm font-bold tabular-nums text-brand-primary">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <p className="text-[15px] font-semibold tracking-tight text-brand-onyx">
+                      {obs.title}
+                    </p>
+                  </div>
+                  <p className="relative mt-3 text-sm leading-relaxed text-black/60">
+                    {obs.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
