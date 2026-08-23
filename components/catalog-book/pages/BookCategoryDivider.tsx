@@ -70,7 +70,7 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
                 <div className={`flex ${vialHeight} w-full items-end justify-center`}>
                   <ProductVial
                     product={product}
-                    className={`${vialHeight} w-auto drop-shadow-[0_22px_36px_rgba(0,0,0,0.55)] transition-transform duration-500 ease-out group-hover:scale-[1.06]`}
+                    className={`${vialHeight} w-auto drop-shadow-[0_14px_18px_rgba(0,0,0,0.28)] transition-transform duration-500 ease-out group-hover:scale-[1.06]`}
                   />
                 </div>
                 <span className="mt-5 flex min-h-[3.5rem] items-start justify-center text-center text-base font-semibold leading-tight tracking-tight text-white transition-colors group-hover:text-brand-primary sm:text-lg">
