@@ -10,6 +10,7 @@ import {
   formatBacWaterSizeLabel,
   isBacteriostaticWaterProduct,
   isLegacyBacWaterThirtyMl,
+  normalizeBacWaterVolume,
   omitsPeptideSciSpecs,
   peptideVialCount,
   shouldOfferBacWaterAtCheckout,
@@ -17,6 +18,7 @@ import {
   usesHospiraBacPhoto,
   usesPeptSciBacLabel,
 } from '../shop/bac-water'
+import { planBacWaterVariants } from '../shop/bac-water-plan'
 import { groupProductsByParent, type ShopProduct } from '../types/shop'
 
 function product(partial: Partial<ShopProduct> & Pick<ShopProduct, 'name' | 'sku'>): ShopProduct {
@@ -116,6 +118,74 @@ describe('BAC water presentation', () => {
         { sku: BAC_WATER_SKUS.labeled3ml, dose: '3mL', displayPrice: 5 },
         { sku: BAC_WATER_SKUS.labeled10ml, dose: '10mL', displayPrice: 10 },
         { sku: 'BAC-H20', dose: '30mL', displayPrice: 20 },
+      ]
+    )
+  })
+})
+
+describe('BAC water admin vial size entry', () => {
+  it('coerces admin-entered sizes to mL, including bare numbers and mg typos', () => {
+    assert.equal(normalizeBacWaterVolume('3'), '3mL')
+    assert.equal(normalizeBacWaterVolume('10'), '10mL')
+    assert.equal(normalizeBacWaterVolume('30 ml'), '30mL')
+    assert.equal(normalizeBacWaterVolume('10ML'), '10mL')
+    assert.equal(normalizeBacWaterVolume('10mg'), '10mL')
+    assert.equal(normalizeBacWaterVolume('0mg'), '')
+    assert.equal(normalizeBacWaterVolume(''), '')
+    assert.equal(normalizeBacWaterVolume(null), '')
+  })
+})
+
+describe('BAC water variant plan', () => {
+  it('turns the lone BAC-H20 row into 30mL and creates 3mL and 10mL', () => {
+    const plan = planBacWaterVariants([{ id: 'v1', sku: 'BAC-H20', dose: '0mg' }])
+    assert.deepEqual(
+      plan.map((s) => ({ action: s.action, sku: s.sku, dose: s.dose, srp: s.srp })),
+      [
+        { action: 'create', sku: BAC_WATER_SKUS.labeled3ml, dose: '3mL', srp: 5 },
+        { action: 'create', sku: BAC_WATER_SKUS.labeled10ml, dose: '10mL', srp: 10 },
+        { action: 'update', sku: 'BAC-H20', dose: '30mL', srp: 20 },
+      ]
+    )
+    // The legacy row keeps its SKU so orders and COAs stay attached.
+    assert.equal(plan[2].variantId, 'v1')
+    assert.equal(plan[2].fromDose, '0mg')
+    assert.equal(plan[2].supplierName, 'Hospira')
+    assert.equal(plan[0].supplierName, null)
+  })
+
+  it('is idempotent once all three sizes exist', () => {
+    const live = [
+      { id: 'a', sku: BAC_WATER_SKUS.labeled3ml, dose: '3mL' },
+      { id: 'b', sku: BAC_WATER_SKUS.labeled10ml, dose: '10mL' },
+      { id: 'c', sku: 'BAC-H20', dose: '30mL' },
+    ]
+    const plan = planBacWaterVariants(live)
+    assert.deepEqual(
+      plan.map((s) => [s.action, s.variantId, s.dose]),
+      [
+        ['update', 'a', '3mL'],
+        ['update', 'b', '10mL'],
+        ['update', 'c', '30mL'],
+      ]
+    )
+  })
+
+  it('never claims the same live variant for two sizes', () => {
+    const plan = planBacWaterVariants([{ id: 'only', sku: 'BAC-H2O', dose: '' }])
+    const claimed = plan.filter((s) => s.variantId === 'only')
+    assert.equal(claimed.length, 1)
+    assert.equal(claimed[0].dose, '30mL')
+  })
+
+  it('creates all three when the catalog has no BAC water yet', () => {
+    const plan = planBacWaterVariants([])
+    assert.deepEqual(
+      plan.map((s) => [s.action, s.sku]),
+      [
+        ['create', BAC_WATER_SKUS.labeled3ml],
+        ['create', BAC_WATER_SKUS.labeled10ml],
+        ['create', BAC_WATER_SKUS.hospira30ml],
       ]
     )
   })
