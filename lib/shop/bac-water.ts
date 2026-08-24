@@ -113,6 +113,20 @@ export function formatBacWaterSizeLabel(dose?: string | null, sku?: string | nul
   return '30mL'
 }
 
+/**
+ * Coerce an admin-entered vial size to a mL label. BAC water is sold by
+ * volume, so a bare number ("10") or a mg typo ("10mg") both become "10mL".
+ * Returns '' when no positive number is present — callers fall back to
+ * `formatBacWaterSizeLabel`, which resolves legacy 0mg rows to 30mL.
+ */
+export function normalizeBacWaterVolume(input: string | null | undefined): string {
+  const match = (input || '').match(/\d+(?:\.\d+)?/)
+  if (!match) return ''
+  const ml = parseFloat(match[0])
+  if (!Number.isFinite(ml) || ml <= 0) return ''
+  return `${ml}mL`
+}
+
 export interface BacWaterCatalogRow {
   sku: string
   dose: string

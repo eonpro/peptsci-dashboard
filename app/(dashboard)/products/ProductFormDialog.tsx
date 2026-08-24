@@ -21,6 +21,11 @@ import {
   resolveBlendEditState,
   type BlendComponent,
 } from '@/lib/products/blend'
+import {
+  formatBacWaterSizeLabel,
+  isBacteriostaticWaterProduct,
+  normalizeBacWaterVolume,
+} from '@/lib/shop/bac-water'
 
 export interface ProductFormValues {
   id?: string
@@ -104,7 +109,13 @@ export default function ProductFormDialog({
 
   useEffect(() => {
     if (open) {
-      setValues(initial ? { ...initial } : { ...EMPTY })
+      // BAC water is sold by volume, so a legacy "0mg" row reopens as "30mL".
+      const prefill = initial
+        ? isBacteriostaticWaterProduct(initial.name, initial.sku)
+          ? { ...initial, dose: formatBacWaterSizeLabel(initial.dose, initial.sku) }
+          : { ...initial }
+        : { ...EMPTY }
+      setValues(prefill)
       // Compound-list names and known named blends (GLOW/KLOW) reopen in blend
       // mode. Slash-separated aka on a single peptide (e.g. Retatrutide
       // receptor list) must NOT flip the form into blend — that wiped the mg
@@ -129,12 +140,18 @@ export default function ProductFormDialog({
 
   const blendPreview = composeBlendProduct(blend)
 
+  // Bacteriostatic water is a supply, not a peptide: it ships by mL, is never a
+  // blend, and carries no purity spec.
+  const isBacWater = isBacteriostaticWaterProduct(values.name, values.sku)
+
   async function save() {
     setError(null)
     let name = values.name.trim()
     let dose = values.dose.trim()
     let aka = values.aka.trim()
-    if (productType === 'blend') {
+    if (isBacWater) {
+      dose = normalizeBacWaterVolume(dose) || formatBacWaterSizeLabel(dose, values.sku)
+    } else if (productType === 'blend') {
       const filled = blend.filter((c) => c.name.trim() !== '')
       if (filled.length < 2) {
         setError('A blend needs at least two compound names')
@@ -189,7 +206,7 @@ export default function ProductFormDialog({
         supplierName: values.supplierName.trim(),
         supplierSku: values.supplierSku.trim(),
         ...(reorderLevel !== undefined ? { reorderLevel: Math.trunc(reorderLevel) } : {}),
-        purity: values.purity.trim() || null,
+        purity: isBacWater ? null : values.purity.trim() || null,
         monograph: formToMonograph({
           overview: values.overview,
           mechanismOfAction: values.mechanismOfAction,
@@ -241,8 +258,9 @@ export default function ProductFormDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          {/* Product type: single compound vs blend of compounds */}
-          <div className="space-y-1.5">
+          {/* Product type: single compound vs blend of compounds. Hidden for
+              bacteriostatic water, which is a supply rather than a peptide. */}
+          <div className={`space-y-1.5 ${isBacWater ? 'hidden' : ''}`}>
             <Label className={labelClass}>Product type</Label>
             <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-[#0a0e3a] p-1">
               {(
@@ -267,7 +285,7 @@ export default function ProductFormDialog({
             </div>
           </div>
 
-          {productType === 'single' ? (
+          {isBacWater || productType === 'single' ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -292,13 +310,18 @@ export default function ProductFormDialog({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className={labelClass}>Dose</Label>
+                  <Label className={labelClass}>{isBacWater ? 'Vial size (mL)' : 'Dose'}</Label>
                   <Input
                     className={inputClass}
-                    placeholder="10mg"
+                    placeholder={isBacWater ? '10mL' : '10mg'}
                     value={values.dose}
                     onChange={(e) => set('dose', e.target.value)}
                   />
+                  {isBacWater && (
+                    <p className="text-white/40 text-[11px]">
+                      Sold by volume — 3mL, 10mL, or 30mL. Saved as mL, never mg.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label className={labelClass}>Category</Label>
@@ -514,17 +537,20 @@ export default function ProductFormDialog({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Purity</Label>
-                <Input
-                  className={inputClass}
-                  placeholder="99%"
-                  value={values.purity}
-                  onChange={(e) => set('purity', e.target.value)}
-                />
+            {/* Water has no purity spec — the catalog hides the card for it. */}
+            {!isBacWater && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Purity</Label>
+                  <Input
+                    className={inputClass}
+                    placeholder="99%"
+                    value={values.purity}
+                    onChange={(e) => set('purity', e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className={labelClass}>Overview (one paragraph per line)</Label>
