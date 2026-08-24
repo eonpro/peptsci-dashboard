@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CoaCertificate } from '@/components/coa/CoaCertificate'
 import type { CoaData } from '@/lib/coa'
+import { blendContextFor } from '@/lib/coa-blend'
 import { cn } from '@/lib/utils'
 import { Loader2, FileText, Download, ExternalLink } from 'lucide-react'
 
@@ -125,7 +126,10 @@ export function CoaDialog({ sku, productName, open, onOpenChange }: CoaDialogPro
               No published certificate is available for this product yet.
             </p>
           ) : (
-            <CoaCertificate data={activeCoa} />
+            <CoaCertificate
+              data={activeCoa}
+              blendContext={blendContextFor(productName, null, activeCoa.compoundName)}
+            />
           )}
         </div>
       </DialogContent>

@@ -13,10 +13,10 @@ import {
 } from '../fulfillment/wizard-core.ts'
 
 describe('WIZARD_STEPS', () => {
-  test('runs verify → vial labels → packing slip → photo → ship → review', () => {
+  test('runs verify → vial labels → packing slip → COAs → photo → ship → review', () => {
     assert.deepEqual(
       [...WIZARD_STEPS],
-      ['VERIFY', 'VIAL_LABELS', 'PACKING_SLIP', 'PHOTO', 'SHIP', 'REVIEW']
+      ['VERIFY', 'VIAL_LABELS', 'PACKING_SLIP', 'COAS', 'PHOTO', 'SHIP', 'REVIEW']
     )
   })
 
@@ -38,7 +38,8 @@ describe('nextStep', () => {
   test('advances through the flow in order', () => {
     assert.equal(nextStep('VERIFY'), 'VIAL_LABELS')
     assert.equal(nextStep('VIAL_LABELS'), 'PACKING_SLIP')
-    assert.equal(nextStep('PACKING_SLIP'), 'PHOTO')
+    assert.equal(nextStep('PACKING_SLIP'), 'COAS')
+    assert.equal(nextStep('COAS'), 'PHOTO')
     assert.equal(nextStep('PHOTO'), 'SHIP')
     assert.equal(nextStep('SHIP'), 'REVIEW')
   })
@@ -53,6 +54,8 @@ describe('previousStep', () => {
   test('walks back through the flow', () => {
     assert.equal(previousStep('REVIEW'), 'SHIP')
     assert.equal(previousStep('SHIP'), 'PHOTO')
+    assert.equal(previousStep('PHOTO'), 'COAS')
+    assert.equal(previousStep('COAS'), 'PACKING_SLIP')
     assert.equal(previousStep('VIAL_LABELS'), 'VERIFY')
   })
 
@@ -70,6 +73,7 @@ describe('stageForStep', () => {
   test('confirming the products counts the order as picked', () => {
     assert.equal(stageForStep('VIAL_LABELS'), 'PICKED')
     assert.equal(stageForStep('PACKING_SLIP'), 'PICKED')
+    assert.equal(stageForStep('COAS'), 'PICKED')
     assert.equal(stageForStep('PHOTO'), 'PICKED')
   })
 

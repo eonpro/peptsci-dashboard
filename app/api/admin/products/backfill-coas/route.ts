@@ -48,6 +48,14 @@ interface ManifestItem {
   assayMeasuredMg?: number
   identity?: string
   signedBy?: string
+  issuingLab?: string
+  testingLab?: string
+  manufacturer?: string
+  clientOfRecord?: string
+  distributor?: string
+  appearance?: string
+  notes?: string
+  puritySpecMin?: number
 }
 
 interface ManifestCommon {
@@ -147,26 +155,27 @@ function buildCoaData(
     compoundName: item.productName,
     doseLabel: item.doseLabel ?? null,
     casNumber: item.casNumber ?? null,
-    appearance: common.appearance ?? null,
+    appearance: item.appearance ?? common.appearance ?? null,
     batchNumber: item.batchNumber ?? null,
     taskNumber: item.taskNumber,
     reportCode: item.reportCode ?? null,
-    issuingLab: common.issuingLab ?? null,
+    issuingLab: item.issuingLab ?? common.issuingLab ?? null,
     signedBy: item.signedBy ?? null,
-    manufacturer: common.manufacturer ?? null,
-    testingLab: common.testingLab ?? null,
-    clientOfRecord: common.clientOfRecord ?? null,
-    distributor: common.distributor ?? null,
+    manufacturer: item.manufacturer ?? common.manufacturer ?? null,
+    testingLab: item.testingLab ?? common.testingLab ?? null,
+    clientOfRecord: item.clientOfRecord ?? common.clientOfRecord ?? null,
+    distributor: item.distributor ?? common.distributor ?? null,
     orderedOn: item.orderedOn ? new Date(item.orderedOn) : null,
     receivedOn: item.receivedOn ? new Date(item.receivedOn) : null,
     analyzedOn: item.analyzedOn ? new Date(item.analyzedOn) : null,
     purityPercent: item.purityPercent ?? null,
-    puritySpecMin: common.puritySpecMin ?? 98,
+    puritySpecMin: item.puritySpecMin ?? common.puritySpecMin ?? 98,
     purityRejectMax: common.purityRejectMax ?? 2,
     assayMeasuredMg: item.assayMeasuredMg ?? null,
     assayLabelClaimMg: item.doseMg ?? null,
     identitySpec: item.identity ?? null,
     identityResult: item.identity ?? null,
+    notes: item.notes ?? null,
     published: true,
   }
 }

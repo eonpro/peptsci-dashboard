@@ -443,6 +443,8 @@ const CLEARED_WIZARD_FIELDS = {
   vialLabelsManual: false,
   packingSlipAt: null,
   packingSlipManual: false,
+  coasAt: null,
+  coasManual: false,
   photoSkippedAt: null,
   photoSkippedById: null,
   shipConfirmedAt: null,
@@ -538,6 +540,10 @@ export async function completeWizardStep(
     case 'PACKING_SLIP':
       data.packingSlipAt = now
       data.packingSlipManual = opts.manual === true
+      break
+    case 'COAS':
+      data.coasAt = now
+      data.coasManual = opts.manual === true
       break
     case 'PHOTO':
       // The box is packed either way; a skip is recorded alongside it so the

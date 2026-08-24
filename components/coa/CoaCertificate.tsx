@@ -16,6 +16,7 @@ import {
   computePurityGeometry,
   computeCustodyGeometry,
 } from '@/lib/coa-geometry'
+import { assayClaimCaption, type CoaBlendContext } from '@/lib/coa-blend'
 
 const COA_CSS = `
 .coa-doc{--bg:#eceef5;--panel:#060822;--panel2:#111431;--ink:#060822;--mute:#6a6f88;--grid:#dcdfea;--track:#e0e3ee;--signal:#233dee;--signal-ink:#1b2fc4;--on-dark-accent:#7d90ff;--limit:#e0913a;--reject:#f2dcdc;--on-dark:#e9eaf3;--dim:#7c81a0;
@@ -38,6 +39,7 @@ const COA_CSS = `
 .coa-doc .title h1{font-family:var(--sans);font-weight:700;font-size:42px;line-height:.92;letter-spacing:-.02em;}
 .coa-doc .title h1 span{color:var(--on-dark-accent);}
 .coa-doc .title .desc{font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--dim);text-align:right;line-height:1.7;padding-bottom:4px;}
+.coa-doc .blend{margin-top:10px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--on-dark-accent);line-height:1.6;text-transform:uppercase;}
 .coa-doc .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);margin-top:18px;border-radius:4px;overflow:hidden;}
 .coa-doc .stat{background:var(--panel2);padding:11px 14px;}
 .coa-doc .stat .v{font-family:var(--sans);font-weight:600;font-size:21px;color:var(--on-dark);line-height:1;}
@@ -103,7 +105,15 @@ function splitTitle(name: string, dose: string | null): { top: string; accent: s
   return { top: name, accent: dose ? dose : '' }
 }
 
-export function CoaCertificate({ data, logoSrc }: { data: CoaData; logoSrc?: string }) {
+export function CoaCertificate({
+  data,
+  logoSrc,
+  blendContext,
+}: {
+  data: CoaData
+  logoSrc?: string
+  blendContext?: CoaBlendContext | null
+}) {
   const hasPurity = data.purityPercent != null
   const hasAssay = data.assayMeasuredMg != null && data.assayLabelClaimMg != null
   const hasIdentity = !!(data.identityResult || data.identitySpec)
@@ -212,6 +222,15 @@ export function CoaCertificate({ data, logoSrc }: { data: CoaData; logoSrc?: str
               </div>
             )}
           </div>
+          {blendContext && (
+            <div className="blend">
+              {blendContext.banner}
+              <br />
+              {blendContext.parts
+                .map((p) => `${p.name} ${p.amount}`.trim())
+                .join('  ·  ')}
+            </div>
+          )}
 
           <div className="stats">
             <div className="stat">
@@ -230,7 +249,11 @@ export function CoaCertificate({ data, logoSrc }: { data: CoaData; logoSrc?: str
               </div>
               <div className="l">
                 {assay
-                  ? `Of label claim · ${num(assay.measuredMg, 2)}mg`
+                  ? assayClaimCaption({
+                      compoundName: data.compoundName,
+                      measuredMg: assay.measuredMg,
+                      labelClaimMg: assay.labelClaimMg,
+                    })
                   : 'Assay content'}
               </div>
             </div>

@@ -49,11 +49,17 @@ export async function GET(_request: NextRequest) {
         _count: { select: { coas: true } },
         product: {
           select: {
+            id: true,
             name: true,
+            description: true,
             category: true,
             aka: true,
             purity: true,
             monograph: true,
+            casNumber: true,
+            molecularFormula: true,
+            molecularWeight: true,
+            pubchemCid: true,
             media: {
               where: { isPrimary: true },
               select: { url: true },
@@ -69,6 +75,7 @@ export async function GET(_request: NextRequest) {
       variants: variants.map((v) => ({
         id: v.id,
         sku: v.sku,
+        productId: v.product.id,
         productName: displayProductName(v.product.name, v.sku),
         category: v.product.category,
         dose: v.dose,
@@ -85,6 +92,11 @@ export async function GET(_request: NextRequest) {
         aka: displayProductAka(v.product.name, v.sku, v.product.aka),
         purity: v.product.purity ?? null,
         monograph: v.product.monograph ?? null,
+        description: v.product.description ?? null,
+        casNumber: v.product.casNumber ?? null,
+        molecularFormula: v.product.molecularFormula ?? null,
+        molecularWeight: v.product.molecularWeight ?? null,
+        pubchemCid: v.product.pubchemCid ?? null,
       })),
     })
   } catch (error) {

@@ -24,6 +24,7 @@ interface RouteRule {
  * Checked in array order; first matching prefix wins.
  */
 const PAGE_RULES: RouteRule[] = [
+  { prefix: '/print/coa', requirement: { anyOf: ['catalog:read', 'fulfillment:read'] } },
   { prefix: '/pricing/client-pricing', requirement: { anyOf: ['catalog:read'] } },
   { prefix: '/merch', requirement: { anyOf: ['catalog:read'] } },
   {

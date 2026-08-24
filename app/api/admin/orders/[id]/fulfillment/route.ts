@@ -41,7 +41,7 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start') }),
   z.object({
     action: z.literal('step'),
-    step: z.enum(['VERIFY', 'VIAL_LABELS', 'PACKING_SLIP', 'PHOTO', 'SHIP']),
+    step: z.enum(['VERIFY', 'VIAL_LABELS', 'PACKING_SLIP', 'COAS', 'PHOTO', 'SHIP']),
     manual: z.boolean().optional(),
     skipped: z.boolean().optional(),
     verifiedItems: verifiedItemsSchema.optional(),

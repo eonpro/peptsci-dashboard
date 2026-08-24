@@ -38,6 +38,8 @@ import {
   ImagePlus,
   FileText,
   Printer,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 import {
   parseProductCsv,
@@ -54,10 +56,14 @@ import CoaManagerDialog, { type CoaVariantRef } from '@/components/coa/CoaManage
 import { parseMonograph } from '@/lib/types/monograph'
 import { monographToForm } from '@/lib/monograph-format'
 import { apiError } from '@/lib/api-error'
+import { ProductCard } from '@/components/shop/ProductCard'
+import { groupProductsByParent, type ShopProduct } from '@/lib/types/shop'
+import { variantToShopProduct } from '@/lib/products/admin-catalog'
 
 interface VariantRow {
   id: string
   sku: string | null
+  productId?: string | null
   productName: string
   category: string | null
   dose: string | null
@@ -72,6 +78,11 @@ interface VariantRow {
   aka?: string | null
   purity?: string | null
   monograph?: unknown
+  description?: string | null
+  casNumber?: string | null
+  molecularFormula?: string | null
+  molecularWeight?: number | null
+  pubchemCid?: string | null
 }
 
 interface ImportSummary {
@@ -105,6 +116,7 @@ export default function ProductsPage() {
   const [coaVariant, setCoaVariant] = useState<CoaVariantRef | null>(null)
   const [labelOpen, setLabelOpen] = useState(false)
   const [labelVariant, setLabelVariant] = useState<ProductLabelVariantRef | null>(null)
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const imageTargetRef = useRef<VariantRow | null>(null)
@@ -147,6 +159,27 @@ export default function ProductsPage() {
         (v.supplierSku || '').toLowerCase().includes(term)
     )
   }, [variants, searchTerm])
+
+  const catalogCards = useMemo(
+    () => groupProductsByParent(filtered.map(variantToShopProduct)),
+    [filtered]
+  )
+
+  const variantById = useMemo(() => {
+    const map = new Map<string, VariantRow>()
+    for (const v of variants) map.set(v.id, v)
+    return map
+  }, [variants])
+
+  const variantBySku = useMemo(() => {
+    const map = new Map<string, VariantRow>()
+    for (const v of variants) map.set(v.sku || v.id, v)
+    return map
+  }, [variants])
+
+  function variantFromId(id: string): VariantRow | undefined {
+    return variantById.get(id)
+  }
 
   function applyCsv(text: string) {
     setCsvText(text)
@@ -247,6 +280,29 @@ export default function ProductsPage() {
     setLabelOpen(true)
   }
 
+  function withVariant(id: string, fn: (v: VariantRow) => void) {
+    const v = variantFromId(id)
+    if (v) fn(v)
+  }
+
+  function catalogSkusFor(product: ShopProduct) {
+    const skus =
+      product.sizeOptions && product.sizeOptions.length > 0
+        ? product.sizeOptions.map((s) => s.sku)
+        : [product.sku]
+    return skus
+      .map((sku) => variantBySku.get(sku))
+      .filter((v): v is VariantRow => Boolean(v))
+      .map((v) => ({
+        id: v.id,
+        sku: v.sku || v.id,
+        cost: v.unitCost,
+        srp: v.srp,
+        inventoryOnHand: v.inventoryOnHand,
+        coaCount: v.coaCount,
+      }))
+  }
+
   async function uploadImage(file: File) {
     const target = imageTargetRef.current
     if (!target) return
@@ -342,26 +398,57 @@ export default function ProductsPage() {
         <StatCard label="Suppliers" value={stats.suppliers} icon={Factory} color="text-amber-400" />
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-        <Input
-          placeholder="Search product, SKU, or supplier..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
-        />
+      {/* Search + view toggle */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+          <Input
+            placeholder="Search product, SKU, or supplier..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
+          />
+        </div>
+        <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-[#0a0e3a]/50 p-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setViewMode('cards')}
+            className={
+              viewMode === 'cards'
+                ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }
+          >
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Cards
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className={
+              viewMode === 'table'
+                ? 'bg-brand-primary text-white hover:bg-brand-primary hover:text-white'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            }
+          >
+            <List className="h-4 w-4 mr-2" />
+            Table
+          </Button>
+        </div>
       </div>
 
-      {/* Table */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-white/60">
-              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-              Loading products...
-            </div>
-          ) : filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-white/60">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          Loading products...
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+          <CardContent className="p-0">
             <div className="flex flex-col items-center justify-center py-16">
               <div className="bg-white/5 p-4 rounded-full mb-4">
                 <Boxes className="h-8 w-8 text-white/40" />
@@ -386,7 +473,31 @@ export default function ProductsPage() {
                 </Button>
               </div>
             </div>
-          ) : (
+          </CardContent>
+        </Card>
+      ) : viewMode === 'cards' ? (
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {catalogCards.map((product) => (
+            <ProductCard
+              key={product.parentProductId || product.id}
+              product={product}
+              viewMode="grid"
+              adminCatalog={{
+                skus: catalogSkusFor(product),
+                onEdit: (id) => withVariant(id, openEdit),
+                onCoa: (id) => withVariant(id, openCoa),
+                onLabels: (id) => withVariant(id, openLabels),
+                onDelete: (id) => withVariant(id, deleteVariant),
+                onUploadImage: (id) => withVariant(id, pickImage),
+                uploadingImageId,
+                deletingId,
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+      <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+        <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
@@ -491,9 +602,9 @@ export default function ProductsPage() {
                 ))}
               </TableBody>
             </Table>
-          )}
         </CardContent>
       </Card>
+      )}
 
       {/* Hidden input for per-product photo upload */}
       <input

@@ -93,6 +93,7 @@ const isAdminRoute = createRouteMatcher([
   '/support(.*)',
   '/package-photos(.*)',
   '/fulfillment(.*)',
+  '/print(.*)',
   '/merch(.*)',
   '/money(.*)',
   '/manage(.*)',

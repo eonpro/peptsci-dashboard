@@ -102,6 +102,9 @@ export interface AssayGeometry {
   percentOfClaim: number
   deltaMg: number
   deltaPct: number
+  /** Inclusive axis domain. Defaults to 95–105; expands when the result is outside. */
+  axisMin: number
+  axisMax: number
   x: (pct: number) => number
   targetX: number
   resultX: number
@@ -120,9 +123,18 @@ export function computeAssayGeometry(measuredMg: number, labelClaimMg: number): 
   const deltaMg = round(measuredMg - labelClaimMg, 2)
   const deltaPct = round(percentOfClaim - 100, 1)
 
+  // Keep the familiar 95–105 band for in-spec lots. When a result sits outside
+  // (Ipamorelin 5.93mg vs a 5mg claim = 118.6%), expand so the marker is real
+  // instead of pinned to the old 105% wall.
+  const axisMin =
+    percentOfClaim < ASSAY_MIN ? Math.floor(percentOfClaim) - 5 : ASSAY_MIN
+  const axisMax =
+    percentOfClaim > ASSAY_MAX ? Math.ceil(percentOfClaim) + 5 : ASSAY_MAX
+  const span = axisMax - axisMin || 1
+
   const x = (pct: number): number => {
-    const clamped = Math.min(ASSAY_MAX, Math.max(ASSAY_MIN, pct))
-    return round(ASSAY_X0 + ((clamped - ASSAY_MIN) / (ASSAY_MAX - ASSAY_MIN)) * ASSAY_W, 1)
+    const clamped = Math.min(axisMax, Math.max(axisMin, pct))
+    return round(ASSAY_X0 + ((clamped - axisMin) / span) * ASSAY_W, 1)
   }
 
   const targetX = x(100)
@@ -130,8 +142,16 @@ export function computeAssayGeometry(measuredMg: number, labelClaimMg: number): 
   const barX = Math.min(targetX, resultX)
   const barWidth = round(Math.abs(resultX - targetX), 1)
 
+  const step = span > 16 ? 5 : 1
   const ticks: { x: number; label: string }[] = []
-  for (let p = ASSAY_MIN; p <= ASSAY_MAX; p++) ticks.push({ x: x(p), label: String(p) })
+  const start = Math.ceil(axisMin / step) * step
+  for (let p = start; p <= axisMax; p += step) ticks.push({ x: x(p), label: String(p) })
+  if (ticks.length === 0 || Number(ticks[0].label) !== axisMin) {
+    ticks.unshift({ x: x(axisMin), label: String(axisMin) })
+  }
+  if (Number(ticks[ticks.length - 1].label) !== axisMax) {
+    ticks.push({ x: x(axisMax), label: String(axisMax) })
+  }
 
   return {
     measuredMg,
@@ -139,6 +159,8 @@ export function computeAssayGeometry(measuredMg: number, labelClaimMg: number): 
     percentOfClaim,
     deltaMg,
     deltaPct,
+    axisMin,
+    axisMax,
     x,
     targetX,
     resultX,

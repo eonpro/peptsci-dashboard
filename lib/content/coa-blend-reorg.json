@@ -16,7 +16,8 @@
     }
   ],
   "attachExisting": [
-    { "variantSku": "CP10", "coaTasks": ["100595", "100596"] }
+    { "variantSku": "CP10", "coaTasks": ["100595", "100596"] },
+    { "variantSku": "TSIP", "coaTasks": ["20260819S9397-TSM", "20260819S9397-IPA"] }
   ],
   "deleteVariantSkus": [
     "GLOW-BPC-10",
