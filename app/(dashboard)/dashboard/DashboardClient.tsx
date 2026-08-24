@@ -14,6 +14,8 @@ import {
   Crown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import { SalesImportButton } from '@/components/admin/SalesImportButton'
 import { StripeBackfillButton } from '@/components/admin/StripeBackfillButton'
 import { StripeGapRepairButton } from '@/components/admin/StripeGapRepairButton'
@@ -63,6 +65,8 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
   const [sales, setSales] = useState<Sale[]>(() => withDates(initialSales))
   const [refreshing, setRefreshing] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const { role, permissions } = useRole()
+  const canRunTools = staffCanMutate(permissions, 'settings')
 
   /** Returns null on success, or the (server-provided) error message. */
   async function loadData(): Promise<string | null> {
@@ -196,9 +200,23 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-white">
+            {role === 'FULFILLMENT'
+              ? 'Fulfillment home'
+              : role === 'BILLING'
+                ? 'Billing home'
+                : role === 'CATALOG'
+                  ? 'Catalog home'
+                  : 'Dashboard'}
+          </h2>
           <p className="mt-0.5 text-sm text-white/50">
-            {format(new Date(), 'EEEE, MMMM d')} · live view, refreshes every minute
+            {role === 'FULFILLMENT'
+              ? 'Start with the unshipped queue — open Fulfill for labels and tracking.'
+              : role === 'BILLING'
+                ? 'Aging invoices first. Open Money for charges and returns.'
+                : role === 'CATALOG'
+                  ? 'Watch low stock, then open Catalog to receive and price.'
+                  : `${format(new Date(), 'EEEE, MMMM d')} · live view, refreshes every minute`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -206,6 +224,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
               header stays focused on the single action that matters: Refresh.
               (A plain disclosure, not a menu — the tool buttons own their
               dialogs and must stay mounted while a dialog is open.) */}
+          {canRunTools ? (
           <Button
             variant="outline"
             size="sm"
@@ -219,6 +238,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
               className={cn('ml-1.5 h-3.5 w-3.5 transition-transform', toolsOpen && 'rotate-180')}
             />
           </Button>
+          ) : null}
           <Button
             onClick={handleRefresh}
             variant="outline"
@@ -232,7 +252,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
         </div>
       </div>
 
-      {toolsOpen && (
+      {canRunTools && toolsOpen && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-[#0a0e3a]/50 p-3">
           <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-white/40">
             Imports & backfills

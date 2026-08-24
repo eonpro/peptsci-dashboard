@@ -30,6 +30,8 @@ import {
 } from '@/lib/shipping/whiteLabelOrigin'
 import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
 import { apiError } from '@/lib/api-error'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 
 // The FedEx label modal (and its form/stripe deps) only matters once a rep
 // opens it; load it on demand instead of in the page's initial bundle.
@@ -147,6 +149,8 @@ type LabelTarget = {
 type NextStep = { orderNumber: number; trackingNumber: string | null; needsPhoto: boolean }
 
 export default function FulfillmentPage() {
+  const { permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'fulfillment')
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -440,9 +444,11 @@ export default function FulfillmentPage() {
               <Camera className="mr-2 h-4 w-4" /> Packing Photos
             </Link>
           </Button>
-          <Button onClick={() => setNewOrderOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> New Order
-          </Button>
+          {canWrite ? (
+            <Button onClick={() => setNewOrderOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Order
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -618,9 +624,11 @@ export default function FulfillmentPage() {
               </p>
               {!search.trim() && shipped !== 'cancelled' && (
                 <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={() => setNewOrderOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> New Order
-                  </Button>
+                  {canWrite ? (
+                    <Button size="sm" onClick={() => setNewOrderOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> New Order
+                    </Button>
+                  ) : null}
                   {queue.length > 0 && (
                     <Button size="sm" variant="outline" onClick={() => setShipped('stripe')}>
                       <Zap className="mr-2 h-4 w-4" /> Review From Stripe ({queue.length})

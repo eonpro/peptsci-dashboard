@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import Link from 'next/link'
 import { Handshake, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -34,6 +36,8 @@ const STATUS_BADGE: Record<OrgRow['status'], string> = {
 }
 
 export default function PartnersAdminPage() {
+  const { permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'partners')
   const [orgs, setOrgs] = useState<OrgRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -112,9 +116,11 @@ export default function PartnersAdminPage() {
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="mr-1 h-4 w-4" /> Refresh
           </Button>
-          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-            <Plus className="mr-1 h-4 w-4" /> New Partner Org
-          </Button>
+          {canWrite ? (
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+              <Plus className="mr-1 h-4 w-4" /> New Partner Org
+            </Button>
+          ) : null}
         </div>
       </div>
 

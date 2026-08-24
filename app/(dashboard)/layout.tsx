@@ -3,44 +3,60 @@ import { currentUser } from '@clerk/nextjs/server'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AdminFooter } from '@/components/AdminFooter'
 import { ThemeScope } from '@/components/ThemeScope'
+import { StaffSectionNav } from '@/components/staff/StaffSectionNav'
+import { StaffMobileNav } from '@/components/staff/StaffMobileNav'
+import { isStaffRole } from '@/lib/access'
+import { resolvePermissions } from '@/lib/permissions'
+import { staffNeedsTwoFactor } from '@/lib/staff/access'
 
-// Force dynamic rendering - dashboard requires auth context
 export const dynamic = 'force-dynamic'
 
 /**
- * Admin 2FA enforcement: when ADMIN_REQUIRE_2FA=true, ADMIN/SUPER_ADMIN without
- * a second factor enrolled in Clerk are bounced to /enable-2fa before they can
- * use the admin console. Warehouse presets (FULFILLMENT, etc.) are not forced
- * through this gate. Fails open on Clerk errors so an outage can't lock out
- * the console.
+ * When ADMIN_REQUIRE_2FA=true, any staff preset that can write money or PII
+ * must have a second factor. Finance viewers are not forced through this gate.
+ * Clerk outages fail closed in production so writers cannot skip 2FA.
  */
-async function assertAdmin2fa() {
+async function assertStaff2fa() {
   if (process.env.ADMIN_REQUIRE_2FA !== 'true') return
   try {
     const user = await currentUser()
     if (!user) return
-    const meta = user.publicMetadata as { role?: string } | undefined
-    const isAdmin = meta?.role === 'ADMIN' || meta?.role === 'SUPER_ADMIN'
-    if (isAdmin && !user.twoFactorEnabled) {
+    const meta = user.publicMetadata as {
+      role?: string
+      permissionsGrant?: unknown
+      permissionsDeny?: unknown
+    } | undefined
+    if (!isStaffRole(meta?.role)) return
+    const permissions = resolvePermissions({
+      role: meta?.role,
+      permissionsGrant: meta?.permissionsGrant,
+      permissionsDeny: meta?.permissionsDeny,
+    })
+    if (staffNeedsTwoFactor(permissions) && !user.twoFactorEnabled) {
       redirect('/enable-2fa')
     }
   } catch (e) {
-    // next/navigation redirect() throws internally — re-throw those.
     if (e && typeof e === 'object' && 'digest' in e) throw e
+    if (process.env.NODE_ENV === 'production') {
+      redirect('/enable-2fa')
+    }
   }
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  await assertAdmin2fa()
+  await assertStaff2fa()
   return (
     <div className="dark flex min-h-screen w-full flex-col overflow-x-hidden bg-brand-onyx">
-      {/* Hoist .dark to <html> so portaled Radix content inherits the theme. */}
       <ThemeScope theme="dark" />
       <AdminHeader />
-      <main className="w-full min-w-0 flex-1 bg-linear-to-br from-brand-onyx via-brand-onyx to-[#0a0e3a]">
-        <div className="p-4 md:p-6">{children}</div>
+      <main className="w-full min-w-0 flex-1 bg-linear-to-br from-brand-onyx via-brand-onyx to-[#0a0e3a] pb-20 lg:pb-0">
+        <div className="p-4 md:p-6">
+          <StaffSectionNav />
+          {children}
+        </div>
       </main>
       <AdminFooter />
+      <StaffMobileNav />
     </div>
   )
 }

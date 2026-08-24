@@ -25,6 +25,26 @@ interface RouteRule {
  */
 const PAGE_RULES: RouteRule[] = [
   { prefix: '/pricing/client-pricing', requirement: { anyOf: ['catalog:read'] } },
+  { prefix: '/merch', requirement: { anyOf: ['catalog:read'] } },
+  {
+    prefix: '/money',
+    requirement: { anyOf: ['finance:read', 'billing:read', 'sales:read'] },
+  },
+  {
+    prefix: '/manage',
+    requirement: {
+      anyOf: [
+        'clients:read',
+        'users:read',
+        'partners:read',
+        'storefronts:read',
+        'resources:write',
+        'support:write',
+        'settings:write',
+        'fulfillment:read',
+      ],
+    },
+  },
   { prefix: '/settings/webhooks', requirement: { anyOf: ['settings:write'] } },
   { prefix: '/settings/stripe', requirement: { anyOf: ['settings:write'] } },
   { prefix: '/settings', requirement: { anyOf: ['settings:write'] } },
@@ -102,9 +122,50 @@ export function permissionForAdminPage(pathname: string): RoutePermissionRequire
   return matchRule(pathname, PAGE_RULES)
 }
 
+function isMutatingMethod(method?: string): boolean {
+  const m = (method ?? 'GET').toUpperCase()
+  return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS'
+}
+
+function isWritePermission(permission: Permission): boolean {
+  return (
+    permission.endsWith(':write') ||
+    permission === 'users:roles' ||
+    permission === 'system:migrate'
+  )
+}
+
+function tightenToWrite(
+  requirement: RoutePermissionRequirement,
+  pathname: string
+): RoutePermissionRequirement {
+  if ('staff' in requirement && requirement.staff) {
+    if (
+      pathname === '/api/admin/notifications' ||
+      pathname.startsWith('/api/admin/notifications/')
+    ) {
+      return requirement
+    }
+    return { anyOf: ['settings:write'] }
+  }
+  if ('allOf' in requirement) return requirement
+  if ('anyOf' in requirement) {
+    const writes = requirement.anyOf.filter(isWritePermission)
+    if (writes.length === 0) return { allOf: ['system:migrate'] }
+    return { anyOf: writes }
+  }
+  return requirement
+}
+
 /** Permission requirement for an admin/legacy staff API path. */
-export function permissionForAdminApi(pathname: string): RoutePermissionRequirement | null {
-  return matchRule(pathname, API_RULES)
+export function permissionForAdminApi(
+  pathname: string,
+  method = 'GET'
+): RoutePermissionRequirement | null {
+  const requirement = matchRule(pathname, API_RULES)
+  if (!requirement) return null
+  if (!isMutatingMethod(method)) return requirement
+  return tightenToWrite(requirement, pathname)
 }
 
 /** Whether the caller's effective permissions satisfy a route requirement. */
@@ -126,6 +187,18 @@ export function satisfiesRoutePermission(
 export const NAV_LINK_PERMISSIONS: Record<string, Permission | Permission[]> = {
   '/dashboard': 'dashboard:read',
   '/fulfillment': 'fulfillment:read',
+  '/merch': 'catalog:read',
+  '/money': ['finance:read', 'billing:read', 'sales:read'],
+  '/manage': [
+    'clients:read',
+    'users:read',
+    'partners:read',
+    'storefronts:read',
+    'resources:write',
+    'support:write',
+    'settings:write',
+    'fulfillment:read',
+  ],
   '/customers': 'sales:read',
   '/orders-expenses': 'sales:read',
   '/profit-loss': 'finance:read',

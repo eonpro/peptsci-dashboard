@@ -35,6 +35,8 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -142,6 +144,8 @@ export default function InventoryClient({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'catalog')
 
   // ── URL-seeded state ───────────────────────────────────────────────────
   const [view, setView] = useState<View>(() => {
@@ -572,10 +576,12 @@ export default function InventoryClient({
             <Download className="h-4 w-4 md:mr-2" />
             <span className="hidden md:inline">Export CSV</span>
           </Button>
-          <Button size="sm" onClick={() => setModalOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Receive
-          </Button>
+          {canWrite ? (
+            <Button size="sm" onClick={() => setModalOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Receive
+            </Button>
+          ) : null}
         </div>
       </div>
 

@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +42,8 @@ const statusStyles: Record<string, string> = {
 }
 
 export default function ClientsPage() {
+  const { permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'clients')
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -75,7 +79,7 @@ export default function ClientsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Building2 className="h-6 w-6" /> Clients
+            <Building2 className="h-6 w-6" /> Clinics
           </h1>
           <p className="text-white/60 text-sm">
             Practice accounts, NPI verification, and approvals
@@ -87,12 +91,14 @@ export default function ClientsPage() {
               {pending} pending approval
             </Badge>
           )}
+          {canWrite ? (
           <Button
             onClick={() => setAddOpen(true)}
             className="bg-brand-primary hover:bg-[#1a30c0] text-white"
           >
-            <Plus className="h-4 w-4 mr-2" /> Add Client
+            <Plus className="h-4 w-4 mr-2" /> Add clinic
           </Button>
+          ) : null}
         </div>
       </div>
 
@@ -104,7 +110,7 @@ export default function ClientsPage() {
                 <Building2 className="h-5 w-5 text-brand-primary" />
               </div>
               <div>
-                <CardTitle className="text-white">All Clients</CardTitle>
+                <CardTitle className="text-white">All Clinics</CardTitle>
                 <CardDescription className="text-white/50">
                   {clients.length} total
                 </CardDescription>

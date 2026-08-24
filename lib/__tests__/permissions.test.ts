@@ -145,6 +145,38 @@ describe('admin route permission map', () => {
     assert.deepEqual(permissionForAdminApi('/api/admin/notifications'), { staff: true })
   })
 
+  test('hub pages exist for catalog, money, and admin', () => {
+    assert.deepEqual(permissionForAdminPage('/merch'), { anyOf: ['catalog:read'] })
+    assert.deepEqual(permissionForAdminPage('/money'), {
+      anyOf: ['finance:read', 'billing:read', 'sales:read'],
+    })
+    assert.ok(permissionForAdminPage('/manage'))
+  })
+
+  test('mutating APIs require write rather than read', () => {
+    assert.deepEqual(permissionForAdminApi('/api/admin/invoices', 'GET'), {
+      anyOf: ['billing:read', 'billing:write'],
+    })
+    assert.deepEqual(permissionForAdminApi('/api/admin/invoices', 'POST'), {
+      anyOf: ['billing:write'],
+    })
+    assert.deepEqual(permissionForAdminApi('/api/inventory', 'PATCH'), {
+      anyOf: ['catalog:write'],
+    })
+    assert.deepEqual(permissionForAdminApi('/api/admin/notifications', 'POST'), { staff: true })
+    assert.deepEqual(permissionForAdminApi('/api/admin/db/migrate', 'POST'), {
+      allOf: ['system:migrate'],
+    })
+
+    const viewer = resolvePermissions({ role: 'FINANCE_VIEWER' })
+    const postInvoices = permissionForAdminApi('/api/admin/invoices', 'POST')
+    assert.ok(postInvoices)
+    assert.equal(satisfiesRoutePermission(viewer, postInvoices, true), false)
+    const getInvoices = permissionForAdminApi('/api/admin/invoices', 'GET')
+    assert.ok(getInvoices)
+    assert.equal(satisfiesRoutePermission(viewer, getInvoices, true), true)
+  })
+
   test('satisfiesRoutePermission respects anyOf/allOf/staff', () => {
     const fulfillment = resolvePermissions({ role: 'FULFILLMENT' })
     assert.equal(

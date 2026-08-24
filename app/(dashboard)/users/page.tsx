@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -71,7 +72,8 @@ const statusStyles: Record<Status, string> = {
 }
 
 export default function UsersPage() {
-  const { isSuperAdmin } = useRole()
+  const { isSuperAdmin, permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'users')
   const [users, setUsers] = useState<PlatformUser[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
   const [invites, setInvites] = useState<PendingInvite[]>([])
@@ -189,7 +191,7 @@ export default function UsersPage() {
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">User Management</h1>
+          <h1 className="text-2xl font-bold text-white">Users</h1>
           <p className="text-white/60 text-sm">Invite members, manage access and roles</p>
         </div>
         <div className="flex items-center gap-2">
@@ -198,12 +200,14 @@ export default function UsersPage() {
               {pendingCount} pending approval
             </Badge>
           )}
+          {canWrite ? (
           <Button
             onClick={() => setInviteOpen(true)}
             className="bg-brand-primary hover:bg-[#1a30c0] text-white"
           >
             <UserPlus className="h-4 w-4 mr-2" /> Invite User
           </Button>
+          ) : null}
         </div>
       </div>
 

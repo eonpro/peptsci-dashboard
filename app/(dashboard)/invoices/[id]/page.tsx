@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRole } from '@/hooks/useRole'
+import { staffCanMutate } from '@/lib/staff/portal'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -95,6 +97,8 @@ type InvoiceView = {
 const dec = (s: string | null) => (s == null ? 0 : Number(s))
 
 export default function InvoiceDetailPage() {
+  const { permissions } = useRole()
+  const canWrite = staffCanMutate(permissions, 'billing')
   const params = useParams<{ id: string }>()
   const id = params.id
   const [view, setView] = useState<InvoiceView | null>(null)
@@ -221,7 +225,8 @@ export default function InvoiceDetailPage() {
               Issue
             </Button>
           )}
-          {!isVoid &&
+          {canWrite &&
+            !isVoid &&
             totals.amountDue > 0 &&
             ['OPEN', 'PARTIAL', 'OVERDUE'].includes(invoice.status) && (
               <Button
