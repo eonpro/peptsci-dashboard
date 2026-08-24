@@ -6,7 +6,7 @@ import { LogOut } from 'lucide-react'
 import { useClerk } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
 import { isClerkConfigured } from '@/lib/clerk-config'
-import { visibleSections, isNavItemActive, type PortalNavContext } from './nav'
+import { visiblePrimaryNav, isNavItemActive, type PortalNavContext } from './nav'
 
 export interface PortalIdentity {
   orgName: string
@@ -20,7 +20,7 @@ function SignOutButton() {
   return (
     <button
       type="button"
-      onClick={() => signOut({ redirectUrl: '/sign-in' })}
+      onClick={() => signOut({ redirectUrl: '/partners/sign-in' })}
       className="mt-3 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-white/50 transition hover:bg-white/5 hover:text-white"
     >
       <LogOut className="h-4 w-4 shrink-0" />
@@ -34,7 +34,7 @@ function SignOutButton() {
  * fixed desktop sidebar and the mobile Sheet drawer.
  */
 export function SidebarNav({
-  ctx,
+  ctx: _ctx,
   identity,
   onNavigate,
 }: {
@@ -42,8 +42,9 @@ export function SidebarNav({
   identity: PortalIdentity
   onNavigate?: () => void
 }) {
+  void _ctx
   const pathname = usePathname()
-  const sections = visibleSections(ctx)
+  const items = visiblePrimaryNav()
   const initials = identity.orgName
     .split(/\s+/)
     .map((w) => w[0])
@@ -64,47 +65,38 @@ export function SidebarNav({
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6 pt-2">
-        {sections.map((section) => (
-          <div key={section.label ?? 'main'}>
-            {section.label && (
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-white/35">
-                {section.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                const active = isNavItemActive(item.href, pathname)
-                const Icon = item.icon
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={onNavigate}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition',
-                        active
-                          ? 'bg-white/10 font-semibold text-white'
-                          : 'text-white/60 hover:bg-white/5 hover:text-white'
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition',
-                          active
-                            ? 'text-brand-primary brightness-150'
-                            : 'text-white/40 group-hover:text-white/70'
-                        )}
-                      />
-                      {item.name}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
+      <nav className="flex-1 overflow-y-auto px-3 pb-6 pt-2">
+        <ul className="space-y-0.5">
+          {items.map((item) => {
+            const active = isNavItemActive(item.href, pathname, item.exact)
+            const Icon = item.icon
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition',
+                    active
+                      ? 'bg-white/10 font-semibold text-white'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      'h-4 w-4 shrink-0 transition',
+                      active
+                        ? 'text-brand-primary brightness-150'
+                        : 'text-white/40 group-hover:text-white/70'
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
 
       <div className="shrink-0 border-t border-white/10 px-4 py-4">

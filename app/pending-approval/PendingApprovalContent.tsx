@@ -13,10 +13,24 @@ import {
 import { Logo } from '@/components/Logo'
 import { Clock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
 import { ACCOUNT_REVIEW_SLA, SUPPORT_EMAIL } from '@/lib/shop/portal'
+import { PARTNER_SIGN_IN_PATH, partnerPendingCopy } from '@/lib/partners/access'
 
 export function PendingApprovalContent() {
   const { signOut } = useClerk()
   const { user } = useUser()
+  const role = (user?.publicMetadata as { role?: string } | undefined)?.role
+  const partner = role === 'PARTNER' ? partnerPendingCopy() : null
+
+  const title = partner?.title ?? 'Account Pending Approval'
+  const nextStep = partner?.nextStep ?? 'Access to platform'
+  const bullets = partner?.bullets ?? [
+    `Our team will review your account within ${ACCOUNT_REVIEW_SLA}`,
+    "You'll receive an email once approved",
+    'After approval, you can browse products and place orders',
+  ]
+  const expedite = partner?.expedite ?? 'Include your practice name and NPI for the fastest turnaround.'
+  const supportEmail = partner?.supportEmail ?? SUPPORT_EMAIL
+  const signOutHref = partner ? PARTNER_SIGN_IN_PATH : '/sign-in'
 
   return (
     <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center p-4">
@@ -28,16 +42,13 @@ export function PendingApprovalContent() {
           <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
             <Clock className="h-8 w-8 text-amber-600" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Account Pending Approval
-          </CardTitle>
+          <CardTitle className="text-2xl font-bold text-gray-900">{title}</CardTitle>
           <CardDescription className="text-base text-gray-600 mt-2">
             Welcome, {user?.firstName || 'there'}! Your account is currently under review.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Status Steps */}
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
               <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0">
@@ -55,34 +66,30 @@ export function PendingApprovalContent() {
               <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                 <AlertCircle className="h-4 w-4 text-gray-400" />
               </div>
-              <span className="text-gray-400">Access to platform</span>
+              <span className="text-gray-400">{nextStep}</span>
             </div>
           </div>
 
-          {/* Info Box */}
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
             <h4 className="font-semibold text-blue-900 mb-2">What happens next?</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Our team will review your account within {ACCOUNT_REVIEW_SLA}</li>
-              <li>• You&apos;ll receive an email once approved</li>
-              <li>• After approval, you can browse products and place orders</li>
+              {bullets.map((item) => (
+                <li key={item}>• {item}</li>
+              ))}
             </ul>
           </div>
 
-          {/* Contact Info */}
           <div className="bg-gray-50 rounded-xl p-4">
             <h4 className="font-semibold text-gray-900 mb-3">Need to expedite approval?</h4>
             <div className="space-y-2">
               <a
-                href={`mailto:${SUPPORT_EMAIL}`}
+                href={`mailto:${supportEmail}`}
                 className="flex items-center gap-2 text-sm text-gray-600 hover:text-brand-primary transition-colors"
               >
                 <Mail className="h-4 w-4" />
-                {SUPPORT_EMAIL}
+                {supportEmail}
               </a>
-              <p className="text-xs text-gray-500">
-                Include your practice name and NPI for the fastest turnaround.
-              </p>
+              <p className="text-xs text-gray-500">{expedite}</p>
             </div>
           </div>
         </CardContent>
@@ -94,7 +101,7 @@ export function PendingApprovalContent() {
           <Button
             variant="ghost"
             className="w-full text-gray-500 hover:text-gray-700"
-            onClick={() => signOut({ redirectUrl: '/sign-in' })}
+            onClick={() => signOut({ redirectUrl: signOutHref })}
           >
             <LogOut className="h-4 w-4 mr-2" />
             Sign out

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -68,6 +69,7 @@ const STATUS_BADGE: Record<Quote['status'], string> = {
 }
 
 export default function PartnerQuotesPage() {
+  const { canWrite } = usePartnerPortal()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [catalog, setCatalog] = useState<CatalogRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,13 +139,15 @@ export default function PartnerQuotesPage() {
         title="Quotes"
         description="Build price quotes for prospective clinics, print them, and track their status."
         actions={
-          <Button onClick={() => setBuilding((v) => !v)} className="gap-1 font-semibold">
-            <Plus className="h-4 w-4" /> New quote
-          </Button>
+          canWrite ? (
+            <Button onClick={() => setBuilding((v) => !v)} className="gap-1 font-semibold">
+              <Plus className="h-4 w-4" /> New quote
+            </Button>
+          ) : undefined
         }
       />
 
-      {building && (
+      {canWrite && building && (
         <QuoteBuilder
           catalog={catalog}
           onDone={() => {
@@ -181,7 +185,7 @@ export default function PartnerQuotesPage() {
                   <EmptyState
                     icon={FileText}
                     title="No quotes yet"
-                    description="Build your first quote above."
+                    description={canWrite ? 'Build your first quote above.' : 'No quotes on file yet.'}
                     className="py-6"
                   />
                 </TableCell>
@@ -201,26 +205,37 @@ export default function PartnerQuotesPage() {
                 </TableCell>
                 <TableCell className="py-3 text-right font-medium">{usd(quote.totalCents)}</TableCell>
                 <TableCell className="py-3">
-                  <Select
-                    value={quote.status}
-                    onValueChange={(value) => void setStatus(quote.id, value as Quote['status'])}
-                  >
-                    <SelectTrigger
-                      aria-label={`Status for ${quote.clinicName} quote`}
+                  {canWrite ? (
+                    <Select
+                      value={quote.status}
+                      onValueChange={(value) => void setStatus(quote.id, value as Quote['status'])}
+                    >
+                      <SelectTrigger
+                        aria-label={`Status for ${quote.clinicName} quote`}
+                        className={cn(
+                          'h-auto w-auto gap-1 rounded-full border-0 px-2.5 py-1 text-xs font-medium',
+                          STATUS_BADGE[quote.status]
+                        )}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DRAFT">Draft</SelectItem>
+                        <SelectItem value="SENT">Sent</SelectItem>
+                        <SelectItem value="ACCEPTED">Accepted</SelectItem>
+                        <SelectItem value="DECLINED">Declined</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span
                       className={cn(
-                        'h-auto w-auto gap-1 rounded-full border-0 px-2.5 py-1 text-xs font-medium',
+                        'inline-flex rounded-full px-2.5 py-1 text-xs font-medium',
                         STATUS_BADGE[quote.status]
                       )}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DRAFT">Draft</SelectItem>
-                      <SelectItem value="SENT">Sent</SelectItem>
-                      <SelectItem value="ACCEPTED">Accepted</SelectItem>
-                      <SelectItem value="DECLINED">Declined</SelectItem>
-                    </SelectContent>
-                  </Select>
+                      {quote.status}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="py-3">{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
                 <TableCell className="py-3 text-right">

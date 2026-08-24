@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Receipt } from 'lucide-react'
 import { requirePartner } from '@/lib/partners/auth'
 import { prisma } from '@/lib/prisma'
@@ -36,7 +37,7 @@ export default async function PartnerTransactionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Transactions"
+        title="Activity"
         description="Every attributed revenue event and your commission on it (net of refunds)."
         actions={
           // eslint-disable-next-line @next/next/no-html-link-for-pages -- CSV download route
@@ -67,7 +68,17 @@ export default async function PartnerTransactionsPage() {
             {transactions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7}>
-                  <EmptyState icon={Receipt} title="No transactions yet." className="py-6" />
+                  <EmptyState
+                    icon={Receipt}
+                    title="No activity yet"
+                    description="Share a referral link so clinics can order — commission shows up here."
+                    className="py-6"
+                    action={
+                      <Link href="/partners/links" className={buttonVariants({ size: 'sm' })}>
+                        Create a referral link
+                      </Link>
+                    }
+                  />
                 </TableCell>
               </TableRow>
             )}

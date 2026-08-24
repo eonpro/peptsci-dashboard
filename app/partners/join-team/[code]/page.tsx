@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { isValidReferralCode } from '@/lib/partners/referral'
 import { JoinTeamForm } from './JoinTeamForm'
+import Link from 'next/link'
+import { PARTNER_SIGN_IN_PATH } from '@/lib/partners/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +49,12 @@ export default async function JoinTeamPage({ params }: { params: Promise<{ code:
           <div className="mt-6">
             <JoinTeamForm code={code.toLowerCase()} orgName={org.name} />
           </div>
+          <p className="mt-6 text-center text-sm text-white/45">
+            Already approved?{' '}
+            <Link href={PARTNER_SIGN_IN_PATH} className="font-medium text-indigo-300 hover:text-white">
+              Partner sign in
+            </Link>
+          </p>
         </div>
       </main>
     </div>

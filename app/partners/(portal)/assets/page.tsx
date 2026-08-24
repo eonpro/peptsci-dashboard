@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requirePartner } from '@/lib/partners/auth'
 import { prisma } from '@/lib/prisma'
 import { FileText, FolderOpen, Image as ImageIcon, Type } from 'lucide-react'
@@ -31,8 +32,13 @@ export default async function PartnerAssetsPage() {
           <EmptyState
             icon={FolderOpen}
             title="No assets published yet"
-            description="Check back soon — the PeptSci team adds new marketing material regularly."
+            description="Marketing files will land here. In the meantime, share a referral link."
             className="py-10"
+            action={
+              <Link href="/partners/links" className={buttonVariants({ size: 'sm' })}>
+                Create a referral link
+              </Link>
+            }
           />
         </Card>
       ) : (

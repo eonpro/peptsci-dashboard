@@ -3,6 +3,10 @@ import { withSentryConfig } from '@sentry/nextjs'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // CI already runs `tsc` and eslint. Skipping them here keeps Vercel from
+  // OOM-killing `next build` during "Linting and checking validity of types".
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,

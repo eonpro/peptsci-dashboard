@@ -68,7 +68,7 @@ export function RequestPayoutButton() {
       onClick={() => void requestPayout()}
       title={
         !state.w9OnFile
-          ? 'Upload your W-9 on the Terms page first'
+          ? 'Upload your W-9 under Account → Program terms first'
           : state.approvedCents < state.minimumCents
             ? `Approved balance must reach ${usd(state.minimumCents)}`
             : undefined

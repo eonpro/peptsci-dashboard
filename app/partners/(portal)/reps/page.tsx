@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ interface RepRow {
 const usd = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 export default function PartnerRepsPage() {
+  const { canWrite } = usePartnerPortal()
   const [reps, setReps] = useState<RepRow[]>([])
   const [orgRateBps, setOrgRateBps] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -133,36 +135,37 @@ export default function PartnerRepsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sales reps"
+        title="Sellers"
         description={
           <>
-            Invite reps, set their commission carve-out (out of your org rate
+            Invite sellers, set their commission carve-out (out of your org rate
             {orgRateBps > 0 ? ` of ${orgRateBps / 100}%` : ''}), and track their book.
           </>
         }
       />
 
-      {joinUrl && (
+      {canWrite && joinUrl && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
-          <span className="font-medium text-emerald-800">Team join link:</span>
+          <span className="font-medium text-emerald-800">Seller join link:</span>
           <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 text-xs">{joinUrl}</code>
           <button
             type="button"
             onClick={() => {
               void navigator.clipboard.writeText(joinUrl)
-              toast.success('Join link copied — reps apply, you approve')
+              toast.success('Join link copied — sellers apply, you approve')
             }}
             className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
           >
             Copy
           </button>
           <p className="basis-full text-xs text-emerald-700/70">
-            Share this anywhere — reps apply themselves and appear below for your approval.
+            Share this anywhere — sellers apply themselves and appear below for your approval.
           </p>
         </div>
       )}
 
-      <Card>
+{canWrite ? (
+            <Card>
         <CardContent className="p-4">
       <form onSubmit={invite} className="flex flex-wrap items-end gap-2">
         <UserPlus className="mb-2 h-4 w-4 text-slate-400" />
@@ -186,6 +189,9 @@ export default function PartnerRepsPage() {
       </form>
         </CardContent>
       </Card>
+      ) : (
+        <p className="text-sm text-slate-500">View only — ask an admin to invite a seller.</p>
+      )}
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -216,8 +222,8 @@ export default function PartnerRepsPage() {
                 <TableCell colSpan={8}>
                   <EmptyState
                     icon={UserPlus}
-                    title="No reps yet"
-                    description="Invite your first rep above."
+                    title="No sellers yet"
+                    description="Invite your first seller with the join link or the form above."
                     className="py-6"
                   />
                 </TableCell>
@@ -245,27 +251,31 @@ export default function PartnerRepsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="py-3">
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-sm font-normal"
-                    aria-label={`Edit commission rate for ${rep.name}`}
-                    onClick={() =>
-                      setRateEdit({
-                        repId: rep.id,
-                        name: rep.name,
-                        value: String(rep.commissionRateBps / 100),
-                      })
-                    }
-                  >
-                    {rep.commissionRateBps / 100}%
-                  </Button>
+                  {canWrite ? (
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-sm font-normal"
+                      aria-label={`Edit commission rate for ${rep.name}`}
+                      onClick={() =>
+                        setRateEdit({
+                          repId: rep.id,
+                          name: rep.name,
+                          value: String(rep.commissionRateBps / 100),
+                        })
+                      }
+                    >
+                      {rep.commissionRateBps / 100}%
+                    </Button>
+                  ) : (
+                    <span>{rep.commissionRateBps / 100}%</span>
+                  )}
                 </TableCell>
                 <TableCell className="py-3 text-right">{rep.clinicCount}</TableCell>
                 <TableCell className="py-3 text-right">{usd(rep.revenueCents)}</TableCell>
                 <TableCell className="py-3 text-right">{usd(rep.earnedCents)}</TableCell>
                 <TableCell className="py-3 text-right text-amber-600">{usd(rep.unpaidCents)}</TableCell>
                 <TableCell className="py-3 text-right">
-                  {rep.status === 'PENDING' && !rep.hasLogin ? (
+                  {canWrite && rep.status === 'PENDING' && !rep.hasLogin ? (
                     <Button
                       variant="ghost"
                       size="sm"

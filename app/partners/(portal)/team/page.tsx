@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -37,6 +38,7 @@ interface Member {
 }
 
 export default function PartnerTeamPage() {
+  const { canWrite } = usePartnerPortal()
   const [owner, setOwner] = useState<{ email: string; name: string | null } | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,11 +109,12 @@ export default function PartnerTeamPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Team"
-        description="Give teammates access to your partner portal. Admins can manage reps, links, and pricing; viewers see numbers only."
+        title="Portal access"
+        description="People who can log into this portal. Admins can manage sellers, links, and pricing; viewers see numbers only."
       />
 
-      <Card>
+{canWrite ? (
+            <Card>
         <CardContent className="p-4">
       <form onSubmit={invite} className="flex flex-wrap items-end gap-2">
         <Input name="name" required placeholder="Full name *" aria-label="Full name" className="w-auto bg-white" />
@@ -132,6 +135,9 @@ export default function PartnerTeamPage() {
       </form>
         </CardContent>
       </Card>
+      ) : (
+        <p className="text-sm text-slate-500">View only — ask an admin to invite portal logins.</p>
+      )}
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -168,8 +174,8 @@ export default function PartnerTeamPage() {
                 <TableCell colSpan={5}>
                   <EmptyState
                     icon={Users}
-                    title="No teammates yet"
-                    description="Invite your first teammate above — they'll get an email to set up their login."
+                    title="No portal logins yet"
+                    description="Invite an admin or viewer above — they will get an email to set up their login."
                     className="py-6"
                   />
                 </TableCell>
@@ -180,18 +186,22 @@ export default function PartnerTeamPage() {
                 <TableCell className="py-3">{m.name}</TableCell>
                 <TableCell className="py-3">{m.email}</TableCell>
                 <TableCell className="py-3">
-                  <Select
-                    value={m.role}
-                    onValueChange={(value) => void update(m.id, { role: value as 'ADMIN' | 'VIEWER' })}
-                  >
-                    <SelectTrigger className="h-8 w-28 bg-white text-xs" aria-label={`Role for ${m.name}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="VIEWER">Viewer</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {canWrite ? (
+                    <Select
+                      value={m.role}
+                      onValueChange={(value) => void update(m.id, { role: value as 'ADMIN' | 'VIEWER' })}
+                    >
+                      <SelectTrigger className="h-8 w-28 bg-white text-xs" aria-label={`Role for ${m.name}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="VIEWER">Viewer</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-sm">{m.role === 'ADMIN' ? 'Admin' : 'Viewer'}</span>
+                  )}
                 </TableCell>
                 <TableCell className="py-3">
                   <Badge
@@ -209,7 +219,7 @@ export default function PartnerTeamPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="py-3 text-right">
-                  {m.status !== 'PENDING' && (
+                  {canWrite && m.status !== 'PENDING' && (
                     <Button
                       variant="ghost"
                       size="sm"
