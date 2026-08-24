@@ -1451,7 +1451,7 @@ model ReturnItem {
 // label-consume path; this records who picked/packed and when.
 //
 // `step` is the guided wizard's cursor (verify → vial labels → packing slip →
-// photo → ship → review); null means the wizard was never started, so orders
+// COAs → photo → ship → review); null means the wizard was never started, so orders
 // from the older pick/pack buttons resume from `stage` instead. `stage` is
 // derived from `step` by lib/fulfillment/wizard-core.ts, which keeps the two in
 // step. The per-screen timestamps are the audit trail of how the box was built:
@@ -1472,6 +1472,8 @@ model OrderFulfillment {
   vialLabelsManual  Boolean          @default(false)
   packingSlipAt     DateTime?
   packingSlipManual Boolean          @default(false)
+  coasAt            DateTime?
+  coasManual        Boolean          @default(false)
   photoSkippedAt    DateTime?
   photoSkippedById  String?
   shipConfirmedAt   DateTime?
@@ -2107,6 +2109,7 @@ enum FulfillmentStep {
   VERIFY
   VIAL_LABELS
   PACKING_SLIP
+  COAS
   PHOTO
   SHIP
   REVIEW

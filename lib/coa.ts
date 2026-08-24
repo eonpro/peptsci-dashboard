@@ -9,6 +9,8 @@
 import { z } from 'zod'
 import { prisma } from './prisma'
 import { logger } from './logger'
+import { displayProductName } from './products/named-blends'
+import { blendComponentsForCoa, planOrderCoaPack } from './coa-blend'
 
 /**
  * Presentational shape consumed by the certificate renderer. Dates are ISO
@@ -314,5 +316,135 @@ export async function hasPublishedCoa(sku: string): Promise<boolean> {
     return count > 0
   } catch {
     return false
+  }
+}
+
+/** All COAs for a variant (admin print includes drafts unless publishedOnly). */
+export async function getCoasByVariantId(
+  variantId: string,
+  fileUrlFor: (coaId: string) => string,
+  opts: { publishedOnly?: boolean } = {}
+): Promise<CoaData[]> {
+  if (!prisma || !variantId) return []
+  try {
+    const rows = await prisma.productCoa.findMany({
+      where: {
+        variantId,
+        ...(opts.publishedOnly ? { published: true } : {}),
+      },
+      select: coaScalarSelect,
+      orderBy: [{ analyzedOn: 'desc' }, { createdAt: 'desc' }],
+    })
+    return (rows as unknown as CoaRow[]).map((r) =>
+      toCoaData(r, r.fileUrl || r.fileName ? fileUrlFor(r.id) : null)
+    )
+  } catch (error) {
+    logger.warn('Error loading COAs by variant', { variantId, error: String(error) })
+    return []
+  }
+}
+
+export interface OrderCoaLine {
+  variantId: string
+  sku: string | null
+  productName: string
+  dose: string | null
+  quantity: number
+  coas: CoaData[]
+  missingComponents: string[]
+}
+
+export interface OrderCoaPackResult {
+  lines: OrderCoaLine[]
+  pack: ReturnType<typeof planOrderCoaPack<CoaData>>
+}
+
+/** Published certificates for every line on an order, in blend-print order. */
+export async function getOrderCoaPack(
+  orderId: string,
+  fileUrlFor: (coaId: string) => string
+): Promise<OrderCoaPackResult | null> {
+  if (!prisma || !orderId) return null
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        items: {
+          select: {
+            quantity: true,
+            variantId: true,
+            variant: {
+              select: {
+                sku: true,
+                dose: true,
+                product: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    })
+    if (!order) return null
+
+    const merged = new Map<string, { variantId: string; quantity: number; sku: string | null; dose: string | null; productName: string }>()
+    for (const it of order.items) {
+      const existing = merged.get(it.variantId)
+      if (existing) {
+        existing.quantity += it.quantity
+        continue
+      }
+      merged.set(it.variantId, {
+        variantId: it.variantId,
+        quantity: it.quantity,
+        sku: it.variant.sku,
+        dose: it.variant.dose,
+        productName: displayProductName(it.variant.product.name, it.variant.sku),
+      })
+    }
+
+    const variantIds = [...merged.keys()]
+    const rows =
+      variantIds.length === 0
+        ? []
+        : await prisma.productCoa.findMany({
+            where: { published: true, variantId: { in: variantIds } },
+            select: coaScalarSelect,
+            orderBy: [{ analyzedOn: 'desc' }, { createdAt: 'desc' }],
+          })
+
+    const byVariant = new Map<string, CoaData[]>()
+    for (const row of rows as unknown as CoaRow[]) {
+      const list = byVariant.get(row.variantId) ?? []
+      list.push(toCoaData(row, row.fileUrl || row.fileName ? fileUrlFor(row.id) : null))
+      byVariant.set(row.variantId, list)
+    }
+
+    const lines: OrderCoaLine[] = [...merged.values()].map((it) => {
+      const productName = it.productName
+      const dose = it.dose
+      const coas = byVariant.get(it.variantId) ?? []
+      const parts = blendComponentsForCoa(productName, dose)
+      const missingComponents = parts
+        ? parts
+            .filter((p) => !coas.some((c) => c.compoundName.trim().toLowerCase() === p.name.trim().toLowerCase()))
+            .map((p) => p.name)
+        : coas.length === 0
+          ? [productName]
+          : []
+      return {
+        variantId: it.variantId,
+        sku: it.sku,
+        productName,
+        dose,
+        quantity: it.quantity,
+        coas,
+        missingComponents,
+      }
+    })
+
+    return { lines, pack: planOrderCoaPack(lines) }
+  } catch (error) {
+    logger.warn('Error loading order COA pack', { orderId, error: String(error) })
+    return null
   }
 }

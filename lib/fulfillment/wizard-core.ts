@@ -1,10 +1,11 @@
 /**
  * Pure, dependency-free state machine for the guided fulfillment wizard.
  *
- * The operator walks one order through six screens — verify the contents, print
- * vial labels, print the packing slip, photograph and pack, ship, then mark it
- * fulfilled. The cursor lives on OrderFulfillment.step so a refresh, a crash, or
- * a second packer resumes exactly where the last one stopped.
+ * The operator walks one order through seven screens — verify the contents, print
+ * vial labels, print the packing slip, print COAs to include in the box,
+ * photograph and pack, ship, then mark it fulfilled. The cursor lives on
+ * OrderFulfillment.step so a refresh, a crash, or a second packer resumes
+ * exactly where the last one stopped.
  *
  * Holds NO Prisma/Clerk imports so it is unit-testable in isolation (mirrors
  * lib/fulfillment/pick-list-core.ts). The DB-bound service in
@@ -18,6 +19,7 @@ export type FulfillmentStepName =
   | 'VERIFY'
   | 'VIAL_LABELS'
   | 'PACKING_SLIP'
+  | 'COAS'
   | 'PHOTO'
   | 'SHIP'
   | 'REVIEW'
@@ -31,6 +33,7 @@ export const WIZARD_STEPS = [
   'VERIFY',
   'VIAL_LABELS',
   'PACKING_SLIP',
+  'COAS',
   'PHOTO',
   'SHIP',
   'REVIEW',
@@ -43,6 +46,7 @@ const STEP_LABELS: Record<FulfillmentStepName, string> = {
   VERIFY: 'Verify Order',
   VIAL_LABELS: 'Vial Labels',
   PACKING_SLIP: 'Packing Slip',
+  COAS: 'Certificates of Analysis',
   PHOTO: 'Photo & Pack',
   SHIP: 'Ship',
   REVIEW: 'Mark Fulfilled',
@@ -59,6 +63,7 @@ const STEP_STAGES: Record<FulfillmentStepName, FulfillmentStageName> = {
   VERIFY: 'PICKING',
   VIAL_LABELS: 'PICKED',
   PACKING_SLIP: 'PICKED',
+  COAS: 'PICKED',
   PHOTO: 'PICKED',
   SHIP: 'PACKED',
   REVIEW: 'PACKED',
@@ -78,7 +83,7 @@ export function stepLabel(step: FulfillmentStepName): string {
   return STEP_LABELS[step]
 }
 
-/** 1-based position for "Step N of 6". COMPLETE reports the final position. */
+/** 1-based position for "Step N of 7". COMPLETE reports the final position. */
 export function stepIndex(step: FulfillmentStepName): number {
   if (step === 'COMPLETE') return WIZARD_STEPS.length
   return WIZARD_STEPS.indexOf(step) + 1

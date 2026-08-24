@@ -50,6 +50,7 @@ import {
   CheckCircle2,
   ClipboardList,
   FileText,
+  FlaskConical,
   Loader2,
   PackageCheck,
   Printer,
@@ -143,7 +144,7 @@ function ShortfallNotice({
   )
 }
 
-/** Compact "Step 3 of 6" rail so the operator always knows where they are. */
+/** Compact "Step 3 of 7" rail so the operator always knows where they are. */
 function StepRail({ current }: { current: FulfillmentStepName }) {
   const position = stepIndex(current)
   return (
@@ -188,6 +189,17 @@ export default function FulfillmentWizard({
   const [shortfall, setShortfall] = useState<LabelShortfallEntry[]>([])
   /** A print really did come back short — offer to move on deliberately. */
   const [printedShort, setPrintedShort] = useState(false)
+  const [coaPack, setCoaPack] = useState<{
+    pageCount: number
+    warnings: string[]
+    lines: {
+      productName: string
+      dose: string | null
+      quantity: number
+      missingComponents: string[]
+      certificates: { id: string; compoundName: string; doseLabel: string | null }[]
+    }[]
+  } | null>(null)
 
   // Anchor once per order (and once per explicit `initialStep` instruction).
   // The dialog is hidden — not unmounted — while a ship modal is open, so a
@@ -202,6 +214,7 @@ export default function FulfillmentWizard({
     setError(null)
     setConfirmSkip(false)
     setPrintedShort(false)
+    setCoaPack(null)
     setStep(
       initialStep ?? resumeStep({ step: order.fulfillmentStep, stage: order.fulfillmentStage })
     )
@@ -209,6 +222,27 @@ export default function FulfillmentWizard({
     // anyone prints. Never throws; worst case the notice just doesn't appear.
     void fetchLabelShortfall(order.id).then(setShortfall)
   }, [open, initialStep, order.id, order.fulfillmentStep, order.fulfillmentStage])
+
+  useEffect(() => {
+    if (!open || step !== 'COAS') return
+    let active = true
+    fetch(`/api/admin/orders/${order.id}/coas`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !data) return
+        setCoaPack({
+          pageCount: data.pageCount ?? 0,
+          warnings: Array.isArray(data.warnings) ? data.warnings : [],
+          lines: Array.isArray(data.lines) ? data.lines : [],
+        })
+      })
+      .catch(() => {
+        if (active) setCoaPack({ pageCount: 0, warnings: ['Could not load certificates'], lines: [] })
+      })
+    return () => {
+      active = false
+    }
+  }, [open, step, order.id])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -376,6 +410,80 @@ export default function FulfillmentWizard({
                   onClick={() => void advance('PACKING_SLIP', { manual: true })}
                 >
                   Already printed manually
+                </Button>
+              </div>
+              {back}
+            </div>
+          )}
+
+          {step === 'COAS' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/60">
+                Print a Certificate of Analysis for every product in this order and put the pages in
+                the box. Blends print one page per peptide.
+              </p>
+              {coaPack ? (
+                <div className="space-y-2 rounded-lg border border-white/10 p-3">
+                  {coaPack.lines.map((line, i) => (
+                    <div key={i} className="text-sm text-white/80">
+                      <div className="flex items-start gap-2">
+                        <FlaskConical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/40" />
+                        <div>
+                          <span>
+                            {line.quantity}× {line.productName}
+                            {line.dose ? ` ${line.dose}` : ''}
+                          </span>
+                          {line.certificates.length > 0 ? (
+                            <p className="text-xs text-white/50">
+                              {line.certificates
+                                .map((c) => [c.compoundName, c.doseLabel].filter(Boolean).join(' · '))
+                                .join(' · ')}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-300">No published COA</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {coaPack.pageCount > 0 && (
+                    <p className="pt-1 text-xs text-white/45">
+                      {coaPack.pageCount} page{coaPack.pageCount === 1 ? '' : 's'} will print
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center py-2 text-sm text-white/50">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading certificates…
+                </div>
+              )}
+              {coaPack && coaPack.warnings.length > 0 && (
+                <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
+                  {coaPack.warnings.map((w) => (
+                    <p key={w}>{w}</p>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Button
+                  className="w-full"
+                  disabled={busy || !coaPack || coaPack.pageCount === 0}
+                  onClick={() => {
+                    window.open(`/print/coa?orderId=${order.id}`, '_blank', 'noopener,noreferrer')
+                    void advance('COAS')
+                  }}
+                >
+                  <Printer className="mr-2 h-4 w-4" /> Print COAs
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void advance('COAS', { manual: true })}
+                >
+                  {coaPack && coaPack.pageCount === 0
+                    ? 'Continue without COAs'
+                    : 'Already printed manually'}
                 </Button>
               </div>
               {back}

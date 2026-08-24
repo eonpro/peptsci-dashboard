@@ -19,6 +19,7 @@ export type StaffAccessLink = { href: string; label: string }
 const ADMIN_PREFIXES = [
   '/dashboard',
   '/fulfillment',
+  '/print',
   '/merch',
   '/money',
   '/manage',

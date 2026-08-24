@@ -6,7 +6,7 @@ import Link from 'next/link'
 import type { ShopProduct } from '@/lib/types/shop'
 import { useOptionalCart } from './CartContext'
 import { cn } from '@/lib/utils'
-import { ChevronRight, FileText, Pencil } from 'lucide-react'
+import { ChevronRight, FileText, ImagePlus, Loader2, Pencil, Printer, Trash2 } from 'lucide-react'
 import { ProductVial, getCompoundParts } from './ProductVial'
 import { CoaDialog } from './CoaDialog'
 import { resolveNamedBlendTradeName, displayCatalogDose } from '@/lib/products/named-blends'
@@ -27,11 +27,34 @@ export interface ProductCardAdminPricing {
   onEdit: (sku: string) => void
 }
 
+/** Staff catalog actions on the same vial card chrome as the client shop. */
+export interface AdminCatalogSku {
+  id: string
+  sku: string
+  cost: number
+  srp: number
+  inventoryOnHand: number
+  coaCount?: number
+}
+
+export interface ProductCardAdminCatalog {
+  skus: AdminCatalogSku[]
+  onEdit: (id: string) => void
+  onCoa: (id: string) => void
+  onLabels: (id: string) => void
+  onDelete: (id: string) => void
+  onUploadImage?: (id: string) => void
+  uploadingImageId?: string | null
+  deletingId?: string | null
+}
+
 interface ProductCardProps {
   product: ShopProduct
   viewMode?: 'grid' | 'list'
   /** Super Admin /pricing mode — same card chrome, Cost/SRP/margin + Edit. */
   adminPricing?: ProductCardAdminPricing
+  /** Super Admin /products mode — vial cards plus catalog mutations. */
+  adminCatalog?: ProductCardAdminCatalog
 }
 
 // PeptSci Logo - using actual logo image
@@ -63,10 +86,16 @@ function formatMolecularFormula(formula: string | null | undefined): JSX.Element
  * selection / cart. Admin pricing mode keeps the same chrome but surfaces
  * Cost/SRP/margin and an Edit action (no cart / no PDP navigation).
  */
-export function ProductCard({ product, viewMode = 'grid', adminPricing }: ProductCardProps) {
+export function ProductCard({
+  product,
+  viewMode = 'grid',
+  adminPricing,
+  adminCatalog,
+}: ProductCardProps) {
   const { items } = useOptionalCart()
   const [coaOpen, setCoaOpen] = useState(false)
-  const isAdmin = Boolean(adminPricing)
+  const [selectedSku, setSelectedSku] = useState<string | null>(null)
+  const isAdmin = Boolean(adminPricing || adminCatalog)
 
   const productId = product.sku || product.id
   const pdpHref = `/shop/product/${encodeURIComponent(productId)}`
@@ -159,7 +188,16 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
     !hideSci && !!(product.casNumber || product.molecularFormula || product.molecularWeight)
 
   // Admin: match size pills to Cost/SRP rows (by dose, then sku fallback)
-  const adminSkus = adminPricing?.skus ?? []
+  const adminSkus: AdminPricingSku[] =
+    adminPricing?.skus ??
+    (adminCatalog?.skus.map((s) => ({
+      sku: s.sku,
+      cost: s.cost,
+      srp: s.srp,
+      id: s.id,
+    })) ?? [])
+  const activeCatalogSku =
+    adminCatalog?.skus.find((s) => s.sku === selectedSku) || adminCatalog?.skus[0] || null
   const adminByDose = new Map<string, AdminPricingSku>()
   for (const s of sizes) {
     const row = adminSkus.find((a) => a.sku === s.sku)
@@ -185,20 +223,42 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
     return size?.sku || adminPrimary?.sku || productId
   }
 
-  // Compact dose pills — admin: click opens Cost/SRP editor for that size
+  // Compact dose pills — catalog: select SKU; pricing: open Cost/SRP editor
   const renderSizePills = () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      {doseList.slice(0, 4).map((dose) =>
-        isAdmin && adminPricing ? (
-          <button
-            key={dose}
-            type="button"
-            onClick={() => adminPricing.onEdit(resolveAdminSkuForDose(dose))}
-            className="relative z-10 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75 transition-colors hover:border-blue-400/50 hover:text-white"
-          >
-            {dose}
-          </button>
-        ) : (
+      {doseList.slice(0, 4).map((dose) => {
+        const skuForDose = resolveAdminSkuForDose(dose)
+        const selected = Boolean(adminCatalog) && skuForDose === (selectedSku || activeCatalogSku?.sku)
+        if (isAdmin && adminCatalog) {
+          return (
+            <button
+              key={dose}
+              type="button"
+              onClick={() => setSelectedSku(skuForDose)}
+              className={cn(
+                'relative z-10 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
+                selected
+                  ? 'border-blue-400/70 bg-blue-500/20 text-white'
+                  : 'border-white/15 bg-white/5 text-white/75 hover:border-blue-400/50 hover:text-white'
+              )}
+            >
+              {dose}
+            </button>
+          )
+        }
+        if (isAdmin && adminPricing) {
+          return (
+            <button
+              key={dose}
+              type="button"
+              onClick={() => adminPricing.onEdit(skuForDose)}
+              className="relative z-10 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75 transition-colors hover:border-blue-400/50 hover:text-white"
+            >
+              {dose}
+            </button>
+          )
+        }
+        return (
           <span
             key={dose}
             className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75"
@@ -206,7 +266,7 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
             {dose}
           </span>
         )
-      )}
+      })}
       {doseList.length > 4 && (
         <span className="text-[11px] font-medium text-white/45">+{doseList.length - 4}</span>
       )}
@@ -251,6 +311,12 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
           </>
         )}
       </p>
+      {activeCatalogSku && (
+        <p className="text-[11px] text-white/50">
+          On hand{' '}
+          <span className="font-semibold text-white/80">{activeCatalogSku.inventoryOnHand}</span>
+        </p>
+      )}
     </div>
   ) : (
     <div className="min-w-0">
@@ -549,7 +615,13 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
           {product.hasCoa && (
             <button
               type="button"
-              onClick={() => setCoaOpen(true)}
+              onClick={() => {
+                if (adminCatalog && activeCatalogSku) {
+                  adminCatalog.onCoa(activeCatalogSku.id)
+                  return
+                }
+                setCoaOpen(true)
+              }}
               className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-[#1a2fd8]/40 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-[#1a2fd8]/70"
             >
               <FileText className="h-3 w-3" /> View COA
@@ -582,7 +654,71 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
         {renderSizePills()}
         <div className="flex items-center justify-between gap-2">
           {priceBlock}
-          {isAdmin && adminPricing ? (
+          {isAdmin && adminCatalog && activeCatalogSku ? (
+            <div className="relative z-10 flex shrink-0 items-center gap-1">
+              {adminCatalog.onUploadImage && (
+                <button
+                  type="button"
+                  title="Upload photo"
+                  onClick={() => adminCatalog.onUploadImage?.(activeCatalogSku.id)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white/70 hover:border-blue-400/50 hover:text-white"
+                >
+                  {adminCatalog.uploadingImageId === activeCatalogSku.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                title="Print labels"
+                onClick={() => adminCatalog.onLabels(activeCatalogSku.id)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white/70 hover:border-blue-400/50 hover:text-white"
+              >
+                <Printer className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                title={
+                  activeCatalogSku.coaCount
+                    ? `Certificates of analysis (${activeCatalogSku.coaCount})`
+                    : 'Add certificate of analysis'
+                }
+                onClick={() => adminCatalog.onCoa(activeCatalogSku.id)}
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white/70 hover:border-blue-400/50 hover:text-white"
+              >
+                <FileText className="h-4 w-4" />
+                {!!activeCatalogSku.coaCount && activeCatalogSku.coaCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[9px] font-bold text-white">
+                    {activeCatalogSku.coaCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                title="Edit product"
+                onClick={() => adminCatalog.onEdit(activeCatalogSku.id)}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-primary px-3 text-sm font-semibold text-white transition-colors hover:bg-[#1a30c0]"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+              <button
+                type="button"
+                title="Delete product"
+                disabled={adminCatalog.deletingId === activeCatalogSku.id}
+                onClick={() => adminCatalog.onDelete(activeCatalogSku.id)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white/60 hover:border-red-400/50 hover:text-red-400"
+              >
+                {adminCatalog.deletingId === activeCatalogSku.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          ) : isAdmin && adminPricing ? (
             <button
               type="button"
               onClick={() => adminPricing.onEdit(adminPrimary?.sku || productId)}
@@ -642,7 +778,7 @@ export function ProductCard({ product, viewMode = 'grid', adminPricing }: Produc
         />
       )}
 
-      {product.hasCoa && (
+      {product.hasCoa && !adminCatalog && (
         <CoaDialog
           sku={productId}
           productName={product.name}

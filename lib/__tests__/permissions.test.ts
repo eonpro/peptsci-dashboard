@@ -122,6 +122,9 @@ describe('permission helpers', () => {
 
 describe('admin route permission map', () => {
   test('pages map to expected permissions', () => {
+    assert.deepEqual(permissionForAdminPage('/print/coa'), {
+      anyOf: ['catalog:read', 'fulfillment:read'],
+    })
     assert.deepEqual(permissionForAdminPage('/fulfillment'), {
       anyOf: ['fulfillment:read'],
     })
