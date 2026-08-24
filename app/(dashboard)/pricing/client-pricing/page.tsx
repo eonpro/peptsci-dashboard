@@ -124,7 +124,7 @@ export default function ClientPricingPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-white">Client Custom Pricing</h1>
+            <h1 className="text-2xl font-bold text-white">Clinic pricing</h1>
             <p className="text-white/60 text-sm">
               Open a clinic to edit the full catalog, or copy another client&apos;s model.
             </p>

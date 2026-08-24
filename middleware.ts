@@ -54,6 +54,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/partners/apply',
   // Dedicated partner sign-in (forwards to Clerk with intent=partner).
   '/partners/sign-in(.*)',
+  '/staff/sign-in(.*)',
   // Public rep application via an org's join link (GET stays partner-authed
   // inside the route).
   '/partners/join-team(.*)',
@@ -92,6 +93,9 @@ const isAdminRoute = createRouteMatcher([
   '/support(.*)',
   '/package-photos(.*)',
   '/fulfillment(.*)',
+  '/merch(.*)',
+  '/money(.*)',
+  '/manage(.*)',
   '/settings(.*)',
   '/api/admin(.*)',
   // Legacy staff APIs that sit outside /api/admin.
@@ -261,6 +265,21 @@ const middleware = isClerkConfigured
           if (dest) signInUrl.searchParams.set('redirect_url', dest)
           return NextResponse.redirect(signInUrl)
         }
+        if (pathname.startsWith('/staff/sign-in')) {
+          if (userId) {
+            const dest = request.nextUrl.searchParams.get('redirect_url')
+            const target =
+              dest && dest.startsWith('/') && !dest.startsWith('//') && !dest.startsWith('/shop') && !dest.startsWith('/partners')
+                ? dest
+                : '/dashboard'
+            return NextResponse.redirect(new URL(target, request.url))
+          }
+          const signInUrl = new URL('/sign-in', request.url)
+          signInUrl.searchParams.set('intent', 'staff')
+          const dest = request.nextUrl.searchParams.get('redirect_url')
+          if (dest) signInUrl.searchParams.set('redirect_url', dest)
+          return NextResponse.redirect(signInUrl)
+        }
         // If user is already logged in and trying to access sign-in/sign-up, redirect them
         if (
           userId &&
@@ -278,7 +297,12 @@ const middleware = isClerkConfigured
       if (!userId) {
         const partnerHtml =
           isPartnerRoute(request) && !request.nextUrl.pathname.startsWith('/api/')
-        const signInUrl = new URL(partnerHtml ? '/partners/sign-in' : '/sign-in', request.url)
+        const staffHtml =
+          isAdminRoute(request) && !request.nextUrl.pathname.startsWith('/api/')
+        const signInUrl = new URL(
+          partnerHtml ? '/partners/sign-in' : staffHtml ? '/staff/sign-in' : '/sign-in',
+          request.url
+        )
         signInUrl.searchParams.set('redirect_url', request.nextUrl.pathname)
         return NextResponse.redirect(signInUrl)
       }
@@ -375,11 +399,11 @@ const middleware = isClerkConfigured
               { status: 403 }
             )
           }
-          return NextResponse.redirect(new URL(homeForRole(role), request.url))
+          return NextResponse.redirect(new URL('/staff/wrong-account', request.url))
         }
 
         const requirement =
-          permissionForAdminApi(pathname) ?? permissionForAdminPage(pathname)
+          permissionForAdminApi(pathname, request.method) ?? permissionForAdminPage(pathname)
         if (
           requirement &&
           !satisfiesRoutePermission(permissions, requirement, true)
