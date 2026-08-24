@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { PartnerKind, PartnerRole } from '@/lib/partners/auth'
+import type { PartnerKind, PartnerRole } from '@/lib/partners/roles'
 import { partnerCanMutate } from '@/lib/partners/portal'
 
 export type PartnerPortalValue = {

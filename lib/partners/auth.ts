@@ -16,16 +16,10 @@
 import { auth } from '@clerk/nextjs/server'
 import type { PartnerOrg, PartnerRep, PartnerOrgMember } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { roleAtLeast, type PartnerKind, type PartnerRole } from '@/lib/partners/roles'
 
-export type PartnerKind = 'ORG' | 'REP'
-export type PartnerRole = 'OWNER' | 'ADMIN' | 'VIEWER'
-
-const ROLE_RANK: Record<PartnerRole, number> = { VIEWER: 0, ADMIN: 1, OWNER: 2 }
-
-export function roleAtLeast(role: PartnerRole | null, min: PartnerRole): boolean {
-  if (!role) return false
-  return ROLE_RANK[role] >= ROLE_RANK[min]
-}
+export type { PartnerKind, PartnerRole }
+export { roleAtLeast }
 
 export interface PartnerContext {
   userId: string

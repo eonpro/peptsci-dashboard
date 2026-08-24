@@ -3,7 +3,7 @@
  * Grow / Earnings / Account stop competing as 11–14 sidebar items.
  */
 
-import { roleAtLeast, type PartnerKind, type PartnerRole } from '@/lib/partners/auth'
+import { roleAtLeast, type PartnerKind, type PartnerRole } from '@/lib/partners/roles'
 
 export type PartnerPortalLink = {
   name: string
