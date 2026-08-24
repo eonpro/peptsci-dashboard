@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 
 interface GoalRow {
   id: string
@@ -29,6 +30,7 @@ const PERIOD_LABEL = { MONTH: 'This month', QUARTER: 'This quarter', YEAR: 'This
 const METRIC_LABEL = { REVENUE: 'Revenue', COMMISSION: 'Commission' } as const
 
 export default function PartnerGoalsPage() {
+  const { canWrite } = usePartnerPortal()
   const [goals, setGoals] = useState<GoalRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -84,7 +86,8 @@ export default function PartnerGoalsPage() {
         description="Set revenue or commission targets and track progress in real time. Setting a target of $0 removes the goal."
       />
 
-      <Card>
+{canWrite ? (
+            <Card>
         <CardContent className="p-4">
       <form onSubmit={saveGoal} className="flex flex-wrap items-end gap-2">
         {/* Native selects: this form is read via FormData by name, which Radix
@@ -122,6 +125,7 @@ export default function PartnerGoalsPage() {
       </form>
         </CardContent>
       </Card>
+      ) : null}
 
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -138,7 +142,7 @@ export default function PartnerGoalsPage() {
           <EmptyState
             icon={Target}
             title="No goals yet"
-            description="Set your first target above."
+            description={canWrite ? 'Set your first target above.' : 'No goals on file yet.'}
             className="py-10"
           />
         </Card>

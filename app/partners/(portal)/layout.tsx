@@ -1,10 +1,13 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import { auth } from '@clerk/nextjs/server'
 import { getPartnerContext } from '@/lib/partners/auth'
-import { Button } from '@/components/ui/button'
+import { partnerNoAccessKind } from '@/lib/partners/access'
 import { PortalSidebar } from './_components/PortalSidebar'
 import { PortalTopbar } from './_components/PortalTopbar'
-import { PartnerSignOutButton } from './_components/PartnerSignOutButton'
+import { PartnerNoAccess } from './_components/PartnerNoAccess'
+import { PartnerPortalProvider } from './_components/PartnerPortalProvider'
+import { PartnerSectionNav } from './_components/PartnerSectionNav'
+import { PortalMobileNav } from './_components/PortalMobileNav'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,31 +21,9 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
   const ctx = await getPartnerContext()
 
   if (!ctx) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
-        <h1 className="text-2xl font-bold">Partner portal</h1>
-        <p className="mt-3 max-w-md text-white/70">
-          This account doesn&rsquo;t have partner access. If your organization was approved,
-          accept the sign-up invitation email first — or apply to the program below.
-        </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild className="font-semibold">
-            <Link href="/partners/apply">Apply to the program</Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="border-white/20 bg-transparent font-semibold text-white hover:bg-white/10 hover:text-white"
-          >
-            <Link href="/">Back home</Link>
-          </Button>
-          <PartnerSignOutButton
-            variant="ghost"
-            className="font-semibold text-white/60 hover:bg-white/10 hover:text-white"
-          />
-        </div>
-      </div>
-    )
+    const { sessionClaims } = await auth()
+    const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role
+    return <PartnerNoAccess kind={partnerNoAccessKind(role)} />
   }
 
   // MSA gate: org owners and reps must sign before using the portal.
@@ -63,12 +44,18 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <PortalSidebar ctx={navCtx} identity={identity} />
-      <div className="lg:pl-64">
-        <PortalTopbar ctx={navCtx} identity={identity} />
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+    <PartnerPortalProvider kind={navCtx.kind} role={navCtx.role} marginModel={navCtx.marginModel}>
+      <div className="min-h-screen bg-slate-50">
+        <PortalSidebar ctx={navCtx} identity={identity} />
+        <div className="lg:pl-64">
+          <PortalTopbar ctx={navCtx} identity={identity} />
+          <main className="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
+            <PartnerSectionNav />
+            {children}
+          </main>
+        </div>
+        <PortalMobileNav />
       </div>
-    </div>
+    </PartnerPortalProvider>
   )
 }

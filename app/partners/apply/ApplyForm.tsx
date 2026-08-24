@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { PARTNER_REVIEW_SLA } from '@/lib/partners/access'
 
 const inputClass =
   'bg-white border-slate-200 focus-visible:ring-2 focus-visible:ring-brand-primary/60 focus-visible:border-brand-primary'
@@ -61,8 +62,7 @@ export function ApplyForm() {
         </div>
         <p className="mt-4 text-lg font-bold text-emerald-800">Application received!</p>
         <p className="mt-2 text-sm leading-relaxed text-emerald-700">
-          Thanks — our team will review your application and follow up by email, usually within
-          1–2 business days.
+          Thanks — our team will review your application and follow up by email, usually within {PARTNER_REVIEW_SLA}.
         </p>
       </div>
     )

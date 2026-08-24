@@ -52,6 +52,8 @@ const isPublicRoute = createRouteMatcher([
   // Affiliate program: public application form + referral-link redirect.
   '/partners/apply(.*)',
   '/api/partners/apply',
+  // Dedicated partner sign-in (forwards to Clerk with intent=partner).
+  '/partners/sign-in(.*)',
   // Public rep application via an org's join link (GET stays partner-authed
   // inside the route).
   '/partners/join-team(.*)',
@@ -240,11 +242,29 @@ const middleware = isClerkConfigured
 
       // Allow public routes without auth
       if (isPublicRoute(request)) {
+        const pathname = request.nextUrl.pathname
+        // Dedicated partner URL: signed-in users go to the portal (wrong-account
+        // screen if they are clinic/staff); unsigned users get the partner Clerk
+        // flavor. Do this in middleware so NEXT_REDIRECT is not swallowed.
+        if (pathname.startsWith('/partners/sign-in')) {
+          if (userId) {
+            const dest = request.nextUrl.searchParams.get('redirect_url')
+            const target =
+              dest && dest.startsWith('/partners') && !dest.startsWith('//')
+                ? dest
+                : '/partners'
+            return NextResponse.redirect(new URL(target, request.url))
+          }
+          const signInUrl = new URL('/sign-in', request.url)
+          signInUrl.searchParams.set('intent', 'partner')
+          const dest = request.nextUrl.searchParams.get('redirect_url')
+          if (dest) signInUrl.searchParams.set('redirect_url', dest)
+          return NextResponse.redirect(signInUrl)
+        }
         // If user is already logged in and trying to access sign-in/sign-up, redirect them
         if (
           userId &&
-          (request.nextUrl.pathname.startsWith('/sign-in') ||
-            request.nextUrl.pathname.startsWith('/sign-up'))
+          (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))
         ) {
           const meta = sessionClaims?.metadata as SessionMeta | undefined
           const role = meta?.role || 'CLIENT'
@@ -256,7 +276,9 @@ const middleware = isClerkConfigured
 
       // All other routes require authentication
       if (!userId) {
-        const signInUrl = new URL('/sign-in', request.url)
+        const partnerHtml =
+          isPartnerRoute(request) && !request.nextUrl.pathname.startsWith('/api/')
+        const signInUrl = new URL(partnerHtml ? '/partners/sign-in' : '/sign-in', request.url)
         signInUrl.searchParams.set('redirect_url', request.nextUrl.pathname)
         return NextResponse.redirect(signInUrl)
       }
@@ -366,16 +388,14 @@ const middleware = isClerkConfigured
         }
       }
 
-      // Partner portal: PARTNER accounts only (admins manage partners from
-      // /dashboard; clinics have no business here). API calls get 403 JSON.
-      if (isPartnerRoute(request) && role !== 'PARTNER') {
-        if (pathname.startsWith('/api/')) {
-          return NextResponse.json(
-            { error: 'Forbidden', message: 'Partner access required', code: 'PARTNER_REQUIRED' },
-            { status: 403 }
-          )
-        }
-        return NextResponse.redirect(new URL(staffHome, request.url))
+      // Partner APIs stay PARTNER-only. HTML is allowed through so clinic and
+      // staff sessions see the portal's wrong-account screen instead of a
+      // silent bounce to the shop or dashboard.
+      if (isPartnerRoute(request) && role !== 'PARTNER' && pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: 'Forbidden', message: 'Partner access required', code: 'PARTNER_REQUIRED' },
+          { status: 403 }
+        )
       }
 
       // Shop is for clinic + staff accounts; partners are portal-only.

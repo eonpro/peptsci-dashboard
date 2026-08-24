@@ -12,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { ApplyForm } from './ApplyForm'
+import { PARTNER_REVIEW_SLA, PARTNER_SIGN_IN_PATH } from '@/lib/partners/access'
 
 export const metadata: Metadata = {
   title: 'Partner Program — PeptSci',
@@ -64,7 +65,7 @@ const STEPS = [
   {
     icon: ClipboardCheck,
     title: 'Apply in 2 minutes',
-    body: 'Tell us about your organization and sales network. We review every application within 1–2 business days.',
+    body: `Tell us about your organization and sales network. We review every application within ${PARTNER_REVIEW_SLA}.`,
   },
   {
     icon: Link2,
@@ -99,7 +100,7 @@ export default function PartnerApplyPage() {
           </Link>
           <div className="flex items-center gap-3">
             <Link
-              href="/sign-in"
+              href={PARTNER_SIGN_IN_PATH}
               className="rounded-lg px-4 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
             >
               Partner sign in
@@ -156,7 +157,7 @@ export default function PartnerApplyPage() {
                   Apply to the program
                 </a>
                 <Link
-                  href="/sign-in"
+                  href={PARTNER_SIGN_IN_PATH}
                   className="rounded-xl border border-white/25 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   Partner sign in
@@ -219,7 +220,7 @@ export default function PartnerApplyPage() {
                   <h2 className="text-2xl font-bold tracking-tight">Apply to become a partner</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-500">
                     Tell us about your organization. We review every application and usually
-                    respond within 1–2 business days.
+                    respond within {PARTNER_REVIEW_SLA}.
                   </p>
                   <div className="mt-6">
                     <ApplyForm />

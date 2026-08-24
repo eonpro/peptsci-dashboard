@@ -1,5 +1,7 @@
-import { Banknote, Hourglass } from 'lucide-react'
+import Link from 'next/link'
+import { Banknote, FileWarning, Hourglass } from 'lucide-react'
 import { requirePartner } from '@/lib/partners/auth'
+import { partnerCanMutate } from '@/lib/partners/portal'
 import { prisma } from '@/lib/prisma'
 import { commissionSummary } from '@/lib/partners/queries'
 import { formatCents } from '@/lib/partners/commission'
@@ -26,6 +28,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function PartnerPayoutsPage() {
   const ctx = await requirePartner()
+  const canWrite = partnerCanMutate(ctx.kind, ctx.role)
+  const w9OnFile = Boolean(ctx.org.w9BlobUrl)
 
   const [payouts, summary] = await Promise.all([
     prisma!.partnerPayout.findMany({
@@ -53,10 +57,22 @@ export default async function PartnerPayoutsPage() {
             >
               Export CSV
             </a>
-            <RequestPayoutButton />
+            {canWrite ? <RequestPayoutButton /> : null}
           </>
         }
       />
+
+      {!w9OnFile && canWrite && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="flex items-center gap-2">
+            <FileWarning className="h-4 w-4 shrink-0" />
+            Upload a W-9 under Program terms before we can pay you.
+          </span>
+          <Link href="/partners/terms" className="font-semibold underline">
+            Upload W-9
+          </Link>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <StatCard

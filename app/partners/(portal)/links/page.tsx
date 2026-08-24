@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -39,6 +40,7 @@ interface Analytics {
 }
 
 export default function PartnerLinksPage() {
+  const { canWrite } = usePartnerPortal()
   const [links, setLinks] = useState<LinkRow[]>([])
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(true)
@@ -145,22 +147,26 @@ export default function PartnerLinksPage() {
         </Card>
       )}
 
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-2 p-4">
-          <Link2 className="h-4 w-4 text-slate-400" />
-          <Input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            maxLength={120}
-            placeholder="Label (e.g. Spring conference booth)"
-            className="min-w-[240px] flex-1 bg-white"
-            aria-label="Link label"
-          />
-          <Button onClick={() => void createLink()} disabled={creating} className="gap-1 font-semibold">
-            <Plus className="h-4 w-4" /> New link
-          </Button>
-        </CardContent>
-      </Card>
+      {canWrite ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center gap-2 p-4">
+            <Link2 className="h-4 w-4 text-slate-400" />
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              maxLength={120}
+              placeholder="Label (e.g. Spring conference booth)"
+              className="min-w-[240px] flex-1 bg-white"
+              aria-label="Link label"
+            />
+            <Button onClick={() => void createLink()} disabled={creating} className="gap-1 font-semibold">
+              <Plus className="h-4 w-4" /> New link
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="text-sm text-slate-500">View only — ask an admin if you need a new referral link.</p>
+      )}
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -191,7 +197,7 @@ export default function PartnerLinksPage() {
                   <EmptyState
                     icon={Link2}
                     title="No links yet"
-                    description="Create your first referral link above."
+                    description="Create a referral link, share it with a clinic, then watch clicks and signups here."
                     className="py-6"
                   />
                 </TableCell>

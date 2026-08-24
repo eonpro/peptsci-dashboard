@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { PageHeader } from '../_components/PageHeader'
+import { usePartnerPortal } from '../_components/PartnerPortalProvider'
 
 interface LeadRow {
   id: string
@@ -47,6 +48,7 @@ function daysLeft(until: string): number {
 }
 
 export default function PartnerLeadsPage() {
+  const { canWrite } = usePartnerPortal()
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [protectionDays, setProtectionDays] = useState(90)
   const [loading, setLoading] = useState(true)
@@ -118,7 +120,7 @@ export default function PartnerLeadsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Leads"
+        title="Prospects"
         description={
           <>
             Register prospects you&rsquo;re working <em>before</em> they sign up. For{' '}
@@ -128,7 +130,8 @@ export default function PartnerLeadsPage() {
         }
       />
 
-      <Card>
+{canWrite ? (
+            <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
             <UserPlus className="h-4 w-4 text-slate-400" /> Register a prospect
@@ -153,6 +156,9 @@ export default function PartnerLeadsPage() {
           </form>
         </CardContent>
       </Card>
+      ) : (
+        <p className="text-sm text-slate-500">View only — ask an admin to register a prospect.</p>
+      )}
 
       {active.length > 0 && (
         <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
@@ -190,8 +196,8 @@ export default function PartnerLeadsPage() {
                   <TableCell colSpan={6}>
                     <EmptyState
                       icon={UserPlus}
-                      title="No leads yet"
-                      description="Register the clinics you're courting above to lock in attribution."
+                      title="No prospects yet"
+                      description="Register a clinic you are courting to lock attribution before they click a link."
                       className="py-8"
                     />
                   </TableCell>
@@ -235,7 +241,7 @@ export default function PartnerLeadsPage() {
                       )}
                     </TableCell>
                     <TableCell className="py-3 text-right text-xs">
-                      {(lead.status === 'NEW' || lead.status === 'WORKING' || lead.status === 'LOST') && (
+                      {canWrite && (lead.status === 'NEW' || lead.status === 'WORKING' || lead.status === 'LOST') ? (
                         <select
                           value={lead.status}
                           onChange={(e) => void setStatus(lead.id, e.target.value as 'NEW' | 'WORKING' | 'LOST')}
@@ -245,7 +251,7 @@ export default function PartnerLeadsPage() {
                           <option value="WORKING">Working</option>
                           <option value="LOST">Lost</option>
                         </select>
-                      )}
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}

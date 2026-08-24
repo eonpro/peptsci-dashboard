@@ -1,108 +1,58 @@
 import type { LucideIcon } from 'lucide-react'
+import { Home, Link2, TrendingUp, UserRound, Wallet } from 'lucide-react'
 import {
-  Banknote,
-  Building2,
-  FileSpreadsheet,
-  FileText,
-  FolderOpen,
-  LayoutDashboard,
-  Link2,
-  Receipt,
-  Settings,
-  Tags,
-  Target,
-  UserCog,
-  UserPlus,
-  Users,
-} from 'lucide-react'
+  isPartnerPrimaryActive,
+  partnerPageTitle,
+  PARTNER_MOBILE_NAV,
+  PARTNER_PRIMARY_NAV,
+  type PartnerNavContext,
+} from '@/lib/partners/portal'
 
-export interface PortalNavItem {
+export type PortalNavContext = PartnerNavContext
+
+export type PrimaryNavItem = {
   name: string
   href: string
   icon: LucideIcon
-  orgOnly?: boolean
-  marginOnly?: boolean
-  adminOnly?: boolean
+  exact?: boolean
 }
 
-export interface PortalNavSection {
-  label: string | null
-  items: PortalNavItem[]
+const PRIMARY_ICONS: Record<(typeof PARTNER_PRIMARY_NAV)[number]['name'], LucideIcon> = {
+  Home,
+  Grow: TrendingUp,
+  Earnings: Wallet,
+  Account: UserRound,
 }
 
-export interface PortalNavContext {
-  kind: 'ORG' | 'REP'
-  role: 'OWNER' | 'ADMIN' | 'VIEWER' | null
-  marginModel: boolean
+const MOBILE_ICONS: Record<(typeof PARTNER_MOBILE_NAV)[number]['name'], LucideIcon> = {
+  Home,
+  Links: Link2,
+  Earnings: Wallet,
+  Account: UserRound,
 }
 
-const SECTIONS: PortalNavSection[] = [
-  {
-    label: null,
-    items: [{ name: 'Dashboard', href: '/partners', icon: LayoutDashboard }],
-  },
-  {
-    label: 'Grow',
-    items: [
-      { name: 'Leads', href: '/partners/leads', icon: UserPlus },
-      { name: 'Clinics', href: '/partners/clinics', icon: Building2 },
-      { name: 'Links', href: '/partners/links', icon: Link2 },
-      { name: 'Quotes', href: '/partners/quotes', icon: FileText },
-      { name: 'Goals', href: '/partners/goals', icon: Target },
-    ],
-  },
-  {
-    label: 'Earnings',
-    items: [
-      { name: 'Transactions', href: '/partners/transactions', icon: Receipt },
-      { name: 'Statements', href: '/partners/statements', icon: FileSpreadsheet },
-      { name: 'Payouts', href: '/partners/payouts', icon: Banknote },
-      { name: 'Pricing', href: '/partners/pricing', icon: Tags, orgOnly: true, marginOnly: true },
-    ],
-  },
-  {
-    label: 'Resources',
-    items: [{ name: 'Assets', href: '/partners/assets', icon: FolderOpen }],
-  },
-  {
-    label: 'Organization',
-    items: [
-      { name: 'Reps', href: '/partners/reps', icon: Users, orgOnly: true },
-      { name: 'Team', href: '/partners/team', icon: UserCog, orgOnly: true, adminOnly: true },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [{ name: 'Terms & settings', href: '/partners/terms', icon: Settings }],
-  },
-]
-
-/** Nav sections visible for the given partner context (same gating rules as the old tab nav). */
-export function visibleSections(ctx: PortalNavContext): PortalNavSection[] {
-  return SECTIONS.map((section) => ({
-    ...section,
-    items: section.items.filter((item) => {
-      if (item.orgOnly && ctx.kind !== 'ORG') return false
-      if (item.marginOnly && !ctx.marginModel) return false
-      if (item.adminOnly && ctx.role === 'VIEWER') return false
-      return true
-    }),
-  })).filter((section) => section.items.length > 0)
+export function visiblePrimaryNav(): PrimaryNavItem[] {
+  return PARTNER_PRIMARY_NAV.map((item) => ({
+    name: item.name,
+    href: item.href,
+    exact: item.exact,
+    icon: PRIMARY_ICONS[item.name],
+  }))
 }
 
-export function isNavItemActive(href: string, pathname: string): boolean {
-  return href === '/partners' ? pathname === '/partners' : pathname.startsWith(href)
+export function visibleMobileNav(): PrimaryNavItem[] {
+  return PARTNER_MOBILE_NAV.map((item) => ({
+    name: item.name,
+    href: item.href,
+    exact: item.exact,
+    icon: MOBILE_ICONS[item.name],
+  }))
 }
 
-/** Page title for the topbar, derived from the longest matching nav href. */
+export function isNavItemActive(href: string, pathname: string, exact?: boolean): boolean {
+  return isPartnerPrimaryActive(href, pathname, exact)
+}
+
 export function pageTitleForPath(pathname: string): string {
-  let best: PortalNavItem | null = null
-  for (const section of SECTIONS) {
-    for (const item of section.items) {
-      if (isNavItemActive(item.href, pathname)) {
-        if (!best || item.href.length > best.href.length) best = item
-      }
-    }
-  }
-  return best?.name ?? 'Partners'
+  return partnerPageTitle(pathname)
 }

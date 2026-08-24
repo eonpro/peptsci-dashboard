@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CheckCircle2 } from 'lucide-react'
 import { CopyRefButton } from './CopyRefButton'
+import { ACCOUNT_REVIEW_SLA } from '@/lib/shop/portal'
+import { PARTNER_REVIEW_SLA } from '@/lib/partners/access'
 
 export const metadata: Metadata = {
   title: 'Application received — PeptSci',
@@ -36,12 +38,12 @@ export default async function ThankYouPage({
     form === 'partner'
       ? {
           heading: 'Your partner application is in.',
-          body: 'Our team reviews every application — you\u2019ll hear back by email, usually within 1\u20132 business days. Once approved, you\u2019ll receive a sign-up invitation for your partner portal.',
+          body: `Our team reviews every application — you\u2019ll hear back by email, usually within ${PARTNER_REVIEW_SLA}. Once approved, you\u2019ll receive a sign-up invitation for your partner portal.`,
           footerLink: { href: '/partners/apply', label: 'Back to the partner program' },
         }
       : {
           heading: 'Your application is in.',
-          body: 'Our team is verifying your practice credentials — you\u2019ll receive an email as soon as your account is approved and ready to order, usually within 1\u20132 business days.',
+          body: `Our team is verifying your practice credentials — you\u2019ll receive an email as soon as your account is approved and ready to order, usually within ${ACCOUNT_REVIEW_SLA}.`,
           footerLink: { href: '/pending-approval', label: 'Check your account status' },
         }
 

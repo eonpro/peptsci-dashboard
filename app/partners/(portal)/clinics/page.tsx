@@ -82,6 +82,11 @@ export default async function PartnerClinicsPage() {
                     title="No clinics yet"
                     description="Share a referral link to start building your book."
                     className="py-6"
+                    action={
+                      <Link href="/partners/links" className={buttonVariants({ size: 'sm' })}>
+                        Create a referral link
+                      </Link>
+                    }
                   />
                 </TableCell>
               </TableRow>
