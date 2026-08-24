@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import {
-  requireSuperAdmin,
+  requireAdmin,
   unauthorizedResponse,
   forbiddenResponse,
   errorResponse,
@@ -33,13 +33,14 @@ export const dynamic = 'force-dynamic'
  *          ($20) keeping its SKU, and clears the peptide-only spec fields
  *          (purity / CAS / formula / MW) that don't apply to water.
  *
- * Idempotent — safe to re-run. SUPER_ADMIN only.
+ * Idempotent — safe to re-run. Admin only: this creates and edits variants,
+ * which admins can already do one at a time via POST /api/admin/products.
  */
 
 export async function GET() {
-  const { isAuthenticated, isAdmin } = await requireSuperAdmin()
+  const { isAuthenticated, isAdmin } = await requireAdmin()
   if (!isAuthenticated) return unauthorizedResponse()
-  if (!isAdmin) return forbiddenResponse('Super-admin access required')
+  if (!isAdmin) return forbiddenResponse('Admin access required')
   if (!prisma) return errorResponse('Database is not configured', 503, 'DB_UNAVAILABLE')
 
   try {
@@ -67,9 +68,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, isAdmin, userId } = await requireSuperAdmin()
+  const { isAuthenticated, isAdmin, userId } = await requireAdmin()
   if (!isAuthenticated) return unauthorizedResponse()
-  if (!isAdmin) return forbiddenResponse('Super-admin access required')
+  if (!isAdmin) return forbiddenResponse('Admin access required')
   if (!prisma) return errorResponse('Database is not configured', 503, 'DB_UNAVAILABLE')
 
   const body = (await request.json().catch(() => ({}))) as { confirm?: boolean }

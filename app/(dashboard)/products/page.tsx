@@ -59,6 +59,7 @@ import { apiError } from '@/lib/api-error'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { groupProductsByParent, type ShopProduct } from '@/lib/types/shop'
 import { variantToShopProduct } from '@/lib/products/admin-catalog'
+import { bacWaterVolumeMl, isBacteriostaticWaterProduct } from '@/lib/shop/bac-water'
 
 interface VariantRow {
   id: string
@@ -117,6 +118,7 @@ export default function ProductsPage() {
   const [labelOpen, setLabelOpen] = useState(false)
   const [labelVariant, setLabelVariant] = useState<ProductLabelVariantRef | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [syncingBacWater, setSyncingBacWater] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const imageTargetRef = useRef<VariantRow | null>(null)
@@ -140,6 +142,35 @@ export default function ProductsPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  // Bacteriostatic water sells as 3mL / 10mL / 30mL. The catalog advertises all
+  // three, so surface a one-click fix while any of them is missing a variant.
+  const missingBacWaterSizes = useMemo(() => {
+    const bac = variants.filter((v) => isBacteriostaticWaterProduct(v.productName, v.sku))
+    if (bac.length === 0) return []
+    const have = new Set(
+      bac.map((v) => bacWaterVolumeMl(v.productName, v.dose, v.sku)).filter((ml) => ml != null)
+    )
+    return [3, 10, 30].filter((ml) => !have.has(ml)).map((ml) => `${ml}mL`)
+  }, [variants])
+
+  async function syncBacWaterSizes() {
+    setSyncingBacWater(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/products/bac-water-sizes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      if (!res.ok) throw await apiError(res, 'Failed to add bacteriostatic water sizes')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add bacteriostatic water sizes')
+    } finally {
+      setSyncingBacWater(false)
+    }
+  }
 
   const stats = useMemo(() => {
     const products = new Set(variants.map((v) => v.productName.toLowerCase()))
@@ -388,6 +419,31 @@ export default function ProductsPage() {
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <AlertCircle className="h-4 w-4" />
           {error}
+        </div>
+      )}
+
+      {missingBacWaterSizes.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Bacteriostatic water is missing its {missingBacWaterSizes.join(' and ')} vial
+              {missingBacWaterSizes.length > 1 ? 's' : ''}. The catalog lists 3mL $5, 10mL $10, and
+              30mL $20, so those sizes can&apos;t be ordered until they exist here.
+            </span>
+          </div>
+          <Button
+            onClick={syncBacWaterSizes}
+            disabled={syncingBacWater}
+            className="shrink-0 bg-brand-primary text-white hover:bg-[#1a30c0]"
+          >
+            {syncingBacWater ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            Add mL sizes
+          </Button>
         </div>
       )}
 
