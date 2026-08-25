@@ -27,6 +27,7 @@ import {
   reserveForOrderEnforced,
 } from '@/lib/inventory/reservations'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
+import { newCardPaymentIntentParams, savedCardPaymentIntentParams } from '@/lib/stripe/intent-params'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { recordCreditRedemptionForOrder } from '@/lib/referrals/credit'
 import { syncSalesRecordFromOrder } from '@/lib/sales'
@@ -234,7 +235,6 @@ export async function POST(request: NextRequest) {
       customer: customer.id,
       description: `PeptSci order #${order.orderNumber}`,
       metadata: { orderId: order.id, clientId: actor.clientId },
-      ...(saveCard || savedPaymentMethodId ? { setup_future_usage: 'off_session' } : {}),
       // Direct charge on the connected account; optional platform fee.
       ...(appFee ? { application_fee_amount: appFee } : {}),
     }
@@ -254,8 +254,7 @@ export async function POST(request: NextRequest) {
           {
             ...baseParams,
             payment_method: saved.stripePaymentMethodId,
-            confirm: true,
-            off_session: true,
+            ...savedCardPaymentIntentParams(),
           },
           connectRequestOptions({ idempotencyKey: `pi_saved_${order.id}` })
         )
@@ -332,7 +331,11 @@ export async function POST(request: NextRequest) {
     // after the PI exists must mint a fresh PI with the right
     // setup_future_usage instead of silently replaying the old one.
     const intent = await stripe.paymentIntents.create(
-      { ...baseParams, payment_method_types: elementsPaymentMethodTypes() },
+      {
+        ...baseParams,
+        payment_method_types: elementsPaymentMethodTypes(),
+        ...newCardPaymentIntentParams({ saveCard }),
+      },
       connectRequestOptions({
         idempotencyKey: `pi_create_${order.id}${saveCard ? '_save' : ''}`,
       })

@@ -11,6 +11,7 @@ import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, applicationFeeAmount } from '@/lib/stripe/connect'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { reconcileOrderFromPaymentIntent } from '@/lib/stripe/payments'
+import { savedCardPaymentIntentParams } from '@/lib/stripe/intent-params'
 
 export type ChargeSavedCardResult =
   | {
@@ -93,9 +94,7 @@ export async function chargeOrderWithSavedCard(params: {
         customer: customer.id,
         description: `PeptSci order #${order.orderNumber}`,
         payment_method: saved.stripePaymentMethodId,
-        confirm: true,
-        off_session: true,
-        setup_future_usage: 'off_session',
+        ...savedCardPaymentIntentParams(),
         metadata: {
           orderId: order.id,
           clientId: order.clientId,

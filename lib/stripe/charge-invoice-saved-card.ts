@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { toCents } from '@/lib/stripe'
 import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, applicationFeeAmount } from '@/lib/stripe/connect'
+import { savedCardPaymentIntentParams } from '@/lib/stripe/intent-params'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { getInvoice, recordPayment } from '@/lib/invoicing/service'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
@@ -80,8 +81,7 @@ export async function chargeInvoiceWithSavedCard(params: {
         customer: customer.id,
         description: `PeptSci invoice ${invoiceLabel}`,
         payment_method: saved.stripePaymentMethodId,
-        confirm: true,
-        off_session: true,
+        ...savedCardPaymentIntentParams(),
         metadata: {
           invoiceId: view.invoice.id,
           clientId,

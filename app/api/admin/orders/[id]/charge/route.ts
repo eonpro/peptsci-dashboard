@@ -16,6 +16,7 @@ import { connectRequestOptions, getConnectedAccountId, applicationFeeAmount } fr
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { reconcileOrderFromPaymentIntent, persistPaymentMethodFromStripe } from '@/lib/stripe/payments'
 import { chargeOrderWithSavedCard } from '@/lib/stripe/charge-saved-card'
+import { newCardPaymentIntentParams } from '@/lib/stripe/intent-params'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       customer: customer.id,
       description: `PeptSci order #${order.orderNumber}`,
       metadata: { orderId: order.id, clientId: order.clientId },
-      ...(saveCard || savedPaymentMethodId ? { setup_future_usage: 'off_session' as const } : {}),
+      ...newCardPaymentIntentParams({ saveCard }),
       ...(appFee ? { application_fee_amount: appFee } : {}),
     }
 
