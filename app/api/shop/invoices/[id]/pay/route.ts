@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { toCents, getStripePublishableKey, elementsPaymentMethodTypes } from '@/lib/stripe'
 import { requireStripeClient, StripeConfigError } from '@/lib/stripe/config'
 import { connectRequestOptions, getConnectedAccountId, applicationFeeAmount } from '@/lib/stripe/connect'
+import { savedCardPaymentIntentParams } from '@/lib/stripe/intent-params'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveShopClientId } from '@/lib/shop-actor'
 import { getInvoice, recordPayment } from '@/lib/invoicing/service'
@@ -86,8 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           {
             ...baseParams,
             payment_method: saved.stripePaymentMethodId,
-            confirm: true,
-            off_session: true,
+            ...savedCardPaymentIntentParams(),
           },
           // Amount-aware idempotency: a retry after a partial payment (new
           // amount due) must create a fresh PI, not replay the old amount.
