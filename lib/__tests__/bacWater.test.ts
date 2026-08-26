@@ -71,7 +71,7 @@ describe('BAC water catalog sizes', () => {
       }),
     ])
     assert.equal(grouped.length, 1)
-    assert.equal(grouped[0].sku, BAC_WATER_SKUS.labeled3ml)
+    assert.equal(grouped[0].sku, BAC_WATER_SKUS.hospira30ml)
     assert.deepEqual(
       grouped[0].sizeOptions?.map((s) => s.dose),
       ['3mL', '10mL', '30mL']
