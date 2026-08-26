@@ -98,7 +98,6 @@ export function ProductCard({
   const isAdmin = Boolean(adminPricing || adminCatalog)
 
   const productId = product.sku || product.id
-  const pdpHref = `/shop/product/${encodeURIComponent(productId)}`
 
   // All purchasable sizes (grouped catalog) — falls back to the single variant.
   const sizes =
@@ -115,6 +114,10 @@ export function ProductCard({
           },
         ]
 
+  const activeSku = selectedSku || productId
+  const activeSize = sizes.find((s) => s.sku === activeSku) || sizes[0]
+  const pdpHref = `/shop/product/${encodeURIComponent(activeSize?.sku || productId)}`
+
   // Units of any size of this compound already in the cart.
   const sizeSkus = new Set(sizes.map((s) => s.sku))
   const cartQty = items
@@ -128,25 +131,22 @@ export function ProductCard({
     }).format(price)
   }
 
-  // "From $X" — cheapest priced size (client pricing already applied).
   const pricedSizes = sizes.filter((s) => s.displayPrice > 0)
-  const unpriced = pricedSizes.length === 0
-  const fromPrice = unpriced ? 0 : Math.min(...pricedSizes.map((s) => s.displayPrice))
-  const distinctPrices = new Set(pricedSizes.map((s) => s.displayPrice))
-  const showFromLabel = sizes.length > 1 && distinctPrices.size > 1
-  const cheapest = pricedSizes.find((s) => s.displayPrice === fromPrice)
+  const unitPrice = activeSize?.displayPrice ?? 0
+  const unpriced = !(unitPrice > 0)
+  const fromPrice = pricedSizes.length === 0 ? 0 : Math.min(...pricedSizes.map((s) => s.displayPrice))
 
-  // Quantified account savings vs standard price (only when there is a real discount)
+  // Quantified account savings vs standard price for the selected size
   const savingsAmount =
-    cheapest?.isCustomPrice &&
-    cheapest.standardPrice &&
-    cheapest.standardPrice > cheapest.displayPrice &&
-    cheapest.displayPrice > 0
-      ? cheapest.standardPrice - cheapest.displayPrice
+    activeSize?.isCustomPrice &&
+    activeSize.standardPrice &&
+    activeSize.standardPrice > activeSize.displayPrice &&
+    activeSize.displayPrice > 0
+      ? activeSize.standardPrice - activeSize.displayPrice
       : 0
   const savingsPercent =
-    savingsAmount > 0 && cheapest?.standardPrice
-      ? Math.round((savingsAmount / cheapest.standardPrice) * 100)
+    savingsAmount > 0 && activeSize?.standardPrice
+      ? Math.round((savingsAmount / activeSize.standardPrice) * 100)
       : 0
 
   const outOfStock = product.inStock === false
@@ -158,10 +158,14 @@ export function ProductCard({
 
   // Sizes line ("5mg · 10mg") — grouped doses when available
   const doseList = (
-    product.availableDoses && product.availableDoses.length > 0
-      ? product.availableDoses
-      : sizes.map((s) => s.dose).filter(Boolean)
-  ).map((dose) => displayCatalogDose(product.name, product.sku, dose))
+    sizes.length > 0
+      ? sizes.map((s) => displayCatalogDose(product.name, s.sku, s.dose)).filter(Boolean)
+      : (
+          product.availableDoses && product.availableDoses.length > 0
+            ? product.availableDoses
+            : [product.dose].filter(Boolean)
+        ).map((dose) => displayCatalogDose(product.name, product.sku, dose))
+  )
   const doseDisplay =
     doseList.join(' · ') ||
     product.dose ||
@@ -227,8 +231,14 @@ export function ProductCard({
   const renderSizePills = () => (
     <div className="flex flex-wrap items-center gap-1.5">
       {doseList.slice(0, 4).map((dose) => {
-        const skuForDose = resolveAdminSkuForDose(dose)
-        const selected = Boolean(adminCatalog) && skuForDose === (selectedSku || activeCatalogSku?.sku)
+        const sizeMatch = sizes.find((s) => {
+          const displayed = displayCatalogDose(product.name, s.sku, s.dose)
+          return displayed === dose || s.dose === dose
+        })
+        const skuForDose = sizeMatch?.sku || resolveAdminSkuForDose(dose)
+        const selected =
+          (Boolean(adminCatalog) && skuForDose === (selectedSku || activeCatalogSku?.sku)) ||
+          (!isAdmin && skuForDose === activeSku)
         if (isAdmin && adminCatalog) {
           return (
             <button
@@ -259,12 +269,19 @@ export function ProductCard({
           )
         }
         return (
-          <span
+          <button
             key={dose}
-            className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/75"
+            type="button"
+            onClick={() => setSelectedSku(skuForDose)}
+            className={cn(
+              'relative z-10 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
+              selected
+                ? 'border-blue-400/70 bg-blue-500/20 text-white'
+                : 'border-white/15 bg-white/5 text-white/75 hover:border-blue-400/50 hover:text-white'
+            )}
           >
             {dose}
-          </span>
+          </button>
         )
       })}
       {doseList.length > 4 && (
@@ -321,17 +338,12 @@ export function ProductCard({
   ) : (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
-        {showFromLabel && !unpriced && (
-          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
-            From
-          </span>
-        )}
         <p className="text-xl font-bold text-white">
-          {unpriced ? '—' : formatPrice(fromPrice)}
+          {unpriced ? '—' : formatPrice(unitPrice)}
         </p>
-        {cheapest?.isCustomPrice && cheapest.standardPrice && savingsAmount > 0 && (
+        {activeSize?.isCustomPrice && activeSize.standardPrice && savingsAmount > 0 && (
           <span className="text-sm text-white/40 line-through">
-            {formatPrice(cheapest.standardPrice)}
+            {formatPrice(activeSize.standardPrice)}
           </span>
         )}
       </div>
@@ -351,7 +363,11 @@ export function ProductCard({
           {/* Vial thumbnail (generated label) */}
           <div className="h-16 w-14 shrink-0 flex items-center justify-center">
             <ProductVial
-              product={product}
+              product={{
+                ...product,
+                sku: activeSize?.sku || product.sku,
+                dose: activeSize?.dose || product.dose,
+              }}
               className="h-full drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
             />
           </div>
@@ -408,13 +424,8 @@ export function ProductCard({
                 </>
               ) : (
                 <>
-                  {showFromLabel && !unpriced && (
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-white/45">
-                      From
-                    </span>
-                  )}
                   <p className="text-lg font-bold text-white">
-                    {unpriced ? 'Call' : formatPrice(fromPrice)}
+                    {unpriced ? 'Call' : formatPrice(unitPrice)}
                   </p>
                   {savingsAmount > 0 && (
                     <p className="text-[10px] font-semibold text-green-400">Save {savingsPercent}%</p>
@@ -643,13 +654,17 @@ export function ProductCard({
         {/* Vial with generated label - fully visible, anchored bottom-right */}
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <ProductVial
-            product={product}
+            product={{
+              ...product,
+              sku: activeSize?.sku || product.sku,
+              dose: activeSize?.dose || product.dose,
+            }}
             className="h-[144px] @[16rem]:h-[164px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)] transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
       </div>
 
-      {/* Price + sizes footer — selection happens on the product page */}
+      {/* Price + sizes footer — pills pick the SKU; CTA opens that PDP */}
       <div className="p-4 pt-3 border-t border-white/10 bg-black/20 space-y-2.5">
         {renderSizePills()}
         <div className="flex items-center justify-between gap-2">
@@ -780,7 +795,7 @@ export function ProductCard({
 
       {product.hasCoa && !adminCatalog && (
         <CoaDialog
-          sku={productId}
+          sku={activeSize?.sku || productId}
           productName={product.name}
           open={coaOpen}
           onOpenChange={setCoaOpen}

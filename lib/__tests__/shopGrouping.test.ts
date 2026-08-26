@@ -81,5 +81,41 @@ describe('groupProductsByParent', () => {
       grouped[0].sizeOptions?.map((s) => s.sku),
       ['SER-5', 'SER-10']
     )
+    assert.equal(grouped[0].sku, 'SER-10')
+    assert.equal(grouped[0].displayPrice, 89)
+  })
+
+  it('fronts the largest priced size so a cheap sibling does not hide the usual vial', () => {
+    const grouped = groupProductsByParent([
+      product({
+        name: 'NAD+',
+        sku: 'NAD500',
+        dose: '500 mg',
+        parentProductId: 'nad',
+        displayPrice: 50,
+        isCustomPrice: true,
+        standardPrice: 75,
+      }),
+      product({
+        name: 'NAD+',
+        sku: 'NAD1000',
+        dose: '1000 mg',
+        parentProductId: 'nad',
+        displayPrice: 70,
+        isCustomPrice: true,
+        standardPrice: 100,
+      }),
+    ])
+
+    assert.equal(grouped.length, 1)
+    assert.equal(grouped[0].sku, 'NAD1000')
+    assert.equal(grouped[0].displayPrice, 70)
+    assert.deepEqual(
+      grouped[0].sizeOptions?.map((s) => ({ sku: s.sku, displayPrice: s.displayPrice })),
+      [
+        { sku: 'NAD500', displayPrice: 50 },
+        { sku: 'NAD1000', displayPrice: 70 },
+      ]
+    )
   })
 })

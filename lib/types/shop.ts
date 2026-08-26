@@ -177,12 +177,11 @@ export function groupProductsByParent(products: ShopProduct[]): ShopProduct[] {
   for (const variants of groups.values()) {
     const unique = uniqueVariantsByDose(variants)
     const byDose = [...unique].sort((a, b) => doseValue(a.dose) - doseValue(b.dose))
-    // Cheapest priced size fronts the card; fall back to the smallest dose.
+    // Largest priced size fronts the card so a cheap sibling (e.g. NAD 500 mg
+    // at a practice rate) does not hide the usual vial (NAD 1000 mg). Fall
+    // back to the smallest dose when nothing is priced.
     const priced = byDose.filter((v) => v.displayPrice > 0)
-    const representative =
-      priced.length > 0
-        ? priced.reduce((min, v) => (v.displayPrice < min.displayPrice ? v : min))
-        : byDose[0]
+    const representative = priced.length > 0 ? priced[priced.length - 1] : byDose[0]
 
     grouped.push({
       ...representative,
