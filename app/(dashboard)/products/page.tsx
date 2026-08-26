@@ -59,7 +59,12 @@ import { apiError } from '@/lib/api-error'
 import { ProductCard } from '@/components/shop/ProductCard'
 import { groupProductsByParent, type ShopProduct } from '@/lib/types/shop'
 import { variantToShopProduct } from '@/lib/products/admin-catalog'
-import { bacWaterVolumeMl, isBacteriostaticWaterProduct } from '@/lib/shop/bac-water'
+import {
+  applyBacWaterListPrice,
+  bacWaterListPrice,
+  bacWaterVolumeMl,
+  isBacteriostaticWaterProduct,
+} from '@/lib/shop/bac-water'
 
 interface VariantRow {
   id: string
@@ -153,6 +158,16 @@ export default function ProductsPage() {
     )
     return [3, 10, 30].filter((ml) => !have.has(ml)).map((ml) => `${ml}mL`)
   }, [variants])
+
+  const bacWaterPriceMismatch = useMemo(() => {
+    return variants.some((v) => {
+      if (!isBacteriostaticWaterProduct(v.productName, v.sku)) return false
+      const list = bacWaterListPrice(v.productName, v.dose, v.sku)
+      return list != null && Number(v.srp) !== list
+    })
+  }, [variants])
+
+  const bacWaterNeedsSync = missingBacWaterSizes.length > 0 || bacWaterPriceMismatch
 
   async function syncBacWaterSizes() {
     setSyncingBacWater(true)
@@ -328,7 +343,7 @@ export default function ProductsPage() {
         id: v.id,
         sku: v.sku || v.id,
         cost: v.unitCost,
-        srp: v.srp,
+        srp: applyBacWaterListPrice(v.srp, v.productName, v.dose, v.sku),
         inventoryOnHand: v.inventoryOnHand,
         coaCount: v.coaCount,
       }))
@@ -422,14 +437,18 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {missingBacWaterSizes.length > 0 && (
+      {bacWaterNeedsSync && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              Bacteriostatic water is missing its {missingBacWaterSizes.join(' and ')} vial
-              {missingBacWaterSizes.length > 1 ? 's' : ''}. The catalog lists 3mL $5, 10mL $10, and
-              30mL $20, so those sizes can&apos;t be ordered until they exist here.
+              {missingBacWaterSizes.length > 0
+                ? `Bacteriostatic water is missing its ${missingBacWaterSizes.join(' and ')} vial${missingBacWaterSizes.length > 1 ? 's' : ''}. `
+                : ''}
+              List prices are 3mL $5, 10mL $10, and 30mL $20
+              {bacWaterPriceMismatch && missingBacWaterSizes.length === 0
+                ? ' — the live SKUs still share one price.'
+                : '.'}
             </span>
           </div>
           <Button
@@ -442,7 +461,7 @@ export default function ProductsPage() {
             ) : (
               <Plus className="mr-2 h-4 w-4" />
             )}
-            Add mL sizes
+            {missingBacWaterSizes.length > 0 ? 'Add mL sizes' : 'Fix BAC water prices'}
           </Button>
         </div>
       )}
@@ -601,7 +620,7 @@ export default function ProductsPage() {
                       ${v.unitCost.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-green-400 text-right font-semibold">
-                      ${v.srp.toFixed(2)}
+                      ${applyBacWaterListPrice(v.srp, v.productName, v.dose, v.sku).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-white/70">{v.supplierName || '-'}</TableCell>
                     <TableCell className="text-white/60">{v.supplierSku || '-'}</TableCell>

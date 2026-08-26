@@ -2,6 +2,7 @@ import type { CompoundInfo, ShopProduct } from '@/lib/types/shop'
 import { resolveBlendCompounds } from '@/lib/content/blend-compositions'
 import { getCompoundChemistry } from '@/lib/content/compound-chemistry'
 import { displayProductAka, displayProductName } from '@/lib/products/named-blends'
+import { applyBacWaterListPrice } from '@/lib/shop/bac-water'
 
 /** Flattened admin catalog row (one SKU / mg size). */
 export interface AdminCatalogVariant {
@@ -69,7 +70,7 @@ export function variantToShopProduct(v: AdminCatalogVariant): ShopProduct {
     ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
     description: v.description ?? null,
     category: v.category ?? chem?.category ?? null,
-    displayPrice: v.srp,
+    displayPrice: applyBacWaterListPrice(v.srp, displayName, v.dose, sku),
     casNumber: v.casNumber ?? chem?.casNumber ?? null,
     molecularFormula: v.molecularFormula ?? chem?.molecularFormula ?? null,
     molecularWeight,

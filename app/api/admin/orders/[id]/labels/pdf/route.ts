@@ -32,6 +32,7 @@ import {
   serializeLabelShortfall,
   type LabelShortfallEntry,
 } from '@/lib/fulfillment/label-shortfall'
+import { planOrderVialLabelLine } from '@/lib/labels/order-vial-labels'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -150,27 +151,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         needed
       )
       const catalog = variantById.get(variantId)
-      if (plan.shortfall > 0) {
+      const productName = catalog
+        ? displayProductName(catalog.product.name, catalog.sku)
+        : 'Unknown product'
+      const labelPlan = planOrderVialLabelLine({
+        name: catalog?.product.name ?? productName,
+        dose: catalog?.dose,
+        sku: catalog?.sku,
+        needed,
+        drawnQty: plan.draws.reduce((sum, d) => sum + d.qty, 0),
+      })
+      if (labelPlan.skip) continue
+      if (plan.shortfall > 0 && labelPlan.syntheticBacQty === 0) {
         shortfalls.push({
           variantId,
-          productName: catalog
-            ? displayProductName(catalog.product.name, catalog.sku)
-            : 'Unknown product',
+          productName,
           dose: resolveLabelDose(null, catalog?.dose, catalog?.sku) || null,
           needed,
           short: plan.shortfall,
         })
       }
-      for (const draw of plan.draws) {
-        const batch = batches.find((b) => b.id === draw.batchId)!
+      if (labelPlan.useBatchDraws) {
+        for (const draw of plan.draws) {
+          const batch = batches.find((b) => b.id === draw.batchId)!
+          groups.push({
+            productName: displayProductName(batch.productName, catalog?.sku),
+            dose: resolveLabelDose(batch.dose, catalog?.dose, catalog?.sku),
+            purity: batch.purity,
+            batchNumber: batch.batchNumber,
+            budIsoDate: batch.bud.toISOString().slice(0, 10),
+            accentColor: batch.yearColor || undefined,
+            quantity: draw.qty,
+          })
+        }
+      }
+      if (labelPlan.syntheticBacQty > 0 && labelPlan.volume) {
         groups.push({
-          productName: batch.productName,
-          dose: resolveLabelDose(batch.dose, catalog?.dose, catalog?.sku),
-          purity: batch.purity,
-          batchNumber: batch.batchNumber,
-          budIsoDate: batch.bud.toISOString().slice(0, 10),
-          accentColor: batch.yearColor || undefined,
-          quantity: draw.qty,
+          productName,
+          dose: labelPlan.volume,
+          purity: '',
+          batchNumber: '',
+          budIsoDate: '',
+          quantity: labelPlan.syntheticBacQty,
         })
       }
     }
@@ -243,7 +265,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             if (!batch) return []
             return [
               {
-                productName: batch.productName,
+                productName: displayProductName(batch.productName, batch.variant?.sku),
                 dose: resolveLabelDose(batch.dose, batch.variant?.dose, batch.variant?.sku),
                 purity: batch.purity,
                 batchNumber: batch.batchNumber,

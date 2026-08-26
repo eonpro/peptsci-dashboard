@@ -29,6 +29,7 @@ import {
   budLabel,
   fmtDate,
 } from '@/app/(dashboard)/inventory/inventory-shared'
+import { usesHospiraBacPhoto, usesPeptSciBacLabel } from '@/lib/shop/bac-water'
 
 export interface ProductLabelVariantRef {
   id: string
@@ -141,14 +142,25 @@ export default function ProductLabelPrintDialog({
     }
   }
 
+  const canPrintBacWithoutBatch = Boolean(
+    variant && usesPeptSciBacLabel(variant.productName, variant.dose, variant.sku)
+  )
+  const hospiraBottle = Boolean(
+    variant && usesHospiraBacPhoto(variant.productName, variant.dose, variant.sku)
+  )
+
   async function downloadLabels(opts: { proofMode?: boolean; quantity?: number }) {
-    if (!selected) return
+    if (!selected && !canPrintBacWithoutBatch) return
     setBusy(true)
     try {
       const res = await fetch('/api/admin/inventory/labels/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: selected.id, ...opts }),
+        body: JSON.stringify(
+          selected
+            ? { batchId: selected.id, ...opts }
+            : { variantId: variant?.id, ...opts }
+        ),
       })
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}))
@@ -163,7 +175,7 @@ export default function ProductLabelPrintDialog({
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `peptsci-labels-${selected.batchNumber}${opts.proofMode ? '-proof' : ''}.pdf`
+      link.download = `peptsci-labels-${selected?.batchNumber || variant?.dose || 'bac'}${opts.proofMode ? '-proof' : ''}.pdf`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -199,7 +211,12 @@ export default function ProductLabelPrintDialog({
           <div className="flex items-center justify-center py-10 text-white/50">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
-        ) : batches.length === 0 ? (
+        ) : hospiraBottle ? (
+          <div className="rounded-lg border border-white/10 bg-[#0a0e3a]/40 px-4 py-6 text-sm text-white/70">
+            The Hospira 30mL bottle ships with its own label. Print PeptSci labels for the
+            3mL and 10mL sizes.
+          </div>
+        ) : batches.length === 0 && !canPrintBacWithoutBatch ? (
           <div className="rounded-lg border border-white/10 bg-[#0a0e3a]/40 px-4 py-6 text-sm text-white/70">
             <p className="mb-2">No inventory batches for this product yet.</p>
             <p>
@@ -226,6 +243,7 @@ export default function ProductLabelPrintDialog({
               </button>
             </div>
 
+            {batches.length > 0 ? (
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">Batch</Label>
               <Select value={batchId} onValueChange={onBatchChange}>
@@ -243,6 +261,11 @@ export default function ProductLabelPrintDialog({
                 </SelectContent>
               </Select>
             </div>
+            ) : (
+              <p className="text-xs text-white/60">
+                No batch yet — printing a volume-only PeptSci label for this size.
+              </p>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="product-print-qty" className="text-white/70 text-xs">
@@ -267,13 +290,13 @@ export default function ProductLabelPrintDialog({
             onClick={() => onOpenChange(false)}
             className="border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
           >
-            {batches.length === 0 && !loading ? 'Close' : 'Cancel'}
+            {batches.length === 0 && !canPrintBacWithoutBatch && !loading ? 'Close' : 'Cancel'}
           </Button>
-          {batches.length > 0 && (
+          {(batches.length > 0 || canPrintBacWithoutBatch) && !hospiraBottle && (
             <>
               <Button
                 variant="outline"
-                disabled={busy || !selected}
+                disabled={busy || (!selected && !canPrintBacWithoutBatch)}
                 onClick={() => void downloadLabels({ proofMode: true })}
                 className="border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
               >
@@ -285,7 +308,7 @@ export default function ProductLabelPrintDialog({
                 Proof
               </Button>
               <Button
-                disabled={busy || !selected}
+                disabled={busy || (!selected && !canPrintBacWithoutBatch)}
                 onClick={() => {
                   const qty = Math.min(
                     SHEET_MAX,

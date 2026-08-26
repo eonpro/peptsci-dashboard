@@ -55,6 +55,12 @@ import {
 } from './embeddedAssets'
 import { OL4891LP, labelsPerSheet, planLabelSheets } from './sheet-layout'
 import { embedLabelFont } from './embed-font'
+import {
+  bacWaterLabelVolume,
+  isBacteriostaticWaterProduct,
+  isLegacyBacWaterThirtyMl,
+  usesPeptSciBacLabel,
+} from '@/lib/shop/bac-water'
 
 const PT_PER_INCH = 72
 const SHEET_WIDTH = 8.5 * PT_PER_INCH
@@ -410,11 +416,181 @@ type LabelContext = {
 }
 
 /**
+ * 3 mL / 10 mL BAC water: PeptSci face with volume only — no mg, RUO, or 99%.
+ * The Hospira 30 mL bottle never reaches this path.
+ */
+function drawBacWaterLabel(ctx: LabelContext): void {
+  if (!ctx.template) {
+    drawBacWaterLabelVector(ctx)
+    return
+  }
+  const { page, x, y, req, fonts, template } = ctx
+  page.drawImage(template, { x, y, width: LABEL_WIDTH, height: LABEL_HEIGHT })
+  const toX = (sx: number) => x + sx
+  const toY = (sy: number) => y + (SVG_H - sy)
+
+  // Cover peptide-only artwork: BUD, RUO, 99%HPLC, barcode, BATCH.
+  page.drawRectangle({
+    x: toX(NAME_LEFT),
+    y: toY(14),
+    width: NAME_RIGHT - NAME_LEFT,
+    height: 12,
+    color: COLOR_WHITE,
+  })
+  page.drawRectangle({
+    x: toX(RUO_CLEAR_LEFT),
+    y: toY(DOSE_BOX_BOTTOM + 0.5),
+    width: 7.5,
+    height: DOSE_BOX_BOTTOM - DOSE_BOX_TOP + 1,
+    color: COLOR_WHITE,
+  })
+  page.drawRectangle({
+    x: toX(DOSE_BOX_LEFT + DOSE_BOX_CORNER),
+    y: toY(DOSE_BOX_BOTTOM - DOSE_BOX_CORNER),
+    width: DOSE_BOX_RIGHT - DOSE_BOX_LEFT - DOSE_BOX_CORNER * 2,
+    height: DOSE_BOX_BOTTOM - DOSE_BOX_CORNER - DOSE_BOX_MID,
+    color: COLOR_BOX_BLUE,
+  })
+  page.drawRectangle({
+    x: toX(BARCODE_LEFT - 1),
+    y: toY(BARCODE_BOTTOM),
+    width: BARCODE_RIGHT - BARCODE_LEFT + 2,
+    height: BARCODE_BOTTOM - BARCODE_TOP,
+    color: COLOR_WHITE,
+  })
+  page.drawRectangle({
+    x: toX(BATCH_X - 6),
+    y: toY(LABEL_HEIGHT - 2),
+    width: 14,
+    height: LABEL_HEIGHT - 4,
+    color: COLOR_WHITE,
+  })
+
+  const nameMaxWidth = NAME_RIGHT - NAME_LEFT
+  const nameCenterX = (NAME_LEFT + NAME_RIGHT) / 2
+  const drawName = (text: string, size: number, baseline: number, color: ReturnType<typeof rgb>) => {
+    const width = textWidthWithTracking(fonts.name, text, size, NAME_TRACKING_EM)
+    page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * size))
+    page.drawText(text, {
+      x: toX(nameCenterX - width / 2),
+      y: toY(baseline),
+      size,
+      font: fonts.name,
+      color,
+    })
+    page.pushOperators(setCharacterSpacing(0))
+    return width
+  }
+  const fit = (text: string, maxSize: number) => {
+    let size = maxSize
+    while (size > NAME_SIZE_MIN && textWidthWithTracking(fonts.name, text, size) > nameMaxWidth) {
+      size -= 0.25
+    }
+    return size
+  }
+  const size1 = fit('BAC', NAME_LINE1_SIZE_MAX)
+  const size2 = Math.min(size1, fit('Water', NAME_LINE2_SIZE_MAX))
+  drawName('BAC', size1, NAME_LINE1_BASELINE, COLOR_TEXT)
+  drawName('Water', size2, NAME_LINE2_BASELINE, COLOR_BOX_BLUE)
+
+  const volume = bacWaterLabelVolume(req.productName, req.dose)
+  let doseSize = DOSE_SIZE
+  const doseMaxWidth = DOSE_BOX_RIGHT - DOSE_BOX_LEFT - 4
+  while (doseSize > 4 && fonts.dose.widthOfTextAtSize(volume, doseSize) > doseMaxWidth) {
+    doseSize -= 0.25
+  }
+  const doseWidth = fonts.dose.widthOfTextAtSize(volume, doseSize)
+  const doseCx = (DOSE_BOX_LEFT + DOSE_BOX_RIGHT) / 2
+  page.drawText(volume, {
+    x: toX(doseCx - doseWidth / 2),
+    y: toY(DOSE_BASELINE),
+    size: doseSize,
+    font: fonts.dose,
+    color: COLOR_WHITE,
+  })
+}
+
+function drawBacWaterLabelVector(ctx: LabelContext): void {
+  const { page, x, y, req, fonts, logo } = ctx
+  const fullWidth = LABEL_WIDTH
+  const fullHeight = LABEL_HEIGHT
+  const gap = 3
+  const brandWidth = 26
+  const contentX = x + brandWidth + gap
+  const contentWidth = fullWidth - brandWidth - gap * 2
+  const top = y + fullHeight
+  const padY = 4
+  const contentTop = top - padY
+  const contentBottom = y + padY
+
+  page.drawLine({
+    start: { x: x + brandWidth, y: y + 3 },
+    end: { x: x + brandWidth, y: top - 3 },
+    thickness: 0.6,
+    color: COLOR_INDIGO,
+  })
+  if (logo) {
+    const logoH = fullHeight - padY * 2
+    const logoW = Math.min(brandWidth - 2, (logo.width / logo.height) * logoH)
+    page.drawImage(logo, {
+      x: x + (brandWidth - logoW) / 2,
+      y: y + (fullHeight - logoH) / 2,
+      width: logoW,
+      height: logoH,
+    })
+  }
+
+  let nameSize = 10.5
+  while (nameSize > 5 && fonts.helv.widthOfTextAtSize('BAC Water', nameSize) > contentWidth - 1) {
+    nameSize -= 0.25
+  }
+  page.drawText('BAC', {
+    x: contentX,
+    y: contentTop - 12,
+    size: nameSize,
+    font: fonts.helvBold,
+    color: COLOR_TEXT,
+  })
+  page.drawText('Water', {
+    x: contentX + fonts.helvBold.widthOfTextAtSize('BAC ', nameSize),
+    y: contentTop - 12,
+    size: nameSize,
+    font: fonts.helvBold,
+    color: COLOR_BOX_BLUE,
+  })
+
+  const volume = bacWaterLabelVolume(req.productName, req.dose)
+  const boxX = contentX
+  const boxWidth = contentWidth
+  const boxBottom = contentBottom
+  const boxHeight = 19
+  page.drawRectangle({
+    x: boxX,
+    y: boxBottom,
+    width: boxWidth,
+    height: boxHeight,
+    color: COLOR_NEAR_BLACK,
+  })
+  const doseSize = 8
+  page.drawText(volume, {
+    x: boxX + (boxWidth - fonts.helvBold.widthOfTextAtSize(volume, doseSize)) / 2,
+    y: boxBottom + (boxHeight - doseSize) / 2 + 1,
+    size: doseSize,
+    font: fonts.helvBold,
+    color: COLOR_WHITE,
+  })
+}
+
+/**
  * Composite the PeptSci artwork template and overlay the dynamic fields at the
  * exact SVG placeholder coordinates. Coordinate helpers convert from the SVG
  * space (origin top-left, y down) to PDF space (origin bottom-left, y up).
  */
 function drawLabel(ctx: LabelContext): void {
+  if (usesPeptSciBacLabel(ctx.req.productName, ctx.req.dose)) {
+    drawBacWaterLabel(ctx)
+    return
+  }
   if (!ctx.template) {
     drawLabelVector(ctx)
     return
@@ -960,7 +1136,10 @@ export function normalizeDoseLabel(value: string): string {
   if (/^\d+(?:\.\d+)?$/.test(trimmed)) return `${Number(trimmed)}mg`
   return trimmed.replace(
     /(\d+(?:\.\d+)?)\s*(mg|mcg|iu|ml|g)\b/gi,
-    (_m, num: string, unit: string) => `${Number(num)}${unit.toLowerCase()}`
+    (_m, num: string, unit: string) => {
+      const lower = unit.toLowerCase()
+      return `${Number(num)}${lower === 'ml' ? 'mL' : lower}`
+    }
   )
 }
 
@@ -972,6 +1151,12 @@ export function inferDoseFromSku(sku: string | null | undefined): string | null 
   if (!sku) return null
   const trimmed = sku.trim()
   if (!trimmed) return null
+  if (isBacteriostaticWaterProduct('', trimmed)) {
+    const ml = /(?:^|[-_])(\d+(?:\.\d+)?)ml$/i.exec(trimmed)
+    if (ml) return `${Number(ml[1])}mL`
+    if (isLegacyBacWaterThirtyMl(trimmed, null)) return '30mL'
+    return null
+  }
   const dashed = /(?:^|[-_])(\d+(?:\.\d+)?)$/.exec(trimmed)
   if (dashed) return `${Number(dashed[1])}mg`
   const glued = /^[A-Za-z]+(\d+(?:\.\d+)?)$/.exec(trimmed)
@@ -989,6 +1174,9 @@ export function resolveLabelDose(
   variantDose?: string | null,
   sku?: string | null
 ): string {
+  if (usesPeptSciBacLabel('', batchDose || variantDose, sku)) {
+    return bacWaterLabelVolume('', batchDose || variantDose, sku)
+  }
   const fromBatch = batchDose?.trim()
   if (fromBatch) return normalizeDoseLabel(fromBatch)
   const fromVariant = variantDose?.trim()
@@ -998,10 +1186,12 @@ export function resolveLabelDose(
 }
 
 function normalizeReq(input: PeptSciLabelRequest): PeptSciLabelRequest {
+  const bac = usesPeptSciBacLabel(input.productName, input.dose)
   return {
     ...input,
     batchNumber: input.batchNumber.trim().toUpperCase(),
-    dose: normalizeDoseLabel(input.dose),
+    dose: bac ? bacWaterLabelVolume(input.productName, input.dose) : normalizeDoseLabel(input.dose),
+    purity: bac ? '' : input.purity,
   }
 }
 

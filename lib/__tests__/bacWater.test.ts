@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import {
   BAC_WATER_SIZES,
   BAC_WATER_SKUS,
+  applyBacWaterListPrice,
   bacWaterLabelVolume,
+  bacWaterListPrice,
   bacWaterVolumeMl,
   bacWaterCatalogRows,
   cartHasBacWater,
@@ -44,6 +46,11 @@ describe('BAC water catalog sizes', () => {
         { sku: BAC_WATER_SKUS.hospira30ml, dose: '30mL', listPrice: 20, presentation: 'hospira' },
       ]
     )
+    assert.equal(bacWaterListPrice('Bacteriostatic Water', '3mL'), 5)
+    assert.equal(bacWaterListPrice('Bacteriostatic Water', '10mL', BAC_WATER_SKUS.labeled10ml), 10)
+    assert.equal(bacWaterListPrice('Bacteriostatic Water', '30mL', 'BAC-H20'), 20)
+    assert.equal(applyBacWaterListPrice(5, 'Bacteriostatic Water', '10mL'), 10)
+    assert.equal(applyBacWaterListPrice(80, 'BPC-157', '10mg', 'BPC-10'), 80)
   })
 
   it('groups the three sizes onto one Bacteriostatic Water card', () => {
