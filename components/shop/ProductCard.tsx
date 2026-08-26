@@ -114,7 +114,8 @@ export function ProductCard({
           },
         ]
 
-  const activeSku = selectedSku || productId
+  const catalogDefaultSku = adminCatalog?.skus[0]?.sku || productId
+  const activeSku = selectedSku || (adminCatalog ? catalogDefaultSku : productId)
   const activeSize = sizes.find((s) => s.sku === activeSku) || sizes[0]
   const pdpHref = `/shop/product/${encodeURIComponent(activeSize?.sku || productId)}`
 
@@ -211,14 +212,17 @@ export function ProductCard({
     adminSkus.find((a) => a.sku === productId) ||
     adminSkus.slice().sort((a, b) => a.srp - b.srp)[0] ||
     null
-  const adminCosts = adminSkus.map((a) => a.cost).filter((c) => c > 0)
   const adminSrps = adminSkus.map((a) => a.srp).filter((s) => s > 0)
   const adminFromSrp = adminSrps.length ? Math.min(...adminSrps) : fromPrice
-  const adminPricedRows = adminSkus.filter((a) => a.srp > 0)
-  const adminAvgMargin =
-    adminPricedRows.length > 0
-      ? adminPricedRows.reduce((acc, a) => acc + ((a.srp - a.cost) / a.srp) * 100, 0) /
-        adminPricedRows.length
+  const selectedAdminSku =
+    adminSkus.find((a) => a.sku === activeSku) ||
+    adminSkus.find((a) => a.sku === activeCatalogSku?.sku) ||
+    adminPrimary
+  const selectedAdminSrp = selectedAdminSku?.srp ?? adminFromSrp
+  const selectedAdminCost = selectedAdminSku?.cost
+  const selectedAdminMargin =
+    selectedAdminSku && selectedAdminSku.srp > 0
+      ? ((selectedAdminSku.srp - selectedAdminSku.cost) / selectedAdminSku.srp) * 100
       : 0
   const resolveAdminSkuForDose = (dose: string): string => {
     const byDose = adminByDose.get(dose)
@@ -293,37 +297,32 @@ export function ProductCard({
   const priceBlock = isAdmin ? (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
-        {adminSkus.length > 1 && adminSrps.length > 1 && new Set(adminSrps).size > 1 && (
-          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
-            From
-          </span>
-        )}
         <p className="text-xl font-bold text-white">
-          {adminSrps.length === 0 ? '—' : formatPrice(adminFromSrp)}
+          {adminSrps.length === 0 ? '—' : formatPrice(selectedAdminSrp)}
         </p>
       </div>
       <p className="text-[11px] text-white/55">
         Cost{' '}
         <span className="font-semibold text-white/80">
-          {adminCosts.length === 0
+          {selectedAdminCost == null || selectedAdminCost <= 0
             ? '—'
-            : formatPrice(Math.min(...adminCosts))}
+            : formatPrice(selectedAdminCost)}
         </span>
-        {Number.isFinite(adminAvgMargin) && adminSrps.length > 0 && (
+        {Number.isFinite(selectedAdminMargin) && selectedAdminSrp > 0 && (
           <>
             {' '}
             · Margin{' '}
             <span
               className={cn(
                 'font-semibold',
-                adminAvgMargin >= 70
+                selectedAdminMargin >= 70
                   ? 'text-green-400'
-                  : adminAvgMargin >= 50
+                  : selectedAdminMargin >= 50
                     ? 'text-amber-300'
                     : 'text-red-400'
               )}
             >
-              {adminAvgMargin.toFixed(0)}%
+              {selectedAdminMargin.toFixed(0)}%
             </span>
           </>
         )}
@@ -414,11 +413,11 @@ export function ProductCard({
               {isAdmin ? (
                 <>
                   <p className="text-lg font-bold text-white">
-                    {adminSrps.length === 0 ? '—' : formatPrice(adminFromSrp)}
+                    {adminSrps.length === 0 ? '—' : formatPrice(selectedAdminSrp)}
                   </p>
-                  {Number.isFinite(adminAvgMargin) && adminSrps.length > 0 && (
+                  {Number.isFinite(selectedAdminMargin) && selectedAdminSrp > 0 && (
                     <p className="text-[10px] font-semibold text-white/50">
-                      {adminAvgMargin.toFixed(0)}% margin
+                      {selectedAdminMargin.toFixed(0)}% margin
                     </p>
                   )}
                 </>

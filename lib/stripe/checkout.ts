@@ -38,6 +38,8 @@ import {
 import { closeReservationsTx } from '@/lib/inventory/reservations'
 import { getStripeClient } from '@/lib/stripe/config'
 import { connectRequestOptions } from '@/lib/stripe/connect'
+import { applyBacWaterListPrice } from '@/lib/shop/bac-water'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export interface ResolvedCart {
   lines: Array<ResolvedLine & { isBackorder?: boolean }>
@@ -114,8 +116,14 @@ export async function resolveCart(params: {
       'clientPricing' in variant && Array.isArray(variant.clientPricing)
         ? variant.clientPricing[0]
         : undefined
+    const displayName = displayProductName(variant.product.name, variant.sku)
     const { price, isCustom } = resolveEffectiveUnitPrice({
-      srp: Number(variant.srp),
+      srp: applyBacWaterListPrice(
+        Number(variant.srp),
+        variant.product.name,
+        variant.dose,
+        variant.sku
+      ),
       customPrice: custom ? Number(custom.customPrice) : null,
       unitCost: Number(variant.unitCost),
       paysAtCost: client?.paysAtCost ?? false,
@@ -126,7 +134,7 @@ export async function resolveCart(params: {
     // payment: Stripe rejects sub-minimum amounts with an opaque 500.
     if (unitPrice <= 0) {
       throw new CartValidationError(
-        `"${variant.product.name}" is not currently priced for ordering — please remove it from your cart and contact support`,
+        `"${displayName}" is not currently priced for ordering — please remove it from your cart and contact support`,
         'CART_PRICE_UNSET'
       )
     }
@@ -136,7 +144,7 @@ export async function resolveCart(params: {
       const moqError = validateBackorderQuantity(item.quantity, available)
       if (moqError) {
         throw new CartValidationError(
-          `"${variant.product.name}" (${variant.sku}): ${moqError}`,
+          `"${displayName}" (${variant.sku}): ${moqError}`,
           'BACKORDER_MOQ'
         )
       }
@@ -144,7 +152,7 @@ export async function resolveCart(params: {
     return {
       variantId: variant.id,
       sku: variant.sku!,
-      productName: variant.product.name,
+      productName: displayName,
       dose: variant.dose,
       quantity: item.quantity,
       unitPrice,

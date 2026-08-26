@@ -72,6 +72,39 @@ describe('variantToShopProduct', () => {
     assert.equal(product.productType, 'Blend')
   })
 
+  it('applies BAC water list prices so 3mL / 10mL / 30mL are not the same SRP', () => {
+    const three = variantToShopProduct(
+      variant({
+        id: 'bac-3',
+        sku: 'BAC-H2O-3ML',
+        productName: 'Bacteriostatic Water',
+        dose: '3mL',
+        srp: 5,
+      })
+    )
+    const ten = variantToShopProduct(
+      variant({
+        id: 'bac-10',
+        sku: 'BAC-H2O-10ML',
+        productName: 'Bacteriostatic Water',
+        dose: '10mL',
+        srp: 5,
+      })
+    )
+    const thirty = variantToShopProduct(
+      variant({
+        id: 'bac-30',
+        sku: 'BAC-H20',
+        productName: 'Bacteriostatic Water',
+        dose: '30mL',
+        srp: 5,
+      })
+    )
+    assert.equal(three.displayPrice, 5)
+    assert.equal(ten.displayPrice, 10)
+    assert.equal(thirty.displayPrice, 20)
+  })
+
   it('groups sibling sizes onto one catalog card', () => {
     const grouped = groupProductsByParent([
       variantToShopProduct(

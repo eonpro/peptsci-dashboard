@@ -174,6 +174,28 @@ export function bacWaterCatalogRows(live: BacWaterCatalogRow[]): BacWaterCatalog
   })
 }
 
+/** Canonical list price for a BAC-water size, or null when the row is not water. */
+export function bacWaterListPrice(
+  name: string,
+  dose?: string | null,
+  sku?: string | null
+): number | null {
+  if (!isBacteriostaticWaterProduct(name, sku)) return null
+  const ml = bacWaterVolumeMl(name, dose, sku)
+  const size = BAC_WATER_SIZES.find((row) => parseInt(row.dose, 10) === ml)
+  return size?.listPrice ?? null
+}
+
+/** Prefer the canonical BAC-water list price so 3 / 10 / 30 mL never share one SRP. */
+export function applyBacWaterListPrice(
+  srp: number,
+  name: string,
+  dose?: string | null,
+  sku?: string | null
+): number {
+  return bacWaterListPrice(name, dose, sku) ?? srp
+}
+
 export function usesPeptSciBacLabel(name: string, dose?: string | null, sku?: string | null): boolean {
   if (!isBacteriostaticWaterProduct(name, sku)) return false
   const ml = bacWaterVolumeMl(name, dose, sku)

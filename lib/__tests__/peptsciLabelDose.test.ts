@@ -83,6 +83,12 @@ describe('inferDoseFromSku', () => {
     assert.equal(inferDoseFromSku(''), null)
     assert.equal(inferDoseFromSku(null), null)
   })
+
+  it('reads mL from labeled BAC-water SKUs and does not invent mg from BAC-H20', () => {
+    assert.equal(inferDoseFromSku('BAC-H2O-3ML'), '3mL')
+    assert.equal(inferDoseFromSku('BAC-H2O-10ML'), '10mL')
+    assert.equal(inferDoseFromSku('BAC-H20'), '30mL')
+  })
 })
 
 describe('resolveLabelDose', () => {
@@ -91,6 +97,13 @@ describe('resolveLabelDose', () => {
     assert.equal(resolveLabelDose('', '5mg', 'RT5'), '5mg')
     assert.equal(resolveLabelDose('  ', null, 'RT5'), '5mg')
     assert.equal(resolveLabelDose('', '10.0 mg', 'RT5'), '10mg')
+  })
+
+  it('prints 3mL / 10mL on PeptSci BAC-water labels', () => {
+    assert.equal(resolveLabelDose('', '3mL', 'BAC-H2O-3ML'), '3mL')
+    assert.equal(resolveLabelDose('10 mL', '10mL', 'BAC-H2O-10ML'), '10mL')
+    assert.equal(normalizeDoseLabel('3mL'), '3mL')
+    assert.equal(normalizeDoseLabel('10 ML'), '10mL')
   })
 
   it('returns empty when nothing can be resolved', () => {

@@ -13,6 +13,7 @@ import { parseMonograph } from './types/monograph'
 import { resolveBlendCompounds } from './content/blend-compositions'
 import { getCompoundChemistry } from './content/compound-chemistry'
 import { displayProductAka, displayProductName } from './products/named-blends'
+import { applyBacWaterListPrice } from './shop/bac-water'
 
 /** Cache tag for the shop product catalog — bust via revalidateTag(CATALOG_TAG). */
 export const CATALOG_TAG = 'catalog'
@@ -104,7 +105,7 @@ function toShopProduct(v: VariantWithProduct): ShopProduct {
     ...(compounds ? { productType: 'Blend' as const, compounds } : {}),
     description: v.product.description,
     category: v.product.category ?? chem?.category ?? null,
-    displayPrice: srp,
+    displayPrice: applyBacWaterListPrice(srp, displayName, v.dose, v.sku),
     // SECURITY: never include unitCost here — ShopProduct is serialized into
     // client-facing pages (/shop, /sf) and would expose our margins.
     casNumber: v.product.casNumber ?? chem?.casNumber ?? null,
