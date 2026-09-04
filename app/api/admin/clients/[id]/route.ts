@@ -18,6 +18,11 @@ import { deleteClientForce } from '@/lib/clients/delete-client'
 import { cascadeOnboardingDecision } from '@/lib/clients/approval'
 import { writeAudit } from '@/lib/audit'
 import { isMissingDbColumnError, loadClientShippingRates } from '@/lib/db-compat'
+import {
+  ELEVATED_VITALITY_BRAND_KEY,
+  LIVBETR_BRAND_KEY,
+  VITAL_HEALTH_BRAND_KEY,
+} from '@/lib/labels/brandKeys'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +68,10 @@ const adminUpdateSchema = z.object({
   paysAtCost: z.boolean().optional(),
   // White-label vial labels (built-in brand key required when enabling).
   whiteLabelEnabled: z.boolean().optional(),
-  labelBrandKey: z.enum(['elevated_vitality', 'livbetr']).nullable().optional(),
+  labelBrandKey: z
+    .enum([ELEVATED_VITALITY_BRAND_KEY, LIVBETR_BRAND_KEY, VITAL_HEALTH_BRAND_KEY])
+    .nullable()
+    .optional(),
 })
 
 /** GET /api/admin/clients/[id] — full client profile + linked users. */

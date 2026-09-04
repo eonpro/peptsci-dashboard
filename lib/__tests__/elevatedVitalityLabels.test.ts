@@ -199,6 +199,7 @@ describe('resolveLabelBrandKey', () => {
   it('validates brand keys', () => {
     assert.equal(isLabelBrandKey('elevated_vitality'), true)
     assert.equal(isLabelBrandKey('livbetr'), true)
+    assert.equal(isLabelBrandKey('vital_health'), true)
     assert.equal(isLabelBrandKey('peptsci'), false)
   })
 
@@ -206,6 +207,13 @@ describe('resolveLabelBrandKey', () => {
     assert.equal(
       resolveLabelBrandKey({ whiteLabelEnabled: true, labelBrandKey: 'livbetr' }),
       'livbetr'
+    )
+  })
+
+  it('resolves Vital Health when enabled', () => {
+    assert.equal(
+      resolveLabelBrandKey({ whiteLabelEnabled: true, labelBrandKey: 'vital_health' }),
+      'vital_health'
     )
   })
 })

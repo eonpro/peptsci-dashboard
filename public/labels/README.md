@@ -95,3 +95,14 @@ GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `GHK-Cu / BPC-157 / KPV / TB-5
   - Neuething Sans Medium Expanded — product name; RUO live text in template
   - Outlined in artwork (do not re-draw): `BUD:`, PROVIDER USE ONLY…, `BATCH:`, `99%HPLC`
 - Teal accent `#28646c` on BUD day + batch + purity band
+
+### Vital Health (`vital_health`)
+
+- Source logo: `clients/vital-health/vital-health-logo.svg`
+- Empty label: `clients/vital-health/vital-health-label-empty.svg` (PeptSci face,
+  navy `#2a5fa1` in place of indigo, Vital Health mark rotated −90° in the left rail
+  like PeptSci, reading bottom-to-top)
+- Raster template: `clients/vital-health/vital-health-label-template.png`
+- Engine: `lib/labels/vitalHealthLabelPdf.ts` — **PeptSci overlay family**
+- Rebuild: `npx tsx scripts/build-vital-health-template.ts`
+- Palette: navy `#2a5fa1`, blue `#436e9c`, red `#e84637`, green `#5db828`

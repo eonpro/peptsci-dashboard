@@ -198,6 +198,15 @@ const NAME_LINE2_BASELINE = 25.4
 const NAME_LINE2_SIZE_MAX = 7
 const NAME_LINE2_SIZE_MIN = 5
 
+/**
+ * BAC / Water stack. Peptide two-line baselines put line 2 on the dose box
+ * (25.4 vs box top 24.94). These sit tight under each other, clear of the box.
+ */
+export const BAC_WATER_NAME_LINE1_BASELINE = 16.2
+export const BAC_WATER_NAME_LINE2_BASELINE = 20.6
+export const BAC_WATER_NAME_SIZE = 8.5
+export const BAC_WATER_DOSE_BOX_TOP = DOSE_BOX_TOP
+
 // Batch number value: continues the baked "BATCH:" label (rotated, far right).
 const BATCH_X = 137.3
 const BATCH_TOP = 3.5 // topmost SVG y the value may reach
@@ -210,6 +219,15 @@ function hexToRgb(hex: string) {
     parseInt(h.slice(2, 4), 16) / 255,
     parseInt(h.slice(4, 6), 16) / 255
   )
+}
+
+/** Optional white-label skin for the PeptSci overlay engine (same geometry). */
+export type PeptSciLabelTheme = {
+  boxBlue: ReturnType<typeof rgb>
+  defaultAccent: ReturnType<typeof rgb>
+  templateCandidates: string[]
+  templatePngB64: string
+  logoCandidates?: string[]
 }
 
 export type PeptSciLabelRequest = {
@@ -362,9 +380,10 @@ function drawBrandFallback(
   y: number,
   width: number,
   height: number,
-  font: PDFFont
+  font: PDFFont,
+  brand: ReturnType<typeof rgb>
 ): void {
-  // Vertical "PeptSci" wordmark (rotated) + a little dot cluster, in indigo.
+  // Vertical "PeptSci" wordmark (rotated) + a little dot cluster, in brand color.
   const cx = x + width / 2
   const dotR = 1.6
   const baseY = y + 8
@@ -376,14 +395,14 @@ function drawBrandFallback(
     [cx + 2, baseY + 4],
   ]
   for (const [dx, dy] of dots) {
-    page.drawCircle({ x: dx, y: dy, size: dotR, color: COLOR_INDIGO })
+    page.drawCircle({ x: dx, y: dy, size: dotR, color: brand })
   }
   page.drawText('PeptSci', {
     x: cx + 3,
     y: y + 16,
     size: 8,
     font,
-    color: COLOR_INDIGO,
+    color: brand,
     rotate: degrees(90),
   })
 }
@@ -413,6 +432,7 @@ type LabelContext = {
   logo: PDFImage | null
   template: PDFImage | null
   accent: ReturnType<typeof rgb>
+  boxBlue: ReturnType<typeof rgb>
 }
 
 /**
@@ -424,7 +444,7 @@ function drawBacWaterLabel(ctx: LabelContext): void {
     drawBacWaterLabelVector(ctx)
     return
   }
-  const { page, x, y, req, fonts, template } = ctx
+  const { page, x, y, req, fonts, template, boxBlue } = ctx
   page.drawImage(template, { x, y, width: LABEL_WIDTH, height: LABEL_HEIGHT })
   const toX = (sx: number) => x + sx
   const toY = (sy: number) => y + (SVG_H - sy)
@@ -449,7 +469,7 @@ function drawBacWaterLabel(ctx: LabelContext): void {
     y: toY(DOSE_BOX_BOTTOM - DOSE_BOX_CORNER),
     width: DOSE_BOX_RIGHT - DOSE_BOX_LEFT - DOSE_BOX_CORNER * 2,
     height: DOSE_BOX_BOTTOM - DOSE_BOX_CORNER - DOSE_BOX_MID,
-    color: COLOR_BOX_BLUE,
+    color: boxBlue,
   })
   page.drawRectangle({
     x: toX(BARCODE_LEFT - 1),
@@ -469,29 +489,23 @@ function drawBacWaterLabel(ctx: LabelContext): void {
   const nameMaxWidth = NAME_RIGHT - NAME_LEFT
   const nameCenterX = (NAME_LEFT + NAME_RIGHT) / 2
   const drawName = (text: string, size: number, baseline: number, color: ReturnType<typeof rgb>) => {
-    const width = textWidthWithTracking(fonts.name, text, size, NAME_TRACKING_EM)
-    page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * size))
+    let fitted = size
+    while (fitted > NAME_SIZE_MIN && textWidthWithTracking(fonts.name, text, fitted) > nameMaxWidth) {
+      fitted -= 0.25
+    }
+    const width = textWidthWithTracking(fonts.name, text, fitted, NAME_TRACKING_EM)
+    page.pushOperators(setCharacterSpacing(NAME_TRACKING_EM * fitted))
     page.drawText(text, {
       x: toX(nameCenterX - width / 2),
       y: toY(baseline),
-      size,
+      size: fitted,
       font: fonts.name,
       color,
     })
     page.pushOperators(setCharacterSpacing(0))
-    return width
   }
-  const fit = (text: string, maxSize: number) => {
-    let size = maxSize
-    while (size > NAME_SIZE_MIN && textWidthWithTracking(fonts.name, text, size) > nameMaxWidth) {
-      size -= 0.25
-    }
-    return size
-  }
-  const size1 = fit('BAC', NAME_LINE1_SIZE_MAX)
-  const size2 = Math.min(size1, fit('Water', NAME_LINE2_SIZE_MAX))
-  drawName('BAC', size1, NAME_LINE1_BASELINE, COLOR_TEXT)
-  drawName('Water', size2, NAME_LINE2_BASELINE, COLOR_BOX_BLUE)
+  drawName('BAC', BAC_WATER_NAME_SIZE, BAC_WATER_NAME_LINE1_BASELINE, COLOR_TEXT)
+  drawName('Water', BAC_WATER_NAME_SIZE, BAC_WATER_NAME_LINE2_BASELINE, boxBlue)
 
   const volume = bacWaterLabelVolume(req.productName, req.dose)
   let doseSize = DOSE_SIZE
@@ -511,7 +525,7 @@ function drawBacWaterLabel(ctx: LabelContext): void {
 }
 
 function drawBacWaterLabelVector(ctx: LabelContext): void {
-  const { page, x, y, req, fonts, logo } = ctx
+  const { page, x, y, req, fonts, logo, accent, boxBlue } = ctx
   const fullWidth = LABEL_WIDTH
   const fullHeight = LABEL_HEIGHT
   const gap = 3
@@ -527,7 +541,7 @@ function drawBacWaterLabelVector(ctx: LabelContext): void {
     start: { x: x + brandWidth, y: y + 3 },
     end: { x: x + brandWidth, y: top - 3 },
     thickness: 0.6,
-    color: COLOR_INDIGO,
+    color: accent,
   })
   if (logo) {
     const logoH = fullHeight - padY * 2
@@ -556,7 +570,7 @@ function drawBacWaterLabelVector(ctx: LabelContext): void {
     y: contentTop - 12,
     size: nameSize,
     font: fonts.helvBold,
-    color: COLOR_BOX_BLUE,
+    color: boxBlue,
   })
 
   const volume = bacWaterLabelVolume(req.productName, req.dose)
@@ -595,7 +609,7 @@ function drawLabel(ctx: LabelContext): void {
     drawLabelVector(ctx)
     return
   }
-  const { page, x, y, req, fonts, template, accent } = ctx
+  const { page, x, y, req, fonts, template, accent, boxBlue } = ctx
 
   // Background artwork (logo, divider, BUD:, RUO, dose box + 99%HPLC, warning,
   // BATCH:) — fills the whole label.
@@ -696,7 +710,7 @@ function drawLabel(ctx: LabelContext): void {
       y: toY(baseline),
       size,
       font: fonts.name,
-      color: COLOR_BOX_BLUE,
+      color: boxBlue,
     })
     page.pushOperators(setCharacterSpacing(0))
   }
@@ -719,7 +733,7 @@ function drawLabel(ctx: LabelContext): void {
     })
     const shiftedOrigin = { x, y: y + SVG_H - boxShift }
     page.drawSvgPath(DOSE_BOX_TOP_PATH, { ...shiftedOrigin, color: COLOR_TEXT })
-    page.drawSvgPath(DOSE_BOX_BOTTOM_PATH, { ...shiftedOrigin, color: COLOR_BOX_BLUE })
+    page.drawSvgPath(DOSE_BOX_BOTTOM_PATH, { ...shiftedOrigin, color: boxBlue })
     const ruoSize = Math.min(6, RUO_TEXT_LENGTH / fonts.name.widthOfTextAtSize('RUO', 1))
     const ruoWidth = fonts.name.widthOfTextAtSize('RUO', ruoSize)
     page.drawText('RUO', {
@@ -785,7 +799,7 @@ function drawLabel(ctx: LabelContext): void {
         y: toY(DOSE_BOX_BOTTOM - DOSE_BOX_CORNER),
         width: DOSE_BOX_RIGHT - DOSE_BOX_LEFT - DOSE_BOX_CORNER * 2,
         height: DOSE_BOX_BOTTOM - DOSE_BOX_CORNER - DOSE_BOX_MID,
-        color: COLOR_BOX_BLUE,
+        color: boxBlue,
       })
     }
     // First compound's dose in the black band; the rest share the blue band
@@ -884,7 +898,7 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
     start: { x: x + brandWidth, y: y + 3 },
     end: { x: x + brandWidth, y: top - 3 },
     thickness: 0.6,
-    color: COLOR_INDIGO,
+    color: accent,
   })
 
   // Brand / logo.
@@ -898,7 +912,7 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
       height: logoH,
     })
   } else {
-    drawBrandFallback(page, x, y, brandWidth, fullHeight, fonts.serif)
+    drawBrandFallback(page, x, y, brandWidth, fullHeight, fonts.serif, accent)
   }
 
   // BUD line: "BUD: MM/DD/YYYY" with the day in the accent color.
@@ -1050,18 +1064,24 @@ async function embedPngFrom(doc: PDFDocument, candidates: string[]): Promise<PDF
   return null
 }
 
-const loadLogo = (doc: PDFDocument) => embedPngFrom(doc, LOGO_CANDIDATES)
+const loadLogo = (doc: PDFDocument, candidates: string[] = LOGO_CANDIDATES) =>
+  embedPngFrom(doc, candidates)
 
 /**
  * Load the artwork template. Prefers a (possibly higher-res / updated) PNG on
  * disk, then falls back to the base64 copy embedded in the bundle so this works
  * on serverless platforms (Vercel) that don't ship `public/` to functions.
  */
-async function loadTemplate(doc: PDFDocument): Promise<PDFImage | null> {
-  const fromDisk = await embedPngFrom(doc, TEMPLATE_CANDIDATES)
+async function loadTemplate(
+  doc: PDFDocument,
+  theme?: PeptSciLabelTheme
+): Promise<PDFImage | null> {
+  const candidates = theme?.templateCandidates ?? TEMPLATE_CANDIDATES
+  const fromDisk = await embedPngFrom(doc, candidates)
   if (fromDisk) return fromDisk
   try {
-    return await doc.embedPng(Buffer.from(TEMPLATE_PNG_B64, 'base64'))
+    const b64 = theme?.templatePngB64 ?? TEMPLATE_PNG_B64
+    return await doc.embedPng(Buffer.from(b64, 'base64'))
   } catch {
     return null
   }
@@ -1206,11 +1226,25 @@ export type PeptSciLabelGroup = {
  * OL4891LP sheets (36/page), so an order for several compounds shares a sheet
  * rather than starting a new one per batch. Returns a PDF Buffer.
  */
+/** Engine options: sheet slot plus optional white-label skin. */
+export type PeptSciLabelEngineOptions = {
+  startSlot?: number
+  theme?: PeptSciLabelTheme
+}
+
+/**
+ * Render a multi-batch label document. Labels flow continuously across full
+ * OL4891LP sheets (36/page), so an order for several compounds shares a sheet
+ * rather than starting a new one per batch. Returns a PDF Buffer.
+ */
 export async function generatePeptSciLabelsPdf(
   groups: PeptSciLabelGroup[],
-  options?: { startSlot?: number }
+  options?: PeptSciLabelEngineOptions
 ): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   const doc = await PDFDocument.create()
+  const theme = options?.theme
+  const defaultAccent = theme?.defaultAccent ?? COLOR_INDIGO
+  const boxBlue = theme?.boxBlue ?? COLOR_BOX_BLUE
 
   const startSlot = options?.startSlot ?? 0
   const { pageCount, placements, nextStartSlot, labelsPrinted } = planLabelSheets(
@@ -1218,7 +1252,7 @@ export async function generatePeptSciLabelsPdf(
       const count = Math.max(0, Math.trunc(group.quantity))
       const req = normalizeReq({ ...group.req, quantity: count })
       return {
-        req: { req, accent: req.accentColor ? hexToRgb(req.accentColor) : COLOR_INDIGO },
+        req: { req, accent: req.accentColor ? hexToRgb(req.accentColor) : defaultAccent },
         quantity: count,
       }
     }),
@@ -1240,8 +1274,8 @@ export async function generatePeptSciLabelsPdf(
   }
 
   const fonts = await embedFonts(doc)
-  const logo = await loadLogo(doc)
-  const template = await loadTemplate(doc)
+  const logo = await loadLogo(doc, theme?.logoCandidates)
+  const template = await loadTemplate(doc, theme)
 
   const pages = Array.from({ length: pageCount }, () => doc.addPage([SHEET_WIDTH, SHEET_HEIGHT]))
   for (const { pageIndex, x, y, req } of placements) {
@@ -1254,6 +1288,7 @@ export async function generatePeptSciLabelsPdf(
       logo,
       template,
       accent: req.accent,
+      boxBlue,
     })
   }
 
@@ -1272,18 +1307,22 @@ export async function generatePeptSciLabelsPdf(
  */
 export async function generatePeptSciLabelSheetPdf(
   input: PeptSciLabelRequest,
-  options?: { startSlot?: number }
+  options?: PeptSciLabelEngineOptions
 ): Promise<{ pdf: Buffer; nextStartSlot: number; labelsPrinted: number; startSlot: number }> {
   if (input.proofMode) {
+    const theme = options?.theme
     const doc = await PDFDocument.create()
     const page = doc.addPage([SHEET_WIDTH, SHEET_HEIGHT])
     const fonts = await embedFonts(doc)
-    const logo = await loadLogo(doc)
-    const template = await loadTemplate(doc)
-    const accent = input.accentColor ? hexToRgb(input.accentColor) : COLOR_INDIGO
+    const logo = await loadLogo(doc, theme?.logoCandidates)
+    const template = await loadTemplate(doc, theme)
+    const accent = input.accentColor
+      ? hexToRgb(input.accentColor)
+      : (theme?.defaultAccent ?? COLOR_INDIGO)
+    const boxBlue = theme?.boxBlue ?? COLOR_BOX_BLUE
     const x = (SHEET_WIDTH - LABEL_WIDTH) / 2
     const y = (SHEET_HEIGHT - LABEL_HEIGHT) / 2
-    drawLabel({ page, x, y, req: normalizeReq(input), fonts, logo, template, accent })
+    drawLabel({ page, x, y, req: normalizeReq(input), fonts, logo, template, accent, boxBlue })
     return {
       pdf: Buffer.from(await doc.save()),
       nextStartSlot: options?.startSlot ?? 0,
@@ -1304,14 +1343,19 @@ export async function generatePeptSciLabelSheetPdf(
  * previews/thumbnails. Returns a PDF Buffer.
  */
 export async function generatePeptSciSingleLabelPdf(
-  input: Omit<PeptSciLabelRequest, 'quantity' | 'proofMode'>
+  input: Omit<PeptSciLabelRequest, 'quantity' | 'proofMode'>,
+  options?: Pick<PeptSciLabelEngineOptions, 'theme'>
 ): Promise<Buffer> {
+  const theme = options?.theme
   const doc = await PDFDocument.create()
   const page = doc.addPage([LABEL_WIDTH, LABEL_HEIGHT])
   const fonts = await embedFonts(doc)
-  const logo = await loadLogo(doc)
-  const template = await loadTemplate(doc)
-  const accent = input.accentColor ? hexToRgb(input.accentColor) : COLOR_INDIGO
+  const logo = await loadLogo(doc, theme?.logoCandidates)
+  const template = await loadTemplate(doc, theme)
+  const accent = input.accentColor
+    ? hexToRgb(input.accentColor)
+    : (theme?.defaultAccent ?? COLOR_INDIGO)
+  const boxBlue = theme?.boxBlue ?? COLOR_BOX_BLUE
   drawLabel({
     page,
     x: 0,
@@ -1321,6 +1365,7 @@ export async function generatePeptSciSingleLabelPdf(
     logo,
     template,
     accent,
+    boxBlue,
   })
   return Buffer.from(await doc.save())
 }
