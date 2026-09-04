@@ -1,6 +1,15 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeDoseLabel, splitProductNameLines, NAME_TRACKING_EM, resolveLabelDose, inferDoseFromSku } from '../labels/peptsciLabelPdf'
+import {
+  normalizeDoseLabel,
+  splitProductNameLines,
+  NAME_TRACKING_EM,
+  resolveLabelDose,
+  inferDoseFromSku,
+  BAC_WATER_NAME_LINE1_BASELINE,
+  BAC_WATER_NAME_LINE2_BASELINE,
+  BAC_WATER_DOSE_BOX_TOP,
+} from '../labels/peptsciLabelPdf'
 
 describe('normalizeDoseLabel', () => {
   it('strips trailing .0 decimals', () => {
@@ -108,5 +117,13 @@ describe('resolveLabelDose', () => {
 
   it('returns empty when nothing can be resolved', () => {
     assert.equal(resolveLabelDose('', null, 'BAC'), '')
+  })
+})
+
+describe('BAC water name stack', () => {
+  it('keeps Water above the volume box and tighter than the peptide two-line gap', () => {
+    assert.ok(BAC_WATER_NAME_LINE2_BASELINE < BAC_WATER_DOSE_BOX_TOP)
+    const stack = BAC_WATER_NAME_LINE2_BASELINE - BAC_WATER_NAME_LINE1_BASELINE
+    assert.ok(stack > 4 && stack < 5)
   })
 })

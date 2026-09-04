@@ -2,8 +2,13 @@
 
 export const ELEVATED_VITALITY_BRAND_KEY = 'elevated_vitality' as const
 export const LIVBETR_BRAND_KEY = 'livbetr' as const
+export const VITAL_HEALTH_BRAND_KEY = 'vital_health' as const
 
-export const LABEL_BRAND_KEYS = [ELEVATED_VITALITY_BRAND_KEY, LIVBETR_BRAND_KEY] as const
+export const LABEL_BRAND_KEYS = [
+  ELEVATED_VITALITY_BRAND_KEY,
+  LIVBETR_BRAND_KEY,
+  VITAL_HEALTH_BRAND_KEY,
+] as const
 export type LabelBrandKey = (typeof LABEL_BRAND_KEYS)[number]
 
 export function isLabelBrandKey(value: string | null | undefined): value is LabelBrandKey {
@@ -13,6 +18,7 @@ export function isLabelBrandKey(value: string | null | undefined): value is Labe
 export const LABEL_BRAND_OPTIONS: Array<{ key: LabelBrandKey; label: string }> = [
   { key: ELEVATED_VITALITY_BRAND_KEY, label: 'Elevated Vitality' },
   { key: LIVBETR_BRAND_KEY, label: 'LIVBETR' },
+  { key: VITAL_HEALTH_BRAND_KEY, label: 'Vital Health' },
 ]
 
 export function resolveLabelBrandKey(client: {

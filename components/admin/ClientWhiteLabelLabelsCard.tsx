@@ -18,7 +18,7 @@ type Props = {
 
 /**
  * Super-admin: enable white-label vial labels for a practice and pick the brand
- * layout (Elevated Vitality pilot). Proof PDF uses the locked EV overlay map.
+ * layout. Proof PDF uses that brand's overlay map.
  */
 export function ClientWhiteLabelLabelsCard({
   clientId,
