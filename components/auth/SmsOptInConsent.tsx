@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { SmsConsentText } from '@/components/sms/SmsConsentText'
+import { SMS_PROGRAM_NAME, SMS_SIGNUP_PATH } from '@/lib/sms/program'
 
 /**
  * TCPA / Twilio A2P web opt-in shown on the public sign-up page.
@@ -50,31 +52,17 @@ export function SmsOptInConsent() {
           className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border border-white/25 bg-white/5 transition-colors checked:border-[#7a5bff] checked:bg-[#5B4BFF] checked:bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22white%22%3E%3Cpath%20d%3D%22M12.207%204.793a1%201%200%20010%201.414l-5%205a1%201%200%2001-1.414%200l-2-2a1%201%200%20011.414-1.414L6.5%209.086l4.293-4.293a1%201%200%20011.414%200z%22%2F%3E%3C%2Fsvg%3E')] checked:bg-center checked:bg-no-repeat"
         />
         <span className="text-xs leading-relaxed text-white/60">
-          Yes, I would like to receive automated text messages from PeptSci about order updates,
-          shipping and delivery notifications, and important account alerts at the phone number
-          provided. I understand message frequency varies based on my order activity.
+          <SmsConsentText linkClassName="text-[#8b95ff] underline transition-colors hover:text-white" />
         </span>
       </label>
       <p className="mt-2.5 text-[11px] leading-relaxed text-white/40">
-        Message and data rates may apply depending on your mobile phone service plan. Reply HELP
-        for help or STOP to cancel at any time. By providing your phone number and checking the
-        box above, you agree to receive text messages from PeptSci. Consent is not required to
-        make a purchase.
-      </p>
-      <p className="mt-2 text-[11px] text-white/40">
-        <Link
-          href="/termsandconditions"
-          className="text-[#8b95ff] underline transition-colors hover:text-white"
-        >
-          Terms of Service
-        </Link>{' '}
-        |{' '}
-        <Link
-          href="/privacy"
-          className="text-[#8b95ff] underline transition-colors hover:text-white"
-        >
-          Privacy Policy
+        {SMS_PROGRAM_NAME} sends automated order, shipping, and account updates to the mobile
+        number you provide. Optional — you can also enroll later in Account Settings → SMS
+        Preferences or at{' '}
+        <Link href={SMS_SIGNUP_PATH} className="underline transition-colors hover:text-white">
+          peptsci.com{SMS_SIGNUP_PATH}
         </Link>
+        .
       </p>
     </div>
   )

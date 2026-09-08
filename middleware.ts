@@ -33,6 +33,10 @@ const isPublicRoute = createRouteMatcher([
   '/privacy(.*)',
   '/refunds(.*)',
   '/shipping(.*)',
+  // PeptSci Alerts: public SMS opt-in page + its submit endpoint (TCPA /
+  // Twilio A2P reviewers must reach the consent form without a session).
+  '/sms',
+  '/api/sms/subscribe',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',
