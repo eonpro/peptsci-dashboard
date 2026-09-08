@@ -6,7 +6,7 @@
 
 export const FOOTER_DISCLAIMER = `Peptsci supplies research-grade compounds exclusively to licensed healthcare professionals and qualified research institutions for investigational and laboratory purposes. All products are intended for licensed professional and research use only. Peptsci is not a 503A compounding pharmacy or 503B outsourcing facility as defined under the Federal Food, Drug, and Cosmetic Act. The ordering provider or institution bears full responsibility for regulatory compliance, clinical decision-making, and appropriate use within the scope of their license.`
 
-export const TERMS_OF_SERVICE_LAST_UPDATED = 'July 11, 2026'
+export const TERMS_OF_SERVICE_LAST_UPDATED = 'September 7, 2026'
 
 export const TERMS_OF_SERVICE_MARKDOWN = `
 Welcome to the Peptsci website (the "Site"). These Terms of Service ("Terms") set out the rules that apply to your access to and use of the Site located at www.peptsci.com, together with any related services, features, content, or applications made available by Peptsci Research d/b/a Peptsci ("Peptsci," "we," "us," or "our").
@@ -213,7 +213,31 @@ Welcome to the Peptsci website (the "Site"). These Terms of Service ("Terms") se
 
 **13.8 Electronic Notices.** By using the Site, you agree to receive communications from Peptsci electronically, and you agree that electronic agreements, notices, and disclosures satisfy any legal requirement that they be in writing.
 
-## 14. CONTACT US
+## 14. SMS / TEXT MESSAGE TERMS (PEPTSCI ALERTS) {#sms}
+
+**14.1 Program Description.** Peptsci offers an SMS text-messaging program called **PeptSci Alerts**. If you opt in, PeptSci Alerts sends recurring automated text messages to the mobile number you provide about your account and orders, including: order confirmations and status changes, shipping, tracking, and delivery notifications, account verification and security alerts, invoice and payment reminders, and replies to support requests you have opened with us. PeptSci Alerts does not send promotional or marketing messages.
+
+**14.2 How to Opt In.** You can enroll in PeptSci Alerts by (a) checking the un-prechecked SMS consent box next to the mobile phone field when you register for an account; (b) turning on Text Message Notifications under **Account Settings → SMS Preferences**; (c) submitting your mobile number on our text-alerts sign-up page at www.peptsci.com/sms; or (d) texting **START** to our PeptSci number. By opting in, you confirm that you are the subscriber or customary user of the mobile number provided and that you are at least 18 years of age. You will receive a one-time confirmation message when your enrollment is complete.
+
+**14.3 Consent Is Not a Condition of Purchase.** Your consent to receive text messages is not a condition of any purchase or of opening or maintaining an account with Peptsci. You may use the Site and buy products without enrolling in PeptSci Alerts.
+
+**14.4 Message Frequency.** Message frequency varies and depends on your account and order activity. Most subscribers receive a small number of messages per order (for example, one when the order is received and one when it ships).
+
+**14.5 Message and Data Rates.** Message and data rates may apply to every message sent to or received from Peptsci, according to the terms of your mobile carrier's plan. Contact your wireless carrier for details about your text and data plan.
+
+**14.6 How to Opt Out.** You can cancel PeptSci Alerts at any time. Reply **STOP** (or STOPALL, UNSUBSCRIBE, CANCEL, END, or QUIT) to any message from Peptsci, or turn off Text Message Notifications under Account Settings → SMS Preferences. After you send STOP we will send one final message confirming that you have been unsubscribed, and you will receive no further PeptSci Alerts messages unless you re-enroll. To re-enroll, follow the steps in Section 14.2 or reply **START**.
+
+**14.7 Help and Support.** For help, reply **HELP** to any message or email us at support@peptsci.com. You can also reach us by mail at the address in Section 15.
+
+**14.8 Carrier Disclaimer.** Wireless carriers are not liable for delayed or undelivered messages. Message delivery is subject to effective transmission from your network operator and may not be available in all areas or on all carriers. Peptsci is not responsible for messages that are delayed, misdirected, or not delivered for reasons outside our control.
+
+**14.9 Changes to Your Mobile Number.** You agree to notify Peptsci promptly (by updating your Account Settings or emailing support@peptsci.com) if you change, deactivate, or transfer the mobile number you enrolled, so that we do not text a number that no longer belongs to you.
+
+**14.10 Privacy.** Mobile phone numbers and SMS consent collected through PeptSci Alerts are used only to deliver the messages described in this Section 14 and are handled as described in our Privacy Policy (see Section 7.2, "Marketing and SMS Preferences"). Your mobile number and SMS opt-in data will not be shared with third parties or affiliates for their own marketing purposes. We use a third-party messaging provider acting on our behalf to transmit messages.
+
+**14.11 Record of Consent.** When you opt in, we store the mobile number, the consent language you agreed to, the date and time of your consent, and how you enrolled, as a record of your authorization under the Telephone Consumer Protection Act and related regulations.
+
+## 15. CONTACT US
 
 Questions about these Terms or the Site may be directed to:
 

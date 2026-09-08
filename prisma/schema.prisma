@@ -125,6 +125,7 @@ model Client {
   creditEntriesAsSource ClientCreditEntry[]       @relation("CreditSource")
   matchedPartnerLeads   PartnerLead[]
   backInStockSubs       BackInStockSubscription[]
+  smsSubscribers        SmsSubscriber[]
   supportTickets        SupportTicket[]
   shopifyConnection     ShopifyConnection?
   shopifyInboundOrders  ShopifyInboundOrder[]
@@ -728,6 +729,33 @@ model BackInStockSubscription {
 
   @@unique([clientId, variantId])
   @@index([variantId, notifiedAt])
+}
+
+// -------------------------------------------------
+// PeptSci Alerts — standalone SMS consent records (TCPA / Twilio A2P)
+// -------------------------------------------------
+
+// One row per mobile number that opted in through the public /sms page (or a
+// keyword). Stores the exact consent language shown, when, and from where, as
+// the TCPA proof-of-consent record. Client accounts also carry
+// Client.smsOptIn; when a signed-in client enrolls here, clientId links the two.
+model SmsSubscriber {
+  id          String    @id @default(cuid())
+  phone       String    @unique // E.164 (+1XXXXXXXXXX)
+  email       String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId    String?
+  consentText String // verbatim checkbox copy the subscriber agreed to
+  consentedAt DateTime  @default(now())
+  optedOutAt  DateTime? // set on STOP / unsubscribe; null = active
+  source      String    @default("WEB_SMS_PAGE") // WEB_SMS_PAGE | SIGN_UP | ACCOUNT_SETTINGS | KEYWORD
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([optedOutAt])
 }
 
 // -------------------------------------------------

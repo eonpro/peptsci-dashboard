@@ -1,3 +1,68 @@
+# PeptSci Alerts — Twilio A2P 10DLC compliance surfaces  [EXECUTOR — 2026-09-07]
+
+## Background and Motivation
+The 10DLC campaign (brand PeptSci, program **PeptSci Alerts**) points reviewers
+at `/termsandconditions` (had zero SMS language → risk of error 30882) and
+claims an un-prechecked checkbox "next to the mobile number field" on
+registration and in *Account Settings > SMS preferences* (`/account`) reading a
+specific sentence. The live site used different wording and `/account` 404'd →
+risk of a repeat 30909. Owner also wants a public "sign up for texts" area.
+
+## Key Challenges and Analysis
+- Single source of truth: `lib/sms/program.ts` holds the program name, the
+  verbatim campaign checkbox sentence, keywords, and the three auto-replies;
+  every surface renders from it (tests lock the copy to the filed MessageFlow).
+- Twilio reviewers have no login: `/sms` + `POST /api/sms/subscribe` are public
+  (middleware), rate-limited (10/min/IP), and store TCPA proof of consent
+  (`SmsSubscriber`: verbatim consent text, timestamp, source, IP, UA).
+- The runtime migrate runner splits on `;` — no `DO $$` blocks in migrations.
+- Global input reset hides native checkboxes; the /sms box is drawn explicitly.
+- Local `/sign-up` cannot render (pk_live key is host-gated to peptsci.com in
+  `lib/clerk-host.ts`), so the sign-up checkbox was verified via tsc + the
+  shared `SmsConsentText` rendering on `/sms`.
+
+## Project Status Board
+- [x] Terms §14 "SMS / Text Message Terms (PeptSci Alerts)" (program, opt-in
+      paths, not a condition of purchase, frequency varies, msg & data rates,
+      STOP keywords + confirmation, HELP/support@peptsci.com, carrier
+      disclaimer, number changes, privacy/no third-party sharing, consent
+      record); Contact → §15; Last Updated Sep 7 2026; `#sms` anchor via
+      `{#id}` heading override (`lib/legal/anchors.ts`, `LegalPage`).
+- [x] Exact campaign sentence on `/sign-up` (`SmsOptInConsent`) and
+      `/shop/account` card renamed **SMS Preferences** (`#sms-preferences`).
+- [x] `next.config.mjs` redirects `/account`, `/account/sms` → `/shop/account`.
+- [x] Public `/sms` landing + form; `POST /api/sms/subscribe` (zod, E.164,
+      `consent: literal(true)`, upsert by phone, links signed-in client and sets
+      `Client.smsOptIn`, sends `SMS_OPT_IN_CONFIRMATION` once per (re)enroll).
+- [x] Prisma `SmsSubscriber` + migration `20260907220000_add_sms_subscriber`
+      (applied locally via `prisma db execute`); migrate-route probe
+      `smsSubscriberTable`.
+- [x] Landing footer link "Text Alerts" → `/sms`.
+- [x] `lib/__tests__/smsProgram.test.ts` (13 tests); tsc clean; eslint clean.
+- [x] Browser: `/sms` submit → 201 + DB row; `/termsandconditions#sms` scrolls
+      to §14; `/account` → 307 `/shop/account`; API 400s on unchecked consent
+      and undialable numbers.
+
+## Executor's Feedback or Assistance Requests
+- **Prod after deploy:** run `POST /api/admin/db/migrate {confirm:true}`
+  (super-admin) so `SmsSubscriber` exists before anyone submits `/sms`.
+- Campaign MessageFlow says "Account Settings > SMS preferences
+  (https://peptsci.com/account)" — now true via redirect + renamed card. If the
+  campaign is re-filed, also cite `https://peptsci.com/sms` and
+  `https://peptsci.com/termsandconditions#sms`.
+- Not done (follow-ups): inbound Twilio webhook to stamp `optedOutAt` on STOP
+  (Twilio Advanced Opt-Out already blocks sends), admin list of SmsSubscribers.
+- Pre-existing unrelated test failure: `salesIngest.test.ts` expects
+  "Semaglutide 5mg" but the GLP trade-name work returns "GLP-SM 5mg".
+
+## Lessons
+- Runtime migrate runner cannot execute `DO $$ … $$` (splits on `;`); use
+  plain idempotent DDL and rely on its "already exists" no-op handling.
+- The global input reset removes native checkbox chrome — always style
+  `appearance-none` checkboxes explicitly (see `SmsOptInConsent`, `/sms`).
+
+---
+
 # Catalog lookbook UX  [EXECUTOR — 2026-08-22]
 
 ## Background and Motivation

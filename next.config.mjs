@@ -18,6 +18,15 @@ const nextConfig = {
       },
     ],
   },
+  // Short public aliases. `/account` is the URL filed in the Twilio A2P
+  // campaign for "Account Settings > SMS preferences"; the real page lives
+  // under the authenticated shop segment.
+  async redirects() {
+    return [
+      { source: '/account', destination: '/shop/account', permanent: false },
+      { source: '/account/sms', destination: '/shop/account', permanent: false },
+    ]
+  },
   // Strip console.* (except error/warn) from production client/server bundles.
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,

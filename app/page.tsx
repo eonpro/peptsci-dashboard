@@ -33,6 +33,7 @@ const FOOTER_LINKS = [
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Refunds', href: '/refunds' },
   { label: 'Shipping', href: '/shipping' },
+  { label: 'Text Alerts', href: '/sms' },
 ]
 
 const TRUST_ITEMS = [

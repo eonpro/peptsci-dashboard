@@ -2,6 +2,14 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { Logo } from '@/components/Logo'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
+import { headingAnchorId, stripHeadingAnchor } from '@/lib/legal/anchors'
+
+/** Flattens a heading's React children to plain text (markdown headings are text-only here). */
+function headingText(children: React.ReactNode): string {
+  if (typeof children === 'string') return children
+  if (Array.isArray(children)) return children.filter((c) => typeof c === 'string').join('')
+  return ''
+}
 
 interface LegalPageProps {
   title: string
@@ -31,11 +39,20 @@ export function LegalPage({ title, lastUpdated, markdown }: LegalPageProps) {
         <article className="mt-10 w-full rounded-2xl bg-white/5 p-8 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)] sm:p-10">
           <ReactMarkdown
             components={{
-              h2: ({ children }) => (
-                <h2 className="mb-4 mt-10 text-lg font-semibold tracking-wide text-white first:mt-0">
-                  {children}
-                </h2>
-              ),
+              h2: ({ children }) => {
+                // Headings may carry an explicit `{#id}` so external links
+                // (e.g. /termsandconditions#sms) can target a section.
+                const raw = headingText(children)
+                const id = headingAnchorId(raw)
+                return (
+                  <h2
+                    id={id}
+                    className="mb-4 mt-10 scroll-mt-24 text-lg font-semibold tracking-wide text-white first:mt-0"
+                  >
+                    {raw ? stripHeadingAnchor(raw) : children}
+                  </h2>
+                )
+              },
               p: ({ children }) => (
                 <p className="mb-4 text-sm leading-relaxed text-white/75 last:mb-0">{children}</p>
               ),
