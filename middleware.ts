@@ -43,6 +43,9 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/stripe',
   '/api/webhooks/clerk',
   '/api/webhooks/shopify(.*)',
+  // Twilio (PeptSci Alerts): inbound STOP/START keywords + delivery status.
+  // Authenticated by X-Twilio-Signature inside each route, not a Clerk session.
+  '/api/webhooks/twilio(.*)',
   '/api/storefront(.*)',
   // Vercel Cron endpoints authenticate via CRON_SECRET inside each route
   // (lib/cron/auth.ts), not a Clerk session.

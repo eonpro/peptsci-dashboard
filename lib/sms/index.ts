@@ -15,26 +15,50 @@ import {
 
 export { isSmsEnabled, type SendSmsResult }
 
-export async function sendOrderShippedSms(
-  opts: { to: string } & ShipmentSmsOpts
-): Promise<SendSmsResult> {
-  return sendSms({ to: opts.to, body: orderShippedSms(opts) })
+/** Recipient + optional delivery-log links shared by every sender. */
+export interface SmsRecipient {
+  to: string
+  /** Order the text is about (SmsMessage.orderId). */
+  orderId?: string | null
+  /** Practice the text is going to (SmsMessage.clientId). */
+  clientId?: string | null
 }
 
-export async function sendOrderDeliveredSms(
-  opts: { to: string } & ShipmentSmsOpts
-): Promise<SendSmsResult> {
-  return sendSms({ to: opts.to, body: orderDeliveredSms(opts) })
+export async function sendOrderShippedSms(opts: SmsRecipient & ShipmentSmsOpts): Promise<SendSmsResult> {
+  return sendSms({
+    to: opts.to,
+    body: orderShippedSms(opts),
+    kind: 'ORDER_SHIPPED',
+    orderId: opts.orderId,
+    clientId: opts.clientId,
+  })
 }
 
-export async function sendOrderExceptionSms(
-  opts: { to: string } & ShipmentSmsOpts
-): Promise<SendSmsResult> {
-  return sendSms({ to: opts.to, body: orderExceptionSms(opts) })
+export async function sendOrderDeliveredSms(opts: SmsRecipient & ShipmentSmsOpts): Promise<SendSmsResult> {
+  return sendSms({
+    to: opts.to,
+    body: orderDeliveredSms(opts),
+    kind: 'ORDER_DELIVERED',
+    orderId: opts.orderId,
+    clientId: opts.clientId,
+  })
 }
 
-export async function sendInvoiceOverdueSms(
-  opts: { to: string } & InvoiceSmsOpts
-): Promise<SendSmsResult> {
-  return sendSms({ to: opts.to, body: invoiceOverdueSms(opts) })
+export async function sendOrderExceptionSms(opts: SmsRecipient & ShipmentSmsOpts): Promise<SendSmsResult> {
+  return sendSms({
+    to: opts.to,
+    body: orderExceptionSms(opts),
+    kind: 'ORDER_EXCEPTION',
+    orderId: opts.orderId,
+    clientId: opts.clientId,
+  })
+}
+
+export async function sendInvoiceOverdueSms(opts: SmsRecipient & InvoiceSmsOpts): Promise<SendSmsResult> {
+  return sendSms({
+    to: opts.to,
+    body: invoiceOverdueSms(opts),
+    kind: 'INVOICE_OVERDUE',
+    clientId: opts.clientId,
+  })
 }

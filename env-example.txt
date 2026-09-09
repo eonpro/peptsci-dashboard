@@ -200,15 +200,26 @@ EMAIL_CONFIGURATION_SET=""
 # ===========================================
 # Master switch. Like EMAIL_ENABLED: sends are logged + skipped until this is
 # exactly "true" AND credentials + a sender are set, so nothing texts in
-# dev/preview. Customer SMS only goes out when the client has a phone on file.
+# dev/preview. Customer SMS only goes out when the client has a phone on file,
+# Client.smsOptIn is true, and the number has no STOP on file (SmsSubscriber).
 SMS_ENABLED="false"
-# Twilio Account SID + Auth Token (Console → Account Info)
+# Twilio Account SID + Auth Token (Console → Account Info). The Auth Token is
+# also what verifies X-Twilio-Signature on /api/webhooks/twilio/* — rotate both
+# places together.
 TWILIO_ACCOUNT_SID=""
 TWILIO_AUTH_TOKEN=""
-# Sender: set EITHER a verified From number (E.164, e.g. +18885551234) OR a
-# Messaging Service SID (recommended for compliance/number pooling).
+# Sender. A2P 10DLC traffic MUST go through the Messaging Service the approved
+# campaign (PeptSci Alerts) is attached to, so in production set the Messaging
+# Service SID (MG…). TWILIO_FROM_NUMBER (E.164) is a dev/sandbox fallback only.
 TWILIO_FROM_NUMBER=""
 TWILIO_MESSAGING_SERVICE_SID=""
+# Webhooks (configure on the Messaging Service → Integration; no env needed):
+#   Incoming messages → POST https://peptsci.com/api/webhooks/twilio/inbound
+#     (mirrors STOP/START into SmsSubscriber + Client.smsOptIn; keep Twilio
+#      Advanced Opt-Out ON — it sends the auto-replies, we reply with empty TwiML)
+#   Delivery status  → sent automatically per message as StatusCallback =
+#     ${NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status (requires https origin);
+#     advances SmsMessage rows to SENT / DELIVERED / UNDELIVERED / FAILED.
 
 # ===========================================
 # FEDEX (Ship/Rate vs Track are SEPARATE developer projects)

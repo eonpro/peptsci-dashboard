@@ -55,6 +55,7 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
       trackingNumber: true,
       shippingStatus: true,
       carrier: true,
+      clientId: true,
       client: {
         select: {
           organizationName: true,
@@ -129,6 +130,8 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
         if (customerPhone) {
           void sendOrderDeliveredSms({
             to: customerPhone,
+            orderId: order.id,
+            clientId: order.clientId,
             orderNumber: order.orderNumber,
             trackingNumber: order.trackingNumber,
             carrier,
@@ -173,6 +176,8 @@ export async function pollActiveFedExShipments(limit = DEFAULT_LIMIT): Promise<P
         if (customerPhone) {
           void sendOrderExceptionSms({
             to: customerPhone,
+            orderId: order.id,
+            clientId: order.clientId,
             orderNumber: order.orderNumber,
             trackingNumber: order.trackingNumber,
             carrier,

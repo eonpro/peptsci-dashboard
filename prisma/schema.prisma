@@ -126,6 +126,7 @@ model Client {
   matchedPartnerLeads   PartnerLead[]
   backInStockSubs       BackInStockSubscription[]
   smsSubscribers        SmsSubscriber[]
+  smsMessages           SmsMessage[]
   supportTickets        SupportTicket[]
   shopifyConnection     ShopifyConnection?
   shopifyInboundOrders  ShopifyInboundOrder[]
@@ -758,6 +759,36 @@ model SmsSubscriber {
   @@index([optedOutAt])
 }
 
+// Outbound SMS delivery log (PeptSci Alerts via Twilio). One row per send
+// attempt so ops can answer "did the tracking text for order #N go out, and
+// was it delivered?". Status starts at QUEUED/SKIPPED/FAILED from our side and
+// is advanced by Twilio's StatusCallback webhook (sent → delivered /
+// undelivered / failed). Body is PHI-free by construction (order # + tracking
+// link only) — see lib/sms/templates.
+model SmsMessage {
+  id           String    @id @default(cuid())
+  phone        String // E.164 recipient
+  body         String
+  kind         String // ORDER_SHIPPED | ORDER_DELIVERED | ORDER_EXCEPTION | INVOICE_OVERDUE | OPT_IN_CONFIRMATION | OTHER
+  status       String    @default("QUEUED") // QUEUED | SENT | DELIVERED | UNDELIVERED | FAILED | SKIPPED
+  twilioSid    String?   @unique // Twilio MessageSid (SM…); null when skipped/failed pre-send
+  errorCode    String? // Twilio error code (e.g. 21610 = recipient opted out)
+  errorMessage String?
+  order        Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId      String?
+  client       Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId     String?
+  sentAt       DateTime? // when Twilio accepted the message
+  deliveredAt  DateTime? // when the carrier confirmed delivery
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([clientId])
+  @@index([phone, createdAt])
+  @@index([status])
+}
+
 // -------------------------------------------------
 // Certificate of Analysis (supplier COA) — attached per variant
 // -------------------------------------------------
@@ -983,6 +1014,7 @@ model Order {
   auditLogs             AuditLog[]
   shipmentLabels        ShipmentLabel[]
   packagePhotos         PackagePhoto[]
+  smsMessages           SmsMessage[]
   retailOrder           RetailOrder?
   returnRequests        ReturnRequest[]
   reservations          InventoryReservation[]
