@@ -382,6 +382,7 @@ export async function buildOrderPickList(orderId: string): Promise<OrderPickList
     labelBrandKey: resolveLabelBrandKey({
       whiteLabelEnabled: order.client?.whiteLabelEnabled,
       labelBrandKey: order.client?.labelBrandKey,
+      organizationName: order.client?.organizationName,
     }),
   }
 }
@@ -420,6 +421,7 @@ export async function buildPackingSlipData(orderId: string): Promise<PackingSlip
     labelBrandKey: resolveLabelBrandKey({
       whiteLabelEnabled: order.client?.whiteLabelEnabled,
       labelBrandKey: order.client?.labelBrandKey,
+      organizationName: order.client?.organizationName,
     }),
   }
 }

@@ -72,7 +72,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // still be named in the shortfall header (batch rows are absent there).
         items: { include: { variant: { include: { product: { select: { name: true } } } } } },
         client: {
-          select: { whiteLabelEnabled: true, labelBrandKey: true, paymentTermsDays: true },
+          select: {
+            organizationName: true,
+            whiteLabelEnabled: true,
+            labelBrandKey: true,
+            paymentTermsDays: true,
+          },
         },
         _count: { select: { invoiceLineItems: true } },
       },

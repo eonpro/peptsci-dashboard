@@ -297,10 +297,13 @@ type BarcodeEncoding = { data: string }
 type BarcodeTarget = { encodings?: BarcodeEncoding[] }
 
 function getCode128Bits(value: string): string {
+  // JsBarcode throws on an empty string; a single space still encodes and the
+  // BATCH: overlay is blanked separately when there is no lot.
+  const payload = value.trim() ? value : ' '
   const target: BarcodeTarget = {}
   ;(JsBarcode as unknown as (t: unknown, v: string, o: Record<string, unknown>) => void)(
     target,
-    value,
+    payload,
     { format: 'CODE128', displayValue: false, margin: 0, flat: true }
   )
   const encoded = target.encodings?.[0]?.data
@@ -1083,6 +1086,9 @@ async function loadTemplate(
     const b64 = theme?.templatePngB64 ?? TEMPLATE_PNG_B64
     return await doc.embedPng(Buffer.from(b64, 'base64'))
   } catch {
+    if (theme?.templatePngB64) {
+      throw new Error('White-label vial label template could not be embedded')
+    }
     return null
   }
 }
