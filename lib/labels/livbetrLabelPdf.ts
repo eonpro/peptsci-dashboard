@@ -186,10 +186,11 @@ type BarcodeEncoding = { data: string }
 type BarcodeTarget = { encodings?: BarcodeEncoding[] }
 
 function getCode128Bits(value: string): string {
+  const payload = value.trim() ? value : ' '
   const target: BarcodeTarget = {}
   ;(JsBarcode as unknown as (t: unknown, v: string, o: Record<string, unknown>) => void)(
     target,
-    value,
+    payload,
     { format: 'CODE128', displayValue: false, margin: 0, flat: true }
   )
   const encoded = target.encodings?.[0]?.data

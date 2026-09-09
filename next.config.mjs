@@ -55,6 +55,11 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/admin/inventory/labels/pdf': ['./public/labels/**/*', './public/fonts/labels/**/*'],
     '/api/admin/orders/[id]/labels/pdf': ['./public/labels/**/*', './public/fonts/labels/**/*'],
+    '/api/admin/clients/[id]/labels/proof': [
+      './public/labels/**/*',
+      './public/fonts/labels/**/*',
+      './public/brand/**/*',
+    ],
     // Pick list / packing slip headers embed the brand logo PNG from disk.
     '/api/admin/orders/[id]/pick-list/pdf': ['./public/brand/**/*'],
     '/api/admin/orders/[id]/packing-slip/pdf': ['./public/brand/**/*'],

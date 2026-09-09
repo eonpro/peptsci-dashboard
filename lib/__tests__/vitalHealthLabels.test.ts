@@ -32,4 +32,36 @@ describe('Vital Health white-label labels', () => {
     assert.equal(pdf.subarray(0, 4).toString('ascii'), '%PDF')
     assert.ok(pdf.length > 8_000, `expected a real artwork PDF, got ${pdf.length} bytes`)
   })
+
+  it('prints the admin proof payload (blend name) without crashing', async () => {
+    const { pdf, brand, labelsPrinted } = await generateVialLabelsPdf(VITAL_HEALTH_BRAND_KEY, [
+      {
+        productName: 'BPC-157 / TB-500',
+        dose: '10mg/10mg',
+        purity: '99%HPLC',
+        batchNumber: 'BPC-10',
+        budIsoDate: '2027-07-21',
+        quantity: 1,
+      },
+    ])
+    assert.equal(brand, 'vital_health')
+    assert.equal(labelsPrinted, 1)
+    assert.equal(pdf.subarray(0, 4).toString('ascii'), '%PDF')
+  })
+
+  it('still prints when a peptide line has no batch number (Code 128 cannot encode empty)', async () => {
+    const { pdf, brand, labelsPrinted } = await generateVialLabelsPdf(VITAL_HEALTH_BRAND_KEY, [
+      {
+        productName: 'Tesamorelin',
+        dose: '10mg',
+        purity: '99%HPLC',
+        batchNumber: '',
+        budIsoDate: '2027-07-21',
+        quantity: 1,
+      },
+    ])
+    assert.equal(brand, 'vital_health')
+    assert.equal(labelsPrinted, 1)
+    assert.equal(pdf.subarray(0, 4).toString('ascii'), '%PDF')
+  })
 })

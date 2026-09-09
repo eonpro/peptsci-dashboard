@@ -216,4 +216,30 @@ describe('resolveLabelBrandKey', () => {
       'vital_health'
     )
   })
+
+  it('infers Vital Health from the practice name when the brand was never configured', () => {
+    assert.equal(
+      resolveLabelBrandKey({ organizationName: 'Vital Health 2022 LLC' }),
+      'vital_health'
+    )
+    assert.equal(
+      resolveLabelBrandKey({
+        whiteLabelEnabled: false,
+        labelBrandKey: null,
+        organizationName: 'Vital Health 2022 LLC',
+      }),
+      'vital_health'
+    )
+  })
+
+  it('does not infer a brand once the picker was used to turn white-label off', () => {
+    assert.equal(
+      resolveLabelBrandKey({
+        whiteLabelEnabled: false,
+        labelBrandKey: 'vital_health',
+        organizationName: 'Vital Health 2022 LLC',
+      }),
+      null
+    )
+  })
 })

@@ -81,7 +81,7 @@ export function ClientWhiteLabelLabelsCard({
     setBrandKey(next)
     await save({
       labelBrandKey: next,
-      ...(enabled && !next ? { whiteLabelEnabled: false } : {}),
+      whiteLabelEnabled: Boolean(next),
     })
   }
 
@@ -130,8 +130,10 @@ export function ClientWhiteLabelLabelsCard({
           White-label vial labels
         </CardTitle>
         <CardDescription className="text-white/60">
-          When enabled, order vial label PDFs print with this practice&apos;s brand artwork
-          (OL4891LP) instead of PeptSci. Inventory batch print stays PeptSci.
+          Selecting a brand enables it: order vial label PDFs then use that
+          practice&apos;s artwork (OL4891LP) instead of PeptSci. Inventory batch
+          print stays PeptSci. Practices named Vital Health, LIVBETR, or Elevated
+          Vitality also match automatically if this picker was never saved.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
