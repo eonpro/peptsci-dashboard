@@ -96,7 +96,12 @@ export async function enrollSmsSubscriber(
   // a STOP, so repeat submissions do not spam the subscriber).
   let confirmationSent = false
   if (!existing || existing.optedOutAt) {
-    const res = await sendSms({ to: row.phone, body: SMS_OPT_IN_CONFIRMATION })
+    const res = await sendSms({
+      to: row.phone,
+      body: SMS_OPT_IN_CONFIRMATION,
+      kind: 'OPT_IN_CONFIRMATION',
+      clientId: params.clientId ?? null,
+    })
     confirmationSent = res.ok && !res.skipped
   }
 

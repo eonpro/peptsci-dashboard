@@ -97,6 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         status: true,
         paymentStatus: true,
         trackingNumber: true,
+        clientId: true,
         _count: { select: { invoiceLineItems: true } },
         client: {
           select: {
@@ -244,6 +245,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (phone && trackingNumber) {
         void sendOrderDeliveredSms({
           to: phone,
+          orderId: order.id,
+          clientId: order.clientId,
           orderNumber: order.orderNumber,
           trackingNumber,
           carrier,
@@ -272,6 +275,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (phone) {
         void sendOrderShippedSms({
           to: phone,
+          orderId: order.id,
+          clientId: order.clientId,
           orderNumber: order.orderNumber,
           trackingNumber,
           carrier,

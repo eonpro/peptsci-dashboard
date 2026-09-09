@@ -142,6 +142,7 @@ interface SchemaProbe {
   userPermissionsGrantColumn: boolean
   userPermissionsDenyColumn: boolean
   smsSubscriberTable: boolean
+  smsMessageTable: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -158,7 +159,7 @@ async function probeSchema(): Promise<SchemaProbe> {
         'ClientCreditEntry', 'PartnerLead', 'ReferralLinkClick',
         'PartnerPayoutRequest', 'PartnerAsset', 'PatientMessage',
         'SupportTicket', 'SupportTicketMessage', 'BackInStockSubscription',
-        'Supplier', 'SupplierPriceItem', 'SmsSubscriber'
+        'Supplier', 'SupplierPriceItem', 'SmsSubscriber', 'SmsMessage'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -278,6 +279,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     userPermissionsGrantColumn: colKeys.has('User.permissionsGrant'),
     userPermissionsDenyColumn: colKeys.has('User.permissionsDeny'),
     smsSubscriberTable: tableNames.has('SmsSubscriber'),
+    smsMessageTable: tableNames.has('SmsMessage'),
   }
 }
 

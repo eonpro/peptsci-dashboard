@@ -420,6 +420,8 @@ export async function POST(request: NextRequest) {
     if (order?.client?.contactPhone && order.client.smsOptIn) {
       void sendOrderShippedSms({
         to: order.client.contactPhone,
+        orderId: order.id,
+        clientId: order.clientId,
         orderNumber: order.orderNumber,
         trackingNumber: result.trackingNumber,
         carrier: 'FedEx',

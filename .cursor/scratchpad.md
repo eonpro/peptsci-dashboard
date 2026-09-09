@@ -1,3 +1,129 @@
+# Vital Health vial labels not generating  [EXECUTOR — 2026-09-09]
+
+## Background and Motivation
+Warehouse reported Vital Health white-label vial labels are not being generated.
+The brand shipped on `main` (#53) but order PDFs only use it when
+`whiteLabelEnabled` + `labelBrandKey=vital_health`. The practice was never
+auto-enabled, proof PDFs were not in serverless file tracing, and Code 128
+throws on an empty batch number (kills the whole sheet).
+
+## High-level Task Breakdown
+1. Infer `vital_health` from org name when the picker was never saved.
+2. Selecting a brand in admin auto-enables white-label.
+3. Trace proof-route label assets; harden empty Code 128.
+4. Tests for inference, proof payload, empty batch.
+
+## Project Status Board
+- [x] 1–4 implemented locally (not deployed).
+
+---
+
+# Twilio tracking-SMS integration (COMO IT RX LLC / PeptSci Alerts)  [PLANNER+EXECUTOR — 2026-09-09]
+
+## Background and Motivation
+The Twilio account (COMO IT RX LLC) and the A2P 10DLC campaign (PeptSci Alerts)
+are approved. Owner wants clients texted their tracking info when it is created.
+Audit of the code: the send path already exists (`lib/sms/client.ts` fetch
+driver → `sendOrderShippedSms` in the FedEx label route + manual disposition
+route, which are the ONLY two places `Order.trackingNumber` is created) but it
+is inert and incomplete:
+- Prod has `SMS_ENABLED` only; no `TWILIO_*` vars → every send is skipped.
+- Transactional sends gate on `Client.smsOptIn` + `contactPhone` but ignore
+  `SmsSubscriber.optedOutAt` (a STOP recorded by us is not honored).
+- No inbound webhook: STOP/START never reach the DB (Twilio Advanced Opt-Out
+  blocks at the carrier edge, but our records drift).
+- No delivery log → nobody can tell whether a text was actually delivered.
+
+## Key Challenges and Analysis
+- 10DLC requires sending through the Messaging Service the campaign is
+  attached to → `TWILIO_MESSAGING_SERVICE_SID` (not a bare From number).
+- Twilio signs webhooks with HMAC-SHA1(authToken, url + sorted POST params).
+  Behind Vercel the reconstructed URL must be the public https one, so we
+  build it from `NEXT_PUBLIC_APP_URL` + pathname and also try `request.url`.
+- Suppression must live in ONE place so every sender (label, disposition,
+  poller, invoices cron) honors STOP → put it in `sendSms` (driver).
+- Runtime migrate runner splits on `;` → plain idempotent DDL only.
+- Credentials are the owner's; I cannot fetch them. Everything else ships
+  dark-safe (SMS_ENABLED gate) and turns on the moment env vars land.
+
+## High-level Task Breakdown
+1. `SmsMessage` delivery log (Prisma + migration + migrate-route probe).
+2. `sendSms`: STOP suppression via `SmsSubscriber.optedOutAt`, `StatusCallback`,
+   log row per send (kind/orderId/clientId), never throws.
+3. `lib/sms/twilio-webhook.ts`: pure signature validation, keyword classifier,
+   status mapper (unit-tested).
+4. `POST /api/webhooks/twilio/inbound` (STOP → optedOutAt + Client.smsOptIn=false;
+   START → re-enroll source KEYWORD) and `POST /api/webhooks/twilio/status`
+   (update SmsMessage by MessageSid). Public in middleware.
+5. Thread `meta` (kind/orderId/clientId) through existing callers.
+6. env-example + Twilio console runbook; tests; tsc/eslint.
+
+## Project Status Board
+- [x] 1 `SmsMessage` model (+ Client/Order back-relations), migration
+      `20260909210000_add_sms_message_log` (applied locally via
+      `prisma db execute`), migrate-route probe `smsMessageTable`.
+- [x] 2 `lib/sms/client.ts`: STOP suppression (`isPhoneOptedOut`, fail-open),
+      `StatusCallback` when APP_URL is https, delivery-log row per attempt
+      (QUEUED w/ sid | FAILED w/ Twilio code | SKIPPED opted_out); `kind` +
+      `orderId`/`clientId` on `SendSmsInput`; `reason` on skipped results.
+- [x] 3 `lib/sms/twilio-webhook.ts` (pure): signature compute/validate
+      (constant-time, multi-URL), `twilioWebhookCandidateUrls`,
+      `formDataToParams`, `classifyInboundKeyword`, `mapTwilioMessageStatus`,
+      `shouldApplyStatusTransition`. `lib/__tests__/twilioWebhook.test.ts` (14).
+- [x] 4 `lib/sms/inbound.ts` (`handleInboundKeyword`: STOP → optedOutAt +
+      Client.smsOptIn=false for linked/phone-matched practices, unknown numbers
+      get a suppression row; START → re-consent source KEYWORD) +
+      `POST /api/webhooks/twilio/inbound` (empty TwiML) +
+      `POST /api/webhooks/twilio/status` (forward-only transitions, 21610 →
+      mirror STOP). Both public in `middleware.ts`, signature-gated, rate-limited.
+- [x] 5 orderId/clientId threaded: FedEx label route, disposition route,
+      FedEx poller, invoices-overdue cron, opt-in confirmation.
+- [x] 6 env-example runbook; tsc clean; eslint clean; `npm test` 902/903 (the
+      1 failure is the pre-existing salesIngest GLP-SM assertion). Local smoke
+      against `next dev -p 3077` with a test token: bad sig → 401; STOP →
+      optedOutAt + `<Response/>`; sendSms to STOP'd number → skipped
+      `opted_out` + SKIPPED row; START → re-armed; delivered → DELIVERED
+      (+deliveredAt); out-of-order `sent` ignored; unknown sid → 200; 21610 →
+      FAILED + STOP mirrored.
+
+## Executor's Feedback or Assistance Requests
+**Owner must supply the Twilio secrets — I cannot read them.** Turn-on checklist
+(prod Vercel env, then redeploy):
+1. `TWILIO_ACCOUNT_SID` (AC…), `TWILIO_AUTH_TOKEN`, and
+   `TWILIO_MESSAGING_SERVICE_SID` (MG… — the Messaging Service the approved
+   PeptSci Alerts campaign is attached to; the campaign number must be in its
+   Sender Pool). Then set `SMS_ENABLED=true` (currently present but off).
+2. Twilio Console → Messaging → Services → PeptSci Alerts → Integration:
+   "Send a webhook" → `https://peptsci.com/api/webhooks/twilio/inbound`
+   (HTTP POST). Opt-Out Management: keep **Advanced Opt-Out** enabled (it sends
+   the STOP/HELP/START auto-replies; our route deliberately returns empty TwiML).
+3. After deploy, super-admin `POST /api/admin/db/migrate {confirm:true}` so
+   `SmsMessage` exists (probe `smsMessageTable`).
+4. Test: create a FedEx label (or manual disposition with tracking) for an
+   order whose Client has `smsOptIn=true` + `contactPhone`; expect a text
+   "PeptSci: Order #N shipped via FedEx. Track: https://peptsci.com/tracking/…"
+   and an `SmsMessage` row advancing QUEUED → SENT → DELIVERED.
+- Who gets texted today: `Client.contactPhone` when `Client.smsOptIn` is true
+  (set via sign-up checkbox, Account → SMS Preferences, or the /sms form while
+  signed in). Ship-to/patient phones are NOT texted (no consent record).
+- Follow-ups (not in scope): admin UI over `SmsMessage`/`SmsSubscriber`;
+  "Resend tracking text" button on the order page.
+- `prisma format` realigned whitespace on unrelated models in `schema.prisma`
+  (pure formatting; no semantic change).
+
+## Lessons
+- Twilio signs the exact public URL it POSTed; behind Vercel validate against
+  both `request.url` and `NEXT_PUBLIC_APP_URL + pathname + search`.
+- Return 200 from Twilio webhooks even on internal failure — non-2xx triggers
+  retries and Console error alerts, and the carrier-level opt-out is already
+  in force. Log + reconcile instead.
+- Status callbacks arrive out of order (`sent` after `delivered`); rank
+  statuses and only move forward.
+- A background `(cmd &)` inside the Shell tool dies with its parent — use the
+  tool's own backgrounding for dev servers.
+
+---
+
 # PeptSci Alerts — Twilio A2P 10DLC compliance surfaces  [EXECUTOR — 2026-09-07]
 
 ## Background and Motivation
@@ -60,6 +186,74 @@ risk of a repeat 30909. Owner also wants a public "sign up for texts" area.
   plain idempotent DDL and rely on its "already exists" no-op handling.
 - The global input reset removes native checkbox chrome — always style
   `appearance-none` checkboxes explicitly (see `SmsOptInConsent`, `/sms`).
+
+---
+
+# Vital Health 2022 LLC white-label vial labels  [EXECUTOR — 2026-09-04]
+
+## Background and Motivation
+New practice **Vital Health 2022 LLC** needs OL4891LP vial labels that match
+the PeptSci face (BUD, two-tone dose box, RUO, warning, barcode, BATCH) with
+their supplied logo and palette (`#2a5fa1` navy, `#436e9c` blue, `#e84637`
+red, `#5db828` green).
+
+## High-level Task Breakdown
+1. Register `vital_health` brand key (admin picker, client PATCH, proof).
+2. Clone PeptSci artwork: swap molecule for Vital Health logo; recolor indigo
+   bands/divider/BATCH to navy `#2a5fa1`.
+3. Reuse PeptSci overlay engine via a theme (template PNG + box/accent color).
+4. Packing-slip / pick-list wordmark + logo; README + tests.
+
+## Project Status Board
+- [x] Brand key + tests
+- [x] Artwork SVG/PNG + embedded template
+- [x] Engine theme + dispatcher + proof + packing slip
+- [x] Verify proof PDF
+
+## Executor's Feedback
+Enable on **Clients → [practice] → White-label vial labels → Vital Health**.
+The face matches PeptSci (BUD, two-tone box, RUO, warning, barcode, BATCH)
+with navy `#2a5fa1` and the supplied mark in the left rail, rotated −90°
+(bottom-to-top) like PeptSci. Create/select the
+**Vital Health 2022 LLC** client in admin and turn the brand on there — this
+change only adds the printable brand, not the Client row.
+
+---
+
+# BAC water label BAC/Water spacing  [EXECUTOR — 2026-08-26]
+
+Printed and catalog vials used the peptide two-line gap, so **Water** sat on
+the volume box. Stack is now tight and clear of the box.
+
+---
+
+# GLP-SM / GLP-TZ / GLP-RT on every surface  [EXECUTOR — 2026-08-26]
+
+## Background and Motivation
+Inventory still showed INNs (Retatrutide / Tirzepatide / Semaglutide) on
+batch `RET8-072028` (SKU `RT30`, the old “GLP-R 30”). Clinics want those
+three incretins labeled **GLP-SM / GLP-TZ / GLP-RT** on shop, inventory,
+labels, emails, sales, and admin pickers.
+
+## High-level Task Breakdown
+1. Strengthen `resolveGlpTradeName` for frozen batch titles, legacy GLP-R, SKUs.
+2. Present trade names on inventory list/detail/search/activity/reservations.
+3. Apply the same display name on labels, confirmation email, shop orders, sales.
+4. Keep INN search aliases; do not print the INN as aka under the card title.
+
+## Project Status Board
+- [x] Mapper + tests (suffixes, GLP-R, SKU, hide INN aka)
+- [x] Inventory batches / search / activity / reservations
+- [x] Labels, emails, shop orders, sales, reports, partners
+- [x] Picker + shop search still find the INN
+- [x] `tsc --noEmit` + targeted tests
+- [ ] Browser verify Inventory + shop (Clerk)
+
+## Executor's Feedback
+Hard-refresh Inventory: `RET8-072028` / `RT30` should read **GLP-RT**, not
+Retatrutide. Shop cards show GLP-SM / GLP-TZ / GLP-RT with no INN subtitle.
+Search still finds “retatrutide”, “tirzepatide”, “semaglutide”, and “GLP-R”.
+Stored `Product.name` stays the INN so Shopify/imports keep matching.
 
 ---
 

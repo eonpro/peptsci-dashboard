@@ -118,6 +118,7 @@ async function run(req: NextRequest) {
       if (phone) {
         const sms = await sendInvoiceOverdueSms({
           to: phone,
+          clientId: view.invoice.client?.id ?? null,
           invoiceNumber,
           amountDue,
           dueDate,
