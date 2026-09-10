@@ -35,6 +35,9 @@ const clientSelect = {
   contactName: true,
   contactEmail: true,
   contactPhone: true,
+  // Texting consent (TCPA) — read-only in the admin; the clinic enrolls itself.
+  smsOptIn: true,
+  smsOptInAt: true,
   billingAddress: true,
   shippingAddress: true,
   onboardingStatus: true,

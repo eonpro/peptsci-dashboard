@@ -11,6 +11,7 @@ import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { toE164US } from './phone'
 import { messagePreview, nextConversationStatusAfterInbound } from './inbox-utils'
+import { pickClientFromCandidates, rankCandidates, type ClientCandidate } from './phone-match'
 
 /**
  * Practices whose contactPhone normalizes to `phoneE164`. contactPhone is
@@ -28,24 +29,94 @@ export async function findClientIdsByPhone(phoneE164: string): Promise<string[]>
   return candidates.filter((c) => toE164US(c.contactPhone) === phoneE164).map((c) => c.id)
 }
 
+function phoneFromAddress(address: unknown): string | null {
+  if (!address || typeof address !== 'object') return null
+  const p = (address as Record<string, unknown>).phone
+  return typeof p === 'string' ? toE164US(p) : null
+}
+
 /**
- * Best guess at which practice a number belongs to: an explicit subscriber
- * link wins, then a contactPhone match (only when unambiguous).
+ * Every clinic that has this number anywhere in the system, tagged with where
+ * it was found (see ./phone-match for the ranking). Each source is best-effort
+ * so one failing lookup never hides the others.
+ */
+export async function findClientCandidatesByPhone(phoneE164: string): Promise<ClientCandidate[]> {
+  if (!prisma) return []
+  const db = prisma
+  const last4 = phoneE164.slice(-4)
+  const out: ClientCandidate[] = []
+
+  const lookups: Array<Promise<void>> = [
+    db.smsSubscriber
+      .findUnique({ where: { phone: phoneE164 }, select: { clientId: true } })
+      .then((sub) => {
+        if (sub?.clientId) out.push({ clientId: sub.clientId, source: 'SUBSCRIBER' })
+      }),
+    db.smsMessage
+      .findMany({
+        where: { phone: phoneE164, direction: 'OUTBOUND', clientId: { not: null } },
+        orderBy: { createdAt: 'desc' },
+        select: { clientId: true },
+        take: 10,
+      })
+      .then((rows) => {
+        for (const r of rows) if (r.clientId) out.push({ clientId: r.clientId, source: 'PRIOR_TEXT' })
+      }),
+    findClientIdsByPhone(phoneE164).then((ids) => {
+      for (const id of ids) out.push({ clientId: id, source: 'CONTACT_PHONE' })
+    }),
+    db.client
+      .findMany({
+        where: { shippingAddress: { path: ['phone'], string_contains: last4 } },
+        select: { id: true, shippingAddress: true },
+        take: 100,
+      })
+      .then((rows) => {
+        for (const r of rows) {
+          if (phoneFromAddress(r.shippingAddress) === phoneE164) out.push({ clientId: r.id, source: 'SHIPPING_PHONE' })
+        }
+      }),
+    db.order
+      .findMany({
+        where: { shippingAddress: { path: ['phone'], string_contains: last4 } },
+        orderBy: { createdAt: 'desc' },
+        select: { clientId: true, shippingAddress: true },
+        take: 100,
+      })
+      .then((rows) => {
+        for (const r of rows) {
+          if (phoneFromAddress(r.shippingAddress) === phoneE164) out.push({ clientId: r.clientId, source: 'SHIPPING_PHONE' })
+        }
+      }),
+  ]
+
+  const results = await Promise.allSettled(lookups)
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      logger.warn('[SMS INBOX] client candidate lookup failed', {
+        phone: phoneE164,
+        error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+      })
+    }
+  }
+  return rankCandidates(out)
+}
+
+/**
+ * Best guess at which practice a number belongs to. Auto-links only when the
+ * strongest evidence tier names exactly one clinic; otherwise null so staff
+ * see "possible matches" instead of a wrong link.
  */
 export async function resolveClientIdForPhone(phoneE164: string): Promise<string | null> {
   if (!prisma) return null
-  const sub = await prisma.smsSubscriber.findUnique({
-    where: { phone: phoneE164 },
-    select: { clientId: true },
-  })
-  if (sub?.clientId) return sub.clientId
-  const ids = await findClientIdsByPhone(phoneE164)
-  return ids.length === 1 ? ids[0] : null
+  return pickClientFromCandidates(await findClientCandidatesByPhone(phoneE164))
 }
 
 /**
  * Find-or-create the thread for a number. Fills in `clientId` when the thread
- * has none and a link is known; never overwrites a staff-set link.
+ * has none and a link is known (explicit or freshly resolved — a clinic added
+ * after the first text still gets linked on the next one); never overwrites a
+ * staff-set link.
  */
 export async function ensureConversation(
   phoneE164: string,
@@ -57,12 +128,20 @@ export async function ensureConversation(
     select: { id: true, clientId: true, status: true },
   })
   if (existing) {
-    if (!existing.clientId && opts.clientId) {
-      await prisma.smsConversation.update({
-        where: { id: existing.id },
-        data: { clientId: opts.clientId },
-      })
-      return { ...existing, clientId: opts.clientId, isNew: false }
+    if (!existing.clientId) {
+      const clientId = opts.clientId ?? (await resolveClientIdForPhone(phoneE164))
+      if (clientId) {
+        await prisma.smsConversation.update({
+          where: { id: existing.id },
+          data: { clientId },
+        })
+        // Earlier inbound texts on this thread were stored untagged; retag them.
+        await prisma.smsMessage.updateMany({
+          where: { conversationId: existing.id, clientId: null },
+          data: { clientId },
+        })
+        return { ...existing, clientId, isNew: false }
+      }
     }
     return { ...existing, isNew: false }
   }

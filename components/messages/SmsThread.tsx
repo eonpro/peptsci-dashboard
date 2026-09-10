@@ -82,6 +82,14 @@ export interface ConversationDetail {
   closedAt: string | null
   closedBy: StaffRef | null
   messages: ThreadMessage[]
+  /** Clinics this number appears under when unlinked (see lib/sms/phone-match). */
+  suggestedClients?: Array<{
+    id: string
+    organizationName: string
+    contactName: string | null
+    source: string
+    sourceLabel: string
+  }>
 }
 
 const POLL_MS = 15_000
@@ -375,6 +383,26 @@ export function SmsThread({
                 <span>STOP received {new Date(convo.subscriber.optedOutAt).toLocaleDateString()}</span>
               )}
             </div>
+            {!convo.client && (convo.suggestedClients?.length ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-muted-foreground">
+                  {convo.suggestedClients!.length > 1 ? 'Possible matches:' : 'Possible match:'}
+                </span>
+                {convo.suggestedClients!.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => patch({ clientId: s.id }, `Linked to ${s.organizationName}.`)}
+                    title={`${s.sourceLabel} — click to link`}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    <Link2 className="h-3 w-3" />
+                    {s.organizationName}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

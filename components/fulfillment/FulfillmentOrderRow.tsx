@@ -18,6 +18,7 @@ import {
   FileText,
   CreditCard,
   Undo2,
+  MessageSquareText,
   MoreHorizontal,
   PackageCheck,
   PlayCircle,
@@ -28,6 +29,7 @@ import { toast } from 'sonner'
 import { downloadLabelSheet } from '@/lib/fulfillment/api-client'
 import { describeLabelShortfall } from '@/lib/fulfillment/label-shortfall'
 import type { FulfillmentStageName, FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
+import type { ShippedTextStatus } from '@/lib/sms/notification-status'
 
 type StoredAddress = Record<string, unknown> | null
 
@@ -57,6 +59,8 @@ export type OrderRow = {
     labelBrandKey?: string | null
   } | null
   items: { name: string; dose: string | null; quantity: number }[]
+  /** Did the automated tracking text reach the clinic? null until there is tracking. */
+  shippedText?: ShippedTextStatus | null
   fulfillmentStage: FulfillmentStageName
   /** Guided wizard cursor; null when the wizard has never been started. */
   fulfillmentStep: FulfillmentStepName | null
@@ -85,6 +89,12 @@ const PAYMENT_META: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Payment pending', className: 'border-amber-400/40 text-amber-300' },
   FAILED: { label: 'Payment failed', className: 'border-red-400/50 text-red-300' },
   REFUNDED: { label: 'Refunded', className: 'border-white/20 text-white/50' },
+}
+
+const SHIPPED_TEXT_TONE: Record<ShippedTextStatus['tone'], string> = {
+  ok: 'text-emerald-300',
+  warn: 'text-amber-300',
+  muted: 'text-white/40',
 }
 
 const formatPrice = (price: number) =>
@@ -257,6 +267,19 @@ export function FulfillmentOrderRow({
                 </a>
               ) : (
                 <span className="font-mono text-white/70">{order.trackingNumber}</span>
+              )}
+              {order.shippedText && (
+                <span
+                  className={`ml-1 inline-flex items-center gap-1 ${SHIPPED_TEXT_TONE[order.shippedText.tone]}`}
+                  title={
+                    order.shippedText.at
+                      ? `${order.shippedText.detail} · ${new Date(order.shippedText.at).toLocaleString()}`
+                      : order.shippedText.detail
+                  }
+                >
+                  <MessageSquareText className="h-3 w-3" />
+                  {order.shippedText.label}
+                </span>
               )}
             </div>
           )}
