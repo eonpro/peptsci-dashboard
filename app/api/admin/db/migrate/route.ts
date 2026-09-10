@@ -143,6 +143,8 @@ interface SchemaProbe {
   userPermissionsDenyColumn: boolean
   smsSubscriberTable: boolean
   smsMessageTable: boolean
+  smsConversationTable: boolean
+  smsMessageConversationColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -159,7 +161,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         'ClientCreditEntry', 'PartnerLead', 'ReferralLinkClick',
         'PartnerPayoutRequest', 'PartnerAsset', 'PatientMessage',
         'SupportTicket', 'SupportTicketMessage', 'BackInStockSubscription',
-        'Supplier', 'SupplierPriceItem', 'SmsSubscriber', 'SmsMessage'
+        'Supplier', 'SupplierPriceItem', 'SmsSubscriber', 'SmsMessage',
+        'SmsConversation'
       )
   `
   const cols = await db.$queryRaw<{ table_name: string; column_name: string }[]>`
@@ -193,7 +196,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'Client' AND column_name = 'shippingRateOvernight')
         OR (table_name = 'InvoiceLineItem' AND column_name = 'variantId')
         OR (table_name = 'User' AND column_name = 'permissionsGrant')
-        OR (table_name = 'User' AND column_name = 'permissionsDeny'))
+        OR (table_name = 'User' AND column_name = 'permissionsDeny')
+        OR (table_name = 'SmsMessage' AND column_name = 'conversationId'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -280,6 +284,8 @@ async function probeSchema(): Promise<SchemaProbe> {
     userPermissionsDenyColumn: colKeys.has('User.permissionsDeny'),
     smsSubscriberTable: tableNames.has('SmsSubscriber'),
     smsMessageTable: tableNames.has('SmsMessage'),
+    smsConversationTable: tableNames.has('SmsConversation'),
+    smsMessageConversationColumn: colKeys.has('SmsMessage.conversationId'),
   }
 }
 

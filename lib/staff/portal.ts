@@ -144,6 +144,11 @@ export const STAFF_ADMIN_LINKS: readonly StaffPortalLink[] = [
     description: 'Clinic support tickets',
   },
   {
+    name: 'Messages',
+    href: '/messages',
+    description: 'Text conversations with clinics (PeptSci Alerts)',
+  },
+  {
     name: 'Stripe',
     href: '/settings/stripe',
     description: 'Payments configuration',
@@ -177,6 +182,7 @@ const ADMIN_PREFIXES = [
   '/resources',
   '/package-photos',
   '/support',
+  '/messages',
   '/settings',
 ]
 
@@ -237,6 +243,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/resources': 'Resources',
   '/package-photos': 'Package photos',
   '/support': 'Support',
+  '/messages': 'Messages',
 }
 
 export function staffPageTitle(pathname: string): string {

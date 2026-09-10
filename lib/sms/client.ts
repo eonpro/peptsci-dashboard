@@ -21,6 +21,7 @@
 import { logger } from '../logger'
 import { prisma } from '../prisma'
 import { toE164US } from './phone'
+import { linkOutboundMessage } from './inbox-core'
 
 const SMS_ENABLED = process.env.SMS_ENABLED === 'true'
 const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || ''
@@ -39,6 +40,7 @@ export const SMS_KINDS = [
   'ORDER_EXCEPTION',
   'INVOICE_OVERDUE',
   'OPT_IN_CONFIRMATION',
+  'STAFF_REPLY',
   'OTHER',
 ] as const
 export type SmsKind = (typeof SMS_KINDS)[number]
@@ -51,6 +53,10 @@ export interface SendSmsInput {
   /** Optional links for the delivery log (SmsMessage.orderId / clientId). */
   orderId?: string | null
   clientId?: string | null
+  /** Staff member sending a manual reply from the inbox (SmsMessage.sentById). */
+  sentById?: string | null
+  /** Pre-resolved inbox thread; otherwise the row is threaded by phone number. */
+  conversationId?: string | null
 }
 
 export type SendSmsSkipReason = 'disabled' | 'opted_out'
@@ -108,30 +114,48 @@ interface LogRowInput {
   status: 'QUEUED' | 'FAILED' | 'SKIPPED'
   orderId?: string | null
   clientId?: string | null
+  sentById?: string | null
+  conversationId?: string | null
   twilioSid?: string | null
   errorCode?: string | null
   errorMessage?: string | null
   sentAt?: Date | null
 }
 
-/** Best-effort delivery-log write. Never throws. */
+/**
+ * Best-effort delivery-log write, threaded into the number's inbox
+ * conversation so staff see automated texts alongside replies. Never throws.
+ */
 async function writeLogRow(input: LogRowInput): Promise<string | undefined> {
   if (!prisma) return undefined
   try {
     const row = await prisma.smsMessage.create({
       data: {
         phone: input.phone,
+        direction: 'OUTBOUND',
         body: input.body,
         kind: input.kind,
         status: input.status,
         orderId: input.orderId ?? null,
         clientId: input.clientId ?? null,
+        sentById: input.sentById ?? null,
+        conversationId: input.conversationId ?? null,
         twilioSid: input.twilioSid ?? null,
         errorCode: input.errorCode ?? null,
         errorMessage: input.errorMessage ?? null,
         sentAt: input.sentAt ?? null,
       },
       select: { id: true },
+    })
+    await linkOutboundMessage({
+      messageId: row.id,
+      phone: input.phone,
+      body: input.body,
+      clientId: input.clientId ?? null,
+      conversationId: input.conversationId ?? null,
+      // A suppressed/failed attempt never reached the phone — keep it in the
+      // thread for the audit trail but don't make it the "last message".
+      touch: input.status === 'QUEUED',
     })
     return row.id
   } catch (error) {
@@ -158,7 +182,12 @@ export async function sendSms(input: SendSmsInput): Promise<SendSmsResult> {
     return { ok: false, error: 'Empty message body' }
   }
   const kind: SmsKind = input.kind ?? 'OTHER'
-  const links = { orderId: input.orderId ?? null, clientId: input.clientId ?? null }
+  const links = {
+    orderId: input.orderId ?? null,
+    clientId: input.clientId ?? null,
+    sentById: input.sentById ?? null,
+    conversationId: input.conversationId ?? null,
+  }
 
   // TCPA: honor STOP recorded on our side before anything else.
   if (await isPhoneOptedOut(to)) {

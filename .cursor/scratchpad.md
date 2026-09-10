@@ -1,3 +1,102 @@
+# SMS Inbox (CRM) — two-way texting in the admin  [PLANNER+EXECUTOR — 2026-09-09 20:45]
+
+## Background and Motivation
+Tracking texts are live, but a client reply lands nowhere: the inbound webhook
+only acts on STOP/START/HELP and drops free-form replies after a masked log
+line. Owner wants a CRM-oriented build: every number is a contact thread tied
+to a practice, staff see replies, can answer from the platform, assign and
+close conversations, and get alerted.
+
+## Key Challenges and Analysis
+- Reuse `SmsMessage` as the single two-way message table (add `direction`,
+  `conversationId`, `readAt`, `sentById`) so automated tracking texts and
+  staff replies show in the same thread; add `SmsConversation` (one per E.164
+  number) as the CRM object: client link, assignee, status OPEN/CLOSED,
+  unread count, last-message denorms for a fast list.
+- Contact → practice resolution: `SmsSubscriber.clientId` first, else
+  `Client.contactPhone` normalized match (already in lib/sms/inbound.ts).
+  Staff can override/link manually (PATCH clientId).
+- Avoid an import cycle: `lib/sms/client.ts` (driver) must not import the
+  module that calls `sendSms`. Split: `inbox-core.ts` (DB helpers, no send) ←
+  driver; `inbox.ts` (staff reply = sendSms + link) → driver.
+- Consent: composer is disabled with a reason when the number has STOP on
+  file; `sendSms` suppression stays the hard guard. Replies to an active
+  conversation are transactional under the campaign's use case.
+- Alerts: `notifyAdmins` (bell, dedupe on twilioSid) + email to SUPPORT_EMAIL
+  for non-keyword inbound only; keyword auto-handled messages are stored but
+  don't page anyone.
+- Permission: `support:write` (same staff who work tickets). Page `/messages`,
+  APIs `/api/admin/messages/*`. Middleware staff matcher + portal links.
+- Runtime migrate runner: plain idempotent DDL, no `DO $$`.
+
+## High-level Task Breakdown
+1. Schema: `SmsConversation` + `SmsMessage` columns + User/Client relations;
+   migration `20260909230000_add_sms_conversations`; migrate-route probe.
+2. `lib/sms/inbox-utils.ts` (pure: phone display, preview, segments) + tests.
+3. `lib/sms/inbox-core.ts`: upsert conversation, record inbound, touch on
+   outbound; `lib/sms/inbox.ts`: list/thread/read/update/reply/unread/staff.
+4. Driver: link outbound rows to conversations; `STAFF_REPLY` kind; `sentById`.
+5. Inbound webhook: store every inbound; alert on non-keyword.
+6. APIs under `/api/admin/messages`; permissions; middleware; portal nav.
+7. UI: `/messages` (list + thread + composer + assign/close/link-client),
+   `ClientTextsCard` + "Texts" tab on client detail.
+8. tsc / eslint / tests / local smoke via signed webhook → thread renders.
+
+## Project Status Board
+- [x] 1 `SmsConversation` model + `SmsMessage.direction/conversationId/readAt/sentById`;
+      migration `20260909230000_add_sms_conversations` (idempotent DDL); migrate
+      probe `smsConversationTable` / `smsMessageConversationColumn`; applied locally.
+- [x] 2 `lib/sms/inbox-utils.ts` (phone display, preview, GSM-7 segment math,
+      zod schemas, consent state) — 17 tests in `lib/__tests__/smsInbox.test.ts`.
+- [x] 3 `lib/sms/inbox-core.ts` (ensureConversation, recordInboundMessage
+      idempotent on MessageSid, linkOutboundMessage) + `lib/sms/inbox.ts`
+      (list w/ counters, thread, mark read, update, staff reply, staff list,
+      clinic search, per-client threads).
+- [x] 4 Driver threads every outbound row into the number's conversation;
+      `STAFF_REPLY` kind; `sentById`/`conversationId` on `SendSmsInput`.
+- [x] 5 Inbound webhook stores every text (keywords included, as
+      `KEYWORD_STOP` etc.), reopens closed threads, bumps unread; free-form
+      replies → `notifyAdmins` (bell, dedupe on SID) + email to SUPPORT_EMAIL
+      with deep link `/messages?c=…` (`lib/sms/inbox-alerts.ts`).
+- [x] 6 `/api/admin/messages/{conversations,conversations/[id],
+      conversations/[id]/reply,unread-count,staff,clients}`; `support:write`
+      page+API rules; middleware staff matcher; Admin section link + title;
+      audit rows for updates/replies; 30/min/staff reply throttle.
+- [x] 7 `/messages` inbox (Open/Unread/Mine/Closed/All, search, list w/ unread
+      pills, thread w/ CRM header: clinic link/picker, contact label, consent
+      badge, assignee select, close/reopen; bubbles w/ delivery ticks, kind +
+      order #; composer w/ segment counter, disabled w/ reason on STOP);
+      `ClientTextsCard` + "Texts" tab on client detail; unread badge on the
+      Messages tab in `StaffSectionNav` (60s poll).
+- [x] 8 tsc clean, eslint clean, 946/947 unit tests (pre-existing salesIngest
+      failure only). Local smoke through the dev server with a signed webhook:
+      store → list unread 1 → duplicate SID idempotent → mark read → reply with
+      SMS disabled returns `SMS_DISABLED` → close → inbound reopens (+1 unread)
+      → STOP flips consent, reply refused `OPTED_OUT` → clinic link retags
+      messages. Bad signature → 401.
+- [ ] 9 PR → main; owner applies migration in prod (Settings → Stripe →
+      Database schema → Check → Apply). Both pending SMS migrations run then.
+
+## Executor's Feedback or Assistance Requests
+- Couldn't do a visual pass on `/messages` locally: Clerk live keys make the
+  local sign-in page error out. Verified via typecheck/lint + API smoke; please
+  eyeball on the preview deployment.
+- Inbound keyword texts (STOP/HELP/START) only reach the webhook once Advanced
+  Opt-Out is enabled on the Messaging Service (see Twilio section below). Until
+  then free-form replies DO reach the inbox — that's the main use case.
+- Notifications fan out to all active staff roles (existing `notifyAdmins`);
+  if that's too noisy, gate on `support:write` users later.
+
+## Lessons
+- No `node_modules` in a fresh worktree: symlink the main repo's
+  `node_modules` (gitignored) and run `prisma validate --schema` from the main
+  repo for a copied schema file — `npx prisma` in the bare worktree resolves a
+  different package.
+- `prisma format` on HEAD's schema realigns unrelated models (~300 lines); keep
+  hand-aligned hunks and pick field names that fit the existing column width.
+
+---
+
 # Vital Health vial labels not generating  [EXECUTOR — 2026-09-09]
 
 ## Background and Motivation
@@ -78,6 +177,21 @@ is inert and incomplete:
       mirror STOP). Both public in `middleware.ts`, signature-gated, rate-limited.
 - [x] 5 orderId/clientId threaded: FedEx label route, disposition route,
       FedEx poller, invoices-overdue cron, opt-in confirmation.
+- [x] 7 Prod env set; PR #56 opened, merged, deployed; Twilio webhooks routed.
+- [x] 9 LIVE TEST 20:34 — `POST /api/sms/subscribe` (prod) → owner's +1813…7844
+      received the opt-in confirmation from +18167378724 via MG6667… (Twilio:
+      delivered); 3× `POST /api/webhooks/twilio/status` 200 in prod logs
+      (signature validation confirmed in production).
+- [ ] 8 Owner: apply `SmsMessage` migration from Settings → Stripe → Database schema.
+- [ ] 10 Owner decision: enable **Advanced Opt-Out** on MG6667… (Console-only;
+      irreversible without Twilio support). Owner replied HELP → Twilio's
+      *default* handler answered and did NOT forward to our inbound webhook
+      (expected: default opt-out handling never forwards keywords). With
+      Advanced Opt-Out, keywords are forwarded with `OptOutType` (route already
+      handles it) and the auto-replies can be set to the exact
+      `SMS_OPT_IN_CONFIRMATION` / `SMS_OPT_OUT_CONFIRMATION` / `SMS_HELP_MESSAGE`
+      copy filed in the campaign. Until then the 21610 status-callback path is
+      what mirrors STOP into our DB.
 - [x] 6 env-example runbook; tsc clean; eslint clean; `npm test` 902/903 (the
       1 failure is the pre-existing salesIngest GLP-SM assertion). Local smoke
       against `next dev -p 3077` with a test token: bad sig → 401; STOP →
@@ -87,8 +201,23 @@ is inert and incomplete:
       FAILED + STOP mirrored.
 
 ## Executor's Feedback or Assistance Requests
-**Owner must supply the Twilio secrets — I cannot read them.** Turn-on checklist
-(prod Vercel env, then redeploy):
+**2026-09-09 18:40 — secrets received and applied.** Verified via Twilio API:
+account active, campaign `QE2c68…` (CHPMH2F) VERIFIED, `+18167378724` in the
+Messaging Service pool. Vercel production env now has `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `SMS_ENABLED=true`.
+Branch `feat/twilio-tracking-sms` → PR #56 (built in a worktree so the
+unrelated pickup/labels WIP on main stayed out).
+**18:55 — deployed.** PR #56 merged (squash; all checks green) → prod Ready;
+`/api/webhooks/twilio/{inbound,status}` answer 401 unsigned (live + gated).
+Messaging Service updated via API: `InboundRequestUrl` +
+`StatusCallback` → peptsci.com, `UseInboundWebhookOnNumber=false` (the
+number's own `sms_url` still points at EonPro but is now bypassed for this
+service; EonPro sends only from +16623663631 so nothing there changed). Prod
+DB creds are *sensitive* in Vercel (pull returns blanks) so the `SmsMessage`
+migration must be applied from the admin UI:
+**Settings → Stripe → "Database schema" → Check, then Apply (arm + confirm)**.
+Until then, sends still work (log write is best-effort/non-blocking).
+Original checklist:
 1. `TWILIO_ACCOUNT_SID` (AC…), `TWILIO_AUTH_TOKEN`, and
    `TWILIO_MESSAGING_SERVICE_SID` (MG… — the Messaging Service the approved
    PeptSci Alerts campaign is attached to; the campaign number must be in its
@@ -112,6 +241,11 @@ is inert and incomplete:
   (pure formatting; no semantic change).
 
 ## Lessons
+- Vercel `vercel env pull` returns empty strings for *sensitive* vars (PG*,
+  AWS_ROLE_ARN); the prod-migrate scripts only work while those are plain.
+  Use the in-app migrate route (super-admin) instead.
+- `git stash pop` after a fast-forward can produce whitespace-only conflicts
+  in schema.prisma and mangle the scratchpad — resolve by rebuilding from HEAD.
 - Twilio signs the exact public URL it POSTed; behind Vercel validate against
   both `request.url` and `NEXT_PUBLIC_APP_URL + pathname + search`.
 - Return 200 from Twilio webhooks even on internal failure — non-2xx triggers
@@ -5218,3 +5352,125 @@ it lists every batch per line and why it was excluded.
 - Two lists of the same order, one from order lines and one from batch draws,
   will silently disagree the moment inventory is incomplete. Reconcile them in
   the UI, don't just render both.
+
+# Amazon SES: make the platform actually able to send email [PLANNER → EXECUTOR — 2026-09-09]
+
+## Background and Motivation
+`lib/email/*` already renders ~20 branded templates and calls SES v2, but no
+email has ever left the platform. Owner asked to wire Amazon SES up end to end
+so sends work from production.
+
+## Key Challenges and Analysis (state found on 2026-09-09)
+- Code: `SESv2Client({ region })` relies on the default credential chain. On
+  Vercel there are no static AWS keys; the DB path uses the Vercel OIDC role
+  (`awsCredentialsProvider({ roleArn: AWS_ROLE_ARN })`). SES never got the same
+  treatment → every send would fail with "Could not load credentials".
+- Three AWS accounts are involved:
+  - `631413806260` — RDS + the Vercel OIDC role `Vercel/access-peptsci-dashboard`.
+    SES there is in **sandbox** (200/day, verified recipients only), no
+    identities, and no local CLI credentials for it.
+  - `147997129811` (local `default` profile) — SES **production access GRANTED**
+    (50k/day, 14/s, transactional review case 178033041800083), identities
+    `logosrx.com` + `geteonmed.com`. `peptsci.com` is NOT verified anywhere.
+  - `368912176358` (`eonpro` profile) — unrelated, sandbox.
+- `peptsci.com` DNS is at **Wix** (ns4/ns5.wixdns.net), MX → Google Workspace,
+  SPF `include:_spf.google.com`, no DMARC. Not Route 53, so DKIM CNAMEs must be
+  pasted into Wix by a human.
+- Vercel prod already has `EMAIL_ENABLED`, `EMAIL_FROM`, `EMAIL_REPLY_TO`
+  (Sensitive → values unreadable via `vercel env pull`).
+- Vercel OIDC issuer: `https://oidc.vercel.com/eonpro1s-projects`, aud
+  `https://vercel.com/eonpro1s-projects`, sub
+  `owner:eonpro1s-projects:project:peptsci-dashboard:environment:<env>`.
+
+Decision: host SES for peptsci.com in `147997129811` (already production
+approved — no new AWS review wait) and authenticate from Vercel with a
+**dedicated, keyless OIDC role** in that account (no long-lived access keys).
+Same pattern the DB already uses. If the owner later wants SES consolidated in
+`631413806260`, only `EMAIL_AWS_ROLE_ARN` and the DKIM CNAMEs change.
+
+## High-level Task Breakdown
+1. `lib/email/config.ts` — pure resolver: enabled/from/replyTo/region/config
+   set + credential source (`oidc-role` when `EMAIL_AWS_ROLE_ARN`/`AWS_ROLE_ARN`
+   present on Vercel, else `default-chain`) + from-domain. Unit tests.
+2. `lib/email/client.ts` — build the SESv2 client from the resolver, lazily
+   importing `@vercel/functions/oidc` like `lib/db-url.ts`.
+3. `app/api/admin/email/route.ts` (SUPER_ADMIN): GET = config + live SES
+   identity/account status; POST `{ to, confirm: true }` = send a test email.
+4. AWS (147997129811): `peptsci.com` identity (Easy DKIM RSA_2048, MAIL FROM
+   `mail.peptsci.com`), IAM OIDC provider for Vercel, role
+   `peptsci-dashboard-ses-sender` scoped to `ses:SendEmail` on the peptsci.com
+   identity + read-only status calls.
+5. Vercel env: `EMAIL_AWS_ROLE_ARN`, `EMAIL_AWS_REGION` (production + preview).
+6. Docs: env-example + this runbook with the exact Wix DNS records.
+7. `npm test` / `tsc` / lint green, PR.
+
+Success = `GET /api/admin/email` reports identity `SUCCESS` and
+`POST /api/admin/email` lands a test email in the owner's inbox.
+
+## Project Status Board
+- [x] 1 config resolver + tests (`lib/email/config.ts`, 11 tests)
+- [x] 2 client uses OIDC role (`lib/email/client.ts`, lazy `@vercel/functions/oidc`)
+- [x] 3 admin status/test route (`app/api/admin/email/route.ts`; pure verdict in
+      `lib/email/readiness.ts`, 12 tests)
+- [x] 4 AWS identity + role (see "What was created in AWS")
+- [x] 5 Vercel env `EMAIL_AWS_ROLE_ARN` + `EMAIL_AWS_REGION` on prod/preview/dev
+- [x] 6 docs (env-example + this section)
+- [x] 7 green (917/917, tsc, lint) + PR #57 `feat/ses-email-sending` — built
+      from a clean worktree because another agent had unrelated in-flight SMS
+      work (2 failing tests + a tsc error in db/migrate) in the main checkout.
+- [ ] OWNER: add the DNS records below in Wix, wait for `GET /api/admin/email`
+      to show identity `SUCCESS`, then set `EMAIL_ENABLED=true` in Vercel prod
+      and send a test via `POST /api/admin/email`.
+
+## What was created in AWS (account 147997129811, us-east-1)
+- SES identity `peptsci.com` — Easy DKIM RSA_2048, custom MAIL FROM
+  `mail.peptsci.com` (`BehaviorOnMxFailure=USE_DEFAULT_VALUE`, so sends work
+  before the MX exists).
+- IAM OIDC provider `oidc.vercel.com/eonpro1s-projects` (audience
+  `https://vercel.com/eonpro1s-projects`).
+- IAM role `peptsci-dashboard-ses-sender`
+  (`arn:aws:iam::147997129811:role/peptsci-dashboard-ses-sender`). Trust:
+  `sub` must match `owner:eonpro1s-projects:project:peptsci-dashboard:environment:*`.
+  Inline policy `ses-send-peptsci`: `ses:SendEmail`/`SendRawEmail` on the
+  peptsci.com identity (+ config sets) with `ses:FromAddress` like
+  `*@peptsci.com`; `ses:GetEmailIdentity` + `ses:GetAccount` for the status
+  route. Nothing else (ListEmailIdentities verified DENIED).
+- Smoke-tested: real `VERCEL_OIDC_TOKEN` → `AssumeRoleWithWebIdentity` → SES
+  `GetAccount` OK (production access true, 50k/day).
+
+## DNS records to add in Wix for peptsci.com (all required except DMARC)
+| Type | Host / Name | Value | Why |
+|---|---|---|---|
+| CNAME | `cucz35upstrvujiw2sxdojp464rlfnh7._domainkey` | `cucz35upstrvujiw2sxdojp464rlfnh7.dkim.amazonses.com` | DKIM 1/3 |
+| CNAME | `xxmnlbzm4id6uhl346swyfgom3ulydxw._domainkey` | `xxmnlbzm4id6uhl346swyfgom3ulydxw.dkim.amazonses.com` | DKIM 2/3 |
+| CNAME | `wg23tszceqk2j7uobg4q2upg76evy6bm._domainkey` | `wg23tszceqk2j7uobg4q2upg76evy6bm.dkim.amazonses.com` | DKIM 3/3 |
+| MX | `mail` | `feedback-smtp.us-east-1.amazonses.com`, priority `10` | MAIL FROM bounces |
+| TXT | `mail` | `v=spf1 include:amazonses.com ~all` | SPF alignment |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@peptsci.com; fo=1` | DMARC monitoring (recommended) |
+
+Notes: Wix wants the host WITHOUT `.peptsci.com`. Do NOT touch the existing
+apex SPF (`include:_spf.google.com`) — Google Workspace keeps sending from the
+apex; SES uses the `mail.` subdomain. SES verifies within minutes to ~72h once
+the three CNAMEs resolve. `GET /api/admin/email` returns the same records live.
+
+## Executor's Feedback or Assistance Requests
+- Prod `EMAIL_ENABLED` / `EMAIL_FROM` / `EMAIL_REPLY_TO` are Sensitive in
+  Vercel so their current values are unreadable from the CLI. Left untouched.
+  After DNS verifies: confirm `EMAIL_FROM` is an `@peptsci.com` address and set
+  `EMAIL_ENABLED=true`.
+- If the owner would rather consolidate SES into account 631413806260 (where
+  RDS lives) later: request production access there, recreate the identity,
+  attach the same policy to the existing `Vercel/access-peptsci-dashboard` role,
+  point `EMAIL_AWS_ROLE_ARN` at it, and swap the DKIM CNAMEs. Code is unchanged.
+
+## Lessons
+- `vercel env pull` returns `""` for Sensitive vars — absence of a value is not
+  absence of the variable. Use `vercel env ls` to check existence.
+- zsh: `"$VAR:aud"` inside a heredoc is parsed as a `:a` modifier → "bad
+  substitution". Always brace: `"${VAR}:aud"`.
+- The AWS default credential chain silently has nothing on Vercel. Any AWS SDK
+  client used from the app must be handed `awsCredentialsProvider({ roleArn })`
+  from `@vercel/functions/oidc`, with a role in an account that trusts the
+  Vercel OIDC issuer.
+- SES `GetEmailIdentity` has no `SendingEnabled`; that flag only exists on
+  `ListEmailIdentities` items.

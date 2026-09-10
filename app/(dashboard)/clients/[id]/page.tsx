@@ -23,6 +23,7 @@ import ResetPasswordDialog from '../../users/ResetPasswordDialog'
 import DeleteClientButton from '../DeleteClientButton'
 import { ClientDocumentsCard } from '@/components/admin/ClientDocumentsCard'
 import { ClientPatientsCard } from '@/components/admin/ClientPatientsCard'
+import { ClientTextsCard } from '@/components/admin/ClientTextsCard'
 import { ClientCreditCard } from '@/components/admin/ClientCreditCard'
 import { ClientStripeCard } from '@/components/admin/ClientStripeCard'
 import { ClientPartnerCard } from '@/components/admin/ClientPartnerCard'
@@ -104,6 +105,7 @@ const CLIENT_TABS = [
   'pricing',
   'documents',
   'patients',
+  'texts',
   'integrations',
   'users',
 ] as const
@@ -465,6 +467,12 @@ export default function ClientDetailPage() {
             className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
           >
             Patients
+          </TabsTrigger>
+          <TabsTrigger
+            value="texts"
+            className="text-white/60 data-[state=active]:bg-brand-primary data-[state=active]:text-white"
+          >
+            Texts
           </TabsTrigger>
           <TabsTrigger
             value="integrations"
@@ -965,6 +973,12 @@ export default function ClientDetailPage() {
             }}
           />
         </>
+      )}
+
+      {tab === 'texts' && (
+        <div id="texts">
+          <ClientTextsCard clientId={id} />
+        </div>
       )}
 
       {tab === 'users' && (

@@ -14,6 +14,7 @@ import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { toE164US } from './phone'
 import type { InboundKeyword } from './twilio-webhook'
+import { findClientIdsByPhone } from './inbox-core'
 
 export interface HandleInboundKeywordResult {
   keyword: InboundKeyword
@@ -22,22 +23,6 @@ export interface HandleInboundKeywordResult {
   subscribersUpdated: number
   /** Client rows whose smsOptIn flag was flipped. */
   clientsUpdated: number
-}
-
-/**
- * Find practices whose contactPhone normalizes to `phoneE164`. contactPhone is
- * free-form ("(555) 123-4567"), so pre-filter by the last 4 digits in SQL and
- * finish the comparison in JS.
- */
-async function findClientIdsByPhone(phoneE164: string): Promise<string[]> {
-  if (!prisma) return []
-  const last4 = phoneE164.slice(-4)
-  const candidates = await prisma.client.findMany({
-    where: { contactPhone: { contains: last4 } },
-    select: { id: true, contactPhone: true },
-    take: 200,
-  })
-  return candidates.filter((c) => toE164US(c.contactPhone) === phoneE164).map((c) => c.id)
 }
 
 /**
