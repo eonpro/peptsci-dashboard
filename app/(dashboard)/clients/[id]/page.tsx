@@ -977,7 +977,12 @@ export default function ClientDetailPage() {
 
       {tab === 'texts' && (
         <div id="texts">
-          <ClientTextsCard clientId={id} />
+          <ClientTextsCard
+            clientId={id}
+            smsOptIn={profile?.smsOptIn ?? null}
+            smsOptInAt={profile?.smsOptInAt ?? null}
+            contactPhone={profile?.contactPhone ?? null}
+          />
         </div>
       )}
 

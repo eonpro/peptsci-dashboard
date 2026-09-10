@@ -127,6 +127,8 @@ export interface ClientProfile {
   shippingRateOvernight: number | null
   /** TCPA SMS consent (null when the caller didn't select it). */
   smsOptIn: boolean | null
+  /** When consent was given (ISO), when the caller selected it. */
+  smsOptInAt?: string | null
 }
 
 /**
@@ -151,6 +153,7 @@ export function serializeClientProfile(client: {
   shippingRateTwoDay?: unknown
   shippingRateOvernight?: unknown
   smsOptIn?: boolean
+  smsOptInAt?: Date | null
 }): ClientProfile {
   return {
     id: client.id,
@@ -172,5 +175,6 @@ export function serializeClientProfile(client: {
     shippingRateOvernight:
       client.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
     smsOptIn: client.smsOptIn ?? null,
+    smsOptInAt: client.smsOptInAt ? client.smsOptInAt.toISOString() : null,
   }
 }

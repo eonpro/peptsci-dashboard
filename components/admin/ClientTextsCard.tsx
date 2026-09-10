@@ -30,7 +30,46 @@ const CONSENT: Record<Row['consent'], { label: string; className: string }> = {
   UNKNOWN: { label: 'No consent', className: 'bg-amber-500/15 text-amber-400' },
 }
 
-export function ClientTextsCard({ clientId }: { clientId: string }) {
+export interface ClientTextsCardProps {
+  clientId: string
+  /** Client.smsOptIn — gates every automated text (tracking, invoices). */
+  smsOptIn?: boolean | null
+  smsOptInAt?: string | null
+  contactPhone?: string | null
+}
+
+/**
+ * Why automated texts will or won't reach this clinic — the same three gates
+ * the sender checks (phone on file, TCPA opt-in), spelled out for staff.
+ */
+function trackingTextStatus(p: ClientTextsCardProps): { label: string; detail: string; className: string } {
+  const phone = p.contactPhone?.trim()
+  if (!phone) {
+    return {
+      label: 'Tracking texts: off',
+      detail: 'No contact phone on file. Add one under Profile.',
+      className: 'border-amber-400/40 text-amber-300',
+    }
+  }
+  if (!p.smsOptIn) {
+    return {
+      label: 'Tracking texts: off',
+      detail: 'Clinic has not opted in (TCPA). They can enroll at peptsci.com/sms or during onboarding.',
+      className: 'border-amber-400/40 text-amber-300',
+    }
+  }
+  return {
+    label: 'Tracking texts: on',
+    detail: `Automated shipping texts go to ${phone}${
+      p.smsOptInAt ? ` · consent ${new Date(p.smsOptInAt).toLocaleDateString()}` : ''
+    }.`,
+    className: 'border-emerald-400/40 text-emerald-300',
+  }
+}
+
+export function ClientTextsCard(props: ClientTextsCardProps) {
+  const { clientId } = props
+  const tracking = trackingTextStatus(props)
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -76,6 +115,10 @@ export function ClientTextsCard({ clientId }: { clientId: string }) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className={`rounded-full border px-2 py-0.5 font-medium ${tracking.className}`}>{tracking.label}</span>
+          <span className="text-white/50">{tracking.detail}</span>
+        </div>
         {loading ? (
           <div className="flex items-center justify-center py-6 text-white/40">
             <Loader2 className="h-6 w-6 animate-spin" />

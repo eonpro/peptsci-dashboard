@@ -13,7 +13,8 @@ import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { STAFF_ROLES } from '../access'
 import { sendSms } from './client'
-import { linkOutboundMessage } from './inbox-core'
+import { findClientCandidatesByPhone, linkOutboundMessage } from './inbox-core'
+import { MATCH_SOURCE_LABEL, type MatchSource } from './phone-match'
 import {
   consentStateFor,
   displayNameForStaff,
@@ -104,6 +105,20 @@ export interface ConversationDetail extends ConversationRow {
   closedAt: string | null
   closedBy: StaffRef | null
   messages: ThreadMessage[]
+  /**
+   * Clinics this number appears under when the thread is not linked — either
+   * ambiguous (two clinics share the number) or newly discoverable. Empty when
+   * linked or nothing matches.
+   */
+  suggestedClients: SuggestedClient[]
+}
+
+export interface SuggestedClient {
+  id: string
+  organizationName: string
+  contactName: string | null
+  source: MatchSource
+  sourceLabel: string
 }
 
 type ConvoRecord = {
@@ -212,6 +227,28 @@ export async function unreadConversationCount(): Promise<number> {
   return db().smsConversation.count({ where: { unreadCount: { gt: 0 } } })
 }
 
+/** Clinics an unlinked number appears under, with names, for one-click linking. */
+async function suggestClientsForPhone(phone: string): Promise<SuggestedClient[]> {
+  try {
+    const cands = await findClientCandidatesByPhone(phone)
+    if (cands.length === 0) return []
+    const clients = await db().client.findMany({
+      where: { id: { in: cands.map((c) => c.clientId) } },
+      select: { id: true, organizationName: true, contactName: true },
+    })
+    const byId = new Map(clients.map((c) => [c.id, c]))
+    return cands.flatMap((c) => {
+      const cl = byId.get(c.clientId)
+      return cl
+        ? [{ id: cl.id, organizationName: cl.organizationName, contactName: cl.contactName, source: c.source, sourceLabel: MATCH_SOURCE_LABEL[c.source] }]
+        : []
+    })
+  } catch (e) {
+    logger.warn('[SMS INBOX] suggestClientsForPhone failed', { error: e instanceof Error ? e.message : String(e) })
+    return []
+  }
+}
+
 /** Full thread for the detail pane. Does not mark read — see markConversationRead. */
 export async function getConversation(id: string, messageLimit = 300): Promise<ConversationDetail | null> {
   const client = db()
@@ -232,14 +269,18 @@ export async function getConversation(id: string, messageLimit = 300): Promise<C
     },
   })
   if (!c) return null
-  const sub = await client.smsSubscriber.findUnique({
-    where: { phone: c.phone },
-    select: { consentedAt: true, optedOutAt: true, source: true },
-  })
+  const [sub, suggestedClients] = await Promise.all([
+    client.smsSubscriber.findUnique({
+      where: { phone: c.phone },
+      select: { consentedAt: true, optedOutAt: true, source: true },
+    }),
+    c.client ? Promise.resolve([]) : suggestClientsForPhone(c.phone),
+  ])
   const row = toRow(c, sub)
   return {
     ...row,
     client: c.client,
+    suggestedClients,
     subscriber: sub
       ? {
           consentedAt: sub.consentedAt?.toISOString() ?? null,

@@ -15,6 +15,8 @@ import {
 } from '@/lib/patient'
 import { createPatientForClient } from '@/lib/patients/create'
 import { displayProductName } from '@/lib/products/named-blends'
+import { isSmsEnabled } from '@/lib/sms/client'
+import { describeShippedText } from '@/lib/sms/notification-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,11 +96,20 @@ export async function GET(request: NextRequest) {
               organizationName: true,
               contactName: true,
               contactPhone: true,
+              smsOptIn: true,
               // White-label FedEx ship-from + packing-slip brand mark.
               shippingAddress: true,
               whiteLabelEnabled: true,
               labelBrandKey: true,
             },
+          },
+          // Latest automated "order shipped" text, so the row can say whether
+          // the clinic was notified — and why not, when it wasn't.
+          smsMessages: {
+            where: { kind: 'ORDER_SHIPPED' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { status: true, errorCode: true, errorMessage: true, createdAt: true },
           },
           items: {
             select: {
@@ -115,6 +126,7 @@ export async function GET(request: NextRequest) {
       prisma.order.count({ where }),
     ])
 
+    const smsConfigured = isSmsEnabled()
     const data = orders.map((o) => ({
       id: o.id,
       orderNumber: o.orderNumber,
@@ -131,6 +143,20 @@ export async function GET(request: NextRequest) {
       shippedAt: o.shippedAt?.toISOString() ?? null,
       shippingAddress: o.shippingAddress,
       client: o.client,
+      shippedText: describeShippedText({
+        trackingNumber: o.trackingNumber,
+        smsOptIn: o.client?.smsOptIn ?? false,
+        contactPhone: o.client?.contactPhone ?? null,
+        smsConfigured,
+        last: o.smsMessages[0]
+          ? {
+              status: o.smsMessages[0].status,
+              errorCode: o.smsMessages[0].errorCode,
+              errorMessage: o.smsMessages[0].errorMessage,
+              createdAt: o.smsMessages[0].createdAt.toISOString(),
+            }
+          : null,
+      }),
       items: o.items.map((it) => ({
         name: displayProductName(it.variant.product.name, it.variant.sku),
         dose: it.variant.dose,
