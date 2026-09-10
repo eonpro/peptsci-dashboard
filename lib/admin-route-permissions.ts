@@ -68,7 +68,7 @@ const PAGE_RULES: RouteRule[] = [
   { prefix: '/pricing', requirement: { anyOf: ['catalog:read'] } },
   { prefix: '/clients', requirement: { anyOf: ['clients:read'] } },
   { prefix: '/support', requirement: { anyOf: ['support:write'] } },
-  { prefix: '/messages', requirement: { anyOf: ['support:write'] } },
+  { prefix: '/messages', requirement: { anyOf: ['clients:read', 'messages:write', 'support:write'] } },
   { prefix: '/users', requirement: { anyOf: ['users:read'] } },
 ]
 
@@ -94,7 +94,9 @@ const API_RULES: RouteRule[] = [
   { prefix: '/api/admin/storefronts', requirement: { anyOf: ['storefronts:read', 'storefronts:write'] } },
   { prefix: '/api/admin/articles', requirement: { anyOf: ['resources:write'] } },
   { prefix: '/api/admin/support', requirement: { anyOf: ['support:write'] } },
-  { prefix: '/api/admin/messages', requirement: { anyOf: ['support:write'] } },
+  // GET (list/read threads) at the clinic-profile tier; POST/PATCH (reply,
+  // assign, close) tighten to messages:write | support:write.
+  { prefix: '/api/admin/messages', requirement: { anyOf: ['clients:read', 'messages:write', 'support:write'] } },
   { prefix: '/api/admin/clients', requirement: { anyOf: ['clients:read', 'clients:write'] } },
   { prefix: '/api/admin/patients', requirement: { anyOf: ['clients:read', 'clients:write'] } },
   { prefix: '/api/admin/webhook-events', requirement: { anyOf: ['settings:write'] } },
@@ -221,7 +223,9 @@ export const NAV_LINK_PERMISSIONS: Record<string, Permission | Permission[]> = {
   '/resources': 'resources:write',
   '/package-photos': 'fulfillment:read',
   '/support': 'support:write',
-  '/messages': 'support:write',
+  // Texting inbox opens at the clinic-profile tier: anyone who can view
+  // clinics can read and answer their texts.
+  '/messages': ['clients:read', 'messages:write', 'support:write'],
   '/settings/stripe': 'settings:write',
   '/settings/webhooks': 'settings:write',
 }

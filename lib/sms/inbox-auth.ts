@@ -1,7 +1,8 @@
 /**
  * Shared guard for /api/admin/messages/* — staff session + DB, resolving the
  * internal User.id for assignment / sender attribution. Route-level permission
- * (support:write) is enforced by lib/admin-route-permissions via middleware.
+ * (clients:read to read; messages:write / support:write to reply) is enforced
+ * by lib/admin-route-permissions via middleware.
  *
  * @module lib/sms/inbox-auth
  */
