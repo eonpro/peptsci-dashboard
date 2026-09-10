@@ -2,11 +2,15 @@
  * POST /api/webhooks/twilio/inbound — Twilio "A message comes in" webhook for
  * the PeptSci Alerts Messaging Service.
  *
- * Verifies X-Twilio-Signature against TWILIO_AUTH_TOKEN, then mirrors campaign
- * keywords into our records: STOP → SmsSubscriber.optedOutAt + Client.smsOptIn
- * = false; START/UNSTOP/YES → re-consent (source KEYWORD). Replies with empty
- * TwiML because Twilio Advanced Opt-Out already sends the compliant auto-reply
- * text; answering here too would double-message the subscriber.
+ * Verifies X-Twilio-Signature against TWILIO_AUTH_TOKEN, stores EVERY inbound
+ * text in the number's inbox thread (SmsConversation / SmsMessage INBOUND),
+ * then mirrors campaign keywords into our records: STOP →
+ * SmsSubscriber.optedOutAt + Client.smsOptIn = false; START/UNSTOP/YES →
+ * re-consent (source KEYWORD). Free-form replies page staff (bell notification
+ * + email to SUPPORT_EMAIL) so they can answer from /messages.
+ *
+ * Replies with empty TwiML because Twilio Advanced Opt-Out already sends the
+ * compliant keyword auto-reply text; staff answers go out via the inbox.
  *
  * Configure in Twilio Console → Messaging → Services → PeptSci Alerts →
  * Integration → "Send a webhook" → https://peptsci.com/api/webhooks/twilio/inbound
@@ -23,6 +27,8 @@ import {
   validateTwilioSignature,
 } from '@/lib/sms/twilio-webhook'
 import { handleInboundKeyword } from '@/lib/sms/inbound'
+import { recordInboundMessage } from '@/lib/sms/inbox-core'
+import { notifyStaffOfInboundText } from '@/lib/sms/inbox-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,15 +76,45 @@ export async function POST(request: NextRequest) {
   const effective =
     keyword ?? (optOutType === 'STOP' || optOutType === 'START' || optOutType === 'HELP' ? optOutType : null)
 
+  // 1. Store the text in the CRM thread (idempotent on MessageSid).
+  let stored: Awaited<ReturnType<typeof recordInboundMessage>> = null
+  try {
+    stored = await recordInboundMessage({
+      from,
+      body,
+      twilioSid: params.MessageSid || null,
+      keyword: effective,
+    })
+  } catch (error) {
+    logger.error(
+      '[TWILIO WEBHOOK] inbound store failed',
+      { sid: params.MessageSid ?? null },
+      error instanceof Error ? error : new Error(String(error))
+    )
+  }
+
   if (!effective) {
-    // Free-form reply — nothing to mirror. Ops can follow up from Twilio logs.
-    logger.info('[TWILIO WEBHOOK] inbound non-keyword message', {
+    // 2a. Free-form reply — page staff so someone answers from /messages.
+    logger.info('[TWILIO WEBHOOK] inbound message stored', {
       from: from.slice(-4).padStart(from.length, '*'),
       sid: params.MessageSid ?? null,
+      conversationId: stored?.conversationId ?? null,
+      duplicate: stored?.duplicate ?? false,
     })
+    if (stored && !stored.duplicate) {
+      await notifyStaffOfInboundText({
+        conversationId: stored.conversationId,
+        messageId: stored.messageId,
+        clientId: stored.clientId,
+        phone: from,
+        body,
+        twilioSid: params.MessageSid || null,
+      })
+    }
     return twiml()
   }
 
+  // 2b. Campaign keyword — mirror consent state.
   try {
     const result = await handleInboundKeyword(from, effective, body)
     logger.info('[TWILIO WEBHOOK] inbound keyword processed', {

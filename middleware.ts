@@ -98,6 +98,8 @@ const isAdminRoute = createRouteMatcher([
   '/partners-admin(.*)',
   // Clinic support-ticket queue.
   '/support(.*)',
+  // SMS inbox (two-way texting with clinics).
+  '/messages(.*)',
   '/package-photos(.*)',
   '/fulfillment(.*)',
   '/print(.*)',

@@ -68,6 +68,7 @@ const PAGE_RULES: RouteRule[] = [
   { prefix: '/pricing', requirement: { anyOf: ['catalog:read'] } },
   { prefix: '/clients', requirement: { anyOf: ['clients:read'] } },
   { prefix: '/support', requirement: { anyOf: ['support:write'] } },
+  { prefix: '/messages', requirement: { anyOf: ['support:write'] } },
   { prefix: '/users', requirement: { anyOf: ['users:read'] } },
 ]
 
@@ -93,6 +94,7 @@ const API_RULES: RouteRule[] = [
   { prefix: '/api/admin/storefronts', requirement: { anyOf: ['storefronts:read', 'storefronts:write'] } },
   { prefix: '/api/admin/articles', requirement: { anyOf: ['resources:write'] } },
   { prefix: '/api/admin/support', requirement: { anyOf: ['support:write'] } },
+  { prefix: '/api/admin/messages', requirement: { anyOf: ['support:write'] } },
   { prefix: '/api/admin/clients', requirement: { anyOf: ['clients:read', 'clients:write'] } },
   { prefix: '/api/admin/patients', requirement: { anyOf: ['clients:read', 'clients:write'] } },
   { prefix: '/api/admin/webhook-events', requirement: { anyOf: ['settings:write'] } },
@@ -219,6 +221,7 @@ export const NAV_LINK_PERMISSIONS: Record<string, Permission | Permission[]> = {
   '/resources': 'resources:write',
   '/package-photos': 'fulfillment:read',
   '/support': 'support:write',
+  '/messages': 'support:write',
   '/settings/stripe': 'settings:write',
   '/settings/webhooks': 'settings:write',
 }

@@ -18,6 +18,12 @@ import { toE164US } from './phone'
 
 export const SMS_PROGRAM_NAME = 'PeptSci Alerts'
 export const SMS_SUPPORT_EMAIL = 'support@peptsci.com'
+/**
+ * The campaign's sender in the Messaging Service pool (COMO IT RX LLC /
+ * PeptSci). Display-only — sends address the Messaging Service SID; override
+ * with NEXT_PUBLIC_SMS_SENDER_DISPLAY if the pool changes.
+ */
+export const SMS_SENDER_DISPLAY = process.env.NEXT_PUBLIC_SMS_SENDER_DISPLAY || '+1 (816) 737-8724'
 
 /** Public opt-in page — the "sign up for texts" area linked from the footer. */
 export const SMS_SIGNUP_PATH = '/sms'
