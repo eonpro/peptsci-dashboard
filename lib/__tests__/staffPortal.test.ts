@@ -11,26 +11,52 @@ import {
   staffCanMutate,
   staffPageTitle,
   staffSectionForPath,
+  visibleMobileNav,
+  visiblePrimaryNav,
 } from '../staff/portal.ts'
-import { resolvePermissions } from '../permissions.ts'
+import { resolvePermissions, type Permission } from '../permissions.ts'
 
 describe('staff portal IA', () => {
-  it('keeps desktop nav to five destinations', () => {
-    assert.equal(STAFF_PRIMARY_NAV.length, 5)
+  it('keeps desktop nav to six destinations with Messages as a primary tab', () => {
+    assert.equal(STAFF_PRIMARY_NAV.length, 6)
     assert.deepEqual(
       STAFF_PRIMARY_NAV.map((i) => i.name),
-      ['Home', 'Fulfill', 'Catalog', 'Money', 'Admin']
+      ['Home', 'Fulfill', 'Messages', 'Catalog', 'Money', 'Admin']
     )
     assert.equal(STAFF_PRIMARY_NAV.find((i) => i.name === 'Catalog')?.href, '/merch')
+    assert.equal(STAFF_PRIMARY_NAV.find((i) => i.name === 'Messages')?.href, '/messages')
     assert.equal(STAFF_PRIMARY_NAV.find((i) => i.name === 'Admin')?.href, '/manage')
   })
 
-  it('puts Fulfillment on the phone bar instead of Money', () => {
-    assert.equal(STAFF_MOBILE_NAV.length, 4)
+  it('puts Fulfillment and Messages on the phone bar instead of Money', () => {
+    assert.equal(STAFF_MOBILE_NAV.length, 5)
     assert.deepEqual(
       STAFF_MOBILE_NAV.map((i) => i.name),
-      ['Home', 'Fulfillment', 'Catalog', 'Admin']
+      ['Home', 'Fulfillment', 'Messages', 'Catalog', 'Admin']
     )
+  })
+
+  it('Messages is not an Admin sub-tab and has no hub section', () => {
+    assert.ok(!STAFF_ADMIN_LINKS.some((i) => i.href === '/messages'))
+    assert.equal(staffSectionForPath('/messages'), null)
+    assert.equal(isStaffPrimaryActive('/messages', '/messages'), true)
+    assert.equal(isStaffPrimaryActive('/manage', '/messages'), false)
+    assert.equal(isStaffMobileActive('/messages', '/messages'), true)
+    assert.equal(staffPageTitle('/messages'), 'Messages')
+  })
+
+  it('opens Messages at the clinic-profile access level (clients:read)', () => {
+    const fulfillment = resolvePermissions({ role: 'FULFILLMENT' })
+    const billing = resolvePermissions({ role: 'BILLING' })
+    const catalog = resolvePermissions({ role: 'CATALOG' })
+    const finance = resolvePermissions({ role: 'FINANCE_VIEWER' })
+    const has = (perms: readonly Permission[]) =>
+      visiblePrimaryNav(perms).some((i) => i.href === '/messages')
+    assert.equal(has(fulfillment), true)
+    assert.equal(has(billing), true)
+    assert.equal(has(catalog), false)
+    assert.equal(has(finance), false)
+    assert.equal(visibleMobileNav(fulfillment).some((i) => i.href === '/messages'), true)
   })
 
   it('calls practices Clinics and clinic list prices Clinic pricing', () => {

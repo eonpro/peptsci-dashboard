@@ -8,6 +8,7 @@ import {
   Home,
   LayoutDashboard,
   Menu,
+  MessageSquareText,
   Package,
   Search,
   Settings,
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { NotificationBell } from '@/components/NotificationBell'
 import { useRole } from '@/hooks/useRole'
+import { formatUnreadBadge, useSmsUnreadCount } from '@/hooks/useSmsUnreadCount'
 import { cn } from '@/lib/utils'
 import {
   isStaffPrimaryActive,
@@ -67,9 +69,26 @@ function AuthUserButton() {
 const NAV_ICONS: Record<StaffPrimaryNavItem['name'], typeof Home> = {
   Home: LayoutDashboard,
   Fulfill: Truck,
+  Messages: MessageSquareText,
   Catalog: Package,
   Money: Wallet,
   Admin: Settings,
+}
+
+/** Unread-thread count pill for the Messages tab. */
+function UnreadPill({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null
+  return (
+    <span
+      className={cn(
+        'inline-flex min-w-[18px] items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold leading-none text-brand-primary',
+        className
+      )}
+      aria-label={`${count} unread text conversations`}
+    >
+      {formatUnreadBadge(count)}
+    </span>
+  )
 }
 
 export function AdminHeader() {
@@ -83,6 +102,8 @@ export function AdminHeader() {
     () => (roleLoading ? [] : visiblePrimaryNav(permissions)),
     [permissions, roleLoading]
   )
+  const showsMessages = items.some((i) => i.href === '/messages')
+  const smsUnread = useSmsUnreadCount(showsMessages)
 
   const openSearch = () => {
     setSearchMounted(true)
@@ -141,6 +162,12 @@ export function AdminHeader() {
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.name}</span>
+                  {item.href === '/messages' && (
+                    <UnreadPill
+                      count={smsUnread}
+                      className={isActive ? undefined : 'bg-brand-primary text-white'}
+                    />
+                  )}
                 </Link>
               )
             })}
@@ -214,6 +241,12 @@ export function AdminHeader() {
                     >
                       <Icon className="h-5 w-5" />
                       <span>{item.name}</span>
+                      {item.href === '/messages' && (
+                        <UnreadPill
+                          count={smsUnread}
+                          className={cn('ml-auto', isActive ? undefined : 'bg-brand-primary text-white')}
+                        />
+                      )}
                     </Link>
                   </li>
                 )

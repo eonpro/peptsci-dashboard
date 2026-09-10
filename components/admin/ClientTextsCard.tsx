@@ -125,7 +125,7 @@ export function ClientTextsCard(props: ClientTextsCardProps) {
           </div>
         ) : forbidden ? (
           <p className="py-4 text-center text-sm text-white/50">
-            You need the Support permission to view text conversations.
+            You need the Clinics (view) permission to see text conversations.
           </p>
         ) : rows.length === 0 ? (
           <p className="py-4 text-center text-sm text-white/50">

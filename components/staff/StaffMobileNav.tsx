@@ -2,14 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Package, Settings, Truck } from 'lucide-react'
+import { Home, MessageSquareText, Package, Settings, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRole } from '@/hooks/useRole'
+import { formatUnreadBadge, useSmsUnreadCount } from '@/hooks/useSmsUnreadCount'
 import { isStaffMobileActive, visibleMobileNav } from '@/lib/staff/portal'
 
 const ICONS = {
   Home,
   Fulfillment: Truck,
+  Messages: MessageSquareText,
   Catalog: Package,
   Admin: Settings,
 } as const
@@ -17,8 +19,9 @@ const ICONS = {
 export function StaffMobileNav() {
   const pathname = usePathname()
   const { permissions, isLoading } = useRole()
+  const items = isLoading ? [] : visibleMobileNav(permissions)
+  const smsUnread = useSmsUnreadCount(items.some((i) => i.href === '/messages'))
   if (isLoading) return null
-  const items = visibleMobileNav(permissions)
 
   return (
     <nav
@@ -30,6 +33,7 @@ export function StaffMobileNav() {
         {items.map((item) => {
           const active = isStaffMobileActive(item.href, pathname, item.exact)
           const Icon = ICONS[item.name]
+          const badge = item.href === '/messages' && smsUnread > 0
           return (
             <li key={item.href} className="flex-1">
               <Link
@@ -40,7 +44,17 @@ export function StaffMobileNav() {
                   active ? 'text-white' : 'text-white/50'
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <span className="relative">
+                  <Icon className="h-5 w-5" />
+                  {badge && (
+                    <span
+                      className="absolute -right-2.5 -top-1.5 min-w-[16px] rounded-full bg-brand-primary px-1 text-center text-[9px] font-bold leading-4 text-white"
+                      aria-label={`${smsUnread} unread text conversations`}
+                    >
+                      {formatUnreadBadge(smsUnread)}
+                    </span>
+                  )}
+                </span>
                 {item.name}
               </Link>
             </li>
