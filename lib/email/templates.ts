@@ -19,8 +19,23 @@ const BRAND = {
   blue: '#213cef',
   cream: '#F2F0EA',
   text: '#1a1a2e',
+  body: '#374151',
   muted: '#6b7280',
+  panel: '#F6F7FB',
+  line: '#E6E8F0',
 }
+
+/**
+ * Hosted logo (email clients need absolute URLs; no inline CSS backgrounds).
+ * 800×248 source → rendered at 160×50. Dark wordmark, so it sits on white.
+ */
+const LOGO = {
+  src: `${APP_URL}/brand/peptsci-logo-email.png`,
+  width: 160,
+  height: 50,
+}
+const FONT_STACK =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 /**
  * Escape user-controlled values before interpolating them into email HTML.
@@ -36,34 +51,78 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
-/** Shared responsive shell. `body` is trusted, pre-escaped HTML. */
-function layout(opts: { heading: string; body: string; cta?: { label: string; href: string } }): string {
+/**
+ * Shared responsive shell. `body` is trusted, pre-escaped HTML.
+ *
+ * Structure (all inline styles, table layout for Outlook):
+ *   blue accent bar → white header with the hosted logo → content → footer.
+ * `preheader` is the hidden preview-line text clients show next to the
+ * subject; defaults to the heading.
+ */
+function layout(opts: {
+  heading: string
+  body: string
+  cta?: { label: string; href: string }
+  preheader?: string
+}): string {
   const cta = opts.cta
-    ? `<tr><td style="padding:8px 0 4px;">
-         <a href="${opts.cta.href}" style="display:inline-block;background:${BRAND.blue};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:10px;font-size:15px;">${opts.cta.label}</a>
+    ? `<tr><td style="padding:10px 0 6px;">
+         <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${BRAND.blue};border-radius:999px;">
+           <a href="${opts.cta.href}" style="display:inline-block;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 32px;border-radius:999px;font-size:15px;line-height:1;font-family:${FONT_STACK};">${opts.cta.label}</a>
+         </td></tr></table>
+       </td></tr>
+       <tr><td style="padding:6px 0 4px;color:${BRAND.muted};font-size:12px;line-height:1.5;word-break:break-all;">
+         Button not working? Copy this link: <a href="${opts.cta.href}" style="color:${BRAND.blue};text-decoration:underline;">${opts.cta.href}</a>
        </td></tr>`
     : ''
+  const preheader = escapeHtml(opts.preheader ?? opts.heading)
+  const year = new Date().getFullYear()
 
   return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:${BRAND.cream};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};padding:32px 16px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px -30px rgba(33,60,239,0.35);">
-        <tr><td style="background:${BRAND.navy};padding:24px 32px;">
-          <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">PEPTSCI</span>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${escapeHtml(opts.heading)}</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:${BRAND.cream};font-family:${FONT_STACK};-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">${preheader}&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};">
+    <tr><td align="center" style="padding:32px 16px 40px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px -32px rgba(5,7,34,0.35);">
+        <tr><td style="height:5px;background:${BRAND.blue};font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td style="padding:28px 40px 22px;border-bottom:1px solid ${BRAND.line};">
+          <a href="${APP_URL}" style="text-decoration:none;">
+            <img src="${LOGO.src}" width="${LOGO.width}" height="${LOGO.height}" alt="PeptSci" style="display:block;border:0;outline:none;width:${LOGO.width}px;height:${LOGO.height}px;">
+          </a>
         </td></tr>
-        <tr><td style="padding:32px;">
-          <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:${BRAND.text};">${opts.heading}</h1>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="color:${BRAND.text};font-size:15px;line-height:1.6;">
+        <tr><td style="padding:36px 40px 12px;">
+          <h1 style="margin:0 0 18px;font-size:26px;line-height:1.25;font-weight:700;letter-spacing:-0.3px;color:${BRAND.navy};font-family:${FONT_STACK};">${opts.heading}</h1>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="color:${BRAND.body};font-size:15px;line-height:1.65;font-family:${FONT_STACK};">
             ${opts.body}
             ${cta}
           </table>
         </td></tr>
-        <tr><td style="padding:24px 32px;border-top:1px solid #eee;color:${BRAND.muted};font-size:13px;line-height:1.5;">
-          Questions? Reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND.blue};text-decoration:none;">${SUPPORT_EMAIL}</a>.<br>
-          &copy; ${new Date().getFullYear()} PeptSci. All rights reserved.
+        <tr><td style="padding:22px 40px 28px;background:${BRAND.panel};border-top:1px solid ${BRAND.line};color:${BRAND.muted};font-size:12.5px;line-height:1.6;font-family:${FONT_STACK};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:top;">
+              <strong style="color:${BRAND.navy};font-size:13px;">PeptSci</strong><br>
+              Questions? Reply to this email or write to <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND.blue};text-decoration:none;">${SUPPORT_EMAIL}</a>.
+            </td>
+          </tr><tr>
+            <td style="padding-top:12px;border-top:1px solid ${BRAND.line};margin-top:12px;">
+              <a href="${APP_URL}" style="color:${BRAND.muted};text-decoration:none;">peptsci.com</a>
+              &nbsp;&middot;&nbsp;
+              <a href="${APP_URL}/privacy" style="color:${BRAND.muted};text-decoration:none;">Privacy</a>
+              &nbsp;&middot;&nbsp;
+              <a href="${APP_URL}/termsandconditions" style="color:${BRAND.muted};text-decoration:none;">Terms</a>
+              <br>&copy; ${year} PeptSci. All rights reserved.
+            </td>
+          </tr></table>
         </td></tr>
       </table>
     </td></tr>
@@ -73,22 +132,22 @@ function layout(opts: { heading: string; body: string; cta?: { label: string; hr
 }
 
 function para(text: string): string {
-  return `<tr><td style="padding:0 0 14px;">${text}</td></tr>`
+  return `<tr><td style="padding:0 0 16px;">${text}</td></tr>`
 }
 
 /** A boxed key/value detail panel (order #, tracking #, carrier). Values are escaped here. */
 function detailPanel(rows: Array<[string, string]>): string {
   const inner = rows
     .map(
-      ([k, v]) =>
+      ([k, v], i) =>
         `<tr>
-           <td style="padding:6px 0;color:${BRAND.muted};font-size:13px;white-space:nowrap;">${escapeHtml(k)}</td>
-           <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:14px;font-weight:600;text-align:right;">${escapeHtml(v)}</td>
+           <td style="padding:10px 18px;color:${BRAND.muted};font-size:11.5px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;white-space:nowrap;${i > 0 ? `border-top:1px solid ${BRAND.line};` : ''}">${escapeHtml(k)}</td>
+           <td style="padding:10px 18px 10px 16px;color:${BRAND.navy};font-size:14.5px;font-weight:600;text-align:right;word-break:break-word;${i > 0 ? `border-top:1px solid ${BRAND.line};` : ''}">${escapeHtml(v)}</td>
          </tr>`
     )
     .join('')
-  return `<tr><td style="padding:4px 0 18px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.cream};border-radius:12px;padding:8px 18px;">
+  return `<tr><td style="padding:4px 0 20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:14px;border-collapse:separate;overflow:hidden;">
       ${inner}
     </table>
   </td></tr>`
@@ -995,14 +1054,21 @@ export interface TestEmailOpts {
 }
 
 export function testEmail(opts: TestEmailOpts): EmailContent {
-  const stamp = new Date().toISOString()
+  const now = new Date()
+  const stamp = now.toISOString()
+  const stampDisplay = now.toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/New_York',
+  })
   const subject = `PeptSci email test — ${stamp}`
   const html = layout({
     heading: 'Email delivery is working',
+    preheader: 'Test message from the PeptSci platform via Amazon SES.',
     body:
       para('This is a test message sent from the PeptSci platform through Amazon SES.') +
       detailPanel([
-        ['Sent at', stamp],
+        ['Sent at', `${stampDisplay} ET`],
         ['Environment', opts.environment || 'unknown'],
         ['From', opts.from || 'unknown'],
         ['Requested by', opts.requestedBy || 'unknown'],
