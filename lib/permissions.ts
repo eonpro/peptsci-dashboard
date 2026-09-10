@@ -34,6 +34,7 @@ export const PERMISSIONS = [
   'storefronts:write',
   'resources:write',
   'support:write',
+  'messages:write',
   'settings:write',
   'system:migrate',
 ] as const
@@ -68,6 +69,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'storefronts:write': 'Storefronts (edit)',
   'resources:write': 'Resources (edit)',
   'support:write': 'Support (edit)',
+  'messages:write': 'Messages (reply to clinic texts)',
   'settings:write': 'Settings (edit)',
   'system:migrate': 'Run DB migrations',
 }
@@ -83,6 +85,8 @@ const FULFILLMENT_DEFAULTS: Permission[] = [
   'fulfillment:write',
   'catalog:read',
   'clients:read',
+  // Sees clinic profiles → can read and answer their texts (shipping questions).
+  'messages:write',
 ]
 
 const BILLING_DEFAULTS: Permission[] = [
@@ -93,6 +97,8 @@ const BILLING_DEFAULTS: Permission[] = [
   'clients:read',
   'finance:read',
   'sales:read',
+  // Sees clinic profiles → can read and answer their texts (billing questions).
+  'messages:write',
 ]
 
 const CATALOG_DEFAULTS: Permission[] = [

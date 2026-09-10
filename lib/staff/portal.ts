@@ -1,7 +1,8 @@
 /**
- * Staff admin information architecture — five primary destinations so 21 nav
+ * Staff admin information architecture — six primary destinations so 21 nav
  * leaves stop competing. Catalog hub is /merch because /catalog is the public
- * lookbook.
+ * lookbook. Messages (two-way texting with clinics) is a primary tab because
+ * replies need to be seen and answered, not found under Admin.
  */
 
 import { hasAnyPermission, hasPermission, type Permission } from '@/lib/permissions'
@@ -15,13 +16,13 @@ export type StaffPortalLink = {
 }
 
 export type StaffPrimaryNavItem = {
-  name: 'Home' | 'Fulfill' | 'Catalog' | 'Money' | 'Admin'
+  name: 'Home' | 'Fulfill' | 'Messages' | 'Catalog' | 'Money' | 'Admin'
   href: string
   exact?: boolean
 }
 
 export type StaffMobileNavItem = {
-  name: 'Home' | 'Fulfillment' | 'Catalog' | 'Admin'
+  name: 'Home' | 'Fulfillment' | 'Messages' | 'Catalog' | 'Admin'
   href: string
   exact?: boolean
 }
@@ -29,6 +30,7 @@ export type StaffMobileNavItem = {
 export const STAFF_PRIMARY_NAV: readonly StaffPrimaryNavItem[] = [
   { name: 'Home', href: '/dashboard', exact: true },
   { name: 'Fulfill', href: '/fulfillment' },
+  { name: 'Messages', href: '/messages' },
   { name: 'Catalog', href: '/merch' },
   { name: 'Money', href: '/money' },
   { name: 'Admin', href: '/manage' },
@@ -37,6 +39,7 @@ export const STAFF_PRIMARY_NAV: readonly StaffPrimaryNavItem[] = [
 export const STAFF_MOBILE_NAV: readonly StaffMobileNavItem[] = [
   { name: 'Home', href: '/dashboard', exact: true },
   { name: 'Fulfillment', href: '/fulfillment' },
+  { name: 'Messages', href: '/messages' },
   { name: 'Catalog', href: '/merch' },
   { name: 'Admin', href: '/manage' },
 ]
@@ -144,11 +147,6 @@ export const STAFF_ADMIN_LINKS: readonly StaffPortalLink[] = [
     description: 'Clinic support tickets',
   },
   {
-    name: 'Messages',
-    href: '/messages',
-    description: 'Text conversations with clinics (PeptSci Alerts)',
-  },
-  {
     name: 'Stripe',
     href: '/settings/stripe',
     description: 'Payments configuration',
@@ -182,7 +180,6 @@ const ADMIN_PREFIXES = [
   '/resources',
   '/package-photos',
   '/support',
-  '/messages',
   '/settings',
 ]
 
@@ -205,6 +202,7 @@ export function isStaffPrimaryActive(href: string, pathname: string, exact?: boo
   if (href === '/fulfillment') {
     return pathname === '/fulfillment' || pathname.startsWith('/fulfillment/')
   }
+  // Messages is its own primary destination (no hub, no sub-tabs).
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
