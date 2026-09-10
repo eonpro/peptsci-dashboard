@@ -5474,3 +5474,123 @@ the three CNAMEs resolve. `GET /api/admin/email` returns the same records live.
   Vercel OIDC issuer.
 - SES `GetEmailIdentity` has no `SendingEnabled`; that flag only exists on
   `ListEmailIdentities` items.
+
+# Amazon SES: make the platform actually able to send email [PLANNER → EXECUTOR — 2026-09-09]
+
+## Background and Motivation
+`lib/email/*` already renders ~20 branded templates and calls SES v2, but no
+email has ever left the platform. Owner asked to wire Amazon SES up end to end
+so sends work from production.
+
+## Key Challenges and Analysis (state found on 2026-09-09)
+- Code: `SESv2Client({ region })` relies on the default credential chain. On
+  Vercel there are no static AWS keys; the DB path uses the Vercel OIDC role
+  (`awsCredentialsProvider({ roleArn: AWS_ROLE_ARN })`). SES never got the same
+  treatment → every send would fail with "Could not load credentials".
+- Three AWS accounts are involved:
+  - `631413806260` — RDS + the Vercel OIDC role `Vercel/access-peptsci-dashboard`.
+    SES there is in **sandbox** (200/day, verified recipients only), no
+    identities, and no local CLI credentials for it.
+  - `147997129811` (local `default` profile) — SES **production access GRANTED**
+    (50k/day, 14/s, transactional review case 178033041800083), identities
+    `logosrx.com` + `geteonmed.com`. `peptsci.com` is NOT verified anywhere.
+  - `368912176358` (`eonpro` profile) — unrelated, sandbox.
+- `peptsci.com` DNS is at **Wix** (ns4/ns5.wixdns.net), MX → Google Workspace,
+  SPF `include:_spf.google.com`, no DMARC. Not Route 53, so DKIM CNAMEs must be
+  pasted into Wix by a human.
+- Vercel prod already has `EMAIL_ENABLED`, `EMAIL_FROM`, `EMAIL_REPLY_TO`
+  (Sensitive → values unreadable via `vercel env pull`).
+- Vercel OIDC issuer: `https://oidc.vercel.com/eonpro1s-projects`, aud
+  `https://vercel.com/eonpro1s-projects`, sub
+  `owner:eonpro1s-projects:project:peptsci-dashboard:environment:<env>`.
+
+Decision: host SES for peptsci.com in `147997129811` (already production
+approved — no new AWS review wait) and authenticate from Vercel with a
+**dedicated, keyless OIDC role** in that account (no long-lived access keys).
+Same pattern the DB already uses. If the owner later wants SES consolidated in
+`631413806260`, only `EMAIL_AWS_ROLE_ARN` and the DKIM CNAMEs change.
+
+## High-level Task Breakdown
+1. `lib/email/config.ts` — pure resolver: enabled/from/replyTo/region/config
+   set + credential source (`oidc-role` when `EMAIL_AWS_ROLE_ARN`/`AWS_ROLE_ARN`
+   present on Vercel, else `default-chain`) + from-domain. Unit tests.
+2. `lib/email/client.ts` — build the SESv2 client from the resolver, lazily
+   importing `@vercel/functions/oidc` like `lib/db-url.ts`.
+3. `app/api/admin/email/route.ts` (SUPER_ADMIN): GET = config + live SES
+   identity/account status; POST `{ to, confirm: true }` = send a test email.
+4. AWS (147997129811): `peptsci.com` identity (Easy DKIM RSA_2048, MAIL FROM
+   `mail.peptsci.com`), IAM OIDC provider for Vercel, role
+   `peptsci-dashboard-ses-sender` scoped to `ses:SendEmail` on the peptsci.com
+   identity + read-only status calls.
+5. Vercel env: `EMAIL_AWS_ROLE_ARN`, `EMAIL_AWS_REGION` (production + preview).
+6. Docs: env-example + this runbook with the exact Wix DNS records.
+7. `npm test` / `tsc` / lint green, PR.
+
+Success = `GET /api/admin/email` reports identity `SUCCESS` and
+`POST /api/admin/email` lands a test email in the owner's inbox.
+
+## Project Status Board
+- [x] 1 config resolver + tests (`lib/email/config.ts`, 11 tests)
+- [x] 2 client uses OIDC role (`lib/email/client.ts`, lazy `@vercel/functions/oidc`)
+- [x] 3 admin status/test route (`app/api/admin/email/route.ts`; pure verdict in
+      `lib/email/readiness.ts`, 12 tests)
+- [x] 4 AWS identity + role (see "What was created in AWS")
+- [x] 5 Vercel env `EMAIL_AWS_ROLE_ARN` + `EMAIL_AWS_REGION` on prod/preview/dev
+- [x] 6 docs (env-example + this section)
+- [ ] 7 green + PR
+- [ ] OWNER: add the DNS records below in Wix, wait for `GET /api/admin/email`
+      to show identity `SUCCESS`, then set `EMAIL_ENABLED=true` in Vercel prod
+      and send a test via `POST /api/admin/email`.
+
+## What was created in AWS (account 147997129811, us-east-1)
+- SES identity `peptsci.com` — Easy DKIM RSA_2048, custom MAIL FROM
+  `mail.peptsci.com` (`BehaviorOnMxFailure=USE_DEFAULT_VALUE`, so sends work
+  before the MX exists).
+- IAM OIDC provider `oidc.vercel.com/eonpro1s-projects` (audience
+  `https://vercel.com/eonpro1s-projects`).
+- IAM role `peptsci-dashboard-ses-sender`
+  (`arn:aws:iam::147997129811:role/peptsci-dashboard-ses-sender`). Trust:
+  `sub` must match `owner:eonpro1s-projects:project:peptsci-dashboard:environment:*`.
+  Inline policy `ses-send-peptsci`: `ses:SendEmail`/`SendRawEmail` on the
+  peptsci.com identity (+ config sets) with `ses:FromAddress` like
+  `*@peptsci.com`; `ses:GetEmailIdentity` + `ses:GetAccount` for the status
+  route. Nothing else (ListEmailIdentities verified DENIED).
+- Smoke-tested: real `VERCEL_OIDC_TOKEN` → `AssumeRoleWithWebIdentity` → SES
+  `GetAccount` OK (production access true, 50k/day).
+
+## DNS records to add in Wix for peptsci.com (all required except DMARC)
+| Type | Host / Name | Value | Why |
+|---|---|---|---|
+| CNAME | `cucz35upstrvujiw2sxdojp464rlfnh7._domainkey` | `cucz35upstrvujiw2sxdojp464rlfnh7.dkim.amazonses.com` | DKIM 1/3 |
+| CNAME | `xxmnlbzm4id6uhl346swyfgom3ulydxw._domainkey` | `xxmnlbzm4id6uhl346swyfgom3ulydxw.dkim.amazonses.com` | DKIM 2/3 |
+| CNAME | `wg23tszceqk2j7uobg4q2upg76evy6bm._domainkey` | `wg23tszceqk2j7uobg4q2upg76evy6bm.dkim.amazonses.com` | DKIM 3/3 |
+| MX | `mail` | `feedback-smtp.us-east-1.amazonses.com`, priority `10` | MAIL FROM bounces |
+| TXT | `mail` | `v=spf1 include:amazonses.com ~all` | SPF alignment |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@peptsci.com; fo=1` | DMARC monitoring (recommended) |
+
+Notes: Wix wants the host WITHOUT `.peptsci.com`. Do NOT touch the existing
+apex SPF (`include:_spf.google.com`) — Google Workspace keeps sending from the
+apex; SES uses the `mail.` subdomain. SES verifies within minutes to ~72h once
+the three CNAMEs resolve. `GET /api/admin/email` returns the same records live.
+
+## Executor's Feedback or Assistance Requests
+- Prod `EMAIL_ENABLED` / `EMAIL_FROM` / `EMAIL_REPLY_TO` are Sensitive in
+  Vercel so their current values are unreadable from the CLI. Left untouched.
+  After DNS verifies: confirm `EMAIL_FROM` is an `@peptsci.com` address and set
+  `EMAIL_ENABLED=true`.
+- If the owner would rather consolidate SES into account 631413806260 (where
+  RDS lives) later: request production access there, recreate the identity,
+  attach the same policy to the existing `Vercel/access-peptsci-dashboard` role,
+  point `EMAIL_AWS_ROLE_ARN` at it, and swap the DKIM CNAMEs. Code is unchanged.
+
+## Lessons
+- `vercel env pull` returns `""` for Sensitive vars — absence of a value is not
+  absence of the variable. Use `vercel env ls` to check existence.
+- zsh: `"$VAR:aud"` inside a heredoc is parsed as a `:a` modifier → "bad
+  substitution". Always brace: `"${VAR}:aud"`.
+- The AWS default credential chain silently has nothing on Vercel. Any AWS SDK
+  client used from the app must be handed `awsCredentialsProvider({ roleArn })`
+  from `@vercel/functions/oidc`, with a role in an account that trusts the
+  Vercel OIDC issuer.
+- SES `GetEmailIdentity` has no `SendingEnabled`; that flag only exists on
+  `ListEmailIdentities` items.

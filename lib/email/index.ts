@@ -2,7 +2,7 @@
 // calls. Each builds a branded template and delegates to the SES driver. All
 // are fire-and-forget safe (never throw; return a SendEmailResult).
 
-import { sendEmail, isEmailEnabled, type SendEmailResult } from './client'
+import { sendEmail, isEmailEnabled, getEmailConfig, type SendEmailResult } from './client'
 import {
   welcomeEmail,
   partnerApprovedEmail,
@@ -25,6 +25,8 @@ import {
   statementEmail,
   weeklyReportEmail,
   backInStockEmail,
+  testEmail,
+  type TestEmailOpts,
   type OrderConfirmationEmailOpts,
   type ShipmentEmailOpts,
   type InvoiceEmailOpts,
@@ -32,7 +34,7 @@ import {
   type WeeklyReportEmailOpts,
 } from './templates'
 
-export { isEmailEnabled, type SendEmailResult }
+export { isEmailEnabled, getEmailConfig, type SendEmailResult }
 
 export async function sendWelcomeEmail(opts: {
   to: string
@@ -229,5 +231,14 @@ export async function sendWeeklyReportEmail(
   opts: { to: string | string[] } & WeeklyReportEmailOpts
 ): Promise<SendEmailResult> {
   const { subject, html, text } = weeklyReportEmail(opts)
+  return sendEmail({ to: opts.to, subject, html, text })
+}
+
+// ── Ops: deliverability test (admin-triggered) ──
+
+export async function sendTestEmail(
+  opts: { to: string | string[] } & TestEmailOpts
+): Promise<SendEmailResult> {
+  const { subject, html, text } = testEmail({ ...opts, from: opts.from ?? getEmailConfig().from })
   return sendEmail({ to: opts.to, subject, html, text })
 }

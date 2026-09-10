@@ -191,9 +191,17 @@ EMAIL_REPLY_TO="support@peptsci.com"
 EMAIL_AWS_REGION="us-east-1"
 # Optional SES configuration set (open/click tracking, dedicated IP pool, etc.)
 EMAIL_CONFIGURATION_SET=""
-# AWS credentials come from the standard provider chain (AWS_ACCESS_KEY_ID /
-# AWS_SECRET_ACCESS_KEY, or the Vercel OIDC role). The IAM principal needs
-# ses:SendEmail on the verified identity.
+# Credentials. On Vercel there are NO static AWS keys: set the IAM role that
+# trusts the Vercel OIDC issuer (oidc.vercel.com/<team>) and is scoped to
+# ses:SendEmail on the peptsci.com identity. The app exchanges the Vercel OIDC
+# token for that role at send time (same mechanism as RDS IAM auth). The RDS
+# role (AWS_ROLE_ARN) is intentionally NOT reused for email.
+# Prod/preview/dev: arn:aws:iam::147997129811:role/peptsci-dashboard-ses-sender
+EMAIL_AWS_ROLE_ARN=""
+# Local dev without the role falls back to the AWS SDK default chain
+# (`aws configure`, AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, …).
+# Diagnostics (SUPER_ADMIN): GET /api/admin/email → readiness + required DNS
+# records; POST /api/admin/email {"to":"you@…","confirm":true} → test send.
 
 # ===========================================
 # SMS - Twilio (transactional, optional)

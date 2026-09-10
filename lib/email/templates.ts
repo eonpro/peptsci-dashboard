@@ -215,6 +215,8 @@ export interface OrderConfirmationEmailOpts {
   total: string
   /** e.g. "Paid by card" or "Billed to account — Net 30". */
   paymentLabel: string
+  /** Office pickup — skip the carrier tracking follow-up. */
+  isPickup?: boolean
 }
 
 export function orderConfirmationEmail(opts: OrderConfirmationEmailOpts): EmailContent {
@@ -261,9 +263,17 @@ export function orderConfirmationEmail(opts: OrderConfirmationEmailOpts): EmailC
         `Thanks for your order! We&rsquo;ve received PeptSci order ${escapeHtml(ord)} (${escapeHtml(opts.paymentLabel)}) and our team is preparing it for fulfillment.`
       ) +
       itemsPanel +
-      para('You&rsquo;ll get another email with tracking as soon as it ships.'),
+      para(
+        opts.isPickup
+          ? 'We&rsquo;ll email you when the order is ready to collect at our Tampa office (401 Jackson St).'
+          : 'You&rsquo;ll get another email with tracking as soon as it ships.'
+      ),
     cta: { label: 'View your order', href: `${APP_URL}/shop/orders` },
   })
+
+  const followUp = opts.isPickup
+    ? "We'll email you when the order is ready to collect at our Tampa office (401 Jackson St)."
+    : "You'll get another email with tracking as soon as it ships."
 
   const itemLines = opts.items
     .map((it) => `- ${it.name}${it.dose ? ` ${it.dose}` : ''} × ${it.quantity} — ${it.lineTotal}`)
@@ -278,7 +288,7 @@ Subtotal: ${opts.subtotal}
 Shipping: ${opts.shipping}
 Total: ${opts.total}
 
-You'll get another email with tracking as soon as it ships.
+${followUp}
 
 View your orders: ${APP_URL}/shop/orders
 
@@ -968,6 +978,47 @@ export function affiliateRejectedEmail(opts: {
 Thanks for your interest in the PeptSci partner program. After review, we're unable to approve the application for ${opts.orgName} at this time.
 ${opts.reason ? `\nReason: ${opts.reason}\n` : ''}
 If you believe this is an error or your situation changes, contact ${SUPPORT_EMAIL}.
+
+© ${new Date().getFullYear()} PeptSci`
+  return { subject, html, text }
+}
+
+// ── Ops: deliverability test ──
+
+export interface TestEmailOpts {
+  /** Who triggered the test (admin email), shown in the body for audit. */
+  requestedBy?: string | null
+  /** Where the send originated (e.g. "production", "preview", "local"). */
+  environment?: string | null
+  /** Sender identity used, so the recipient can confirm SPF/DKIM alignment. */
+  from?: string | null
+}
+
+export function testEmail(opts: TestEmailOpts): EmailContent {
+  const stamp = new Date().toISOString()
+  const subject = `PeptSci email test — ${stamp}`
+  const html = layout({
+    heading: 'Email delivery is working',
+    body:
+      para('This is a test message sent from the PeptSci platform through Amazon SES.') +
+      detailPanel([
+        ['Sent at', stamp],
+        ['Environment', opts.environment || 'unknown'],
+        ['From', opts.from || 'unknown'],
+        ['Requested by', opts.requestedBy || 'unknown'],
+      ]) +
+      para(
+        'If this landed in your inbox (not spam), sender authentication is in place. Check the message headers for <strong>DKIM=pass</strong> and <strong>SPF=pass</strong>.'
+      ),
+  })
+  const text = `This is a test message sent from the PeptSci platform through Amazon SES.
+
+Sent at: ${stamp}
+Environment: ${opts.environment || 'unknown'}
+From: ${opts.from || 'unknown'}
+Requested by: ${opts.requestedBy || 'unknown'}
+
+If this landed in your inbox (not spam), sender authentication is in place.
 
 © ${new Date().getFullYear()} PeptSci`
   return { subject, html, text }
