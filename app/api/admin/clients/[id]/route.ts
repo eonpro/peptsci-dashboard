@@ -22,6 +22,7 @@ import {
   ELEVATED_VITALITY_BRAND_KEY,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
 } from '@/lib/labels/brandKeys'
 
 export const dynamic = 'force-dynamic'
@@ -72,7 +73,12 @@ const adminUpdateSchema = z.object({
   // White-label vial labels (built-in brand key required when enabling).
   whiteLabelEnabled: z.boolean().optional(),
   labelBrandKey: z
-    .enum([ELEVATED_VITALITY_BRAND_KEY, LIVBETR_BRAND_KEY, VITAL_HEALTH_BRAND_KEY])
+    .enum([
+      ELEVATED_VITALITY_BRAND_KEY,
+      LIVBETR_BRAND_KEY,
+      VITAL_HEALTH_BRAND_KEY,
+      ELEMENT_LABS_BRAND_KEY,
+    ])
     .nullable()
     .optional(),
 })
