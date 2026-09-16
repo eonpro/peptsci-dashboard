@@ -14,10 +14,12 @@ import {
 } from '@/lib/labels/elevatedVitalityLabelPdf'
 import { generateLivbetrLabelSheetPdf } from '@/lib/labels/livbetrLabelPdf'
 import { generateVitalHealthLabelSheetPdf } from '@/lib/labels/vitalHealthLabelPdf'
+import { generateElementLabsLabelSheetPdf } from '@/lib/labels/elementLabsLabelPdf'
 import {
   isLabelBrandKey,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
 } from '@/lib/labels/brandKeys'
 
 export const runtime = 'nodejs'
@@ -114,6 +116,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="vital-health-${client.id}-proof.pdf"`,
+          'Cache-Control': 'no-store',
+          'X-Label-Brand': brandKey,
+        },
+      })
+    }
+
+    if (brandKey === ELEMENT_LABS_BRAND_KEY) {
+      const pdf = await generateElementLabsLabelSheetPdf({
+        productName: input.productName ?? 'Tesamorelin',
+        dose: input.dose ?? '10mg',
+        purity: '99%HPLC',
+        batchNumber: input.batchNumber ?? 'TES-10',
+        budIsoDate: input.budIsoDate ?? '2027-07-21',
+        quantity: input.quantity ?? 1,
+        proofMode: input.proofMode ?? true,
+      })
+      return new NextResponse(new Uint8Array(pdf), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="element-labs-${client.id}-proof.pdf"`,
           'Cache-Control': 'no-store',
           'X-Label-Brand': brandKey,
         },

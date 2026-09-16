@@ -17,9 +17,14 @@ import {
   type VitalHealthLabelGroup,
 } from './vitalHealthLabelPdf'
 import {
+  generateElementLabsLabelsPdf,
+  type ElementLabsLabelGroup,
+} from './elementLabsLabelPdf'
+import {
   ELEVATED_VITALITY_BRAND_KEY,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
   type LabelBrandKey,
 } from './brandKeys'
 
@@ -27,6 +32,7 @@ export {
   ELEVATED_VITALITY_BRAND_KEY,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
   LABEL_BRAND_KEYS,
   LABEL_BRAND_OPTIONS,
   isLabelBrandKey,
@@ -102,6 +108,22 @@ export async function generateVialLabelsPdf(
     }))
     const result = await generateVitalHealthLabelsPdf(vhGroups, { startSlot })
     return { brand: VITAL_HEALTH_BRAND_KEY, ...result }
+  }
+
+  if (brandKey === ELEMENT_LABS_BRAND_KEY) {
+    const elGroups: ElementLabsLabelGroup[] = groups.map((g) => ({
+      req: {
+        productName: g.productName,
+        dose: g.dose,
+        purity: g.purity,
+        batchNumber: g.batchNumber,
+        budIsoDate: g.budIsoDate,
+        accentColor: g.accentColor,
+      },
+      quantity: g.quantity,
+    }))
+    const result = await generateElementLabsLabelsPdf(elGroups, { startSlot })
+    return { brand: ELEMENT_LABS_BRAND_KEY, ...result }
   }
 
   const peptsciGroups: PeptSciLabelGroup[] = groups.map((g) => ({

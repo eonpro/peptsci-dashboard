@@ -207,10 +207,15 @@ export const BAC_WATER_NAME_LINE2_BASELINE = 20.6
 export const BAC_WATER_NAME_SIZE = 8.5
 export const BAC_WATER_DOSE_BOX_TOP = DOSE_BOX_TOP
 
-// Batch number value: continues the baked "BATCH:" label (rotated, far right).
-const BATCH_X = 137.3
-const BATCH_TOP = 3.5 // topmost SVG y the value may reach
-const BATCH_BOTTOM = 34 // just above the baked "BATCH:" label
+// Batch rail (rotated 90°, far right). The artwork bakes "BATCH:" flush to the
+// bottom of the rail; we white it out and redraw "BATCH:" + value as one run
+// centred along the label height so the pair reads balanced on every label.
+const BATCH_X = 137.3 // baseline x shared by the baked label and the live value
+const BATCH_TOP = 3.5 // topmost SVG y the run may reach
+const BATCH_BOTTOM = 50.5 // lowest SVG y the run may start from
+const BATCH_LABEL_SIZE = 4.3 // matches the baked outlined "BATCH:" (≈12.6pt run)
+const BATCH_GAP = 1 // between "BATCH:" and the value
+const BATCH_CLEAR_LEFT = 131.5 // right of the barcode well (BARCODE_RIGHT 128.76)
 
 function hexToRgb(hex: string) {
   const h = hex.replace('#', '')
@@ -857,15 +862,36 @@ function drawLabel(ctx: LabelContext): void {
     BARCODE_BOTTOM - BARCODE_TOP
   )
 
-  // --- Batch number value: rotated 90°, continuing the baked "BATCH:" label.
-  const batchAvail = BATCH_BOTTOM - BATCH_TOP
+  // --- BATCH: + value, rotated 90°, centred along the label height.
+  // Clear the baked flush-bottom "BATCH:" first (rail right of the barcode well).
+  page.drawRectangle({
+    x: toX(BATCH_CLEAR_LEFT),
+    y: toY(SVG_H - 1.5),
+    width: LABEL_WIDTH - BATCH_CLEAR_LEFT,
+    height: SVG_H - 3,
+    color: COLOR_WHITE,
+  })
+  const batchLabelRun = fonts.bud.widthOfTextAtSize('BATCH:', BATCH_LABEL_SIZE)
+  const batchAvail = BATCH_BOTTOM - BATCH_TOP - batchLabelRun - BATCH_GAP
   let batchSize = 6
   while (batchSize > 3.5 && fonts.batch.widthOfTextAtSize(req.batchNumber, batchSize) > batchAvail) {
     batchSize -= 0.25
   }
+  const batchValueRun = fonts.batch.widthOfTextAtSize(req.batchNumber, batchSize)
+  const batchRun = batchLabelRun + BATCH_GAP + batchValueRun
+  // Reading bottom-to-top: the run starts at the larger SVG y.
+  const batchStart = Math.min(BATCH_BOTTOM, SVG_H / 2 + batchRun / 2)
+  page.drawText('BATCH:', {
+    x: toX(BATCH_X),
+    y: toY(batchStart),
+    size: BATCH_LABEL_SIZE,
+    font: fonts.bud,
+    color: boxBlue,
+    rotate: degrees(90),
+  })
   page.drawText(req.batchNumber, {
     x: toX(BATCH_X),
-    y: toY(BATCH_BOTTOM),
+    y: toY(batchStart - batchLabelRun - BATCH_GAP),
     size: batchSize,
     font: fonts.batch,
     color: accent,

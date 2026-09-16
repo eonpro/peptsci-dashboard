@@ -15,6 +15,7 @@ import {
   ELEVATED_VITALITY_BRAND_KEY,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
   isLabelBrandKey,
 } from '../labels/brandKeys'
 import type { OrderPickList, PackingSlipData } from './service'
@@ -48,12 +49,17 @@ const WHITE_LABEL_LOGOS: Record<LabelBrandKey, string[]> = {
     path.join(process.cwd(), 'public', 'brand', 'vital-health-logo-dark.png'),
     path.join(process.cwd(), 'assets', 'brand', 'vital-health-logo-dark.png'),
   ],
+  [ELEMENT_LABS_BRAND_KEY]: [
+    path.join(process.cwd(), 'public', 'brand', 'element-labs-logo-dark.png'),
+    path.join(process.cwd(), 'assets', 'brand', 'element-labs-logo-dark.png'),
+  ],
 }
 
 const WHITE_LABEL_WORDMARK: Record<LabelBrandKey, string> = {
   [ELEVATED_VITALITY_BRAND_KEY]: 'Elevated Vitality',
   [LIVBETR_BRAND_KEY]: 'LIVBETR',
   [VITAL_HEALTH_BRAND_KEY]: 'Vital Health',
+  [ELEMENT_LABS_BRAND_KEY]: 'Element Labs',
 }
 
 async function embedPngFrom(doc: PDFDocument, candidates: string[]): Promise<PDFImage | null> {

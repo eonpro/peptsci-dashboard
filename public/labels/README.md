@@ -106,3 +106,17 @@ GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `GHK-Cu / BPC-157 / KPV / TB-5
 - Engine: `lib/labels/vitalHealthLabelPdf.ts` — **PeptSci overlay family**
 - Rebuild: `npx tsx scripts/build-vital-health-template.ts`
 - Palette: navy `#2a5fa1`, blue `#436e9c`, red `#e84637`, green `#5db828`
+
+### Element Labs USA (`element_labs`)
+
+- Source logo: `clients/element-labs/element-labs-logo.png` (client-supplied
+  transparent PNG, 153×150, single colour `#073162`; swap in an SVG/hi-res export
+  at this path and rebuild to sharpen)
+- Empty label: `clients/element-labs/element-labs-label-empty.svg` (PeptSci face,
+  navy `#073162` in place of indigo, Element Labs mark embedded as a raster
+  `<image>` rotated −90° in the left rail like PeptSci, reading bottom-to-top)
+- Raster template: `clients/element-labs/element-labs-label-template.png`
+- Packing-slip logo: `public/brand/element-labs-logo-dark.png`
+- Engine: `lib/labels/elementLabsLabelPdf.ts` — **PeptSci overlay family**
+- Rebuild: `npm run labels:element-labs`
+- Palette: navy `#073162`
