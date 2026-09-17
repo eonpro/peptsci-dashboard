@@ -251,10 +251,10 @@ export function ProductVial({ product, className }: ProductVialProps) {
               />
             </div>
             <div className="mx-[3.5cqw] my-[2cqw] w-[0.6cqw] shrink-0 rounded-full bg-[#2b2c84]/80" />
-            <div className="flex min-w-0 flex-1 flex-col justify-center gap-[5cqw]">
-              <div className="leading-[1.05] font-bold tracking-tight text-[#101123]">
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3cqw]">
+              <div className="leading-none font-bold tracking-tight text-[#101123]">
                 <div className="overflow-hidden whitespace-nowrap text-clip text-[9.5cqw]">BAC</div>
-                <div className="overflow-hidden whitespace-nowrap text-clip text-[9.5cqw] text-brand-primary">
+                <div className="overflow-hidden whitespace-nowrap text-clip text-[9.5cqw] leading-none text-brand-primary">
                   Water
                 </div>
               </div>
