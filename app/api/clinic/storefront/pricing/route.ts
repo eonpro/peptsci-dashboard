@@ -4,6 +4,7 @@ import { getUserMetadata } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +48,10 @@ export async function GET(request: NextRequest) {
       id: p.id,
       storefrontProductId: p.storefrontProductId,
       variantId: p.storefrontProduct.variantId,
-      productName: p.storefrontProduct.variant.product.name,
+      productName: displayProductName(
+        p.storefrontProduct.variant.product.name,
+        p.storefrontProduct.variant.sku
+      ),
       sku: p.storefrontProduct.variant.sku,
       dose: p.storefrontProduct.variant.dose,
       category: p.storefrontProduct.variant.product.category,

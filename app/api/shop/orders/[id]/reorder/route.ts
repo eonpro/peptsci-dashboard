@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { resolveEffectiveUnitPrice } from '@/lib/access'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     for (const it of order.items) {
       const v = it.variant
       if (!v.sku || v.status !== 'ACTIVE') {
-        unavailable.push(v.product.name + (v.dose ? ` ${v.dose}` : ''))
+        unavailable.push(displayProductName(v.product.name, v.sku) + (v.dose ? ` ${v.dose}` : ''))
         continue
       }
       const { price } = resolveEffectiveUnitPrice({
@@ -80,7 +81,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       })
       items.push({
         sku: v.sku,
-        name: v.product.name,
+        name: displayProductName(v.product.name, v.sku),
         dose: v.dose,
         quantity: it.quantity,
         price,

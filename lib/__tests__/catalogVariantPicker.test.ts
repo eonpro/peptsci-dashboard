@@ -112,4 +112,11 @@ describe('filterCatalogVariantsForPicker', () => {
     assert.equal(hits.length, 1)
     assert.equal(hits[0]?.sku, 'TR60')
   })
+
+  test('finds GLP-TZ display names when searching the INN', () => {
+    const renamed = catalog.map((v) => ({ ...v, productName: 'GLP-TZ' }))
+    const hits = filterCatalogVariantsForPicker(renamed, 'tirzepatide 60')
+    assert.equal(hits[0]?.sku, 'TR60')
+    assert.equal(filterCatalogVariantsForPicker(renamed, 'glp-tz').length, renamed.length)
+  })
 })

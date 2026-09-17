@@ -4,6 +4,7 @@ import { errorResponse, forbiddenResponse, successResponse } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { requirePartner, PartnerForbiddenError } from '@/lib/partners/auth'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,14 +138,14 @@ export async function POST(request: NextRequest) {
       const floor = floors.get(item.variantId)
       if (floor != null && unitPriceCents < floor) {
         return errorResponse(
-          `${variant.product.name} can't be quoted below your floor.`,
+          `${displayProductName(variant.product.name, variant.sku)} can't be quoted below your floor.`,
           400,
           'BELOW_FLOOR'
         )
       }
       items.push({
         variantId: variant.id,
-        name: variant.product.name,
+        name: displayProductName(variant.product.name, variant.sku),
         dose: variant.dose,
         sku: variant.sku,
         quantity: item.quantity,

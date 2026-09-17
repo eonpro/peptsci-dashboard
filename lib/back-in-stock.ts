@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { notifyUser } from '@/lib/notifications/service'
 import { sendBackInStockEmail } from '@/lib/email'
+import { displayProductName } from '@/lib/products/named-blends'
 
 function db() {
   if (!prisma) throw new Error('Database is not configured')
@@ -92,7 +93,8 @@ export async function fireBackInStockAlerts(variantId: string): Promise<void> {
     if (subs.length === 0) return
 
     const sku = variant.sku ?? variant.id
-    const label = variant.dose ? `${variant.product.name} ${variant.dose}` : variant.product.name
+    const displayName = displayProductName(variant.product.name, variant.sku)
+    const label = variant.dose ? `${displayName} ${variant.dose}` : displayName
 
     for (const sub of subs) {
       // Conditional claim: only the first concurrent firer gets count === 1.
@@ -120,7 +122,7 @@ export async function fireBackInStockAlerts(variantId: string): Promise<void> {
         await sendBackInStockEmail({
           to: sub.client.contactEmail,
           contactName: sub.client.contactName || sub.client.organizationName,
-          productName: variant.product.name,
+          productName: displayName,
           dose: variant.dose,
           sku,
         }).catch(() => {})

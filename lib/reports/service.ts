@@ -9,6 +9,7 @@
 import { format, subDays } from 'date-fns'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { prisma } from '../prisma'
+import { displayProductName } from '../products/named-blends'
 import { getSales } from '../sales'
 import { computeInvoiceTotals, deriveDueDate } from '../invoicing/core'
 import {
@@ -84,7 +85,7 @@ async function loadLowStock(): Promise<{ items: LowStockItem[]; all: Array<{ ava
   const items: LowStockItem[] = variants
     .map((v) => ({
       sku: v.sku,
-      productName: v.product.name,
+      productName: displayProductName(v.product.name, v.sku),
       dose: v.dose,
       onHand: v.inventoryOnHand,
       reserved: v.inventoryReserved,

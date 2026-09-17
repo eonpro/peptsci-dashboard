@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { resolveEffectiveUnitPrice } from '@/lib/access'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +92,7 @@ export async function GET() {
         const sellable = Math.max(0, item.inventoryOnHand - item.inventoryReserved)
         return {
           sku: item.sku,
-          name: item.product.name,
+          name: displayProductName(item.product.name, item.sku),
           dose: item.dose,
           unitPrice: price > 0 ? Math.round(price * 100) / 100 : null,
           isCustomPrice: isCustom,

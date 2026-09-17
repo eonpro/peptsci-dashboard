@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +82,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           quantity: l.quantity,
           variantId: l.variantId,
           mappedLabel: l.variant
-            ? `${l.variant.product.name}${l.variant.dose ? ` ${l.variant.dose}` : ''} (${l.variant.sku})`
+            ? `${displayProductName(l.variant.product.name, l.variant.sku)}${l.variant.dose ? ` ${l.variant.dose}` : ''} (${l.variant.sku})`
             : null,
         })),
       })),

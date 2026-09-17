@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { requirePartner, PartnerForbiddenError } from '@/lib/partners/auth'
 import { validateSellAboveFloor } from '@/lib/partners/commission'
 import { setClientPricing } from '@/lib/pricing'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       items: floors.map((f) => ({
         variantId: f.variantId,
         sku: f.variant.sku,
-        name: f.variant.product.name,
+        name: displayProductName(f.variant.product.name, f.variant.sku),
         dose: f.variant.dose,
         srpCents: Math.round(Number(f.variant.srp) * 100),
         floorCents: f.floorCents,

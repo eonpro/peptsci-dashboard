@@ -2,6 +2,8 @@
  * Shared types + pure helpers for the Inventory workspace views.
  */
 
+import { glpSearchHaystack } from '@/lib/products/glp-trade-names'
+
 export interface BatchRow {
   id: string
   batchNumber: string
@@ -201,7 +203,7 @@ export function isLowStock(row: { available: number; reorderLevel: number }): bo
 export function matchesSearch(haystacks: Array<string | null | undefined>, term: string): boolean {
   const t = term.trim().toLowerCase()
   if (!t) return true
-  return haystacks.some((h) => (h ?? '').toLowerCase().includes(t))
+  return haystacks.some((h) => glpSearchHaystack(h ?? '').toLowerCase().includes(t))
 }
 
 /** Build + trigger a CSV download from rows of cells. */

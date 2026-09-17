@@ -10,6 +10,7 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { displayProductName } from '@/lib/products/named-blends'
 
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -34,7 +35,7 @@ export async function sendOrderConfirmationForOrder(
           select: {
             quantity: true,
             totalPrice: true,
-            variant: { select: { dose: true, product: { select: { name: true } } } },
+            variant: { select: { sku: true, dose: true, product: { select: { name: true } } } },
           },
         },
       },
@@ -46,7 +47,7 @@ export async function sendOrderConfirmationForOrder(
       customerName: order.client.contactName || order.client.organizationName,
       orderNumber: order.orderNumber,
       items: order.items.map((it) => ({
-        name: it.variant.product.name,
+        name: displayProductName(it.variant.product.name, it.variant.sku),
         dose: it.variant.dose,
         quantity: it.quantity,
         lineTotal: usd(Number(it.totalPrice)),

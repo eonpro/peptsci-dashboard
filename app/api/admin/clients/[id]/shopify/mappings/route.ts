@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger'
 import { decryptSecret } from '@/lib/shopify/crypto'
 import { listShopifyProductVariants } from '@/lib/shopify/client'
 import { shopifyGidToNumeric } from '@/lib/shopify/ids'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -120,7 +121,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           id: m.variant.id,
           sku: m.variant.sku,
           dose: m.variant.dose,
-          productName: m.variant.product.name,
+          productName: displayProductName(m.variant.product.name, m.variant.sku),
         },
       })),
       shopifyVariants: shopifyVariants.map((v) => ({
@@ -133,8 +134,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         id: v.id,
         sku: v.sku,
         dose: v.dose,
-        productName: v.product.name,
-        label: `${v.product.name}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` (${v.sku})` : ''}`,
+        productName: displayProductName(v.product.name, v.sku),
+        label: `${displayProductName(v.product.name, v.sku)}${v.dose ? ` ${v.dose}` : ''}${v.sku ? ` (${v.sku})` : ''}`,
       })),
     })
   } catch (error) {

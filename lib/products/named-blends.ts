@@ -75,7 +75,7 @@ export function resolveNamedBlendTradeName(
 
 /** Display name: trade name when applicable, otherwise the stored product name. */
 export function displayProductName(name: string, sku?: string | null): string {
-  return resolveNamedBlendTradeName(name, sku) ?? resolveGlpTradeName(name) ?? name
+  return resolveNamedBlendTradeName(name, sku) ?? resolveGlpTradeName(name, sku) ?? name
 }
 
 export const NAMED_BLEND_TOTAL_DOSE: Record<'GLOW' | 'KLOW', string> = {
@@ -158,11 +158,12 @@ export function displayProductAka(
   aka: string | null | undefined
 ): string | null {
   const existing = aka?.trim() || null
-  const glp = resolveGlpTradeName(name)
+  const glp = resolveGlpTradeName(name, sku)
   if (glp) {
     const generic = glpGenericName(glp)
+    // Do not print the INN under the trade name — clinics asked for GLP-** only.
     if (existing && existing.toLowerCase() !== generic.toLowerCase()) return existing
-    return generic
+    return null
   }
   if (existing) return existing
   const trade = resolveNamedBlendTradeName(name, sku)
