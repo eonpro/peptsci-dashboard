@@ -43,7 +43,7 @@ const bodySchema = z.object({
     )
     .min(1, 'Map at least one product'),
   shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
-  shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+  shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT', 'PICKUP']).optional(),
   /** Explicit shipping amount (dollars). Overrides the matrix so converts can match Stripe. */
   shippingTotal: z.number().min(0).optional(),
   shippingAddress: orderShippingSchema.optional(),

@@ -62,6 +62,7 @@ export type WizardOrder = {
   orderNumber: number
   items: { name: string; dose: string | null; quantity: number }[]
   shippingAddress: Record<string, unknown> | null
+  shipSpeed?: string | null
   client: { organizationName: string; contactName: string | null } | null
   carrier: string | null
   trackingNumber: string | null
@@ -88,6 +89,18 @@ export type FulfillmentWizardProps = {
 }
 
 function formatShipTo(order: WizardOrder): string {
+  if (order.shipSpeed === 'PICKUP') {
+    const a = order.shippingAddress ?? {}
+    const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+    const who =
+      str(a.company) ||
+      order.client?.organizationName ||
+      str(a.name) ||
+      str(a.personName) ||
+      order.client?.contactName ||
+      'Practice'
+    return `Office pickup · ${who}`
+  }
   const a = order.shippingAddress ?? {}
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
   const name = str(a.name) || str(a.personName) || order.client?.contactName || ''
@@ -522,43 +535,59 @@ export default function FulfillmentWizard({
 
           {step === 'SHIP' && (
             <div className="space-y-4">
-              <p className="text-sm text-white/60">
-                Seal the box and create the shipping label. This draws the vials from inventory and
-                notifies the customer.
-              </p>
-              {order.trackingNumber && (
-                <div className="flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">
-                  <Truck className="h-4 w-4 shrink-0" />
-                  <span>
-                    Tracking on file:{' '}
-                    <span className="font-mono">{order.trackingNumber}</span>
-                    {order.carrier ? ` · ${order.carrier}` : ''}
-                  </span>
-                </div>
+              {order.shipSpeed === 'PICKUP' ? (
+                <>
+                  <p className="text-sm text-white/60">
+                    This order is office pickup at the Tampa warehouse. Hold it at the counter —
+                    do not print a FedEx label. Mark it picked up when the clinic collects it.
+                  </p>
+                  <div className="space-y-2">
+                    <Button className="w-full" disabled={busy} onClick={onEnterTrackingManually}>
+                      <PackageCheck className="mr-2 h-4 w-4" /> Mark as picked up
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-white/60">
+                    Seal the box and create the shipping label. This draws the vials from inventory and
+                    notifies the customer.
+                  </p>
+                  {order.trackingNumber && (
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">
+                      <Truck className="h-4 w-4 shrink-0" />
+                      <span>
+                        Tracking on file:{' '}
+                        <span className="font-mono">{order.trackingNumber}</span>
+                        {order.carrier ? ` · ${order.carrier}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Button className="w-full" disabled={busy} onClick={onCreateLabel}>
+                      <Printer className="mr-2 h-4 w-4" /> Print FedEx Label
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      disabled={busy}
+                      onClick={onEnterTrackingManually}
+                    >
+                      Enter Tracking Manually
+                    </Button>
+                    {order.trackingNumber && (
+                      <Button
+                        variant="ghost"
+                        className="w-full"
+                        disabled={busy}
+                        onClick={() => void advance('SHIP')}
+                      >
+                        Continue with existing tracking
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
-              <div className="space-y-2">
-                <Button className="w-full" disabled={busy} onClick={onCreateLabel}>
-                  <Printer className="mr-2 h-4 w-4" /> Print FedEx Label
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={busy}
-                  onClick={onEnterTrackingManually}
-                >
-                  Enter Tracking Manually
-                </Button>
-                {order.trackingNumber && (
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    disabled={busy}
-                    onClick={() => void advance('SHIP')}
-                  >
-                    Continue with existing tracking
-                  </Button>
-                )}
-              </div>
               {back}
             </div>
           )}

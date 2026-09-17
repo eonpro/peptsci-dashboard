@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           shippedAt: true,
           shippingAddress: true,
+          shipSpeed: true,
           client: {
             select: {
               id: true,
@@ -142,6 +143,7 @@ export async function GET(request: NextRequest) {
       createdAt: o.createdAt.toISOString(),
       shippedAt: o.shippedAt?.toISOString() ?? null,
       shippingAddress: o.shippingAddress,
+      shipSpeed: o.shipSpeed,
       client: o.client,
       shippedText: describeShippedText({
         trackingNumber: o.trackingNumber,
@@ -197,7 +199,7 @@ const createOrderSchema = z
       )
       .min(1, 'Add at least one product'),
     shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
-    shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+    shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT', 'PICKUP']).optional(),
     shippingAddress: addressSchema.optional(),
     notes: z.string().trim().max(2000).optional(),
     internalNotes: z.string().trim().max(2000).optional(),

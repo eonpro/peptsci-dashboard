@@ -12,6 +12,9 @@ import {
   MAX_SHOP_ITEM_QUANTITY,
   findStockShortages,
   describeStockShortages,
+  isPickupSpeed,
+  formatShipSpeedLabel,
+  normalizeCheckoutDelivery,
 } from '../checkout-core.ts'
 
 describe('validateCartInput', () => {
@@ -126,6 +129,12 @@ describe('computeShipping (tiered matrix)', () => {
   test('negative overrides are ignored', () => {
     assert.equal(computeShipping(100, 'TWO_DAY', { twoDay: -5 }), 15)
   })
+
+  test('office pickup is always free and ignores practice overrides', () => {
+    assert.equal(computeShipping(100, 'PICKUP'), 0)
+    assert.equal(computeShipping(FREE_SHIPPING_THRESHOLD - 1, 'PICKUP'), 0)
+    assert.equal(computeShipping(1000, 'PICKUP', { twoDay: 18, overnight: 42 }), 0)
+  })
 })
 
 describe('computeCartTotals', () => {
@@ -166,6 +175,14 @@ describe('computeCartTotals', () => {
       overnight: 29.5,
     })
     assert.deepEqual(totals, { subtotal: 200, taxTotal: 0, shippingTotal: 29.5, total: 229.5 })
+  })
+
+  test('office pickup totals are the product subtotal with $0 shipping', () => {
+    const totals = computeCartTotals([{ lineTotal: 150 }], 'PICKUP', {
+      twoDay: 18,
+      overnight: 42,
+    })
+    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 0, total: 150 })
   })
 })
 
@@ -221,5 +238,41 @@ describe('findStockShortages (oversell gate)', () => {
     assert.match(msg, /SEMA-10/)
     assert.match(msg, /TIRZ-5/)
     assert.match(msg, /; /)
+  })
+})
+
+describe('pickup delivery helpers', () => {
+  test('isPickupSpeed only matches PICKUP', () => {
+    assert.equal(isPickupSpeed('PICKUP'), true)
+    assert.equal(isPickupSpeed('TWO_DAY'), false)
+    assert.equal(isPickupSpeed(null), false)
+  })
+
+  test('formatShipSpeedLabel covers all speeds', () => {
+    assert.equal(formatShipSpeedLabel('TWO_DAY'), '2-Day')
+    assert.equal(formatShipSpeedLabel('OVERNIGHT'), 'Overnight')
+    assert.equal(formatShipSpeedLabel('PICKUP'), 'Office pickup')
+  })
+
+  test('normalizeCheckoutDelivery forces practice + no patient on pickup', () => {
+    assert.deepEqual(
+      normalizeCheckoutDelivery({
+        shipTo: 'PATIENT',
+        shipSpeed: 'PICKUP',
+        patientId: 'pat_1',
+      }),
+      { shipTo: 'PRACTICE', shipSpeed: 'PICKUP', patientId: null }
+    )
+  })
+
+  test('normalizeCheckoutDelivery keeps patient ship-to for carrier speeds', () => {
+    assert.deepEqual(
+      normalizeCheckoutDelivery({
+        shipTo: 'PATIENT',
+        shipSpeed: 'OVERNIGHT',
+        patientId: 'pat_1',
+      }),
+      { shipTo: 'PATIENT', shipSpeed: 'OVERNIGHT', patientId: 'pat_1' }
+    )
   })
 })

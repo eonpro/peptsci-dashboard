@@ -176,6 +176,7 @@ export default function FulfillmentPage() {
     hasPhoto: boolean
     /** Reopen the guided wizard on its review screen once tracking is saved. */
     fromWizard?: boolean
+    defaultOutcome?: 'SHIPPED' | 'DELIVERED'
   } | null>(null)
   const [packOrder, setPackOrder] = useState<PackPhotoOrder | null>(null)
   // The guided wizard. `wizardStep` forces the opening screen after a ship
@@ -364,6 +365,7 @@ export default function FulfillmentPage() {
         trackingNumber: fresh.trackingNumber,
         carrier: fresh.carrier,
         shippingStatus: fresh.shippingStatus,
+        shipSpeed: fresh.shipSpeed,
       }
     })
   }, [orders])
@@ -711,6 +713,7 @@ export default function FulfillmentPage() {
                         id: order.id,
                         orderNumber: order.orderNumber,
                         hasPhoto: order.photoCount > 0,
+                        defaultOutcome: order.shipSpeed === 'PICKUP' ? 'DELIVERED' : 'SHIPPED',
                       })
                     }
                     onStartFulfillment={() => startWizard(order)}
@@ -813,6 +816,7 @@ export default function FulfillmentPage() {
           onOpenChange={(open) => !open && setDispositionOrder(null)}
           orderId={dispositionOrder.id}
           orderNumber={dispositionOrder.orderNumber}
+          defaultOutcome={dispositionOrder.defaultOutcome}
           onDone={({ orderNumber, outcome, trackingNumber }) => {
             const { id, fromWizard, hasPhoto } = dispositionOrder
             setDispositionOrder(null)
@@ -880,6 +884,7 @@ export default function FulfillmentPage() {
               orderNumber: wizardOrder.orderNumber,
               hasPhoto: wizardOrder.photoCount > 0,
               fromWizard: true,
+              defaultOutcome: wizardOrder.shipSpeed === 'PICKUP' ? 'DELIVERED' : 'SHIPPED',
             })
           }
           onChanged={load}

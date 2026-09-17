@@ -2344,6 +2344,7 @@ enum ShipTo {
 enum ShipSpeed {
   TWO_DAY
   OVERNIGHT
+  PICKUP
 }
 
 enum OrderStatus {

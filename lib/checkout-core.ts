@@ -17,18 +17,55 @@ export const MAX_SHOP_ITEM_QUANTITY = 100
 // No sales tax. Shipping is tiered by speed and order size.
 export const FREE_SHIPPING_THRESHOLD = 500
 
-/** Shipping speed offered at checkout. */
-export type ShipSpeed = 'TWO_DAY' | 'OVERNIGHT'
+/** Shipping speed offered at checkout. Pickup is local collection at the office. */
+export const SHIP_SPEEDS = ['TWO_DAY', 'OVERNIGHT', 'PICKUP'] as const
+export type ShipSpeed = (typeof SHIP_SPEEDS)[number]
 
-/** Where the order ships. */
+/** Where the order ships. Pickup always resolves to PRACTICE. */
 export type ShipTo = 'PRACTICE' | 'PATIENT'
+
+export function isPickupSpeed(speed: ShipSpeed | string | null | undefined): speed is 'PICKUP' {
+  return speed === 'PICKUP'
+}
+
+/** Short label for order summaries and checkout. */
+export function formatShipSpeedLabel(speed: ShipSpeed | string | null | undefined): string {
+  if (speed === 'OVERNIGHT') return 'Overnight'
+  if (speed === 'PICKUP') return 'Office pickup'
+  return '2-Day'
+}
+
+/**
+ * Pickup is never combined with patient ship-to: the clinic collects at the
+ * Tampa office. Unknown speeds fall back to 2-day.
+ */
+export function normalizeCheckoutDelivery(input: {
+  shipTo?: ShipTo | null
+  shipSpeed?: ShipSpeed | null
+  patientId?: string | null
+}): { shipTo: ShipTo; shipSpeed: ShipSpeed; patientId: string | null } {
+  const shipSpeed: ShipSpeed = SHIP_SPEEDS.includes(input.shipSpeed as ShipSpeed)
+    ? (input.shipSpeed as ShipSpeed)
+    : 'TWO_DAY'
+  if (isPickupSpeed(shipSpeed)) {
+    return { shipTo: 'PRACTICE', shipSpeed: 'PICKUP', patientId: null }
+  }
+  return {
+    shipTo: input.shipTo === 'PATIENT' ? 'PATIENT' : 'PRACTICE',
+    shipSpeed,
+    patientId: input.patientId ?? null,
+  }
+}
 
 /**
  * Shipping price matrix (server-authoritative):
  *   subtotal < $500  → 2-Day $15, Overnight $25
  *   subtotal >= $500 → 2-Day FREE, Overnight $20
  */
-export const SHIPPING_RATES: Record<'STANDARD' | 'QUALIFIED', Record<ShipSpeed, number>> = {
+export const SHIPPING_RATES: Record<
+  'STANDARD' | 'QUALIFIED',
+  Record<Exclude<ShipSpeed, 'PICKUP'>, number>
+> = {
   STANDARD: { TWO_DAY: 15, OVERNIGHT: 25 },
   QUALIFIED: { TWO_DAY: 0, OVERNIGHT: 20 },
 }
@@ -193,6 +230,7 @@ export function computeShipping(
   overrides?: ShippingRateOverrides | null
 ): number {
   if (subtotal <= 0) return 0
+  if (isPickupSpeed(speed)) return 0
   const override = overrideForSpeed(speed, overrides)
   if (override != null) return override
   const tier = qualifiesForFreeShipping(subtotal) ? 'QUALIFIED' : 'STANDARD'

@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { computeShipping } from '@/lib/checkout-core'
+import { computeShipping, type ShipSpeed } from '@/lib/checkout-core'
 import {
   filterCatalogVariantsForPicker,
   suggestProductQueryFromDescription,
@@ -99,7 +99,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
   const [lines, setLines] = useState<Line[]>([])
   const [unmatchedStripe, setUnmatchedStripe] = useState<string[]>([])
   const [customPriceMap, setCustomPriceMap] = useState<Record<string, number>>({})
-  const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
+  const [shipSpeed, setShipSpeed] = useState<ShipSpeed>('TWO_DAY')
   const [shippingTotal, setShippingTotal] = useState(0)
   const [shippingSource, setShippingSource] = useState<'auto' | 'manual'>('auto')
 
@@ -691,6 +691,7 @@ export default function ConvertStripeModal({ open, onOpenChange, record, onConve
                 >
                   <option value="TWO_DAY">2-Day</option>
                   <option value="OVERNIGHT">Overnight</option>
+                  <option value="PICKUP">Office pickup</option>
                 </select>
               </div>
               <div>

@@ -187,7 +187,11 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                       ))}
                       <div className="flex items-center justify-between border-t border-white/10 pt-3 text-sm">
                         <span className="text-white/60">
-                          {order.shipSpeed === 'OVERNIGHT' ? 'Next-day shipping' : '2-day shipping'}
+                          {order.shipSpeed === 'PICKUP'
+                            ? 'Office pickup'
+                            : order.shipSpeed === 'OVERNIGHT'
+                              ? 'Next-day shipping'
+                              : '2-day shipping'}
                         </span>
                         <span
                           className={

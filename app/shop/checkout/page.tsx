@@ -19,6 +19,7 @@ import {
   Building2,
   UserRound,
   Plus,
+  MapPin,
   Zap,
   Loader2,
   AlertTriangle,
@@ -29,6 +30,8 @@ import { CheckoutPaymentSection } from '@/components/shop/CheckoutPaymentSection
 import {
   computeShipping,
   FREE_SHIPPING_THRESHOLD,
+  formatShipSpeedLabel,
+  isPickupSpeed,
   SHIPPING_RATES,
   type ShipSpeed,
   type ShipTo,
@@ -45,6 +48,7 @@ import {
   isPracticeAddressComplete,
   shouldExpandPracticeForm,
 } from '@/lib/shop/checkout-ux'
+import { formatOfficePickupAddress, getOfficePickupLocation } from '@/lib/shipping/pickup'
 
 interface Patient {
   id: string
@@ -144,6 +148,9 @@ export default function CheckoutPage() {
 
   const shipping = computeShipping(subtotal, shipSpeed, shippingOverrides)
   const total = subtotal + shipping // No tax (Model A)
+  const isPickup = isPickupSpeed(shipSpeed)
+  const pickupLocation = getOfficePickupLocation()
+  const pickupAddressLine = formatOfficePickupAddress()
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId)
 
@@ -168,6 +175,7 @@ export default function CheckoutPage() {
 
   const practiceComplete = isPracticeAddressComplete(practiceAddr)
   const contactBlocking =
+    !isPickup &&
     shipTo === 'PRACTICE' &&
     ((contactEmail.trim().length > 0 &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) ||
@@ -184,6 +192,7 @@ export default function CheckoutPage() {
       shipTo,
       practiceComplete,
       selectedPatientId,
+      shipSpeed,
     }) &&
     !contactBlocking
 
@@ -291,12 +300,14 @@ export default function CheckoutPage() {
   ]
 
 
-  const destinationLabel =
-    shipTo === 'PATIENT' && selectedPatient
+  const destinationLabel = isPickup
+    ? `${pickupLocation.name} office`
+    : shipTo === 'PATIENT' && selectedPatient
       ? `${selectedPatient.firstName} ${selectedPatient.lastName}`
       : practiceName || 'your practice'
-  const destinationLine =
-    shipTo === 'PATIENT' && selectedPatient
+  const destinationLine = isPickup
+    ? pickupAddressLine
+    : shipTo === 'PATIENT' && selectedPatient
       ? formatAddressOneLine(selectedPatient.address)
       : formatAddressOneLine(practiceAddr)
 
@@ -350,7 +361,7 @@ export default function CheckoutPage() {
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-white/60">
-            Shipping ({shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'})
+            {isPickup ? 'Pickup' : `Shipping (${formatShipSpeedLabel(shipSpeed)})`}
           </span>
           <span className={shipping === 0 ? 'text-green-400' : 'text-white'}>
             {shipping === 0 ? 'FREE' : formatPrice(shipping)}
@@ -390,13 +401,77 @@ export default function CheckoutPage() {
             <CardHeader className="border-b border-white/10 bg-white/5">
               <CardTitle className="flex items-center gap-3 text-white">
                 <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
-                  <Truck className="h-5 w-5 text-brand-primary" />
+                  {isPickup ? (
+                    <MapPin className="h-5 w-5 text-brand-primary" />
+                  ) : (
+                    <Truck className="h-5 w-5 text-brand-primary" />
+                  )}
                 </div>
-                Shipping
+                Delivery
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 md:p-6 space-y-5">
-              {shipTo === 'PRACTICE' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isPickup) setShipSpeed('TWO_DAY')
+                  }}
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${
+                    !isPickup
+                      ? 'border-brand-primary bg-brand-primary/10'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm font-medium text-white">
+                      <Truck className="h-4 w-4 text-white/70" />
+                      Ship
+                    </span>
+                    {!isPickup && <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-primary" />}
+                  </span>
+                  <span className="text-xs text-white/50">2-day or overnight to an address</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShipSpeed('PICKUP')
+                    setShipTo('PRACTICE')
+                    setShowAddPatient(false)
+                    setAddPatientError(null)
+                    setEditingPractice(false)
+                    setFieldErrors({})
+                  }}
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${
+                    isPickup
+                      ? 'border-brand-primary bg-brand-primary/10'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm font-medium text-white">
+                      <MapPin className="h-4 w-4 text-white/70" />
+                      Pickup
+                    </span>
+                    {isPickup && <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-primary" />}
+                  </span>
+                  <span className="text-xs text-white/50">Collect at the Tampa office · FREE</span>
+                </button>
+              </div>
+
+              {isPickup ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+                  <p className="flex items-center gap-2 text-sm font-medium text-white">
+                    <Building2 className="h-4 w-4 text-white/70" />
+                    {pickupLocation.name} office
+                  </p>
+                  <p className="text-sm text-white/60">{pickupAddressLine}</p>
+                  <p className="text-xs text-white/40">
+                    We&apos;ll email you when the order is ready to collect. Bring a photo ID
+                    matching the practice on this account.
+                  </p>
+                </div>
+              ) : shipTo === 'PRACTICE' ? (
                 <div className="space-y-4">
                   {!profileReady ? (
                     <p className="text-sm text-white/50">Loading practice address…</p>
@@ -637,6 +712,7 @@ export default function CheckoutPage() {
                 </div>
               )}
 
+              {!isPickup && (
               <div className="space-y-3 pt-1">
                 <div className="flex items-center gap-2 text-sm font-medium text-white">
                   <Zap className="h-4 w-4 text-brand-primary" />
@@ -676,6 +752,7 @@ export default function CheckoutPage() {
                   </p>
                 )}
               </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="notes" className="text-white/70">
@@ -713,9 +790,9 @@ export default function CheckoutPage() {
               {canPay ? (
                 <>
                   <p className="mb-4 text-sm text-white/60">
-                    Shipping to {destinationLabel}
+                    {isPickup ? 'Pickup at' : 'Shipping to'} {destinationLabel}
                     {destinationLine ? ` · ${destinationLine}` : ''} ·{' '}
-                    {shipSpeed === 'TWO_DAY' ? '2-Day' : 'Overnight'} ·{' '}
+                    {formatShipSpeedLabel(shipSpeed)} ·{' '}
                     {shipping === 0 ? 'FREE' : formatPrice(shipping)}
                   </p>
                   <CheckoutPaymentSection
@@ -723,9 +800,9 @@ export default function CheckoutPage() {
                     shippingAddress={shippingAddressForOrder}
                     notes={notes || undefined}
                     total={total}
-                    shipTo={shipTo}
+                    shipTo={isPickup ? 'PRACTICE' : shipTo}
                     shipSpeed={shipSpeed}
-                    patientId={shipTo === 'PATIENT' ? selectedPatientId : null}
+                    patientId={!isPickup && shipTo === 'PATIENT' ? selectedPatientId : null}
                     onSuccess={handleOrderSuccess}
                   />
                 </>

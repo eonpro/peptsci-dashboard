@@ -26,6 +26,7 @@ export async function sendOrderConfirmationForOrder(
         orderNumber: true,
         subtotal: true,
         shippingTotal: true,
+        shipSpeed: true,
         total: true,
         client: {
           select: { contactEmail: true, contactName: true, organizationName: true },
@@ -52,9 +53,15 @@ export async function sendOrderConfirmationForOrder(
         lineTotal: usd(Number(it.totalPrice)),
       })),
       subtotal: usd(Number(order.subtotal)),
-      shipping: Number(order.shippingTotal) === 0 ? 'FREE' : usd(Number(order.shippingTotal)),
+      shipping:
+        order.shipSpeed === 'PICKUP'
+          ? 'Office pickup'
+          : Number(order.shippingTotal) === 0
+            ? 'FREE'
+            : usd(Number(order.shippingTotal)),
       total: usd(Number(order.total)),
       paymentLabel: opts.paymentLabel,
+      isPickup: order.shipSpeed === 'PICKUP',
     })
   } catch (err) {
     logger.warn('[ORDERS] confirmation email failed (non-blocking)', {

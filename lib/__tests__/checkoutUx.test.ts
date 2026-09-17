@@ -53,6 +53,27 @@ describe('checkoutCanPay', () => {
       true
     )
   })
+
+  it('lets office pickup pay without a complete practice address', () => {
+    assert.equal(
+      checkoutCanPay({
+        shipTo: 'PRACTICE',
+        practiceComplete: false,
+        selectedPatientId: '',
+        shipSpeed: 'PICKUP',
+      }),
+      true
+    )
+    assert.equal(
+      checkoutCanPay({
+        shipTo: 'PATIENT',
+        practiceComplete: false,
+        selectedPatientId: '',
+        shipSpeed: 'PICKUP',
+      }),
+      true
+    )
+  })
 })
 
 describe('formatAddressOneLine', () => {
