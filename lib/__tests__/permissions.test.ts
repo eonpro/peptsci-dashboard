@@ -38,6 +38,7 @@ describe('resolvePermissions', () => {
     assert.ok(perms.includes('fulfillment:write'))
     assert.ok(perms.includes('catalog:read'))
     assert.ok(perms.includes('clients:read'))
+    assert.ok(perms.includes('messages:write'))
     assert.equal(perms.includes('billing:write'), false)
     assert.equal(perms.includes('users:read'), false)
   })
@@ -47,6 +48,7 @@ describe('resolvePermissions', () => {
     assert.ok(perms.includes('billing:write'))
     assert.ok(perms.includes('finance:read'))
     assert.ok(perms.includes('sales:read'))
+    assert.ok(perms.includes('messages:write'))
     assert.equal(perms.includes('catalog:write'), false)
   })
 
@@ -133,6 +135,25 @@ describe('admin route permission map', () => {
       anyOf: ['catalog:read'],
     })
     assert.deepEqual(permissionForAdminPage('/users'), { anyOf: ['users:read'] })
+  })
+
+  test('Messages opens at the clinic-profile tier; writes need messages:write', () => {
+    assert.deepEqual(permissionForAdminPage('/messages'), {
+      anyOf: ['clients:read', 'messages:write', 'support:write'],
+    })
+    assert.deepEqual(permissionForAdminApi('/api/admin/messages/conversations', 'GET'), {
+      anyOf: ['clients:read', 'messages:write', 'support:write'],
+    })
+    assert.deepEqual(permissionForAdminApi('/api/admin/messages/conversations/abc/reply', 'POST'), {
+      anyOf: ['messages:write', 'support:write'],
+    })
+    const fulfillment = resolvePermissions({ role: 'FULFILLMENT' })
+    const finance = resolvePermissions({ role: 'FINANCE_VIEWER' })
+    assert.equal(
+      satisfiesRoutePermission(fulfillment, permissionForAdminApi('/api/admin/messages/conversations/abc/reply', 'POST')!, true),
+      true
+    )
+    assert.equal(satisfiesRoutePermission(finance, permissionForAdminPage('/messages')!, true), false)
   })
 
   test('APIs map to expected permissions', () => {

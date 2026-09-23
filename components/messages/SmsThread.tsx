@@ -37,6 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useRole } from '@/hooks/useRole'
+import { hasAnyPermission } from '@/lib/permissions'
 import { SMS_MAX_REPLY_LENGTH, smsSegmentInfo } from '@/lib/sms/inbox-utils'
 import { SMS_PROGRAM_NAME, SMS_SENDER_DISPLAY } from '@/lib/sms/program'
 
@@ -285,6 +287,10 @@ export function SmsThread({
 
   const segments = useMemo(() => smsSegmentInfo(draft), [draft])
   const optedOut = convo?.consent === 'OPTED_OUT'
+  // View-only staff (clinic-profile tier without messages:write) can read
+  // threads; replying/assigning/closing is a write and is hidden for them.
+  const { permissions } = useRole()
+  const canWrite = hasAnyPermission(permissions, ['messages:write', 'support:write'])
 
   if (loading && !convo) {
     return (
@@ -392,7 +398,7 @@ export function SmsThread({
                   <button
                     key={s.id}
                     type="button"
-                    disabled={busy}
+                    disabled={busy || !canWrite}
                     onClick={() => patch({ clientId: s.id }, `Linked to ${s.organizationName}.`)}
                     title={`${s.sourceLabel} — click to link`}
                     className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
@@ -409,7 +415,7 @@ export function SmsThread({
             <Select
               value={convo.assignedTo?.id ?? UNASSIGNED}
               onValueChange={(v) => patch({ assignedToId: v === UNASSIGNED ? null : v })}
-              disabled={busy}
+              disabled={busy || !canWrite}
             >
               <SelectTrigger className="h-8 w-[170px] text-xs">
                 <SelectValue placeholder="Assign…" />
@@ -427,7 +433,7 @@ export function SmsThread({
               size="sm"
               variant="outline"
               className="h-8"
-              disabled={busy}
+              disabled={busy || !canWrite}
               onClick={() => {
                 setLinking((v) => !v)
                 setClientQuery('')
@@ -437,11 +443,11 @@ export function SmsThread({
               <Link2 className="mr-1 h-3.5 w-3.5" /> {convo.client ? 'Re-link clinic' : 'Link clinic'}
             </Button>
             {convo.status === 'CLOSED' ? (
-              <Button size="sm" variant="outline" className="h-8" disabled={busy} onClick={() => patch({ status: 'OPEN' }, 'Conversation reopened.')}>
+              <Button size="sm" variant="outline" className="h-8" disabled={busy || !canWrite} onClick={() => patch({ status: 'OPEN' }, 'Conversation reopened.')}>
                 <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reopen
               </Button>
             ) : (
-              <Button size="sm" className="h-8" disabled={busy} onClick={() => patch({ status: 'CLOSED' }, 'Conversation closed.')}>
+              <Button size="sm" className="h-8" disabled={busy || !canWrite} onClick={() => patch({ status: 'CLOSED' }, 'Conversation closed.')}>
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Close
               </Button>
             )}
@@ -578,7 +584,12 @@ export function SmsThread({
       )}
 
       {/* Composer */}
-      {optedOut ? (
+      {!canWrite ? (
+        <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          You can read this thread but not reply. Ask an admin for the <strong>Messages (reply)</strong>{' '}
+          permission.
+        </div>
+      ) : optedOut ? (
         <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600">
           This number replied <strong>STOP</strong>. We can&rsquo;t text them until they send <strong>START</strong>{' '}
           to {SMS_SENDER_DISPLAY}. Reach out by email or phone instead.
