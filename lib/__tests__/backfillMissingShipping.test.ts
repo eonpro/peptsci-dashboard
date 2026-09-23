@@ -51,6 +51,7 @@ describe('isShippingBackfillCandidate', () => {
     assert.equal(isShippingBackfillCandidate({ ...base, paymentStatus: 'PENDING' }), false)
     assert.equal(isShippingBackfillCandidate({ ...base, status: 'CANCELLED' }), false)
     assert.equal(isShippingBackfillCandidate({ ...base, subtotal: 0 }), false)
+    assert.equal(isShippingBackfillCandidate({ ...base, shipSpeed: 'PICKUP' }), false)
   })
 })
 

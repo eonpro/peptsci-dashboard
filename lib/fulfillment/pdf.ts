@@ -313,8 +313,15 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
   const page = doc.addPage([PAGE_W, PAGE_H])
   let y = drawHeader(page, fonts, logo, 'PACKING SLIP', `Order #${slip.orderNumber}`, wordmark)
 
-  // Ship-to block.
-  page.drawText('SHIP TO', { x: MARGIN, y, size: 8, font: fonts.bold, color: MUTED })
+  // Ship-to / pickup block.
+  const pickup = slip.shipSpeed === 'PICKUP'
+  page.drawText(pickup ? 'PICK UP — HOLD AT OFFICE' : 'SHIP TO', {
+    x: MARGIN,
+    y,
+    size: 8,
+    font: fonts.bold,
+    color: MUTED,
+  })
   y -= 14
   const addrLines = formatAddress(slip.shippingAddress)
   const shipTo = addrLines.length > 0 ? addrLines : [slip.client?.organizationName ?? '—']
@@ -330,6 +337,7 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
     ['Order', `#${slip.orderNumber}`],
     ['Date', fmtDate(slip.createdAt)],
     ['Account', slip.client?.organizationName ?? '—'],
+    ...(pickup ? ([['Method', 'Office pickup']] as Array<[string, string]>) : []),
     ...(slip.carrier ? ([['Carrier', slip.carrier]] as Array<[string, string]>) : []),
     ...(slip.trackingNumber
       ? ([['Tracking', slip.trackingNumber]] as Array<[string, string]>)

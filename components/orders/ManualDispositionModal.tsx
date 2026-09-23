@@ -25,6 +25,8 @@ export type ManualDispositionModalProps = {
   orderId: string
   orderNumber?: number
   onDone?: (result: ManualDispositionResult) => void
+  /** Prefill Shipped vs Delivered (pickup uses Delivered). */
+  defaultOutcome?: 'SHIPPED' | 'DELIVERED'
 }
 
 const CARRIERS = ['FedEx', 'UPS', 'USPS', 'DHL', 'Other'] as const
@@ -35,6 +37,7 @@ export default function ManualDispositionModal({
   orderId,
   orderNumber,
   onDone,
+  defaultOutcome = 'SHIPPED',
 }: ManualDispositionModalProps) {
   const [outcome, setOutcome] = useState<'SHIPPED' | 'DELIVERED'>('SHIPPED')
   const [carrier, setCarrier] = useState<string>('FedEx')
@@ -46,13 +49,13 @@ export default function ManualDispositionModal({
 
   useEffect(() => {
     if (!open) return
-    setOutcome('SHIPPED')
+    setOutcome(defaultOutcome)
     setCarrier('FedEx')
     setTracking('')
     setNotes('')
     setError(null)
     setNeedsOverride(false)
-  }, [open])
+  }, [open, defaultOutcome])
 
   const submit = async (overrideUnpaidShip = false) => {
     setSubmitting(true)

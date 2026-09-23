@@ -51,4 +51,15 @@ describe('orderConfirmationEmail', () => {
     const { text } = orderConfirmationEmail({ ...base, customerName: null })
     assert.match(text, /^Hello,/)
   })
+
+  test('office pickup replaces the tracking follow-up', () => {
+    const { html, text } = orderConfirmationEmail({
+      ...base,
+      shipping: 'Office pickup',
+      isPickup: true,
+    })
+    assert.match(text, /Tampa office/)
+    assert.match(html, /Tampa office/)
+    assert.doesNotMatch(text, /tracking as soon as it ships/)
+  })
 })

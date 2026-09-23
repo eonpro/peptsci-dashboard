@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Lock, CreditCard, Plus, CheckCircle2, FileText } from 'lucide-react'
 import { formatPaymentTermsLabel } from '@/lib/checkout-terms'
 import { paymentIntentIdFromClientSecret } from '@/lib/checkout-draft'
+import type { ShipSpeed, ShipTo } from '@/lib/checkout-core'
 
 interface CheckoutItem {
   sku: string
@@ -51,8 +52,8 @@ interface Props {
   shippingAddress: Record<string, unknown>
   notes?: string
   total: number
-  shipTo: 'PRACTICE' | 'PATIENT'
-  shipSpeed: 'TWO_DAY' | 'OVERNIGHT'
+  shipTo: ShipTo
+  shipSpeed: ShipSpeed
   patientId?: string | null
   onSuccess: (orderId: string, opts?: { pending?: boolean }) => void
 }

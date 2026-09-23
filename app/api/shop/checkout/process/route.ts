@@ -17,7 +17,7 @@ import {
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { checkoutShippingAddressSchema } from '@/lib/address'
-import { CartValidationError, MAX_SHOP_ITEM_QUANTITY } from '@/lib/checkout-core'
+import { CartValidationError, MAX_SHOP_ITEM_QUANTITY, SHIP_SPEEDS, normalizeCheckoutDelivery } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import {
   InsufficientStockError,
@@ -50,7 +50,7 @@ const bodySchema = z.object({
   saveCard: z.boolean().optional(),
   savedPaymentMethodId: z.string().optional(),
   shipTo: z.enum(['PRACTICE', 'PATIENT']).optional(),
-  shipSpeed: z.enum(['TWO_DAY', 'OVERNIGHT']).optional(),
+  shipSpeed: z.enum(SHIP_SPEEDS).optional(),
   // nullish, not optional: the checkout page always sends the field and it is
   // null when shipping to the practice.
   patientId: z.string().nullish(),
@@ -103,8 +103,11 @@ export async function POST(request: NextRequest) {
       )
     }
     const { items, shippingAddress, notes, saveCard, savedPaymentMethodId } = parsed.data
-    const shipTo = parsed.data.shipTo ?? 'PRACTICE'
-    const shipSpeed = parsed.data.shipSpeed ?? 'TWO_DAY'
+    const { shipTo, shipSpeed, patientId: requestedPatientId } = normalizeCheckoutDelivery({
+      shipTo: parsed.data.shipTo,
+      shipSpeed: parsed.data.shipSpeed,
+      patientId: parsed.data.patientId,
+    })
 
     // Server-authoritative pricing + shipping — client-sent amounts are ignored.
     const cart = await resolveCart({
@@ -120,11 +123,11 @@ export async function POST(request: NextRequest) {
       shippingAddress as Prisma.InputJsonValue | undefined
     let patientId: string | null = null
     if (shipTo === 'PATIENT') {
-      if (!parsed.data.patientId) {
+      if (!requestedPatientId) {
         return errorResponse('Select a patient to ship to', 400, 'PATIENT_REQUIRED')
       }
       const patient = await prisma.patient.findFirst({
-        where: { id: parsed.data.patientId, clientId: actor.clientId, isActive: true },
+        where: { id: requestedPatientId, clientId: actor.clientId, isActive: true },
       })
       if (!patient) return errorResponse('Patient not found', 404, 'PATIENT_NOT_FOUND')
       patientId = patient.id

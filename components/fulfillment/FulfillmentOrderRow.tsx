@@ -48,6 +48,7 @@ export type OrderRow = {
   createdAt: string
   shippedAt: string | null
   shippingAddress: StoredAddress
+  shipSpeed?: string | null
   client: {
     id: string
     organizationName: string
@@ -211,6 +212,14 @@ export function FulfillmentOrderRow({
                 Shopify{order.shopifyOrderName ? ` ${order.shopifyOrderName}` : ''}
               </Badge>
             )}
+            {order.shipSpeed === 'PICKUP' && (
+              <Badge
+                variant="outline"
+                className="border-amber-400/40 text-xs text-amber-300"
+              >
+                Office pickup
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-xs ${payment.className}`}>
               {payment.label}
             </Badge>
@@ -236,6 +245,14 @@ export function FulfillmentOrderRow({
             const city = typeof a.city === 'string' ? a.city.trim() : ''
             const state = typeof a.state === 'string' ? a.state.trim() : ''
             const loc = [city, state].filter(Boolean).join(', ')
+            if (order.shipSpeed === 'PICKUP') {
+              return (
+                <p className="mt-0.5 truncate text-sm text-amber-200/80">
+                  Pickup at Tampa office
+                  {name ? ` · ${name}` : ''}
+                </p>
+              )
+            }
             if (!name && !loc) return null
             return (
               <p className="mt-0.5 truncate text-sm text-violet-200/80">

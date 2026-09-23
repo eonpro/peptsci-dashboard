@@ -101,7 +101,7 @@ export default function NewOrderModal({
   const [customPriceMap, setCustomPriceMap] = useState<Record<string, number>>({})
 
   const [shipTo, setShipTo] = useState<'PRACTICE' | 'PATIENT'>('PRACTICE')
-  const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT'>('TWO_DAY')
+  const [shipSpeed, setShipSpeed] = useState<'TWO_DAY' | 'OVERNIGHT' | 'PICKUP'>('TWO_DAY')
   const [notes, setNotes] = useState('')
 
   const [patients, setPatients] = useState<PatientRow[]>([])
@@ -622,6 +622,7 @@ export default function NewOrderModal({
                 <select value={shipSpeed} onChange={(e) => setShipSpeed(e.target.value as typeof shipSpeed)} className={`w-full ${selectCls}`}>
                   <option value="TWO_DAY">2-Day</option>
                   <option value="OVERNIGHT">Overnight</option>
+                  <option value="PICKUP">Office pickup</option>
                 </select>
               </div>
             </fieldset>

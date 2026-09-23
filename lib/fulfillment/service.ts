@@ -314,6 +314,8 @@ export interface PackingSlipData {
     contactPhone: string | null
   } | null
   shippingAddress: unknown
+  /** When PICKUP, the slip is hold-at-office rather than carrier ship-to. */
+  shipSpeed?: string | null
   lines: Array<{ productName: string; dose: string; sku: string; quantity: number }>
   totalUnits: number
   /** White-label brand key when the packing slip should not show PeptSci. */
@@ -416,6 +418,7 @@ export async function buildPackingSlipData(orderId: string): Promise<PackingSlip
         }
       : null,
     shippingAddress: order.shippingAddress,
+    shipSpeed: order.shipSpeed,
     lines,
     totalUnits: lines.reduce((s, l) => s + l.quantity, 0),
     labelBrandKey: resolveLabelBrandKey({

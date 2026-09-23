@@ -38,6 +38,7 @@ export type ShippingBackfillOrderInput = {
 export function isShippingBackfillCandidate(order: ShippingBackfillOrderInput): boolean {
   if (order.paymentStatus !== 'CAPTURED') return false
   if (order.status === 'CANCELLED') return false
+  if (order.shipSpeed === 'PICKUP') return false
   if (order.shippingTotal > 0.005) return false
   if (order.subtotal <= 0) return false
   if (order.subtotal >= FREE_SHIPPING_THRESHOLD) return false

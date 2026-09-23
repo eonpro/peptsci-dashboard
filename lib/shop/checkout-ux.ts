@@ -1,7 +1,10 @@
 /**
  * Clinic checkout UX helpers. Keep the happy path (ship to practice, pay)
  * to one decision: is shipping complete? Patient ship-to is opt-in.
+ * Office pickup skips the address gate.
  */
+
+import { isPickupSpeed, type ShipSpeed } from '@/lib/checkout-core'
 
 export type CheckoutShipTo = 'PRACTICE' | 'PATIENT'
 
@@ -25,7 +28,9 @@ export function checkoutCanPay(input: {
   shipTo: CheckoutShipTo
   practiceComplete: boolean
   selectedPatientId: string
+  shipSpeed?: ShipSpeed | null
 }): boolean {
+  if (isPickupSpeed(input.shipSpeed)) return true
   if (input.shipTo === 'PATIENT') return input.selectedPatientId.trim().length > 0
   return input.practiceComplete
 }
