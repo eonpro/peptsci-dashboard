@@ -1,4 +1,5 @@
 import type { PeptideMonograph } from './monograph'
+import { glpSearchHaystack } from '@/lib/products/glp-trade-names'
 
 /**
  * Unified product type for the shop.
@@ -224,18 +225,23 @@ export function filterProducts(products: ShopProduct[], filters: ProductFilters)
   // Search filter
   if (filters.search) {
     const query = filters.search.toLowerCase()
-    filtered = filtered.filter(
-      (p) =>
-        p.name.toLowerCase().includes(query) ||
-        p.dose.toLowerCase().includes(query) ||
-        p.sku.toLowerCase().includes(query) ||
-        p.aka?.toLowerCase().includes(query) ||
-        p.category?.toLowerCase().includes(query) ||
-        // Grouped cards: match any of the sibling sizes' SKUs/doses too.
+    filtered = filtered.filter((p) => {
+      const hay = [
+        glpSearchHaystack(p.name, p.sku),
+        p.dose,
+        p.aka,
+        p.category,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      if (hay.includes(query)) return true
+      return (
         p.sizeOptions?.some(
           (o) => o.sku.toLowerCase().includes(query) || o.dose.toLowerCase().includes(query)
-        )
-    )
+        ) ?? false
+      )
+    })
   }
 
   // Category filter

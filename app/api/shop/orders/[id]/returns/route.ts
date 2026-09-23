@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopActor } from '@/lib/shop-actor'
 import { createReturnRequest } from '@/lib/returns/service'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             id: true,
             quantity: true,
             variantId: true,
-            variant: { select: { product: { select: { name: true } }, dose: true } },
+            variant: { select: { product: { select: { name: true } }, dose: true, sku: true } },
           },
         },
       },
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const remaining = orderItem.quantity - (alreadyRequested.get(orderItem.id) ?? 0)
       if (line.quantity > remaining) {
         return errorResponse(
-          `Return quantity for ${orderItem.variant.product.name} exceeds the returnable amount (${Math.max(0, remaining)}).`,
+          `Return quantity for ${displayProductName(orderItem.variant.product.name, orderItem.variant.sku)} exceeds the returnable amount (${Math.max(0, remaining)}).`,
           400,
           'QTY_EXCEEDS_ORDERED'
         )
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       items.push({
         orderItemId: orderItem.id,
         variantId: orderItem.variantId,
-        productName: [orderItem.variant.product.name, orderItem.variant.dose]
+        productName: [displayProductName(orderItem.variant.product.name, orderItem.variant.sku), orderItem.variant.dose]
           .filter(Boolean)
           .join(' '),
         quantity: line.quantity,

@@ -42,6 +42,7 @@ import {
 } from './inventory-workspace-core'
 import { resolveInventoryActor } from './inventory-log'
 import { displayProductName } from './products/named-blends'
+import { glpSearchAliases } from './products/glp-trade-names'
 
 // Re-export the pure helpers so callers can import everything from one module.
 export {
@@ -94,11 +95,22 @@ async function resolveActor(actor: BatchActor) {
  * name+dose) are upserted so brand-new products like "Tesamorelin" can be
  * received without a prior catalog entry.
  */
+function presentBatchName(productName: string, sku?: string | null): string {
+  return displayProductName(productName, sku)
+}
+
+function presentBatch<T extends { productName: string; variant?: { sku?: string | null } | null }>(
+  batch: T
+): T {
+  return { ...batch, productName: presentBatchName(batch.productName, batch.variant?.sku) }
+}
+
 async function resolveVariant(input: CreateBatchInput): Promise<{
   variantId: string
   productName: string
   dose: string
   vialSize: string | null
+  sku: string | null
 }> {
   const client = db()
   if (input.variantId) {
@@ -109,10 +121,13 @@ async function resolveVariant(input: CreateBatchInput): Promise<{
     if (!variant) throw new BatchValidationError('Selected product variant was not found', 'variantId')
     return {
       variantId: variant.id,
-      productName:
-        input.name?.trim() || displayProductName(variant.product.name, variant.sku),
+      productName: presentBatchName(
+        input.name?.trim() || variant.product.name,
+        variant.sku
+      ),
       dose: input.dose?.trim() || variant.dose || '',
       vialSize: input.vialSize?.trim() || variant.unitSize || null,
+      sku: variant.sku,
     }
   }
 
@@ -131,7 +146,13 @@ async function resolveVariant(input: CreateBatchInput): Promise<{
     where: { productId: product.id, dose },
   })
   if (existing) {
-    return { variantId: existing.id, productName: name, dose, vialSize: vialSize ?? existing.unitSize ?? null }
+    return {
+      variantId: existing.id,
+      productName: presentBatchName(name, existing.sku),
+      dose,
+      vialSize: vialSize ?? existing.unitSize ?? null,
+      sku: existing.sku,
+    }
   }
 
   const created = await client.productVariant.create({
@@ -146,7 +167,13 @@ async function resolveVariant(input: CreateBatchInput): Promise<{
       status: 'ACTIVE',
     },
   })
-  return { variantId: created.id, productName: name, dose, vialSize }
+  return {
+    variantId: created.id,
+    productName: presentBatchName(name, created.sku),
+    dose,
+    vialSize,
+    sku: created.sku,
+  }
 }
 
 /**
@@ -361,11 +388,15 @@ function batchListWhere(filters: {
   const where: Prisma.InventoryBatchWhereInput = batchScopeWhere(filters.status ?? 'ALL')
   if (filters.variantId) where.variantId = filters.variantId
   if (filters.search) {
-    where.OR = [
-      { batchNumber: { contains: filters.search, mode: 'insensitive' } },
-      { productName: { contains: filters.search, mode: 'insensitive' } },
-      { variant: { sku: { contains: filters.search, mode: 'insensitive' } } },
-    ]
+    const terms = [
+      filters.search,
+      ...glpSearchAliases(filters.search),
+    ].filter((term, i, all) => all.findIndex((t) => t.toLowerCase() === term.toLowerCase()) === i)
+    where.OR = terms.flatMap((term) => [
+      { batchNumber: { contains: term, mode: 'insensitive' as const } },
+      { productName: { contains: term, mode: 'insensitive' as const } },
+      { variant: { sku: { contains: term, mode: 'insensitive' as const } } },
+    ])
   }
   return where
 }
@@ -373,12 +404,13 @@ function batchListWhere(filters: {
 /** List batches (newest first) with the variant's product name attached. */
 export async function listBatches(filters: ListBatchesFilters = {}) {
   const client = db()
-  return client.inventoryBatch.findMany({
+  const batches = await client.inventoryBatch.findMany({
     where: batchListWhere(filters),
     orderBy: { createdAt: 'desc' },
     take: filters.take ?? 200,
     include: { variant: { select: { sku: true } } },
   })
+  return batches.map(presentBatch)
 }
 
 export interface ListBatchesPagedFilters {
@@ -420,18 +452,19 @@ export async function listBatchesPaged(filters: ListBatchesPagedFilters = {}): P
     }),
     client.inventoryBatch.count({ where }),
   ])
-  return { batches, total, page, pageSize }
+  return { batches: batches.map(presentBatch), total, page, pageSize }
 }
 
 /** Fetch a single batch with its full audit timeline. */
 export async function getBatch(id: string) {
-  return db().inventoryBatch.findUnique({
+  const batch = await db().inventoryBatch.findUnique({
     where: { id },
     include: {
       variant: { select: { sku: true, dose: true } },
       events: { orderBy: { createdAt: 'asc' } },
     },
   })
+  return batch ? presentBatch(batch) : null
 }
 
 export interface UpdateBatchInput {
@@ -463,7 +496,7 @@ export async function updateBatch(id: string, input: UpdateBatchInput, actor: Ba
   if (input.vialSize !== undefined) data.vialSize = input.vialSize?.trim() || null
   if (input.yearColor !== undefined) data.yearColor = input.yearColor?.trim() || null
   if (input.notes !== undefined) data.notes = input.notes?.trim() || null
-  return client.inventoryBatch.update({
+  const updated = await client.inventoryBatch.update({
     where: { id },
     data: {
       ...data,
@@ -472,6 +505,7 @@ export async function updateBatch(id: string, input: UpdateBatchInput, actor: Ba
       },
     },
   })
+  return { ...updated, productName: presentBatchName(updated.productName) }
 }
 
 /**
@@ -510,7 +544,9 @@ export async function voidBatch(id: string, reason: string, actor: BatchActor) {
   return client.$transaction(async (tx) => {
     const batch = await tx.inventoryBatch.findUnique({ where: { id } })
     if (!batch) throw new BatchValidationError('Batch not found', 'id')
-    if (batch.status === 'VOIDED') return batch
+    if (batch.status === 'VOIDED') {
+      return { ...batch, productName: presentBatchName(batch.productName) }
+    }
 
     const remaining = batch.qtyOnHand
     const updated = await tx.inventoryBatch.update({
@@ -546,7 +582,7 @@ export async function voidBatch(id: string, reason: string, actor: BatchActor) {
         },
       })
     }
-    return updated
+    return { ...updated, productName: presentBatchName(updated.productName) }
   })
 }
 

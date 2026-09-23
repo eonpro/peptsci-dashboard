@@ -3,6 +3,7 @@ import { errorResponse, successResponse } from '@/lib/auth'
 import { verifyEndCustomerToken } from '@/lib/end-customer-auth'
 import { getRetailOrders } from '@/lib/storefront'
 import { logger } from '@/lib/logger'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,10 @@ export async function GET(request: NextRequest) {
       total: Number(o.total),
       itemCount: o.items.length,
       items: o.items.map((item) => ({
-        productName: item.storefrontProduct.variant.product.name,
+        productName: displayProductName(
+          item.storefrontProduct.variant.product.name,
+          item.storefrontProduct.variant.sku
+        ),
         sku: item.storefrontProduct.variant.sku,
         quantity: item.quantity,
         unitPrice: Number(item.unitRetailPrice),

@@ -9,6 +9,7 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
+import { displayProductName } from './products/named-blends'
 
 export interface InventoryActor {
   /** Internal User.id (cuid) or null when the Clerk id has no User row. */
@@ -80,7 +81,7 @@ function toLogRow(r: Prisma.InventoryAdjustmentGetPayload<{ select: typeof ADJUS
     delta: r.delta,
     reason: r.reason,
     note: r.note,
-    productName: r.variant.product.name,
+    productName: displayProductName(r.variant.product.name, r.variant.sku),
     dose: r.variant.dose,
     sku: r.variant.sku,
     by: (r.createdBy ? displayName(r.createdBy) : null) || r.createdByName || 'System',

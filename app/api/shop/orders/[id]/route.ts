@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
+import { displayProductName } from '@/lib/products/named-blends'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,7 +113,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         items: order.items.map((it) => ({
           id: it.id,
           variantId: it.variant.id,
-          name: it.variant.product.name,
+          name: displayProductName(it.variant.product.name, it.variant.sku),
           dose: it.variant.dose,
           sku: it.variant.sku,
           quantity: it.quantity,

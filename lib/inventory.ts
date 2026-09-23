@@ -148,7 +148,7 @@ export async function getInventory(): Promise<Inventory[]> {
 
     const inventory: Inventory[] = variants.map((v) => ({
       SKU: v.sku || '',
-      MedicationName: v.product.name,
+      MedicationName: displayProductName(v.product.name, v.sku),
       Dose: v.dose || '',
       SRP: Number(v.srp),
       Cost: Number(v.unitCost),

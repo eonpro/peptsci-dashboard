@@ -12,6 +12,8 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { logger } from './logger'
+import { displayProductName } from './products/named-blends'
+import { rewriteGlpInnNames } from './products/glp-trade-names'
 
 export interface Sale {
   Date: Date | null
@@ -80,7 +82,7 @@ function toSale(r: SalesRecordRow): Sale {
     PaidAmount: paidAmount,
     Vials: r.vials,
     AmountPerVial: Number(r.amountPerVial),
-    Product: r.product,
+    Product: rewriteGlpInnNames(r.product),
     Notes: r.notes,
     COGS: cogs,
     Profit: profit,
@@ -102,7 +104,7 @@ function parseLineItems(raw: unknown): StoredLineItem[] {
   const out: StoredLineItem[] = []
   for (const entry of raw) {
     const li = entry as Record<string, unknown>
-    const product = typeof li?.product === 'string' ? li.product.trim() : ''
+    const product = typeof li?.product === 'string' ? rewriteGlpInnNames(li.product.trim()) : ''
     if (!product) continue
     out.push({
       product,
@@ -325,14 +327,17 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
       order.items.length === 0
         ? ''
         : order.items.length === 1
-          ? order.items[0].variant.product.name
-          : `${order.items[0].variant.product.name} +${order.items.length - 1} more`
+          ? displayProductName(order.items[0].variant.product.name, order.items[0].variant.sku)
+          : `${displayProductName(order.items[0].variant.product.name, order.items[0].variant.sku)} +${order.items.length - 1} more`
     // Per-line breakdown (net of refunds, same scaling as the totals) so
     // analytics credits each real product instead of the "+N more" label.
     // Include shipping as its own line so product unit prices stay catalog/
     // client prices instead of (subtotal + shipping) / vials.
     const productLines = order.items.map((it) => ({
-      product: [it.variant.product.name, it.variant.dose].filter(Boolean).join(' ').trim(),
+      product: [displayProductName(it.variant.product.name, it.variant.sku), it.variant.dose]
+        .filter(Boolean)
+        .join(' ')
+        .trim(),
       quantity: it.quantity,
       amount: Number(it.totalPrice) * paidFraction,
       cogs: Number(it.variant.unitCost) * it.quantity * paidFraction,

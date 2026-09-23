@@ -23,6 +23,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { aggregateByVariant, availableQty } from './reservations-core'
+import { displayProductName } from '@/lib/products/named-blends'
 
 function db() {
   if (!prisma) throw new Error('Database is not configured')
@@ -416,7 +417,7 @@ export async function listActiveReservationsPaged(
       quantity: r.quantity,
       status: r.status,
       createdAt: r.createdAt.toISOString(),
-      productName: r.variant.product.name,
+      productName: displayProductName(r.variant.product.name, r.variant.sku),
       dose: r.variant.dose,
       sku: r.variant.sku,
       variantId: r.variantId,

@@ -303,7 +303,8 @@ describe('salesFromRecord line-item explosion', () => {
       lineItems: [{ product: 'Semaglutide 5mg', quantity: 5, amount: 350, cogs: 50 }],
     })
     assert.equal(sales.length, 1)
-    assert.equal(sales[0].Product, 'Semaglutide 5mg')
+    // Stored INN is rewritten to the clinic-facing GLP trade name on read.
+    assert.equal(sales[0].Product, 'GLP-SM 5mg')
     assert.equal(sales[0].PaidAmount, 350)
   })
 

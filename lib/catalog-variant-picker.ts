@@ -5,6 +5,8 @@
  * arbitrary top-N of zero-stock SKUs.
  */
 
+import { glpSearchHaystack } from '@/lib/products/glp-trade-names'
+
 export type CatalogVariantSearchRow = {
   id: string
   sku: string | null
@@ -17,7 +19,7 @@ export type CatalogVariantSearchRow = {
 export const CATALOG_VARIANT_PICKER_LIMIT = 25
 
 function searchableText(v: CatalogVariantSearchRow): string {
-  return `${v.productName} ${v.dose ?? ''} ${v.sku ?? ''}`.toLowerCase()
+  return `${glpSearchHaystack(v.productName, v.sku)} ${v.dose ?? ''}`.toLowerCase()
 }
 
 /** Leading numeric dose in mg (or first number in the dose string). */
