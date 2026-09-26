@@ -492,7 +492,7 @@ export default function ClientDetailPage() {
       {tab === 'overview' && (
         <>
       {/* Approval actions */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="text-base text-white">Approval</CardTitle>
           <CardDescription className="text-white/50">
@@ -529,7 +529,7 @@ export default function ClientDetailPage() {
       {/* Onboarding setup checklist — what still needs configuring for this
           practice to be fully operational. */}
       {setup && (
-        <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <Card className="border-white/10">
           <CardHeader>
             <CardTitle className="text-base text-white">Account Setup</CardTitle>
             <CardDescription className="text-white/50">
@@ -641,7 +641,7 @@ export default function ClientDetailPage() {
       )}
 
       {/* Provider & practice */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base text-white">
             <Stethoscope className="h-5 w-5" /> Provider & Practice
@@ -690,7 +690,7 @@ export default function ClientDetailPage() {
       </Card>
 
       {/* Billing terms */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base text-white">Billing Terms</CardTitle>
@@ -832,7 +832,7 @@ export default function ClientDetailPage() {
       </Card>
 
       {/* Contact */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base text-white">
             <User className="h-5 w-5" /> Contact
@@ -871,7 +871,7 @@ export default function ClientDetailPage() {
       </Card>
 
       {/* Addresses */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base text-white">
             <Building2 className="h-5 w-5" /> Billing Address
@@ -881,7 +881,7 @@ export default function ClientDetailPage() {
           <AddressFields value={billing} onChange={setBilling} idPrefix="admin-billing" dark />
         </CardContent>
       </Card>
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base text-white">
             <MapPin className="h-5 w-5" /> Shipping Address
@@ -989,7 +989,7 @@ export default function ClientDetailPage() {
       {tab === 'users' && (
         <>
       {/* Linked users */}
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="flex items-center gap-2 text-base text-white">

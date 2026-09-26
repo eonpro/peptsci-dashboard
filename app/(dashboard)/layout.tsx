@@ -3,6 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AdminFooter } from '@/components/AdminFooter'
 import { ThemeScope } from '@/components/ThemeScope'
+import { FluidBackground } from '@/components/FluidBackground'
 import { StaffSectionNav } from '@/components/staff/StaffSectionNav'
 import { StaffMobileNav } from '@/components/staff/StaffMobileNav'
 import { isStaffRole } from '@/lib/access'
@@ -21,11 +22,13 @@ async function assertStaff2fa() {
   try {
     const user = await currentUser()
     if (!user) return
-    const meta = user.publicMetadata as {
-      role?: string
-      permissionsGrant?: unknown
-      permissionsDeny?: unknown
-    } | undefined
+    const meta = user.publicMetadata as
+      | {
+          role?: string
+          permissionsGrant?: unknown
+          permissionsDeny?: unknown
+        }
+      | undefined
     if (!isStaffRole(meta?.role)) return
     const permissions = resolvePermissions({
       role: meta?.role,
@@ -46,10 +49,11 @@ async function assertStaff2fa() {
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await assertStaff2fa()
   return (
-    <div className="dark flex min-h-screen w-full flex-col overflow-x-hidden bg-brand-onyx">
+    <div className="dark isolate flex min-h-screen w-full flex-col overflow-x-hidden bg-brand-onyx">
       <ThemeScope theme="dark" />
+      <FluidBackground />
       <AdminHeader />
-      <main className="w-full min-w-0 flex-1 bg-linear-to-br from-brand-onyx via-brand-onyx to-[#0a0e3a] pb-20 lg:pb-0">
+      <main className="w-full min-w-0 flex-1 pb-20 lg:pb-0">
         <div className="p-4 md:p-6">
           <StaffSectionNav />
           {children}

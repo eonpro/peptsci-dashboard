@@ -6,7 +6,7 @@ import { SHOP_FOOTER } from '@/lib/shop/portal'
 
 export function ClientFooter() {
   return (
-    <footer className="bg-brand-onyx border-t border-white/10 pb-20 md:pb-0">
+    <footer className="border-t border-white/[0.08] bg-brand-onyx/40 pb-20 backdrop-blur-xl md:pb-0">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>

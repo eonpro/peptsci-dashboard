@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import { SignForm } from './SignForm'
 import { PrintButton } from './PrintButton'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,8 @@ export default async function PartnerAgreementPage() {
   })
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="relative isolate min-h-screen bg-[#eef1f8]">
+      <FluidBackground variant="light" />
       <header className="bg-brand-onyx text-white print:hidden">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/partners" className="text-lg font-bold tracking-wide">

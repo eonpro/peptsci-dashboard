@@ -22,7 +22,7 @@ interface ChartCardProps {
 
 export function ChartCard({ title, description, children, className, loading }: ChartCardProps) {
   const containerClasses =
-    'group relative overflow-hidden rounded-[28px] border border-white/70 bg-white/80 shadow-[0px_26px_68px_-35px_rgba(33,60,239,0.35)] transition-transform duration-500 hover:-translate-y-1 hover:shadow-[0px_24px_70px_-30px_rgba(33,60,239,0.45)] backdrop-blur-[14px] dark:border-white/10 dark:bg-[#0a0e3a]/60 dark:shadow-none dark:hover:shadow-lg dark:hover:shadow-brand-primary/15'
+    'group relative overflow-hidden rounded-[28px] transition-[box-shadow,transform] duration-500 hover:-translate-y-1 dark:hover:shadow-glass-lift'
 
   const headerClasses = 'relative z-10 flex flex-col gap-1 pb-0 md:pb-1'
 
@@ -35,7 +35,7 @@ export function ChartCard({ title, description, children, className, loading }: 
     return (
       <Card className={cn(containerClasses, className)}>
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(33,60,239,0.28),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(33,60,239,0.14),transparent_55%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/80 via-white/30 to-white/5 dark:from-[#0a0e3a]/70 dark:via-brand-onyx/20" />
+        <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/80 via-white/30 to-white/5 dark:from-white/[0.03] dark:via-transparent dark:to-transparent" />
         <CardHeader className={headerClasses}>
           <CardTitle className={titleClasses}>{title}</CardTitle>
           {description && (
@@ -52,7 +52,7 @@ export function ChartCard({ title, description, children, className, loading }: 
   return (
     <Card className={cn(containerClasses, className)}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(33,60,239,0.22),transparent_60%)] opacity-90 transition-opacity duration-500 group-hover:opacity-100 dark:bg-[radial-gradient(circle_at_top_left,rgba(33,60,239,0.15),transparent_60%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/90 via-white/40 to-white/10 dark:from-[#0a0e3a]/70 dark:via-brand-onyx/30" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/50 via-white/20 to-white/0 dark:from-white/[0.03] dark:via-transparent dark:to-transparent" />
 
       <CardHeader className={headerClasses}>
         <CardTitle className={titleClasses}>{title}</CardTitle>

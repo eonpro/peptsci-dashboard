@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Lock, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { ThemeScope } from '@/components/ThemeScope'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: 'PEPTSCI - Sign In',
@@ -19,17 +20,12 @@ export const viewport: Viewport = {
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+    <div className="dark relative isolate min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
       {/* Hoist .dark to <html> so the body canvas (bg-background) turns onyx —
           otherwise mobile overscroll exposes the light-beige :root background
           above/below the dark page. */}
       <ThemeScope theme="dark" />
-      {/* Ambient gradient glows */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />
-        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-brand-primary/25 blur-[160px]" />
-        <div className="absolute bottom-[-10%] right-[2%] h-[420px] w-[420px] rounded-full bg-[#7a5bff]/20 blur-[150px]" />
-      </div>
+      <FluidBackground />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center px-6 py-12">
         {/* Logo */}

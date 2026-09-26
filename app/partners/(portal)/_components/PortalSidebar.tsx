@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { useClerk } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
+import { liquidActive } from '@/components/ui/glass'
 import { isClerkConfigured } from '@/lib/clerk-config'
 import { visiblePrimaryNav, isNavItemActive, type PortalNavContext } from './nav'
 
@@ -54,13 +55,13 @@ export function SidebarNav({
     .toUpperCase()
 
   return (
-    <div className="flex h-full flex-col bg-brand-onyx text-white">
+    <div className="relative isolate flex h-full flex-col overflow-hidden bg-brand-onyx/90 text-white shadow-[inset_-1px_0_0_0_rgb(255_255_255/0.08)] backdrop-blur-2xl">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(90%_45%_at_0%_0%,rgb(33_60_239/0.45),transparent),radial-gradient(80%_40%_at_100%_100%,rgb(46_230_208/0.18),transparent)]"
+      />
       <div className="flex h-16 shrink-0 items-center px-5">
-        <Link
-          href="/partners"
-          onClick={onNavigate}
-          className="text-base font-bold tracking-wide"
-        >
+        <Link href="/partners" onClick={onNavigate} className="text-base font-bold tracking-wide">
           PEPTSCI <span className="font-normal text-white/50">Partners</span>
         </Link>
       </div>
@@ -77,18 +78,16 @@ export function SidebarNav({
                   onClick={onNavigate}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition',
+                    'group flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition',
                     active
-                      ? 'bg-white/10 font-semibold text-white'
+                      ? cn(liquidActive, 'font-semibold')
                       : 'text-white/60 hover:bg-white/5 hover:text-white'
                   )}
                 >
                   <Icon
                     className={cn(
                       'h-4 w-4 shrink-0 transition',
-                      active
-                        ? 'text-brand-primary brightness-150'
-                        : 'text-white/40 group-hover:text-white/70'
+                      active ? 'text-white' : 'text-white/40 group-hover:text-white/70'
                     )}
                   />
                   {item.name}

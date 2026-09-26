@@ -5,6 +5,7 @@ import { isValidReferralCode } from '@/lib/partners/referral'
 import { JoinTeamForm } from './JoinTeamForm'
 import Link from 'next/link'
 import { PARTNER_SIGN_IN_PATH } from '@/lib/partners/access'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,8 @@ export default async function JoinTeamPage({ params }: { params: Promise<{ code:
   if (!org || org.status !== 'ACTIVE') notFound()
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 py-16 text-white">
+    <div className="isolate relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 py-16 text-white">
+      <FluidBackground />
       <div
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[140px]"

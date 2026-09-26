@@ -140,7 +140,7 @@ export default function ClientPricingPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <Card className="border-white/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-white/60">
               Clients with Custom Pricing
@@ -156,7 +156,7 @@ export default function ClientPricingPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <Card className="border-white/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-white/60">Total Custom Prices</CardTitle>
           </CardHeader>
@@ -168,7 +168,7 @@ export default function ClientPricingPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <Card className="border-white/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-white/60">Average Discount</CardTitle>
           </CardHeader>
@@ -213,7 +213,7 @@ export default function ClientPricingPage() {
           Loading pricing...
         </div>
       ) : filteredClients.length > 0 ? (
-        <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+        <Card className="border-white/10 overflow-hidden">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-white">Clinics</CardTitle>
             <CardDescription className="text-white/50">
@@ -278,7 +278,7 @@ export default function ClientPricingPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="bg-[#0a0e3a]/50 border-white/10">
+        <Card className="border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <div className="bg-white/5 p-4 rounded-full mb-4">
               <AlertCircle className="h-8 w-8 text-white/40" />

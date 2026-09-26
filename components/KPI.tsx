@@ -20,7 +20,7 @@ export function KPI({ title, value, description, change, changeLabel, icon, load
 
   if (loading) {
     return (
-      <Card className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 dark:border-white/10">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground dark:text-white/50">
             {title}
@@ -38,13 +38,13 @@ export function KPI({ title, value, description, change, changeLabel, icon, load
   }
 
   return (
-    <Card className="rounded-2xl shadow-xs hover:shadow-lg transition-all duration-300 border-gray-100 bg-linear-to-br from-white to-gray-50/30 dark:border-white/10 dark:bg-linear-to-br dark:from-[#0a0e3a] dark:to-brand-onyx dark:shadow-none dark:hover:shadow-lg dark:hover:shadow-brand-primary/10 overflow-hidden group backdrop-blur-xs">
+    <Card className="group overflow-hidden transition-[box-shadow,transform,border-color] duration-300 hover:-translate-y-0.5 dark:hover:border-white/20 dark:hover:shadow-glass-lift">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-sm font-semibold text-gray-600 dark:text-white/60 uppercase tracking-wider">
           {title}
         </CardTitle>
         {icon && (
-          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-indigo-500/10 to-violet-500/10 dark:from-brand-primary/30 dark:to-brand-primary/10 flex items-center justify-center text-indigo-600 dark:text-brand-primary group-hover:scale-110 transition-transform duration-300">
+          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-indigo-500/10 to-violet-500/10 dark:from-brand-primary/40 dark:to-brand-teal/20 dark:ring-1 dark:ring-white/10 flex items-center justify-center text-indigo-600 dark:text-white group-hover:scale-110 transition-transform duration-300">
             {icon}
           </div>
         )}

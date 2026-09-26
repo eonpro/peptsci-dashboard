@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, MessageSquareText, Package, Settings, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { glassChrome } from '@/components/ui/glass'
 import { useRole } from '@/hooks/useRole'
 import { formatUnreadBadge, useSmsUnreadCount } from '@/hooks/useSmsUnreadCount'
 import { isStaffMobileActive, visibleMobileNav } from '@/lib/staff/portal'
@@ -26,7 +27,7 @@ export function StaffMobileNav() {
   return (
     <nav
       aria-label="Staff"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-brand-onyx/95 backdrop-blur lg:hidden"
+      className={cn('fixed inset-x-0 bottom-0 z-50 border-t lg:hidden', glassChrome)}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <ul className="flex h-14 items-stretch">

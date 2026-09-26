@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { glassChrome, glassTrack, liquidActive } from '@/components/ui/glass'
 import {
   ShoppingCart,
   Package,
@@ -97,7 +98,7 @@ export function ClientHeader() {
   const { isAdmin, isLoading } = useRole()
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-brand-onyx/95 backdrop-blur-xl border-b border-white/10">
+    <header className={cn('sticky top-0 z-50 w-full border-b', glassChrome)}>
       <div className="container mx-auto flex h-14 md:h-16 items-center px-4">
         {/* Logo - centered on mobile, left on desktop */}
         <Link href="/shop" className="flex items-center gap-2 md:gap-3 md:mr-6">
@@ -116,7 +117,7 @@ export function ClientHeader() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className={cn('hidden md:flex items-center gap-1 p-1', glassTrack)}>
           {navigation.map((item) => {
             const Icon = item.icon
             const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
@@ -126,10 +127,8 @@ export function ClientHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all',
-                  isActive
-                    ? 'bg-brand-primary text-white'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                  'flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all',
+                  isActive ? liquidActive : 'text-white/70 hover:text-white hover:bg-white/10'
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -158,9 +157,9 @@ export function ClientHeader() {
 
           {/* Cart button - visible on both mobile and desktop */}
           <Button
-            variant="outline"
+            variant="glass"
             size="default"
-            className="relative bg-white/10 border-white/20 text-white hover:bg-brand-primary hover:border-brand-primary h-10 px-3 md:px-4"
+            className="h-10 px-3 md:px-4"
             onClick={openCart}
             aria-label={`Shopping cart with ${totalItems} items`}
           >
@@ -181,10 +180,7 @@ export function ClientHeader() {
                   <AuthUserButton />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-56 bg-brand-onyx border-white/10 text-white"
-              >
+              <DropdownMenuContent align="end" className="w-56 text-white">
                 <DropdownMenuLabel className="text-white/60">My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem

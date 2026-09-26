@@ -6,6 +6,7 @@ import { CartDrawer } from '@/components/shop/CartDrawer'
 import { MobileBottomNav } from '@/components/shop/MobileBottomNav'
 import { SupportChatWidget } from '@/components/shop/SupportChatWidget'
 import { ThemeScope } from '@/components/ThemeScope'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: 'Client Portal | PeptSci',
@@ -18,9 +19,10 @@ export const dynamic = 'force-dynamic'
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
     <CartProvider>
-      <div className="flex min-h-screen flex-col dark bg-brand-onyx">
+      <div className="dark isolate flex min-h-screen flex-col bg-brand-onyx">
         {/* Hoist .dark to <html> so portaled Radix content inherits the theme. */}
         <ThemeScope theme="dark" />
+        <FluidBackground />
         <ClientHeader />
         {/* Main content: same `container` wrapper as the header/footer so page
             content always lines up with the banner. Bottom padding clears the

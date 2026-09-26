@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, ArrowRight, FlaskConical, Truck, BadgeDollarSign } from 'lucide-react'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: 'You\u2019re invited | PeptSci',
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
  */
 export default function JoinWelcomePage() {
   return (
-    <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center p-4">
+    <div className="relative isolate min-h-screen bg-[#eef1f8] flex items-center justify-center p-4">
+      <FluidBackground variant="light" />
       <div className="w-full max-w-xl">
         <div className="rounded-3xl border border-white/70 bg-white/95 p-8 shadow-2xl backdrop-blur-sm md:p-10">
           <div className="mb-6 flex justify-center">

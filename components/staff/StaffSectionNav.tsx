@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { glassTrack, liquidActive } from '@/components/ui/glass'
 import { useRole } from '@/hooks/useRole'
 import {
   sectionLinks,
@@ -23,15 +24,18 @@ export function StaffSectionNav() {
   return (
     <nav
       aria-label={section}
-      className="mb-6 flex gap-1 overflow-x-auto border-b border-white/10 pb-px"
+      className={cn(
+        'scrollbar-hide mb-6 flex w-fit max-w-full gap-1 overflow-x-auto p-1',
+        glassTrack
+      )}
     >
       <Link
         href={overviewHref}
         className={cn(
-          'shrink-0 border-b-2 px-3 py-2 text-sm font-medium',
+          'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all duration-200',
           pathname === overviewHref
-            ? 'border-white text-white'
-            : 'border-transparent text-white/50 hover:text-white'
+            ? liquidActive
+            : 'text-white/60 hover:bg-white/10 hover:text-white'
         )}
       >
         Overview
@@ -43,10 +47,8 @@ export function StaffSectionNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              'shrink-0 border-b-2 px-3 py-2 text-sm font-medium',
-              active
-                ? 'border-white text-white'
-                : 'border-transparent text-white/50 hover:text-white'
+              'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all duration-200',
+              active ? liquidActive : 'text-white/60 hover:bg-white/10 hover:text-white'
             )}
           >
             {item.name}

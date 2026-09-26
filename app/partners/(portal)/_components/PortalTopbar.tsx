@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { glassChrome } from '@/components/ui/glass'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { pageTitleForPath, type PortalNavContext } from './nav'
 import { SidebarNav, type PortalIdentity } from './PortalSidebar'
@@ -23,7 +25,7 @@ export function PortalTopbar({
   const [open, setOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header className={cn('sticky top-0 z-30 border-b', glassChrome)}>
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6 lg:px-8">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -50,7 +52,7 @@ export function PortalTopbar({
         </h1>
 
         <div className="ml-auto hidden items-center gap-2 sm:flex">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+          <span className="rounded-full border border-white/70 bg-white/60 px-3 py-1 text-xs font-medium text-slate-600 shadow-glass backdrop-blur-md">
             {identity.orgName}
           </span>
           <span className="rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-medium text-brand-primary">

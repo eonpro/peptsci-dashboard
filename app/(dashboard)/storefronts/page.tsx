@@ -227,7 +227,7 @@ export default function StorefrontsPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="bg-[#0a0e3a] border-white/10 animate-pulse">
+            <Card key={i} className="border-white/10 animate-pulse">
               <CardHeader className="space-y-2">
                 <div className="h-5 bg-white/10 rounded w-2/3" />
                 <div className="h-4 bg-white/10 rounded w-1/2" />
@@ -239,7 +239,7 @@ export default function StorefrontsPage() {
           ))}
         </div>
       ) : storefronts.length === 0 ? (
-        <Card className="bg-[#0a0e3a] border-white/10">
+        <Card className="border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Store className="h-12 w-12 text-white/20 mb-4" />
             <h3 className="text-lg font-medium text-white/70">No storefronts yet</h3>
@@ -252,7 +252,7 @@ export default function StorefrontsPage() {
             const statusCfg = STATUS_CONFIG[sf.status]
             const StatusIcon = statusCfg.icon
             return (
-              <Card key={sf.id} className="bg-[#0a0e3a] border-white/10 hover:border-white/20 transition-colors">
+              <Card key={sf.id} className="border-white/10 hover:border-white/20 transition-colors">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">

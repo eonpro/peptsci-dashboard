@@ -8,6 +8,7 @@ import { PartnerNoAccess } from './_components/PartnerNoAccess'
 import { PartnerPortalProvider } from './_components/PartnerPortalProvider'
 import { PartnerSectionNav } from './_components/PartnerSectionNav'
 import { PortalMobileNav } from './_components/PortalMobileNav'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,8 @@ export default async function PartnerPortalLayout({ children }: { children: Reac
 
   return (
     <PartnerPortalProvider kind={navCtx.kind} role={navCtx.role} marginModel={navCtx.marginModel}>
-      <div className="min-h-screen bg-slate-50">
+      <div className="isolate min-h-screen bg-[#eef1f8]">
+        <FluidBackground variant="light" />
         <PortalSidebar ctx={navCtx} identity={identity} />
         <div className="lg:pl-64">
           <PortalTopbar ctx={navCtx} identity={identity} />

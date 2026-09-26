@@ -86,7 +86,7 @@ export default function ShopReferralsPage() {
       </div>
 
       {/* Referral link */}
-      <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+      <Card className="border-white/10 rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base text-white">Your referral link</CardTitle>
         </CardHeader>
@@ -116,7 +116,7 @@ export default function ShopReferralsPage() {
 
       {/* Balance + referred clinics */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+        <Card className="border-white/10 rounded-2xl">
           <CardContent className="pt-6">
             <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/50">
               <Wallet className="h-4 w-4" /> Store credit balance
@@ -127,7 +127,7 @@ export default function ShopReferralsPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+        <Card className="border-white/10 rounded-2xl">
           <CardContent className="pt-6">
             <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/50">
               <Users className="h-4 w-4" /> Clinics referred
@@ -142,7 +142,7 @@ export default function ShopReferralsPage() {
       </div>
 
       {/* Referred clinics */}
-      <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+      <Card className="border-white/10 rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base text-white">Your referrals</CardTitle>
         </CardHeader>
@@ -191,7 +191,7 @@ export default function ShopReferralsPage() {
       </Card>
 
       {/* Credit history */}
-      <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+      <Card className="border-white/10 rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base text-white">Credit history</CardTitle>
         </CardHeader>

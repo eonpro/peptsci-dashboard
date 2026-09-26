@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { ApplyForm } from './ApplyForm'
 import { PARTNER_REVIEW_SLA, PARTNER_SIGN_IN_PATH } from '@/lib/partners/access'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: 'Partner Program — PeptSci',
@@ -81,7 +82,8 @@ const STEPS = [
 
 export default function PartnerApplyPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-brand-onyx text-white">
+    <div className="isolate relative min-h-screen overflow-hidden bg-brand-onyx text-white">
+      <FluidBackground />
       {/* Decorative background glows */}
       <div
         aria-hidden

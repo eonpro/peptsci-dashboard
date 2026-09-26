@@ -5,7 +5,7 @@ import { SUPPORT_EMAIL } from '@/lib/shop/portal'
 
 export function AdminFooter() {
   return (
-    <footer className="border-t border-white/10 bg-brand-onyx px-6 py-4">
+    <footer className="border-t border-white/[0.08] bg-brand-onyx/40 px-6 py-4 backdrop-blur-xl">
       <div className="flex flex-col items-center justify-between gap-4 text-sm sm:flex-row">
         <div className="flex items-center gap-4 text-white/50">
           <span>© {new Date().getFullYear()} PEPTSCI</span>

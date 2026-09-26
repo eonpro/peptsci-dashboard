@@ -67,14 +67,34 @@
   --color-brand-white: #ffffff;
   --color-brand-primary: #213cef;
   --color-brand-onyx: #050722;
+  /* Fluid-gradient accents (liquid-glass UI). Decorative only — never
+     used as text on light surfaces. */
+  --color-brand-teal: #2ee6d0;
+  --color-brand-lavender: #7b6cff;
+  --color-brand-ice: #c9d3e6;
+  --color-brand-navy: #0b1a5c;
+
+  /* Glass elevation: inset top highlight (the "liquid" rim) + soft drop. */
+  --shadow-glass: inset 0 1px 0 0 rgb(255 255 255 / 0.7), 0 10px 30px -14px rgb(33 60 239 / 0.28);
+  --shadow-glass-dark:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.1), inset 0 0 0 1px rgb(255 255 255 / 0.02),
+    0 18px 40px -20px rgb(0 0 0 / 0.75);
+  --shadow-glass-lift:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.14), 0 24px 50px -22px rgb(33 60 239 / 0.45);
+  --shadow-liquid:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.35), inset 0 -1px 0 0 rgb(0 0 0 / 0.15),
+    0 8px 22px -8px rgb(33 60 239 / 0.75);
+  --shadow-liquid-hover:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.45), inset 0 -1px 0 0 rgb(0 0 0 / 0.15),
+    0 12px 30px -8px rgb(46 230 208 / 0.45);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-heartbeat: heartbeat 1.4s ease-in-out infinite;
 
   --font-sans:
-    'sofia-pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+    'sofia-pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
   --font-sofia: 'sofia-pro', sans-serif;
 
   @keyframes accordion-down {
@@ -358,13 +378,16 @@ body {
   overscroll-behavior-y: contain;
 }
 
-/* Better input styling on iOS */
-input,
-textarea,
-select {
-  -webkit-appearance: none;
-  appearance: none;
-  border-radius: 0;
+/* Better input styling on iOS. Layered so `rounded-*` utilities still win —
+   unlayered, this reset beat every Tailwind radius on form fields. */
+@layer base {
+  input,
+  textarea,
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0;
+  }
 }
 
 /* Fix for iOS input zoom */
@@ -484,6 +507,136 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   #brand-splash {
     display: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Fluid gradient background (components/FluidBackground.tsx).
+   Blobs are soft radial-gradients — deliberately NOT `filter: blur()`, which
+   re-rasterises every frame — and drift with transform only, so the whole
+   layer stays on the compositor. The grain overlay breaks up gradient
+   banding on 8-bit displays. */
+.fluid-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--fluid-base);
+}
+.fluid-bg[data-variant='dark'] {
+  --fluid-base: #050722;
+  --fluid-a: rgb(33 60 239 / 0.85);
+  --fluid-b: rgb(46 230 208 / 0.5);
+  --fluid-c: rgb(123 108 255 / 0.6);
+  --fluid-d: rgb(11 26 92 / 0.8);
+  --fluid-e: rgb(201 211 230 / 0.22);
+  --fluid-vignette: rgb(3 4 22 / 0.45);
+  --fluid-grain: 0.07;
+}
+.fluid-bg[data-variant='light'] {
+  --fluid-base: #eef1f8;
+  --fluid-a: rgb(33 60 239 / 0.2);
+  --fluid-b: rgb(46 230 208 / 0.24);
+  --fluid-c: rgb(123 108 255 / 0.2);
+  --fluid-d: rgb(201 211 230 / 0.7);
+  --fluid-e: rgb(255 255 255 / 0.85);
+  --fluid-vignette: rgb(238 241 248 / 0);
+  --fluid-grain: 0.035;
+}
+.fluid-bg .fluid-blob {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+}
+.fluid-bg .fluid-blob-a {
+  top: -25%;
+  left: -15%;
+  width: 70vmax;
+  height: 70vmax;
+  background: radial-gradient(closest-side, var(--fluid-a), transparent);
+  animation: fluid-drift-a 38s ease-in-out infinite alternate;
+}
+.fluid-bg .fluid-blob-b {
+  right: -20%;
+  bottom: -30%;
+  width: 65vmax;
+  height: 65vmax;
+  background: radial-gradient(closest-side, var(--fluid-b), transparent);
+  animation: fluid-drift-b 46s ease-in-out infinite alternate;
+}
+.fluid-bg .fluid-blob-c {
+  top: 10%;
+  right: -10%;
+  width: 55vmax;
+  height: 55vmax;
+  background: radial-gradient(closest-side, var(--fluid-c), transparent);
+  animation: fluid-drift-c 52s ease-in-out infinite alternate;
+}
+.fluid-bg .fluid-blob-d {
+  bottom: -20%;
+  left: -10%;
+  width: 60vmax;
+  height: 60vmax;
+  background: radial-gradient(closest-side, var(--fluid-d), transparent);
+  animation: fluid-drift-b 60s ease-in-out infinite alternate-reverse;
+}
+.fluid-bg .fluid-blob-e {
+  top: 35%;
+  left: 30%;
+  width: 40vmax;
+  height: 40vmax;
+  background: radial-gradient(closest-side, var(--fluid-e), transparent);
+  animation: fluid-drift-c 44s ease-in-out infinite alternate-reverse;
+}
+.fluid-bg .fluid-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 40%, transparent 55%, var(--fluid-vignette));
+}
+.fluid-bg .fluid-grain {
+  position: absolute;
+  inset: 0;
+  opacity: var(--fluid-grain);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@keyframes fluid-drift-a {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12vw, 8vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(4vw, 18vh, 0) scale(0.95);
+  }
+}
+@keyframes fluid-drift-b {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-14vw, -10vh, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(-6vw, -20vh, 0) scale(1.02);
+  }
+}
+@keyframes fluid-drift-c {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-10vw, 12vh, 0) scale(0.9);
+  }
+  100% {
+    transform: translate3d(8vw, 4vh, 0) scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fluid-bg .fluid-blob {
+    animation: none !important;
   }
 }
 
