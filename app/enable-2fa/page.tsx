@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { UserProfile } from '@clerk/nextjs'
 import { ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { FluidBackground } from '@/components/FluidBackground'
 
 /**
  * Shown to admins when ADMIN_REQUIRE_2FA=true and their Clerk account has no
@@ -12,7 +13,8 @@ import { Button } from '@/components/ui/button'
  */
 export default function Enable2faPage() {
   return (
-    <div className="min-h-screen bg-brand-onyx px-4 py-10">
+    <div className="relative isolate min-h-screen bg-brand-onyx px-4 py-10">
+      <FluidBackground />
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
           <div className="flex items-start gap-3">

@@ -438,7 +438,7 @@ export function ClientPricingPanel({
   }
 
   return (
-    <Card id="client-pricing" className="bg-[#0a0e3a]/50 border-white/10 scroll-mt-24">
+    <Card id="client-pricing" className="border-white/10 scroll-mt-24">
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

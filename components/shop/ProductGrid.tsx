@@ -143,7 +143,7 @@ export function ProductGrid({
   return (
     <div className="space-y-5">
       {/* Sticky toolbar: search / stock / sort / view, then category chips */}
-      <div className="sticky top-14 z-40 -mx-4 space-y-3 border-b border-white/10 bg-brand-onyx/95 px-4 py-3 backdrop-blur-xl md:top-16 md:-mx-8 md:px-8">
+      <div className="sticky top-14 z-40 -mx-4 space-y-3 border-b border-white/[0.08] bg-brand-onyx/45 px-4 py-3 backdrop-blur-2xl backdrop-saturate-150 md:top-16 md:-mx-8 md:px-8">
         <div className="flex flex-wrap items-center gap-2 md:gap-3">
           {/* Search */}
           <div className="relative min-w-0 flex-1 basis-64">

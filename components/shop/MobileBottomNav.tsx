@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { glassChrome, liquidActive } from '@/components/ui/glass'
 import { useCart } from './CartContext'
 import { SHOP_MOBILE_NAV } from '@/lib/shop/portal'
 import { Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react'
@@ -20,7 +21,12 @@ export function MobileBottomNav() {
   const { totalItems, openCart } = useCart()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-brand-onyx/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
+    <nav
+      className={cn(
+        'fixed bottom-0 left-0 right-0 z-50 md:hidden border-t safe-area-bottom',
+        glassChrome
+      )}
+    >
       <div className="flex items-center justify-around h-16 px-2">
         {SHOP_MOBILE_NAV.map((item) => {
           const Icon = ICONS[item.label as keyof typeof ICONS] ?? Home
@@ -45,7 +51,7 @@ export function MobileBottomNav() {
                 className={cn(
                   'relative flex items-center justify-center w-10 h-10 rounded-xl transition-all',
                   isActive
-                    ? 'bg-brand-primary text-white scale-110'
+                    ? cn(liquidActive, 'scale-110')
                     : 'text-white/50 hover:text-white active:scale-95'
                 )}
               >

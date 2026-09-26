@@ -522,7 +522,7 @@ export default function ProductsPage() {
           Loading products...
         </div>
       ) : filtered.length === 0 ? (
-        <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+        <Card className="border-white/10 overflow-hidden">
           <CardContent className="p-0">
             <div className="flex flex-col items-center justify-center py-16">
               <div className="bg-white/5 p-4 rounded-full mb-4">
@@ -571,7 +571,7 @@ export default function ProductsPage() {
           ))}
         </div>
       ) : (
-      <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+      <Card className="border-white/10 overflow-hidden">
         <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -909,7 +909,7 @@ function StatCard({
   color: string
 }) {
   return (
-    <Card className="bg-[#0a0e3a]/50 border-white/10">
+    <Card className="border-white/10">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-white/60">{label}</CardTitle>
       </CardHeader>

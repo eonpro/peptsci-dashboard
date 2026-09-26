@@ -32,6 +32,7 @@ import {
   Handshake,
   ArrowRight,
 } from 'lucide-react'
+import { FluidBackground } from '@/components/FluidBackground'
 
 const emptyAddress: Partial<Address> = { country: 'US' }
 
@@ -202,14 +203,16 @@ export default function OnboardingPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center">
+      <div className="relative isolate min-h-screen bg-[#eef1f8] flex items-center justify-center">
+        <FluidBackground variant="light" />
         <Loader2 className="h-8 w-8 animate-spin text-brand-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 py-10 px-4">
+    <div className="relative isolate min-h-screen bg-[#eef1f8] py-10 px-4">
+      <FluidBackground variant="light" />
       <div className="mx-auto max-w-2xl">
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 inline-block">

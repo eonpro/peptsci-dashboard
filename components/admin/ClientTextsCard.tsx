@@ -97,7 +97,7 @@ export function ClientTextsCard(props: ClientTextsCardProps) {
   }, [load])
 
   return (
-    <Card className="bg-[#0a0e3a]/50 border-white/10">
+    <Card className="border-white/10">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="flex items-center gap-2 text-base text-white">

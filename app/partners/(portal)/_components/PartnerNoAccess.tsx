@@ -2,12 +2,14 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { partnerNoAccessCopy, type PartnerNoAccessKind } from '@/lib/partners/access'
 import { PartnerSignOutButton } from './PartnerSignOutButton'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export function PartnerNoAccess({ kind }: { kind: PartnerNoAccessKind }) {
   const copy = partnerNoAccessCopy(kind)
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
+      <FluidBackground />
       <p className="text-xs font-semibold uppercase tracking-widest text-white/45">
         Partner portal
       </p>

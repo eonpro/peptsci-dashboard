@@ -219,7 +219,7 @@ export default function AccountPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           {/* Provider / NPI (locked once approved) */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-white">
                 <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
@@ -274,7 +274,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Contact */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-white">
                 <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
@@ -328,7 +328,7 @@ export default function AccountPage() {
               registered campaign text; see lib/sms/program.ts) */}
           <Card
             id="sms-preferences"
-            className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden scroll-mt-24"
+            className="border-white/10 rounded-2xl overflow-hidden scroll-mt-24"
           >
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-white">
@@ -364,7 +364,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Billing address */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <Building2 className="h-5 w-5" />
@@ -377,7 +377,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Shipping address */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <MapPin className="h-5 w-5" />
@@ -411,7 +411,7 @@ export default function AccountPage() {
           </Button>
 
           {/* Payment methods */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <CreditCard className="h-5 w-5" />
@@ -427,7 +427,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Patients */}
-          <Card id="patients" className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card id="patients" className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <UserRound className="h-5 w-5" />
@@ -446,7 +446,7 @@ export default function AccountPage() {
           </Card>
 
           {/* Compliance documents */}
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <FileText className="h-5 w-5" />
@@ -464,7 +464,7 @@ export default function AccountPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+          <Card className="border-white/10 rounded-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <Shield className="h-5 w-5" />
@@ -481,7 +481,7 @@ export default function AccountPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+          <Card className="border-white/10 rounded-2xl">
             <CardHeader>
               <CardTitle className="text-base text-white">Quick Links</CardTitle>
             </CardHeader>

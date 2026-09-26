@@ -397,7 +397,7 @@ export default function CheckoutPage() {
         <div className="space-y-6">
           <CheckoutBacWaterOffer compact />
 
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="border-b border-white/10 bg-white/5">
               <CardTitle className="flex items-center gap-3 text-white">
                 <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
@@ -770,14 +770,14 @@ export default function CheckoutPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden lg:hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden lg:hidden">
             <CardHeader className="border-b border-white/10 bg-white/5">
               <CardTitle className="text-white">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">{summaryItems}</CardContent>
           </Card>
 
-          <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+          <Card className="border-white/10 rounded-2xl overflow-hidden">
             <CardHeader className="border-b border-white/10 bg-white/5">
               <CardTitle className="flex items-center gap-3 text-white">
                 <div className="h-10 w-10 rounded-xl bg-brand-primary/20 flex items-center justify-center">
@@ -821,7 +821,7 @@ export default function CheckoutPage() {
 
         <div className="hidden lg:block">
           <div className="sticky top-24">
-            <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl overflow-hidden">
+            <Card className="border-white/10 rounded-2xl overflow-hidden">
               <CardHeader className="border-b border-white/10 bg-white/5">
                 <CardTitle className="text-white">Order Summary</CardTitle>
               </CardHeader>

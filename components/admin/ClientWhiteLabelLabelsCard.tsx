@@ -123,7 +123,7 @@ export function ClientWhiteLabelLabelsCard({
   }
 
   return (
-    <Card className="bg-[#0a0e3a]/50 border-white/10">
+    <Card className="border-white/10">
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2">
           <Tag className="h-5 w-5 text-blue-300" />

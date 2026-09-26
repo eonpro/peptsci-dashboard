@@ -143,7 +143,7 @@ export default function WebhookEventsPage() {
         ))}
       </div>
 
-      <Card className="bg-[#0a0e3a]/50 border-white/10">
+      <Card className="border-white/10">
         <CardHeader>
           <CardTitle className="text-base text-white">
             {status === 'ERROR' ? 'Dead-letter queue' : 'Deliveries'}

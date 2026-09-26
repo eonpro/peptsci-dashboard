@@ -129,7 +129,7 @@ export function CheckoutBacWaterOffer({ compact = false }: CheckoutBacWaterOffer
   }
 
   return (
-    <Card className="overflow-hidden rounded-2xl border-white/10 bg-[#0a0e3a]">
+    <Card className="overflow-hidden rounded-2xl border-white/10">
       <CardHeader className="border-b border-white/10 bg-white/5">
         <CardTitle className="flex items-center gap-3 text-white">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/20">

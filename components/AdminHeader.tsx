@@ -24,6 +24,7 @@ import { NotificationBell } from '@/components/NotificationBell'
 import { useRole } from '@/hooks/useRole'
 import { formatUnreadBadge, useSmsUnreadCount } from '@/hooks/useSmsUnreadCount'
 import { cn } from '@/lib/utils'
+import { glassChrome, glassTrack, liquidActive } from '@/components/ui/glass'
 import {
   isStaffPrimaryActive,
   visiblePrimaryNav,
@@ -59,7 +60,7 @@ function AuthUserButton() {
       appearance={{
         elements: {
           avatarBox: 'h-8 w-8 ring-2 ring-slate-600',
-          userButtonPopoverCard: 'bg-slate-800 border-slate-700',
+          userButtonPopoverCard: 'border border-white/10 bg-[#0a0e3a]/90 backdrop-blur-2xl',
         },
       }}
     />
@@ -123,7 +124,7 @@ export function AdminHeader() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[#0a0e3a] bg-brand-onyx">
+    <header className={cn('sticky top-0 z-50 w-full border-b', glassChrome)}>
       <div className="px-4 md:px-6">
         <div className="container mx-auto flex h-14 items-center px-6">
           <Button
@@ -145,7 +146,7 @@ export function AdminHeader() {
             />
           </Link>
 
-          <nav className="hidden shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-sm lg:flex">
+          <nav className={cn('hidden shrink-0 items-center gap-1 p-1 text-sm lg:flex', glassTrack)}>
             {items.map((item) => {
               const Icon = NAV_ICONS[item.name]
               const isActive = isStaffPrimaryActive(item.href, pathname, item.exact)
@@ -155,9 +156,7 @@ export function AdminHeader() {
                   href={item.href}
                   className={cn(
                     'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 transition-all duration-200',
-                    isActive
-                      ? 'bg-brand-primary text-white shadow-[0_4px_16px_-4px_rgba(33,60,239,0.7)]'
-                      : 'text-white/70 hover:bg-white/10 hover:text-white'
+                    isActive ? liquidActive : 'text-white/70 hover:bg-white/10 hover:text-white'
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -177,7 +176,7 @@ export function AdminHeader() {
             <Button
               variant="ghost"
               size="sm"
-              className="hidden h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 text-white/50 hover:bg-white/10 hover:text-white xl:flex xl:max-w-xl"
+              className="hidden h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-white/50 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.06)] hover:bg-white/10 hover:text-white xl:flex xl:max-w-xl"
               onClick={openSearch}
             >
               <Search className="h-4 w-4 shrink-0" />
@@ -201,9 +200,7 @@ export function AdminHeader() {
             </AuthWrapper>
             <AuthWrapper signedIn={false}>
               <Link href="/staff/sign-in">
-                <Button size="sm" className="bg-brand-primary text-white hover:bg-[#1a30c0]">
-                  Sign in
-                </Button>
+                <Button size="sm">Sign in</Button>
               </Link>
             </AuthWrapper>
           </div>
@@ -211,7 +208,7 @@ export function AdminHeader() {
       </div>
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-[280px] border-r border-[#0a0e3a] bg-brand-onyx p-0">
+        <SheetContent side="left" className="w-[280px] p-0">
           <SheetHeader className="border-b border-white/10 p-4">
             <SheetTitle>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -233,10 +230,8 @@ export function AdminHeader() {
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-4 py-3 transition-all duration-200',
-                        isActive
-                          ? 'bg-brand-primary text-white'
-                          : 'text-white/70 hover:bg-white/10 hover:text-white'
+                        'flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200',
+                        isActive ? liquidActive : 'text-white/70 hover:bg-white/10 hover:text-white'
                       )}
                     >
                       <Icon className="h-5 w-5" />
@@ -244,7 +239,10 @@ export function AdminHeader() {
                       {item.href === '/messages' && (
                         <UnreadPill
                           count={smsUnread}
-                          className={cn('ml-auto', isActive ? undefined : 'bg-brand-primary text-white')}
+                          className={cn(
+                            'ml-auto',
+                            isActive ? undefined : 'bg-brand-primary text-white'
+                          )}
                         />
                       )}
                     </Link>

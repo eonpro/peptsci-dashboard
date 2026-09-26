@@ -14,6 +14,7 @@ import { Logo } from '@/components/Logo'
 import { Clock, Mail, CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
 import { ACCOUNT_REVIEW_SLA, SUPPORT_EMAIL } from '@/lib/shop/portal'
 import { PARTNER_SIGN_IN_PATH, partnerPendingCopy } from '@/lib/partners/access'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export function PendingApprovalContent() {
   const { signOut } = useClerk()
@@ -33,7 +34,8 @@ export function PendingApprovalContent() {
   const signOutHref = partner ? PARTNER_SIGN_IN_PATH : '/sign-in'
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-brand-bg via-white to-brand-bg/50 flex items-center justify-center p-4">
+    <div className="relative isolate min-h-screen bg-[#eef1f8] flex items-center justify-center p-4">
+      <FluidBackground variant="light" />
       <Card className="w-full max-w-lg shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4">

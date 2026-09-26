@@ -188,7 +188,7 @@ export default function StorefrontDetailPage() {
         ].map((stat) => {
           const Icon = stat.icon
           return (
-            <Card key={stat.label} className="bg-[#0a0e3a] border-white/10">
+            <Card key={stat.label} className="border-white/10">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-white/5">
@@ -208,7 +208,7 @@ export default function StorefrontDetailPage() {
       {/* Settings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Basic Settings */}
-        <Card className="bg-[#0a0e3a] border-white/10">
+        <Card className="border-white/10">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Store className="h-5 w-5" />
@@ -245,7 +245,7 @@ export default function StorefrontDetailPage() {
         </Card>
 
         {/* Branding */}
-        <Card className="bg-[#0a0e3a] border-white/10">
+        <Card className="border-white/10">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Palette className="h-5 w-5" />

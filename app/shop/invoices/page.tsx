@@ -110,14 +110,14 @@ export default function ShopInvoicesPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+        <Card className="border-white/10 rounded-2xl">
           <CardContent className="p-4">
             <p className="text-xs text-white/50 mb-1">Balance due</p>
             <p className="text-xl font-bold text-white">{formatPrice(summary?.openBalance ?? 0)}</p>
             <p className="text-xs text-white/40 mt-1">{openCount} open invoice(s)</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+        <Card className="border-white/10 rounded-2xl">
           <CardContent className="p-4">
             <p className="text-xs text-white/50 mb-1">Past due</p>
             <p className={`text-xl font-bold ${overdueTotal > 0 ? 'text-red-400' : 'text-white'}`}>
@@ -130,7 +130,7 @@ export default function ShopInvoicesPage() {
             )}
           </CardContent>
         </Card>
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl col-span-2 md:col-span-1">
+        <Card className="border-white/10 rounded-2xl col-span-2 md:col-span-1">
           <CardContent className="p-4">
             <p className="text-xs text-white/50 mb-1">Account terms</p>
             <p className="text-xl font-bold text-white">
@@ -170,7 +170,7 @@ export default function ShopInvoicesPage() {
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : invoices.length === 0 ? (
-        <Card className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+        <Card className="border-white/10 rounded-2xl">
           <CardContent className="py-16 flex flex-col items-center text-center">
             <FileText className="h-12 w-12 text-white/20 mb-4" />
             <p className="text-white font-medium mb-1">No invoices yet</p>
@@ -187,7 +187,7 @@ export default function ShopInvoicesPage() {
               (inv.status === 'OPEN' || inv.status === 'PARTIAL' || inv.status === 'OVERDUE') &&
               inv.amountDue > 0
             return (
-              <Card key={inv.id} className="bg-[#0a0e3a] border-white/10 rounded-2xl">
+              <Card key={inv.id} className="border-white/10 rounded-2xl">
                 <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

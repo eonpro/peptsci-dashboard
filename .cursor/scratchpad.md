@@ -1,3 +1,73 @@
+# Liquid-glass UI — fluid gradient backgrounds + glass surfaces  [PLANNER+EXECUTOR — 2026-09-25 22:40]
+
+## Background and Motivation
+Owner wants an enterprise-grade visual upgrade modelled on an "Evolv" brand board: multi-colour
+fluid gradient backgrounds (navy / brand blue / teal / lavender / ice) with glass ("liquid")
+buttons and cards everywhere. Decisions (owner, 2026-09-25): all surfaces (staff, shop, partners,
+auth/onboarding); palette = PeptSci blue #213cef + onyx #050722 plus teal + lavender accents;
+slow subtle drift, off for reduced-motion; plan then ship phase 1 on a branch + PR.
+
+## Key Challenges and Analysis
+- Styling flows through shadcn primitives (Card in 81 files, Button in 146) → upgrading the
+  primitives reaches most screens. ~50 `<Card>` call sites override bg with opaque
+  `bg-[#0a0e3a]` / `/50`, which would hide the gradient → strip those overrides in phase 1.
+- Partners portal is LIGHT (`bg-slate-50`, slate text). Converting to dark = hundreds of
+  class edits → give it the light gradient variant + light glass instead. Primitives therefore
+  use light defaults + `dark:` variants (dark = `.dark *`, hoisted by ThemeScope).
+- twMerge must dedupe caller overrides → glass is expressed as standard Tailwind classes in TS
+  constants (`components/ui/glass.ts`), not opaque custom utilities.
+- Performance: gradient blobs are radial-gradients (no `filter: blur`) animated with transform
+  only; backdrop-blur limited to cards/chrome/overlays. Reduced-motion → static.
+- Stacking: layouts need `isolate` so the fixed `-z-10` background paints above the wrapper bg.
+- Readability: overlays (dialog/sheet/popover/select) stay high-opacity glass (≥80%).
+
+## High-level Task Breakdown
+Phase 1 (this PR `feat/liquid-glass-ui`)
+1. Tokens: brand teal/lavender/ice colours, glass shadows, drift keyframes in `globals.css`.
+2. `components/FluidBackground.tsx` (dark + light variants, CSS-only, reduced-motion safe).
+3. Glass primitives: Card, Button (liquid primary + glass outline/secondary + new `glass`
+   variant), Input/Textarea/Select, Dialog/Sheet/Popover/DropdownMenu/Select content, Tabs, KPI,
+   ChartCard.
+4. Chrome: staff header/section nav/mobile nav/footer; shop header/footer/bottom nav;
+   partners sidebar/topbar/mobile nav; auth + onboarding backgrounds.
+5. Strip opaque bg overrides on `<Card>` call sites.
+6. Verify: typecheck, lint, tests, build; screenshots of staff/shop/partners/auth; PR.
+Success: every surface shows the fluid gradient; cards/buttons/overlays are glass; text
+contrast ≥ WCAG AA on cards; no layout regressions in screenshots; CI green.
+
+Phase 2 (follow-up): sweep raw `bg-[#0a0e3a]` divs (~150) and light-only pages to glass,
+catalog book, tables/row hover polish, empty states.
+
+## Project Status Board
+- [x] 1 Tokens (brand teal/lavender/ice/navy, glass + liquid shadows, drift keyframes)
+- [x] 2 `FluidBackground` (dark/light), reduced-motion static
+- [x] 3 Primitives: Card, Button (+`glass` variant), Input/Textarea/Select, Dialog/AlertDialog/
+      Sheet/Popover/DropdownMenu/Tooltip, Tabs, Alert; KPI + ChartCard
+- [x] 4 Chrome: staff header/section nav/mobile nav/footer; shop header/footer/bottom nav/filter
+      bar; partners sidebar/topbar/section nav/mobile nav; auth, onboarding, pending-approval,
+      join/welcome, enable-2fa, partners apply/agreement/join-team, no-access screens
+- [x] 5 Stripped opaque bg overrides from 57 `<Card>` call sites (19 files)
+- [x] 6 tsc, lint, 968 unit tests, `next build` green; screenshots of staff/shop/partners-apply/
+      light variant (local, Clerk disabled + unreachable DB so no prod data touched)
+- [ ] PR review + owner visual sign-off on a Vercel preview (real data, real auth)
+- [ ] Phase 2 sweep
+
+## Executor's Feedback or Assistance Requests
+- Built in worktree `../peptsci-glass` off origin/main; owner's local `main` checkout (behind 9,
+  uncommitted files) left untouched.
+- Local `.env.local` has `pk_live` Clerk keys, which don't work on localhost → authed screens
+  (onboarding, partners portal) could only be checked through a throwaway preview route. Please
+  eyeball those on the Vercel preview.
+
+## Lessons
+- An unlayered `input, textarea, select { border-radius: 0 }` in globals.css beat every Tailwind
+  `rounded-*` on form fields (Tailwind v4 utilities live in `@layer utilities`; unlayered CSS
+  always wins). Keep resets inside `@layer base`.
+- Fixed `-z-10` backgrounds need the layout wrapper to be `isolate`, otherwise the wrapper's own
+  background paints over them.
+
+---
+
 # SMS Inbox (CRM) — two-way texting in the admin  [PLANNER+EXECUTOR — 2026-09-09 20:45]
 
 ## Background and Motivation

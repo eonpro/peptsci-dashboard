@@ -2,12 +2,14 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { staffNoAccessCopy, type StaffNoAccessKind } from '@/lib/staff/access'
 import { StaffSignOutButton } from './StaffSignOutButton'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export function StaffNoAccess({ kind }: { kind: StaffNoAccessKind }) {
   const copy = staffNoAccessCopy(kind)
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center bg-brand-onyx px-6 text-center text-white">
+      <FluidBackground />
       <p className="text-xs font-semibold uppercase tracking-widest text-white/45">
         Staff console
       </p>

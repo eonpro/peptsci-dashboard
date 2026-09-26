@@ -220,7 +220,7 @@ export default function UsersPage() {
 
       {/* Pending invitations */}
       {invites.length > 0 && (
-        <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+        <Card className="border-white/10 overflow-hidden">
           <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="bg-amber-500/20 p-2 rounded-lg">
@@ -289,7 +289,7 @@ export default function UsersPage() {
         />
       </div>
 
-      <Card className="bg-[#0a0e3a]/50 border-white/10 overflow-hidden">
+      <Card className="border-white/10 overflow-hidden">
         <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="bg-brand-primary/20 p-2 rounded-lg">
