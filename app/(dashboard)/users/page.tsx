@@ -221,7 +221,7 @@ export default function UsersPage() {
       {/* Pending invitations */}
       {invites.length > 0 && (
         <Card className="border-white/10 overflow-hidden">
-          <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
+          <CardHeader className="bg-white/[0.04] border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="bg-amber-500/20 p-2 rounded-lg">
                 <Mail className="h-5 w-5 text-amber-400" />
@@ -285,12 +285,12 @@ export default function UsersPage() {
           placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
+          className="pl-9 border-white/10 text-white placeholder:text-white/40"
         />
       </div>
 
       <Card className="border-white/10 overflow-hidden">
-        <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
+        <CardHeader className="bg-white/[0.04] border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="bg-brand-primary/20 p-2 rounded-lg">
               <UsersIcon className="h-5 w-5 text-brand-primary" />

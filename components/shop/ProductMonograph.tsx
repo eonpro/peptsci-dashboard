@@ -15,7 +15,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6 md:p-8">
+    <section className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 md:p-8 backdrop-blur-xl">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-primary/15 text-[#7d90ff]">
           {icon}
@@ -58,7 +58,7 @@ function SpecificationsStrip({ product }: { product: ShopProduct }) {
   if (specs.length === 0) return null
 
   return (
-    <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6 md:p-8">
+    <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 md:p-8 backdrop-blur-xl">
       <h2 className="mb-4 text-lg font-semibold text-white">Specifications</h2>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
         {specs.map((s) => (

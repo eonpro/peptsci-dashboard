@@ -147,7 +147,7 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">{title}</DialogTitle>
             <DialogDescription className="text-white/60">{description}</DialogDescription>
@@ -185,7 +185,7 @@ export function CsvImportDialog<Row extends { rowNumber: number }>({
           ) : (
             <div className="space-y-4 py-2">
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03] px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {

@@ -203,7 +203,7 @@ export default function ClientPricingPage() {
           placeholder="Search clients..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
+          className="pl-9 border-white/10 text-white placeholder:text-white/40"
         />
       </div>
 

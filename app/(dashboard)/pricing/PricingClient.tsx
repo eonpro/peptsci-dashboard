@@ -142,7 +142,7 @@ export default function PricingClient({
             <Button
               variant="outline"
               size="sm"
-              className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+              className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
             >
               <Users className="h-4 w-4 mr-2" />
               Client Pricing
@@ -153,7 +153,7 @@ export default function PricingClient({
             variant="outline"
             size="sm"
             disabled={refreshing}
-            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+            className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}

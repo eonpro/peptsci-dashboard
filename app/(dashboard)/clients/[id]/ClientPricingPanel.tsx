@@ -511,7 +511,7 @@ export function ClientPricingPanel({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by product or SKU"
-              className="pl-9 bg-[#0a0e3a]/40 border-white/15 text-white placeholder:text-white/30"
+              className="pl-9 border-white/15 text-white placeholder:text-white/30"
             />
           </div>
           <div className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2">
@@ -611,7 +611,7 @@ export function ClientPricingPanel({
                                     e.currentTarget.blur()
                                   }
                                 }}
-                                className="h-8 w-24 text-right bg-[#0a0e3a]/40 border-white/15 text-white"
+                                className="h-8 w-24 text-right border-white/15 text-white"
                                 placeholder="—"
                               />
                               {saving && (
@@ -672,7 +672,7 @@ export function ClientPricingPanel({
                                 }))
                               }
                               onBlur={() => void savePrice(row)}
-                              className="h-8 min-w-[120px] bg-[#0a0e3a]/40 border-white/15 text-white placeholder:text-white/30"
+                              className="h-8 min-w-[120px] border-white/15 text-white placeholder:text-white/30"
                               placeholder="—"
                             />
                           ) : (
@@ -713,7 +713,7 @@ export function ClientPricingPanel({
       </CardContent>
 
       <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[520px]">
+        <DialogContent className="border-white/10 text-white sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle className="text-white">Copy pricing model</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -733,10 +733,10 @@ export function ClientPricingPanel({
               <div className="space-y-2">
                 <Label className="text-white/80">Copy from</Label>
                 <Select value={copySourceId} onValueChange={setCopySourceId}>
-                  <SelectTrigger className="bg-[#0a0e3a] border-white/10 text-white">
+                  <SelectTrigger className="border-white/10 text-white">
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
-                  <SelectContent className="bg-brand-onyx border-white/10 max-h-[300px]">
+                  <SelectContent className="border-white/10 max-h-[300px]">
                     {copySources
                       .slice()
                       .sort((a, b) => {
@@ -799,7 +799,7 @@ export function ClientPricingPanel({
       </Dialog>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Upload Client Pricing (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -845,7 +845,7 @@ export function ClientPricingPanel({
           ) : (
             <div className="space-y-4 py-2">
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03] px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {

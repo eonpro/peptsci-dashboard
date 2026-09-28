@@ -164,7 +164,7 @@ export function InvoicePayDialog({ invoiceId, invoiceNumber, amountDue, open, on
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-md">
+      <DialogContent className="border-white/10 text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">
             Pay invoice {invoiceNumber} — {formatPrice(amountDue)}

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { KeyRound, Loader2 } from 'lucide-react'
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+const inputClass = 'border-white/10 text-white placeholder:text-white/30'
 const labelClass = 'text-white/70 text-xs'
 
 /**
@@ -83,7 +83,7 @@ export default function ResetPasswordDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[440px]">
+      <DialogContent className="border-white/10 text-white sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-brand-primary" /> Reset Password

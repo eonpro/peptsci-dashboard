@@ -32,7 +32,7 @@ export interface EditableUser {
   clientId: string | null
 }
 
-const triggerClass = 'bg-[#0a0e3a] border-white/10 text-white'
+const triggerClass = 'border-white/10 text-white'
 const labelClass = 'text-white/70 text-xs'
 const NO_CLIENT = '__none__'
 
@@ -94,7 +94,7 @@ export default function EditUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[480px]">
+      <DialogContent className="border-white/10 text-white sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="text-white">Edit {name}</DialogTitle>
           <DialogDescription className="text-white/60">
@@ -109,7 +109,7 @@ export default function EditUserDialog({
               <SelectTrigger className={triggerClass}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10">
+              <SelectContent className="border-white/10">
                 <SelectItem value="ACTIVE" className="text-white focus:bg-white/10 focus:text-white">
                   Active
                 </SelectItem>
@@ -132,7 +132,7 @@ export default function EditUserDialog({
               <SelectTrigger className={triggerClass}>
                 <SelectValue placeholder="No practice" />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10 max-h-[280px]">
+              <SelectContent className="border-white/10 max-h-[280px]">
                 <SelectItem
                   value={NO_CLIENT}
                   className="text-white focus:bg-white/10 focus:text-white"

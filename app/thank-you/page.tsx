@@ -4,6 +4,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { CopyRefButton } from './CopyRefButton'
 import { ACCOUNT_REVIEW_SLA } from '@/lib/shop/portal'
 import { PARTNER_REVIEW_SLA } from '@/lib/partners/access'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: 'Application received — PeptSci',
@@ -48,16 +49,8 @@ export default async function ThankYouPage({
         }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 text-white">
-      {/* Ambient brand glows */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[140px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-[-15%] right-[5%] h-[380px] w-[380px] rounded-full bg-brand-primary/25 blur-[140px]"
-      />
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 text-white">
+      <FluidBackground />
 
       <main className="relative w-full max-w-lg text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}

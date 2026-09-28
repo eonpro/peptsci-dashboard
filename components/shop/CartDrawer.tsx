@@ -35,10 +35,10 @@ export function CartDrawer() {
       {/* Full screen on mobile, side drawer on desktop */}
       <SheetContent
         hideCloseButton
-        className="flex w-full flex-col p-0 sm:max-w-lg bg-brand-onyx border-l border-white/10 text-white data-[state=open]:duration-300"
+        className="flex w-full flex-col p-0 sm:max-w-lg border-l border-white/10 text-white data-[state=open]:duration-300"
       >
         {/* Custom header for better mobile UX */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-brand-onyx">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 bg-white/[0.05]">
           <SheetTitle className="flex items-center gap-3 text-white">
             <div className="relative">
               <ShoppingCart className="h-6 w-6" />
@@ -62,7 +62,7 @@ export function CartDrawer() {
 
         {/* Free shipping progress - mobile optimized */}
         {items.length > 0 && (
-          <div className="px-4 py-3 bg-[#0a0e3a] border-b border-white/10">
+          <div className="px-4 py-3 bg-white/[0.05] border-b border-white/10">
             {remainingForFreeShipping > 0 ? (
               <>
                 <div className="flex justify-between text-sm mb-2">
@@ -125,7 +125,7 @@ export function CartDrawer() {
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex gap-3 rounded-2xl border border-white/10 bg-[#0a0e3a] p-3"
+                    className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.05] p-3 backdrop-blur-xl"
                   >
                     {/* Product image - larger touch target */}
                     <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-linear-to-br from-brand-primary/20 to-brand-primary/5">
@@ -220,7 +220,7 @@ export function CartDrawer() {
             </ScrollArea>
 
             {/* Fixed bottom checkout section - safe area aware */}
-            <div className="border-t border-white/10 bg-brand-onyx p-4 pb-6 md:pb-4 space-y-4">
+            <div className="border-t border-white/10 bg-white/[0.05] p-4 pb-6 md:pb-4 space-y-4">
               {/* Totals */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">

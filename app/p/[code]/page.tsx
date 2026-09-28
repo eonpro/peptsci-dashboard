@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { BadgeCheck, FlaskConical, ShieldCheck, Truck } from 'lucide-react'
 import { prisma } from '@/lib/prisma'
 import { isValidReferralCode } from '@/lib/partners/referral'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,15 +48,8 @@ export default async function PartnerLandingPage({
   const inviter = link.rep?.name ? `${link.rep.name} · ${link.org.name}` : link.org.name
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 py-16 text-white">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 left-1/2 h-[480px] w-[760px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[140px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-[-15%] right-[5%] h-[380px] w-[380px] rounded-full bg-brand-primary/25 blur-[140px]"
-      />
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 py-16 text-white">
+      <FluidBackground />
 
       <main className="relative w-full max-w-xl text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}

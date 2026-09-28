@@ -79,14 +79,14 @@ export function StripeBackfillButton() {
       <Button
         onClick={openDialog}
         variant="outline"
-        className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+        className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
       >
         <CreditCard className="h-4 w-4 mr-2" />
         Backfill from Stripe
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[480px]">
+        <DialogContent className="border-white/10 text-white sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="text-white">Backfill Sales from Stripe</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -145,7 +145,7 @@ export function StripeBackfillButton() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-[#0a0e3a] border-white/10 text-white"
+                  className="border-white/10 text-white"
                 />
               </div>
               <div className="space-y-1">
@@ -154,7 +154,7 @@ export function StripeBackfillButton() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-[#0a0e3a] border-white/10 text-white"
+                  className="border-white/10 text-white"
                 />
               </div>
             </div>

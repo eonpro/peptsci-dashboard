@@ -33,7 +33,7 @@ import { OpsQueues } from './OpsQueues'
 const DashboardCharts = dynamic(() => import('./DashboardCharts'), {
   ssr: false,
   loading: () => (
-    <div className="h-[320px] w-full animate-pulse rounded-2xl border border-white/10 bg-[#0a0e3a]/50" />
+    <div className="h-[320px] w-full animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]" />
   ),
 })
 import type { Sale } from '@/lib/sales'
@@ -230,7 +230,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
             size="sm"
             aria-expanded={toolsOpen}
             onClick={() => setToolsOpen((v) => !v)}
-            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+            className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
           >
             <Database className="mr-2 h-4 w-4" />
             Data tools
@@ -244,7 +244,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
             variant="outline"
             size="sm"
             disabled={refreshing}
-            className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+            className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -253,7 +253,7 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
       </div>
 
       {canRunTools && toolsOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-[#0a0e3a]/50 p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3">
           <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-white/40">
             Imports & backfills
           </span>
@@ -369,14 +369,14 @@ export default function DashboardClient({ initialSales }: { initialSales: Sale[]
 
         {/* Right rail: action queues + best customers */}
         <aside className="min-w-0 space-y-6">
-          <div className="rounded-[28px] border border-white/10 bg-[#0a0e3a]/60 p-5">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/60">
               Needs attention
             </h3>
             <OpsQueues variant="rail" />
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-[#0a0e3a]/60 p-5">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/60">
                 <Crown className="h-4 w-4 text-amber-300" /> Top customers

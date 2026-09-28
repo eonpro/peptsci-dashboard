@@ -84,17 +84,8 @@ export default function PartnerApplyPage() {
   return (
     <div className="isolate relative min-h-screen overflow-hidden bg-brand-onyx text-white">
       <FluidBackground />
-      {/* Decorative background glows */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-40 -left-40 h-[32rem] w-[32rem] rounded-full bg-brand-primary/25 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/3 -right-48 h-[28rem] w-[28rem] rounded-full bg-indigo-500/15 blur-3xl"
-      />
 
-      <header className="relative border-b border-white/10 bg-brand-onyx/80 backdrop-blur-xl">
+      <header className="relative border-b border-white/[0.08] bg-brand-onyx/55 backdrop-blur-2xl backdrop-saturate-150">
         <div className="mx-auto flex container items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center" aria-label="PeptSci home">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -216,7 +207,7 @@ export default function PartnerApplyPage() {
 
           <section id="apply" className="lg:pt-2">
             <div className="lg:sticky lg:top-8">
-              <div className="overflow-hidden rounded-3xl bg-white text-slate-900 shadow-2xl shadow-black/40 ring-1 ring-white/20">
+              <div className="overflow-hidden rounded-3xl bg-white/85 text-slate-900 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.9),0_30px_80px_-24px_rgb(0_0_0/0.7)] ring-1 ring-white/40 backdrop-blur-2xl backdrop-saturate-150">
                 <div className="h-1.5 bg-gradient-to-r from-brand-primary via-indigo-500 to-blue-400" />
                 <div className="p-6 sm:p-8">
                   <h2 className="text-2xl font-bold tracking-tight">Apply to become a partner</h2>

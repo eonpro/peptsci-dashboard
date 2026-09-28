@@ -103,7 +103,7 @@ export default function ClientsPage() {
       </div>
 
       <Card className="border-white/10 overflow-hidden">
-        <CardHeader className="bg-brand-onyx/50 border-b border-white/10">
+        <CardHeader className="bg-white/[0.04] border-b border-white/10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="bg-brand-primary/20 p-2 rounded-lg">
@@ -122,7 +122,7 @@ export default function ClientsPage() {
                 placeholder="Search name, NPI, contact…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-10 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
+                className="pl-10 border-white/10 text-white placeholder:text-white/40"
               />
             </div>
           </div>

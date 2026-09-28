@@ -57,9 +57,9 @@ export function CoaDialog({ sku, productName, open, onOpenChange }: CoaDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] w-[min(960px,96vw)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-white/10 bg-brand-onyx p-0">
+      <DialogContent className="flex h-[92vh] w-[min(960px,96vw)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-white/10 p-0">
         {/* Fixed header: title + actions (kept clear of the close button). */}
-        <DialogHeader className="shrink-0 border-b border-white/10 bg-brand-onyx px-5 py-4 pr-14">
+        <DialogHeader className="shrink-0 border-b border-white/10 bg-white/[0.05] px-5 py-4 pr-14">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <DialogTitle className="flex min-w-0 items-center gap-2 text-white">
               <FileText className="h-5 w-5 shrink-0 text-brand-primary" />

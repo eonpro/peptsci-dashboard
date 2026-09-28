@@ -86,14 +86,14 @@ export function StripeGapRepairButton() {
       <Button
         onClick={openDialog}
         variant="outline"
-        className="bg-[#0a0e3a] border-amber-500/40 text-amber-100 hover:bg-amber-500/10 hover:text-amber-50"
+        className="border-amber-500/40 text-amber-100 hover:bg-amber-500/10 hover:text-amber-50"
       >
         <Wrench className="h-4 w-4 mr-2" />
         Repair Stripe gap
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="border-white/10 text-white sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Repair missing Stripe sales</DialogTitle>
             <DialogDescription className="text-white/60">

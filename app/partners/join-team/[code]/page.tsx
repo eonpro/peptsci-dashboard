@@ -30,10 +30,6 @@ export default async function JoinTeamPage({ params }: { params: Promise<{ code:
   return (
     <div className="isolate relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-brand-onyx px-6 py-16 text-white">
       <FluidBackground />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[140px]"
-      />
       <main className="relative w-full max-w-md">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={LOGO_SRC} alt="PeptSci" className="mx-auto h-9 w-auto" />

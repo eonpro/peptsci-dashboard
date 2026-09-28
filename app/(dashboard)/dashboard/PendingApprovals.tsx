@@ -57,7 +57,7 @@ export function PendingApprovals() {
             <Button
               variant="outline"
               size="sm"
-              className="border-white/10 bg-[#0a0e3a] text-white/70 hover:bg-white/10 hover:text-white"
+              className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
             >
               View all clients
             </Button>
@@ -69,7 +69,7 @@ export function PendingApprovals() {
           <Link
             key={c.id}
             href={`/clients/${c.id}`}
-            className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-[#0a0e3a]/50 px-4 py-3 transition-colors hover:bg-white/5"
+            className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 transition-colors hover:bg-white/5"
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="rounded-lg bg-amber-500/10 p-2">

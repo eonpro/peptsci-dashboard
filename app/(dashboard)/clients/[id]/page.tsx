@@ -771,7 +771,7 @@ export default function ClientDetailPage() {
                 <SelectTrigger className={inputClass}>
                   <SelectValue placeholder="Select terms" />
                 </SelectTrigger>
-                <SelectContent className="bg-brand-onyx border-white/10">
+                <SelectContent className="border-white/10">
                   {PAYMENT_TERMS_OPTIONS.map((opt) => (
                     <SelectItem
                       key={opt.value == null ? 'none' : String(opt.value)}

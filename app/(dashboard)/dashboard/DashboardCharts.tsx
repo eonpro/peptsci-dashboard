@@ -313,14 +313,14 @@ export default function DashboardCharts({
           </ResponsiveContainer>
         </div>
 
-        <div className="grid w-full gap-3 rounded-2xl border border-white/10 bg-[#0a0e3a]/50 p-4 shadow-xl backdrop-blur-md lg:max-w-[280px]">
+        <div className="grid w-full gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl backdrop-blur-md lg:max-w-[280px]">
           {data.map((item, index) => {
             const value = Number(item[pieDataKey] ?? 0)
             const percentage = total > 0 ? Math.round((value / total) * 100) : 0
             return (
               <div
                 key={`${String(item[xKey ?? 'name'] ?? 'segment')}-${index}`}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-brand-onyx/70 px-3 py-2.5 shadow-xs transition-colors duration-200 hover:border-brand-primary/40 hover:bg-[#0a0e3a]/70"
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 shadow-xs transition-colors duration-200 hover:border-brand-primary/40 hover:bg-white/[0.04]"
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
