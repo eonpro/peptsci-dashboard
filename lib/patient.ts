@@ -1,6 +1,7 @@
 /** Zod schema + serializer for saved patients (ship-to recipients). */
 import { z } from 'zod'
 import { addressSchema, type Address } from './address'
+import { joinPersonName } from './orders/recipient'
 
 export const patientCreateSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required').max(120),
@@ -60,7 +61,9 @@ export function orderShippingAddressFromPatient(p: {
     p.address && typeof p.address === 'object' && !Array.isArray(p.address)
       ? (p.address as Record<string, unknown>)
       : {}
-  const name = `${p.firstName} ${p.lastName}`.replace(/\s+/g, ' ').trim()
+  // joinPersonName drops the "—" last name stored for single-word names, so a
+  // label never reads "Madonna —".
+  const name = joinPersonName(p.firstName, p.lastName)
   return {
     ...addr,
     firstName: p.firstName,

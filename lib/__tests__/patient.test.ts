@@ -65,6 +65,20 @@ describe('orderShippingAddressFromPatient', () => {
     assert.equal(addr.city, 'Colorado Springs')
     assert.equal(addr.residential, true)
   })
+
+  test('omits the "—" placeholder last name (single-word names) from the printed name', () => {
+    const addr = orderShippingAddressFromPatient({
+      firstName: 'Madonna',
+      lastName: '—',
+      phone: null,
+      email: null,
+      address: { address1: '1 Main St', city: 'Denver', state: 'CO', zip: '80203' },
+    })
+    assert.equal(addr.name, 'Madonna')
+    assert.equal(addr.personName, 'Madonna')
+    assert.equal('phone' in addr, false)
+    assert.equal('email' in addr, false)
+  })
 })
 
 describe('manualPatientShipToError', () => {

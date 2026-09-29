@@ -18,6 +18,8 @@ import {
   ELEMENT_LABS_BRAND_KEY,
   isLabelBrandKey,
 } from '../labels/brandKeys'
+import { pdfSafeText } from '../pdf-safe-text'
+import { recipientNameFromAddress } from '../orders/recipient'
 import type { OrderPickList, PackingSlipData } from './service'
 
 const PT = 72
@@ -88,34 +90,25 @@ async function embedBrandLogo(
 }
 
 /**
- * Standard-14 PDF fonts only support WinAnsi (CP-1252). Any glyph outside it
- * (™, curly quotes, accented letters, emoji, CJK) makes pdf-lib's drawText
- * throw and 500s the whole document. Map the common typographic characters to
- * ASCII equivalents and replace anything still unrepresentable with '?', so a
- * product/customer name with unusual characters can never crash label/slip
- * generation.
+ * Every string drawn with a Standard-14 font goes through the shared WinAnsi
+ * sanitizer (pdf-lib throws on emoji, CJK, control characters, …), so a product
+ * or customer name with unusual characters can never crash slip generation.
+ * Pick lists and packing slips print plain-ASCII punctuation.
  */
 function S(input: string | null | undefined): string {
-  if (!input) return ''
-  const mapped = input
-    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
-    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/\u2026/g, '...')
-    .replace(/\u2122/g, '(TM)')
-    .replace(/[\u00AE]/g, '(R)')
-    .replace(/\u00A0/g, ' ')
-  // Drop anything outside the printable WinAnsi range (approximation: keep
-  // ASCII + Latin-1 supplement) and fall back to '?' so widths stay valid.
-  // eslint-disable-next-line no-control-regex
-  return mapped.replace(/[^\u0000-\u00FF]/g, '?')
+  return pdfSafeText(input, { asciiPunctuation: true })
 }
 
-function formatAddress(addr: unknown): string[] {
+/**
+ * Ship-to lines: recipient, street, city/state/zip. `recipientName` is the
+ * person the service resolved (the patient on ship-to-patient orders); without
+ * it the name is read off the address snapshot, whichever shape it was saved in.
+ */
+function formatAddress(addr: unknown, recipientName?: string | null): string[] {
   if (!addr || typeof addr !== 'object') return []
   const a = addr as Record<string, unknown>
   const str = (k: string) => (typeof a[k] === 'string' ? (a[k] as string) : '')
-  const name = str('name') || str('contactName')
+  const name = (recipientName ?? '').trim() || recipientNameFromAddress(addr)
   const line1 = str('line1') || str('address1') || str('street')
   const line2 = str('line2') || str('address2')
   const city = str('city')
@@ -323,7 +316,7 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
     color: MUTED,
   })
   y -= 14
-  const addrLines = formatAddress(slip.shippingAddress)
+  const addrLines = formatAddress(slip.shippingAddress, slip.recipientName)
   const shipTo = addrLines.length > 0 ? addrLines : [slip.client?.organizationName ?? '—']
   for (const ln of shipTo) {
     page.drawText(S(ln).slice(0, 60), { x: MARGIN, y, size: 10, font: fonts.reg, color: INK })

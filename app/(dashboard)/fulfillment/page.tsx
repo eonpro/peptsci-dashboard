@@ -29,6 +29,7 @@ import {
   type ShipFromAddress,
 } from '@/lib/shipping/whiteLabelOrigin'
 import { FulfillmentOrderRow, type OrderRow } from '@/components/fulfillment/FulfillmentOrderRow'
+import { shipToPersonName } from '@/lib/fulfillment/ship-to'
 import { apiError } from '@/lib/api-error'
 import { useRole } from '@/hooks/useRole'
 import { staffCanMutate } from '@/lib/staff/portal'
@@ -77,12 +78,9 @@ function toLabelAddress(order: OrderRow): Partial<LabelAddress> {
   const whiteLabel =
     order.source === 'SHOPIFY' || Boolean(order.client?.whiteLabelEnabled)
   return {
-    personName:
-      str(a.name) ||
-      str(a.personName) ||
-      order.client?.contactName ||
-      (whiteLabel ? '' : order.client?.organizationName) ||
-      '',
+    // Ship-to-patient orders are addressed to the patient — never quietly to the
+    // clinic contact. Practice orders keep the contact / organization fallbacks.
+    personName: shipToPersonName(order, { orgFallback: !whiteLabel }),
     companyName: resolveFedExDestinationCompany({
       addressCompany: str(a.company) || str(a.companyName) || null,
       clientOrganizationName: order.client?.organizationName,
@@ -529,7 +527,7 @@ export default function FulfillmentPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
           <Input
-            placeholder="Search by order #, tracking, or client…"
+            placeholder="Search by order #, tracking, client, or patient…"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)

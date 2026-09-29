@@ -28,6 +28,7 @@ import {
 import { toast } from 'sonner'
 import { downloadLabelSheet } from '@/lib/fulfillment/api-client'
 import { describeLabelShortfall } from '@/lib/fulfillment/label-shortfall'
+import { shipToDisplayName } from '@/lib/fulfillment/ship-to'
 import type { FulfillmentStageName, FulfillmentStepName } from '@/lib/fulfillment/wizard-core'
 import type { ShippedTextStatus } from '@/lib/sms/notification-status'
 
@@ -49,6 +50,10 @@ export type OrderRow = {
   shippedAt: string | null
   shippingAddress: StoredAddress
   shipSpeed?: string | null
+  /** 'PRACTICE' | 'PATIENT' — where the clinic asked us to send the order. */
+  shipTo?: string | null
+  /** Who the package is addressed to: the patient on ship-to-patient orders. */
+  recipientName?: string
   client: {
     id: string
     organizationName: string
@@ -238,10 +243,9 @@ export function FulfillmentOrderRow({
           </p>
           {(() => {
             const a = (order.shippingAddress || {}) as Record<string, unknown>
-            const name =
-              (typeof a.name === 'string' && a.name.trim()) ||
-              (typeof a.personName === 'string' && a.personName.trim()) ||
-              ''
+            // The patient on ship-to-patient orders (resolved from the address
+            // snapshot or the saved patient), else the person/company on the address.
+            const name = shipToDisplayName(order)
             const city = typeof a.city === 'string' ? a.city.trim() : ''
             const state = typeof a.state === 'string' ? a.state.trim() : ''
             const loc = [city, state].filter(Boolean).join(', ')
@@ -253,10 +257,12 @@ export function FulfillmentOrderRow({
                 </p>
               )
             }
-            if (!name && !loc) return null
+            const toPatient = order.shipTo === 'PATIENT'
+            // A patient shipment always shows its line, so a missing name is visible.
+            if (!name && !loc && !toPatient) return null
             return (
               <p className="mt-0.5 truncate text-sm text-violet-200/80">
-                Ship to: {name || '—'}
+                {toPatient ? 'Ship to patient' : 'Ship to'}: {name || '—'}
                 {loc ? ` · ${loc}` : ''}
               </p>
             )

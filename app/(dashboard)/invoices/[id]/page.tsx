@@ -92,6 +92,8 @@ type InvoiceView = {
   }
   aging: string
   daysPastDue: number
+  /** Patient each ship-to-patient order line shipped to, keyed by orderId. */
+  shipToByOrderId?: Record<string, string>
 }
 
 const dec = (s: string | null) => (s == null ? 0 : Number(s))
@@ -380,14 +382,20 @@ export default function InvoiceDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="divide-y divide-white/5">
-            {invoice.lineItems.map((li) => (
-              <div key={li.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-white">{li.description}</span>
-                <span className="text-white/70">
-                  {li.quantity} × {usd(dec(li.unitPrice))} = {usd(dec(li.amount))}
-                </span>
-              </div>
-            ))}
+            {invoice.lineItems.map((li) => {
+              const patient = li.orderId ? view.shipToByOrderId?.[li.orderId] : undefined
+              return (
+                <div key={li.id} className="flex items-center justify-between py-2 text-sm">
+                  <span className="text-white">
+                    {li.description}
+                    {patient && <span className="ml-2 text-violet-200/80">· Ship to patient: {patient}</span>}
+                  </span>
+                  <span className="text-white/70">
+                    {li.quantity} × {usd(dec(li.unitPrice))} = {usd(dec(li.amount))}
+                  </span>
+                </div>
+              )
+            })}
             {invoice.adjustments.map((a) => {
               const amt = a.kind === 'PERCENT' ? (totals.subtotal * dec(a.percent)) / 100 : dec(a.amount)
               return (
