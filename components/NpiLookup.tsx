@@ -124,7 +124,7 @@ export function NpiLookup({ onSelect, dark, placeholder, allowBypass }: Props) {
       {open && (results.length > 0 || error || bypass) && (
         <div
           className={`absolute z-50 mt-2 w-full rounded-xl border shadow-xl overflow-hidden ${
-            dark ? 'bg-[#0a0e3a] border-white/10' : 'bg-white border-gray-200'
+            dark ? 'bg-white/[0.05] border-white/10' : 'bg-white border-gray-200'
           }`}
         >
           {bypass ? (

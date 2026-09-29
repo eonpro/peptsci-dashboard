@@ -113,7 +113,7 @@ export function SupportChatWidget() {
         <div
           role="dialog"
           aria-label="PeptSci support chat"
-          className="fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#07092c] shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] bottom-36 right-4 h-[min(560px,calc(100dvh-11rem))] w-[calc(100vw-2rem)] max-w-[400px] md:bottom-24 md:right-6"
+          className="fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#0a0e3a]/85 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] bottom-36 right-4 h-[min(560px,calc(100dvh-11rem))] w-[calc(100vw-2rem)] max-w-[400px] md:bottom-24 md:right-6 backdrop-blur-2xl"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">

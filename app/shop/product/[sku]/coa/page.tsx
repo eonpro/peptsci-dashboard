@@ -48,7 +48,7 @@ export default async function ProductCoaPage({ params }: CoaPageProps) {
       </div>
 
       {coas.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e3a] p-10 text-center text-white/60">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-10 text-center text-white/60 backdrop-blur-xl">
           No certificate of analysis is available for this product yet.
         </div>
       ) : (

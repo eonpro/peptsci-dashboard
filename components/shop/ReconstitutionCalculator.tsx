@@ -133,7 +133,7 @@ export function ReconstitutionCalculator({ productName, doseLabel, className }: 
   return (
     <section
       className={cn(
-        'rounded-2xl border border-white/10 bg-[#0a0e3a] p-6 md:p-8',
+        'rounded-2xl border border-white/10 bg-white/[0.05] p-6 md:p-8 backdrop-blur-xl',
         className
       )}
     >

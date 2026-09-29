@@ -15,6 +15,7 @@ import { Logo } from '@/components/Logo'
 import { ThemeScope } from '@/components/ThemeScope'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
 import { defaultRouteForRole } from '@/lib/access'
+import { FluidBackground } from '@/components/FluidBackground'
 
 // Tint mobile browser chrome (status bar / URL bar) onyx to match the page.
 export const viewport: Viewport = {
@@ -64,7 +65,8 @@ export default async function RootPage() {
   }
 
   return (
-    <div className="dark relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+    <div className="dark relative isolate min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+      <FluidBackground />
       {/* Hoist .dark to <html> so the body canvas (bg-background) turns onyx —
           otherwise mobile overscroll exposes the light-beige :root background
           above/below the dark page. */}
@@ -77,12 +79,6 @@ export default async function RootPage() {
         <img src="/brand/peptsci-icon-transparent.png" alt="" className="splash-icon" />
       </div>
 
-      {/* Ambient gradient glows (same treatment as the auth screens) */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />
-        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-brand-primary/25 blur-[160px]" />
-        <div className="absolute bottom-[-10%] right-[2%] h-[420px] w-[420px] rounded-full bg-[#7a5bff]/20 blur-[150px]" />
-      </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 pb-12 pt-6 sm:px-6">
         {/* Top bar: logo + quick log-in */}

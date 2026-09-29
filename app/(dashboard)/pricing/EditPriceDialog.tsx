@@ -84,11 +84,11 @@ export default function EditPriceDialog({
     return (((s - c) / s) * 100).toFixed(1)
   })()
 
-  const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+  const inputClass = 'border-white/10 text-white placeholder:text-white/30'
 
   return (
     <Dialog open={Boolean(row)} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[420px]">
+      <DialogContent className="border-white/10 text-white sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="text-white">Edit Pricing</DialogTitle>
           <DialogDescription className="text-white/60">

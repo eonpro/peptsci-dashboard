@@ -49,7 +49,7 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
         : 'h-40 sm:h-48 lg:h-56'
 
   return (
-    <div className="relative flex min-h-full flex-col overflow-hidden bg-[#050722] px-6 py-8 text-white sm:px-10 lg:px-14 xl:px-20">
+    <div className="relative flex min-h-full flex-col overflow-hidden bg-transparent px-6 py-8 text-white sm:px-10 lg:px-14 xl:px-20">
       {/* Chapter art, dimmed so vials and copy stay legible */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -69,7 +69,7 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
       />
       <header className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-teal">
             Research category
           </p>
           <h2 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -112,7 +112,7 @@ export function BookCategoryDivider({ page }: { page: CategoryManifestPage }) {
                     </span>
                   )}
                   {summary.categoryLine && (
-                    <span className="text-center text-[10px] font-medium uppercase tracking-wider text-brand-primary/80">
+                    <span className="text-center text-[10px] font-medium uppercase tracking-wider text-brand-teal/80">
                       {summary.categoryLine}
                     </span>
                   )}

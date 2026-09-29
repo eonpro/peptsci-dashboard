@@ -126,7 +126,7 @@ export function SupplierPriceImportDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Import Supplier Price List (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -175,12 +175,12 @@ export function SupplierPriceImportDialog({
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   placeholder="e.g. Crest Peptide"
-                  className="bg-[#0a0e3a]/40 border-white/15 text-white placeholder:text-white/30"
+                  className="border-white/15 text-white placeholder:text-white/30"
                 />
               </div>
 
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03] px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {

@@ -12,6 +12,7 @@ import {
   SMS_SUPPORT_EMAIL,
   SMS_TERMS_PATH,
 } from '@/lib/sms/program'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const metadata: Metadata = {
   title: `${SMS_PROGRAM_NAME} — Text message updates from PeptSci`,
@@ -38,11 +39,8 @@ const PROGRAM_FACTS: Array<[string, string]> = [
 /** Public PeptSci Alerts landing + opt-in (the "sign up for texts" area). */
 export default function SmsSignupPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />
-        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-brand-primary/25 blur-[160px]" />
-      </div>
+    <div className="relative isolate min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+      <FluidBackground />
 
       <div className="relative z-10 mx-auto w-full max-w-5xl px-6 py-12">
         <Link href="/" aria-label="Back to home" className="inline-block">
@@ -117,7 +115,7 @@ export default function SmsSignupPage() {
 
           <section id="signup" className="lg:pt-2">
             <div className="lg:sticky lg:top-8">
-              <div className="overflow-hidden rounded-3xl bg-white text-slate-900 shadow-2xl shadow-black/40 ring-1 ring-white/20">
+              <div className="overflow-hidden rounded-3xl bg-white/85 text-slate-900 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.9),0_30px_80px_-24px_rgb(0_0_0/0.7)] ring-1 ring-white/40 backdrop-blur-2xl backdrop-saturate-150">
                 <div className="h-1.5 bg-gradient-to-r from-brand-primary via-indigo-500 to-blue-400" />
                 <div className="p-6 sm:p-8">
                   <h2 className="text-2xl font-bold tracking-tight">Sign up for text updates</h2>

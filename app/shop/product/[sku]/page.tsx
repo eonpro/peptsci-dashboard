@@ -196,7 +196,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         {/* Pricing and actions */}
         <div className="space-y-6">
-          <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6">
+          <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 backdrop-blur-xl">
             <h2 className="text-lg font-semibold text-white mb-4">Pricing</h2>
 
             {/* Size (mg) picker — each size is its own SKU/price */}
@@ -258,7 +258,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           {/* Certificate of Analysis */}
           {coaAvailable && (
             <Link href={`/shop/product/${encodeURIComponent(product.sku)}/coa`} className="block">
-              <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6 hover:border-brand-primary/60 transition-colors">
+              <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 hover:border-brand-primary/60 transition-colors backdrop-blur-xl">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary/15 text-[#7d90ff]">
                     <FileCheck2 className="h-5 w-5" />
@@ -276,7 +276,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Product specifications */}
           {product.specifications && (
-            <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6">
+            <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 backdrop-blur-xl">
               <h2 className="text-lg font-semibold text-white mb-4">Specifications</h2>
               <p className="text-white/70 text-sm whitespace-pre-wrap">{product.specifications}</p>
             </div>
@@ -284,7 +284,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Usage instructions */}
           {product.usageInstructions && (
-            <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6">
+            <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 backdrop-blur-xl">
               <h2 className="text-lg font-semibold text-white mb-4">Usage Instructions</h2>
               <p className="text-white/70 text-sm whitespace-pre-wrap">
                 {product.usageInstructions}
@@ -294,7 +294,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Storage */}
           {product.storageRequirements && (
-            <div className="rounded-2xl bg-[#0a0e3a] border border-white/10 p-6">
+            <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-6 backdrop-blur-xl">
               <h2 className="text-lg font-semibold text-white mb-4">Storage</h2>
               <p className="text-white/70 text-sm">{product.storageRequirements}</p>
             </div>

@@ -154,7 +154,7 @@ export default function StorefrontsPage() {
               New Storefront
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#0a0e3a] border-white/10 text-white">
+          <DialogContent className="border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Create Storefront</DialogTitle>
               <DialogDescription className="text-white/60">
@@ -173,7 +173,7 @@ export default function StorefrontsPage() {
                       placeholder={clients.length === 0 ? 'No clients found' : 'Select a client…'}
                     />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0a0e3a] border-white/10 text-white">
+                  <SelectContent className="border-white/10 text-white">
                     {clients.map((c) => (
                       <SelectItem
                         key={c.id}
@@ -267,7 +267,7 @@ export default function StorefrontsPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-[#0a0e3a] border-white/10 text-white">
+                      <DropdownMenuContent align="end" className="border-white/10 text-white">
                         {sf.status !== 'ACTIVE' && (
                           <DropdownMenuItem
                             onClick={() => handleStatusChange(sf.id, 'ACTIVE')}

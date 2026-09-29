@@ -184,7 +184,7 @@ export function ProductGrid({
             >
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-brand-onyx text-white">
+            <SelectContent className="border-white/10 text-white">
               {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
                 <SelectItem
                   key={opt}

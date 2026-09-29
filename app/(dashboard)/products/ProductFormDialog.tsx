@@ -68,7 +68,7 @@ const EMPTY: ProductFormValues = {
   references: '',
 }
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+const inputClass = 'border-white/10 text-white placeholder:text-white/30'
 const labelClass = 'text-white/70 text-xs'
 
 const EMPTY_BLEND: BlendComponent[] = [
@@ -245,7 +245,7 @@ export default function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="border-white/10 text-white sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-white">
             {isEdit ? 'Edit Product' : 'Add Product'}
@@ -262,7 +262,7 @@ export default function ProductFormDialog({
               bacteriostatic water, which is a supply rather than a peptide. */}
           <div className={`space-y-1.5 ${isBacWater ? 'hidden' : ''}`}>
             <Label className={labelClass}>Product type</Label>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-[#0a0e3a] p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/[0.05] p-1">
               {(
                 [
                   { id: 'single', label: 'Single peptide' },
@@ -336,7 +336,7 @@ export default function ProductFormDialog({
             </>
           ) : (
             <>
-              <div className="space-y-2 rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-3">
+              <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
                 <div className="space-y-1.5">
                   <Label className={labelClass}>
                     Blend name (shown on labels — leave blank to list the compounds)
@@ -528,7 +528,7 @@ export default function ProductFormDialog({
           )}
 
           {/* Monograph — shown on the product detail page */}
-          <div className="mt-2 space-y-4 rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-4">
+          <div className="mt-2 space-y-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
             <div>
               <h3 className="text-sm font-semibold text-white">Monograph</h3>
               <p className="text-white/40 text-xs">

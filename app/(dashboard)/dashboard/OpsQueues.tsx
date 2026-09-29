@@ -129,7 +129,7 @@ export function OpsQueues({ variant = 'grid' }: { variant?: 'grid' | 'rail' }) {
               'group flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
               active
                 ? TONE_ACTIVE[tone]
-                : 'border-white/10 bg-[#0a0e3a]/50 text-white/40 hover:bg-white/5'
+                : 'border-white/10 bg-white/[0.04] text-white/40 hover:bg-white/5'
             )}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

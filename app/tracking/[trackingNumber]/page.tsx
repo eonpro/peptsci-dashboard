@@ -7,6 +7,7 @@ import {
   isExceptionStatus,
 } from '@/lib/shipping/fedex-status'
 import { TrackingLookupForm } from '../TrackingLookupForm'
+import { FluidBackground } from '@/components/FluidBackground'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -36,14 +37,15 @@ export default async function TrackingPage({
   const info = await getPublicTracking(decoded)
 
   return (
-    <main className="min-h-screen bg-[#F2F0EA] px-4 py-12 text-[#1a1a2e]">
+    <main className="relative isolate min-h-screen bg-[#eef1f8] px-4 py-12 text-[#1a1a2e]">
+      <FluidBackground variant="light" />
       <div className="mx-auto w-full max-w-xl">
         <div className="mb-8 text-center">
           <span className="text-2xl font-bold tracking-wide text-brand-onyx">PEPTSCI</span>
         </div>
 
         {!info ? (
-          <div className="rounded-3xl bg-white p-8 shadow-[0_18px_60px_-30px_rgba(33,60,239,0.35)]">
+          <div className="rounded-3xl border border-white/70 bg-white/70 p-8 shadow-glass backdrop-blur-2xl backdrop-saturate-150">
             <h1 className="mb-2 text-xl font-semibold">Shipment not found</h1>
             <p className="mb-6 text-sm text-gray-500">
               We couldn&rsquo;t find a shipment for tracking number{' '}
@@ -61,7 +63,7 @@ export default async function TrackingPage({
             </a>
           </div>
         ) : (
-          <div className="rounded-3xl bg-white p-8 shadow-[0_18px_60px_-30px_rgba(33,60,239,0.35)]">
+          <div className="rounded-3xl border border-white/70 bg-white/70 p-8 shadow-glass backdrop-blur-2xl backdrop-saturate-150">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-gray-500">Order #{info.orderNumber}</p>

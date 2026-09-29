@@ -1,3 +1,36 @@
+# Liquid-glass UI — phase 2 sweep  [PLANNER+EXECUTOR — 2026-09-28 17:30]
+
+## Background and Motivation
+Phase 1 (PR #66, live) upgraded primitives + chrome. Phase 2: remove the remaining opaque navy
+fills in page code, convert white-only cards, bring the public catalog + tracking pages onto the
+fluid background, and polish tables.
+
+## Key Challenges and Analysis
+- ~150 `bg-[#0a0e3a]` / `bg-brand-onyx` fills across 72 files; context decides treatment:
+  overlays/fields/outline buttons → strip (primitive already glass); panels → translucent white
+  (+blur only on outer, large-radius panels); floating menus → dense glass (`/85` + blur-2xl);
+  80–99% alpha fills are deliberate overlays → untouched.
+- Kept on purpose: vial label art, COA document viewers, photo hero banners, print toolbar,
+  catalog product-page image tiles.
+- Old ambient glows used `filter: blur(90–160px)` (catalog orbs were also animated) — replaced by
+  FluidBackground; this is a perf win, not just visual.
+- SMS opt-in form is A2P-compliance surface → restyled container only (frosted white), not fields.
+
+## Project Status Board
+- [x] Sweep: 128 class strings in 46 files (one-off script, not committed)
+- [x] FluidBackground + glow removal: landing, legal, /sms, /p/[code], thank-you, join-team,
+      partners apply, catalog book (dark spreads transparent; teal eyebrows for contrast)
+- [x] Light variant on /tracking + frosted glass cards; frosted white forms on /sms + /partners/apply
+- [x] Table primitive: header tint, uppercase heads, translucent hover/selected rows
+- [x] tsc, lint, 968 tests; screenshots (catalog, tracking, products, dialog)
+- [ ] PR + owner sign-off on Vercel preview
+
+## Lessons
+- Class-string sweeps need context (owning tag/const) — a single token map would have made
+  floating dropdowns 95% transparent over form content.
+
+---
+
 # Liquid-glass UI — fluid gradient backgrounds + glass surfaces  [PLANNER+EXECUTOR — 2026-09-25 22:40]
 
 ## Background and Motivation

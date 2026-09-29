@@ -8,15 +8,7 @@ import {
 
 export function BookCoverPage() {
   return (
-    <div className="relative flex min-h-full flex-col overflow-hidden bg-[#050722] px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
-      <div
-        aria-hidden
-        className="animate-book-orb pointer-events-none absolute -left-24 top-[-20%] h-[28rem] w-[28rem] rounded-full bg-brand-primary/35 blur-[90px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-16 bottom-[-10%] h-[32rem] w-[32rem] rounded-full bg-brand-primary/20 blur-[110px]"
-      />
+    <div className="relative flex min-h-full flex-col overflow-hidden bg-transparent px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.08),transparent_55%)]"
@@ -96,15 +88,7 @@ export function BookCoverPage() {
 
 export function BookAboutPage() {
   return (
-    <div className="relative flex min-h-full flex-col overflow-hidden bg-[#050722] px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
-      <div
-        aria-hidden
-        className="animate-book-orb pointer-events-none absolute -right-24 -top-24 h-[28rem] w-[28rem] rounded-full bg-brand-primary/25 blur-[100px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-32 left-10 h-96 w-96 rounded-full bg-brand-primary/12 blur-[90px]"
-      />
+    <div className="relative flex min-h-full flex-col overflow-hidden bg-transparent px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
       <div className="relative flex items-center gap-3">
         <Image src="/brand/peptsci-icon-transparent.png" alt="" width={36} height={36} className="h-9 w-9" />
         <div>
@@ -114,7 +98,7 @@ export function BookAboutPage() {
       </div>
       <div className="relative mt-12 grid flex-1 gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
         <div className="max-w-3xl space-y-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-teal">
             The house
           </p>
           <h2 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -156,9 +140,9 @@ export function BookCategoriesPage({
   categories: CatalogBookCategorySummary[]
 }) {
   return (
-    <div className="flex min-h-full flex-col bg-[#050722] px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
+    <div className="flex min-h-full flex-col bg-transparent px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
       <div className="max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-teal">
           Index
         </p>
         <h2 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -197,7 +181,7 @@ export function BookCategoriesPage({
               <p className="mt-3 text-sm text-white/50">
                 {c.productCount} {c.productCount === 1 ? 'product' : 'products'}
               </p>
-              <span className="mt-8 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+              <span className="mt-8 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">
                 Open chapter
                 <svg className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path
@@ -224,11 +208,11 @@ export function BookShippingPage() {
     <div className="flex min-h-full flex-col bg-[#f4f5f8] px-8 py-10 text-brand-onyx sm:px-12 lg:px-16 xl:px-24">
       <div className="grid items-center gap-8 lg:grid-cols-[1fr_minmax(0,26rem)]">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-primary">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand-teal">
             Fulfillment
           </p>
           <h2 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-            2-day nationwide <span className="text-brand-primary">shipping</span>
+            2-day nationwide <span className="text-brand-teal">shipping</span>
           </h2>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-black/60 sm:text-base">
             Controlled domestic distribution of research-grade materials throughout the United
@@ -327,11 +311,7 @@ export function BookWhiteLabelPage() {
 
 export function BookBackPage() {
   return (
-    <div className="relative flex min-h-full flex-col overflow-hidden bg-[#050722] px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
-      <div
-        aria-hidden
-        className="animate-book-orb pointer-events-none absolute -right-20 top-10 h-[28rem] w-[28rem] rounded-full bg-brand-primary/30 blur-[100px]"
-      />
+    <div className="relative flex min-h-full flex-col overflow-hidden bg-transparent px-8 py-10 text-white sm:px-12 lg:px-16 xl:px-24">
       <div className="relative flex flex-1 flex-col justify-center">
         <Image src="/brand/peptsci-icon-transparent.png" alt="" width={72} height={72} className="h-16 w-16" />
         <h2 className="mt-10 max-w-3xl text-5xl font-semibold tracking-tight sm:text-6xl lg:text-7xl">

@@ -131,7 +131,7 @@ export default function AddClientDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="border-white/10 text-white sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Building2 className="h-5 w-5 text-brand-primary" /> Add Client
@@ -195,7 +195,7 @@ export default function AddClientDialog({
               <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white rounded-xl">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10">
+              <SelectContent className="border-white/10">
                 <SelectItem value="APPROVED" className="text-white focus:bg-white/10 focus:text-white">
                   Approved
                 </SelectItem>

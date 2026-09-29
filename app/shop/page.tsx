@@ -36,10 +36,10 @@ export default async function ShopPage() {
       <Suspense
         fallback={
           <div className="space-y-8">
-            <div className="h-72 animate-pulse rounded-3xl bg-[#0a0e3a]" />
+            <div className="h-72 animate-pulse rounded-3xl bg-white/[0.05]" />
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-80 animate-pulse rounded-2xl bg-[#0a0e3a]" />
+                <div key={i} className="h-80 animate-pulse rounded-2xl bg-white/[0.05]" />
               ))}
             </div>
           </div>

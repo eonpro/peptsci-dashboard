@@ -47,7 +47,7 @@ const ROLE_OPTIONS: { value: StaffAssignableRole; label: string }[] = [
   { value: 'SUPER_ADMIN', label: 'Super Admin' },
 ]
 
-const triggerClass = 'bg-[#0a0e3a] border-white/10 text-white'
+const triggerClass = 'border-white/10 text-white'
 const labelClass = 'text-white/70 text-xs'
 
 function toggleIn(list: Permission[], permission: Permission): Permission[] {
@@ -126,7 +126,7 @@ export default function EditPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="border-white/10 text-white max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Role & permissions</DialogTitle>
           <DialogDescription className="text-white/50">
@@ -141,7 +141,7 @@ export default function EditPermissionsDialog({
               <SelectTrigger className={triggerClass}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10">
+              <SelectContent className="border-white/10">
                 {ROLE_OPTIONS.map((opt) => (
                   <SelectItem
                     key={opt.value}

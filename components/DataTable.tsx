@@ -87,14 +87,14 @@ export function DataTable<TData, TValue>({
             placeholder={searchPlaceholder}
             value={globalFilter ?? ''}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0a0e3a] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-xs placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-hidden focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-brand-primary/40 focus:border-brand-primary dark:focus:border-brand-primary transition-all duration-200 hover:shadow-md"
+            className="max-w-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.05] px-4 py-2.5 text-sm text-gray-900 dark:text-white shadow-xs placeholder:text-gray-400 dark:placeholder:text-white/40 focus:outline-hidden focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-brand-primary/40 focus:border-brand-primary dark:focus:border-brand-primary transition-all duration-200 hover:shadow-md"
           />
         </div>
       )}
 
       {/* overflow-x-auto (not hidden): on phones the table scrolls
           horizontally instead of silently clipping trailing columns. */}
-      <div className="rounded-2xl bg-white dark:bg-[#0a0e3a]/50 shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300">
+      <div className="rounded-2xl bg-white dark:bg-white/[0.04] shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-brand-primary/5 transition-shadow duration-300 dark:backdrop-blur-xl">
         <table className="w-full min-w-max">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -196,10 +196,10 @@ export function DataTable<TData, TValue>({
               value={table.getState().pagination.pageSize.toString()}
               onValueChange={(value) => table.setPageSize(Number(value))}
             >
-              <SelectTrigger className="h-8 w-[70px] dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white">
+              <SelectTrigger className="h-8 w-[70px] dark:border-white/10 dark:text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="dark:bg-brand-onyx dark:border-white/10">
+              <SelectContent className="dark:border-white/10">
                 {[10, 25, 50, 100].map((size) => (
                   <SelectItem
                     key={size}
@@ -218,7 +218,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+              className="h-8 w-8 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
               aria-label="First page"
@@ -228,7 +228,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+              className="h-8 w-8 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
               aria-label="Previous page"
@@ -247,7 +247,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+              className="h-8 w-8 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
               aria-label="Next page"
@@ -257,7 +257,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 dark:bg-[#0a0e3a] dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+              className="h-8 w-8 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
               aria-label="Last page"

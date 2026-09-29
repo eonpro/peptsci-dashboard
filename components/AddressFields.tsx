@@ -165,7 +165,7 @@ export function AddressFields({ value, onChange, idPrefix, dark, disabled }: Pro
             role="listbox"
             className={
               dark
-                ? 'absolute z-50 top-full left-0 right-0 mt-1 rounded-xl border border-white/10 bg-brand-onyx shadow-xl overflow-hidden'
+                ? 'absolute z-50 top-full left-0 right-0 mt-1 rounded-xl border border-white/10 bg-[#0a0e3a]/85 shadow-xl overflow-hidden backdrop-blur-2xl'
                 : 'absolute z-50 top-full left-0 right-0 mt-1 rounded-md border border-gray-200 bg-white shadow-lg overflow-hidden'
             }
           >
@@ -265,7 +265,7 @@ export function AddressFields({ value, onChange, idPrefix, dark, disabled }: Pro
             >
               <SelectValue placeholder="State" />
             </SelectTrigger>
-            <SelectContent className={dark ? 'bg-brand-onyx border-white/10 max-h-[300px]' : 'max-h-[300px]'}>
+            <SelectContent className={dark ? 'border-white/10 max-h-[300px]' : 'max-h-[300px]'}>
               {US_STATES.map((s) => (
                 <SelectItem
                   key={s.code}

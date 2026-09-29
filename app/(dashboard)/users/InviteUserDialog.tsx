@@ -35,7 +35,7 @@ type Role =
   | 'CATALOG'
   | 'FINANCE_VIEWER'
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+const inputClass = 'border-white/10 text-white placeholder:text-white/30'
 const labelClass = 'text-white/70 text-xs'
 const NO_CLIENT = '__none__'
 
@@ -116,7 +116,7 @@ export default function InviteUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[480px]">
+      <DialogContent className="border-white/10 text-white sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Mail className="h-5 w-5 text-brand-primary" /> Invite User
@@ -144,7 +144,7 @@ export default function InviteUserDialog({
               <SelectTrigger className={inputClass}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10">
+              <SelectContent className="border-white/10">
                 <SelectItem value="CLIENT" className="text-white focus:bg-white/10 focus:text-white">
                   Client
                 </SelectItem>
@@ -173,7 +173,7 @@ export default function InviteUserDialog({
               <SelectTrigger className={inputClass}>
                 <SelectValue placeholder="No practice" />
               </SelectTrigger>
-              <SelectContent className="bg-brand-onyx border-white/10 max-h-[280px]">
+              <SelectContent className="border-white/10 max-h-[280px]">
                 <SelectItem
                   value={NO_CLIENT}
                   className="text-white focus:bg-white/10 focus:text-white"

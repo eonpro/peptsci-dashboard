@@ -752,16 +752,6 @@ textarea {
   }
 }
 
-@keyframes bookOrb {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(4%, -6%, 0) scale(1.08);
-  }
-}
-
 .animate-book-in-right {
   animation: bookInRight 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -774,15 +764,10 @@ textarea {
   animation: bookFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.animate-book-orb {
-  animation: bookOrb 14s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .animate-book-in-right,
   .animate-book-in-left,
-  .animate-book-fade-up,
-  .animate-book-orb {
+  .animate-book-fade-up {
     animation: none !important;
   }
 }

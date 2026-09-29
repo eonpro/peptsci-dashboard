@@ -61,14 +61,14 @@ export function OrdersBackfillButton() {
       <Button
         onClick={openDialog}
         variant="outline"
-        className="bg-[#0a0e3a] border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+        className="border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
       >
         <RefreshCcw className="h-4 w-4 mr-2" />
         Backfill from Orders
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[480px]">
+        <DialogContent className="border-white/10 text-white sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="text-white">Backfill Sales from Orders</DialogTitle>
             <DialogDescription className="text-white/60">

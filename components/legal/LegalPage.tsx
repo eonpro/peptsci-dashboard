@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import { Logo } from '@/components/Logo'
 import { FOOTER_DISCLAIMER } from '@/lib/legal/terms-of-service'
 import { headingAnchorId, stripHeadingAnchor } from '@/lib/legal/anchors'
+import { FluidBackground } from '@/components/FluidBackground'
 
 /** Flattens a heading's React children to plain text (markdown headings are text-only here). */
 function headingText(children: React.ReactNode): string {
@@ -20,13 +21,8 @@ interface LegalPageProps {
 /** Shared dark-themed layout for public legal pages (/terms-of-use, /privacy-policy, ...). */
 export function LegalPage({ title, lastUpdated, markdown }: LegalPageProps) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
-      {/* Ambient gradient glows (same treatment as the landing / auth screens) */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-12%] h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#3b2a8c]/40 blur-[150px]" />
-        <div className="absolute bottom-[-18%] left-[6%] h-[460px] w-[460px] rounded-full bg-brand-primary/25 blur-[160px]" />
-        <div className="absolute bottom-[-10%] right-[2%] h-[420px] w-[420px] rounded-full bg-[#7a5bff]/20 blur-[150px]" />
-      </div>
+    <div className="relative isolate min-h-screen overflow-hidden bg-brand-onyx font-sofia text-white">
+      <FluidBackground />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-14">
         <Link href="/" aria-label="Back to home">

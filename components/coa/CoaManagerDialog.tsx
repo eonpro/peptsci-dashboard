@@ -75,7 +75,7 @@ interface CoaForm {
   published: boolean
 }
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/30'
+const inputClass = 'border-white/10 text-white placeholder:text-white/30'
 
 function emptyForm(variant: CoaVariantRef, part?: CoaBlendPart | null): CoaForm {
   const prefill = part ? prefillFromBlendPart(part) : null
@@ -400,7 +400,7 @@ export default function CoaManagerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] w-[min(1100px,96vw)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-white/10 bg-brand-onyx p-0 text-white">
+      <DialogContent className="flex h-[92vh] w-[min(1100px,96vw)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-white/10 p-0 text-white">
         <DialogHeader className="shrink-0 border-b border-white/10 px-5 py-4 pr-14">
           <DialogTitle className="text-white">
             Certificates of Analysis
@@ -471,7 +471,7 @@ export default function CoaManagerDialog({
                       return (
                         <div
                           key={part.name}
-                          className="rounded-md border border-white/10 bg-[#0a0e3a]/60 px-3 py-2"
+                          className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-medium text-white">
@@ -514,7 +514,7 @@ export default function CoaManagerDialog({
                   Loading certificates...
                 </div>
               ) : coas.length === 0 ? (
-                <div className="rounded-lg border border-white/10 bg-[#0a0e3a]/40 p-8 text-center text-white/50">
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-8 text-center text-white/50">
                   No certificates yet. Add one to attach a supplier COA to this product.
                 </div>
               ) : (
@@ -522,7 +522,7 @@ export default function CoaManagerDialog({
                   {coas.map((coa) => (
                     <div
                       key={coa.id}
-                      className="flex items-center justify-between rounded-lg border border-white/10 bg-[#0a0e3a]/50 px-4 py-3"
+                      className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -917,7 +917,7 @@ export default function CoaManagerDialog({
                 <Section title="Source document & notes">
                   <Field label="Supplier certificate (JPG, PNG, or PDF)">
                     <div
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-5 text-center hover:border-brand-primary/60"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03] px-4 py-5 text-center hover:border-brand-primary/60"
                       onClick={() => fileRef.current?.click()}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
@@ -956,7 +956,7 @@ export default function CoaManagerDialog({
                       onChange={(e) => set('notes', e.target.value)}
                     />
                   </Field>
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-[#0a0e3a]/40 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">Publish to storefront</p>
                       <p className="text-xs text-white/50">Show this certificate on the shop product page</p>

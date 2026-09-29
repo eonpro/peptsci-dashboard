@@ -29,7 +29,7 @@ export function PatientChatDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-[#0a0e3a] border-white/10 text-white">
+      <DialogContent className="max-w-lg border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <MessagesSquare className="h-5 w-5" /> Messages — {patientName}

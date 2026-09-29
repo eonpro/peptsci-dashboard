@@ -94,7 +94,7 @@ export default async function ResourcesPage({
               className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition-all hover:border-brand-primary/50 hover:bg-white/[0.08]"
             >
               {/* Cover */}
-              <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#0a0e3a]">
+              <div className="relative aspect-[16/9] w-full overflow-hidden bg-white/[0.05]">
                 {article.coverImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

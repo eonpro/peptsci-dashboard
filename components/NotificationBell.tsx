@@ -169,7 +169,7 @@ export function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-96 max-w-[calc(100vw-1rem)] p-0 bg-brand-onyx border-[#0a0e3a] text-white"
+        className="w-96 max-w-[calc(100vw-1rem)] p-0 text-white"
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <span className="text-sm font-semibold">Notifications</span>

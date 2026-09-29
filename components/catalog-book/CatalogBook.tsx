@@ -12,6 +12,7 @@ import {
 import Link from 'next/link'
 import type { BookPageMeta } from '@/lib/catalog-book'
 import { CATALOG_YEAR } from '@/lib/catalog-book'
+import { FluidBackground } from '@/components/FluidBackground'
 
 interface CatalogBookProps {
   pages: BookPageMeta[]
@@ -166,8 +167,9 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
   const progress = total === 0 ? 0 : ((index + 1) / total) * 100
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-brand-onyx">
-      <header className="relative z-20 flex items-center justify-between gap-3 border-b border-white/8 bg-brand-onyx/80 px-4 py-2.5 backdrop-blur-xl sm:px-6 lg:px-8">
+    <div className="relative isolate flex h-dvh flex-col overflow-hidden bg-brand-onyx">
+      <FluidBackground />
+      <header className="relative z-20 flex items-center justify-between gap-3 border-b border-white/[0.08] bg-brand-onyx/55 px-4 py-2.5 backdrop-blur-2xl backdrop-saturate-150 sm:px-6 lg:px-8">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/65 transition-colors hover:text-white"
@@ -200,14 +202,14 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
               setTocQuery('')
               setTocOpen(true)
             }}
-            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-all hover:border-white/25 hover:bg-white/14"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-4 py-2 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.12)] backdrop-blur-md text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-all hover:border-white/25 hover:bg-white/14"
           >
             Contents
           </button>
           <button
             type="button"
             onClick={() => void copyShareLink()}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-all hover:brightness-110 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full bg-linear-to-b from-[#4a66ff] to-brand-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white shadow-liquid transition-all hover:shadow-liquid-hover hover:brightness-110 active:scale-95"
           >
             {copied ? 'Copied' : 'Share'}
           </button>
@@ -271,7 +273,7 @@ export function CatalogBook({ pages, children }: CatalogBookProps) {
         </nav>
       </div>
 
-      <footer className="relative z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-white/8 bg-brand-onyx/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+      <footer className="relative z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-white/[0.08] bg-brand-onyx/55 px-4 py-3 backdrop-blur-2xl backdrop-saturate-150 sm:px-6 lg:px-8">
         <div className="flex items-center justify-end gap-3">
           <span className="hidden max-w-[220px] truncate text-right text-xs text-white/40 md:block">
             {prevLabel}

@@ -99,7 +99,7 @@ interface ImportSummary {
   errors: RowError[]
 }
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white'
+const inputClass = 'border-white/10 text-white'
 
 export default function ProductsPage() {
   const [variants, setVariants] = useState<VariantRow[]>([])
@@ -481,10 +481,10 @@ export default function ProductsPage() {
             placeholder="Search product, SKU, or supplier..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-[#0a0e3a] border-white/10 text-white placeholder:text-white/40"
+            className="pl-9 border-white/10 text-white placeholder:text-white/40"
           />
         </div>
-        <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-[#0a0e3a]/50 p-1">
+        <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-white/[0.04] p-1">
           <Button
             type="button"
             variant="ghost"
@@ -718,7 +718,7 @@ export default function ProductsPage() {
 
       {/* Import Dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="border-white/10 text-white sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">Bulk Import Products (CSV)</DialogTitle>
             <DialogDescription className="text-white/60">
@@ -761,7 +761,7 @@ export default function ProductsPage() {
             <div className="space-y-4 py-2">
               {/* Upload zone */}
               <div
-                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-[#0a0e3a]/40 px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03] px-4 py-8 text-center cursor-pointer hover:border-brand-primary/60"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {

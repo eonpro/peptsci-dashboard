@@ -44,7 +44,7 @@ interface ProductLabelPrintDialogProps {
   variant: ProductLabelVariantRef | null
 }
 
-const inputClass = 'bg-[#0a0e3a] border-white/10 text-white'
+const inputClass = 'border-white/10 text-white'
 
 function pickDefaultBatch(batches: BatchRow[]): string {
   const withStock = batches
@@ -198,7 +198,7 @@ export default function ProductLabelPrintDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-brand-onyx border-white/10 text-white sm:max-w-md">
+      <DialogContent className="border-white/10 text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">Print labels</DialogTitle>
           <DialogDescription className="text-white/60">
@@ -212,12 +212,12 @@ export default function ProductLabelPrintDialog({
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : hospiraBottle ? (
-          <div className="rounded-lg border border-white/10 bg-[#0a0e3a]/40 px-4 py-6 text-sm text-white/70">
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-sm text-white/70">
             The Hospira 30mL bottle ships with its own label. Print PeptSci labels for the
             3mL and 10mL sizes.
           </div>
         ) : batches.length === 0 && !canPrintBacWithoutBatch ? (
-          <div className="rounded-lg border border-white/10 bg-[#0a0e3a]/40 px-4 py-6 text-sm text-white/70">
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-sm text-white/70">
             <p className="mb-2">No inventory batches for this product yet.</p>
             <p>
               Receive stock first via{' '}
@@ -229,7 +229,7 @@ export default function ProductLabelPrintDialog({
           </div>
         ) : (
           <div className="space-y-4 py-1">
-            <div className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-[#0a0e3a]/50 px-3 py-2 text-xs text-white/70">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70">
               <span>
                 Next print starts at space{' '}
                 <span className="font-semibold text-white">{nextPosition}</span> of {SHEET_MAX}
@@ -250,7 +250,7 @@ export default function ProductLabelPrintDialog({
                 <SelectTrigger className={inputClass}>
                   <SelectValue placeholder="Select batch" />
                 </SelectTrigger>
-                <SelectContent className="bg-brand-onyx border-white/10 text-white">
+                <SelectContent className="border-white/10 text-white">
                   {batches.map((b) => (
                     <SelectItem key={b.id} value={b.id} className="focus:bg-white/10 focus:text-white">
                       {b.batchNumber} · BUD {fmtDate(b.bud)} ({budLabel(b.bud)}) ·{' '}
