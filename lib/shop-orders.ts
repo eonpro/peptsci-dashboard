@@ -23,6 +23,7 @@ export interface ShopOrder {
   shippingStatus: string | null
   total: number
   shippingTotal: number
+  labSuppliesTotal: number
   shipSpeed: string
   carrier: string | null
   trackingNumber: string | null
@@ -60,6 +61,7 @@ export async function listClientOrders(clientId: string): Promise<ShopOrder[]> {
       shippingStatus: true,
       total: true,
       shippingTotal: true,
+      labSuppliesTotal: true,
       shipSpeed: true,
       carrier: true,
       trackingNumber: true,
@@ -100,6 +102,7 @@ export async function listClientOrders(clientId: string): Promise<ShopOrder[]> {
       shippingStatus: o.shippingStatus,
       total: Number(o.total),
       shippingTotal: Number(o.shippingTotal),
+      labSuppliesTotal: Number(o.labSuppliesTotal),
       shipSpeed: o.shipSpeed,
       carrier: o.carrier,
       trackingNumber: o.trackingNumber,

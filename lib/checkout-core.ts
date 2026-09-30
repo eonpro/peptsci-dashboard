@@ -17,6 +17,9 @@ export const MAX_SHOP_ITEM_QUANTITY = 100
 // No sales tax. Shipping is tiered by speed and order size.
 export const FREE_SHIPPING_THRESHOLD = 500
 
+/** Flat "Lab supplies" charge on every clinic shop checkout order (dollars). */
+export const LAB_SUPPLIES_FEE = 5
+
 /** Shipping speed offered at checkout. Pickup is local collection at the office. */
 export const SHIP_SPEEDS = ['TWO_DAY', 'OVERNIGHT', 'PICKUP'] as const
 export type ShipSpeed = (typeof SHIP_SPEEDS)[number]
@@ -90,6 +93,8 @@ export interface CartTotals {
   subtotal: number
   taxTotal: number
   shippingTotal: number
+  /** Clinic shop checkout only; 0 for admin, Shopify and invoice orders. */
+  labSuppliesTotal: number
   total: number
 }
 
@@ -237,18 +242,26 @@ export function computeShipping(
   return SHIPPING_RATES[tier][speed]
 }
 
+/** Lab supplies charge for a clinic checkout cart; empty carts carry none. */
+export function computeLabSupplies(subtotal: number): number {
+  return subtotal > 0 ? LAB_SUPPLIES_FEE : 0
+}
+
 /**
  * Compute order totals from server-resolved lines. Tax is always 0.
- * Shipping depends on the chosen speed (defaults to 2-day).
+ * Shipping depends on the chosen speed (defaults to 2-day). Only clinic shop
+ * checkout passes `includeLabSupplies`.
  */
 export function computeCartTotals(
   lines: Pick<ResolvedLine, 'lineTotal'>[],
   speed: ShipSpeed = 'TWO_DAY',
-  overrides?: ShippingRateOverrides | null
+  overrides?: ShippingRateOverrides | null,
+  options?: { includeLabSupplies?: boolean }
 ): CartTotals {
   const subtotal = round2(lines.reduce((sum, l) => sum + l.lineTotal, 0))
   const taxTotal = 0
   const shippingTotal = computeShipping(subtotal, speed, overrides)
-  const total = round2(subtotal + taxTotal + shippingTotal)
-  return { subtotal, taxTotal, shippingTotal, total }
+  const labSuppliesTotal = options?.includeLabSupplies ? computeLabSupplies(subtotal) : 0
+  const total = round2(subtotal + taxTotal + shippingTotal + labSuppliesTotal)
+  return { subtotal, taxTotal, shippingTotal, labSuppliesTotal, total }
 }

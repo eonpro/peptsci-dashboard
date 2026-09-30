@@ -6,7 +6,7 @@ import {
   summarizeInvoiceLines,
 } from '../stripe/sales-ingest.ts'
 import { recentOrderGroupKey } from '../recent-order-group.ts'
-import { salesFromRecord } from '../sales.ts'
+import { orderChargeLines, salesFromRecord } from '../sales.ts'
 
 /** Minimal fake Stripe client: invoicePayments.list resolves to the given payments. */
 function fakeStripe(invoice: Record<string, unknown> | null = null): Stripe {
@@ -362,6 +362,57 @@ describe('salesFromRecord line-item explosion', () => {
     })
     assert.equal(sales.length, 1)
     assert.equal(sales[0].Product, 'BPC-157 10mg +1 more')
+  })
+})
+
+describe('orderChargeLines', () => {
+  test('books shipping and lab supplies as their own non-product lines', () => {
+    assert.deepEqual(orderChargeLines({ shippingTotal: 15, labSuppliesTotal: 5 }, 1), [
+      { product: 'Shipping', quantity: 0, amount: 15, cogs: 0 },
+      { product: 'Lab supplies', quantity: 0, amount: 5, cogs: 0 },
+    ])
+  })
+
+  test('scales with refunds and skips charges the order did not carry', () => {
+    assert.deepEqual(orderChargeLines({ shippingTotal: 0, labSuppliesTotal: 5 }, 0.5), [
+      { product: 'Lab supplies', quantity: 0, amount: 2.5, cogs: 0 },
+    ])
+    assert.deepEqual(orderChargeLines({ shippingTotal: 0, labSuppliesTotal: 0 }, 1), [])
+  })
+
+  test('a lab supplies line is not re-booked as shipping in analytics', () => {
+    const sales = salesFromRecord({
+      date: new Date('2026-10-01T12:00:00Z'),
+      orderRef: '#2001',
+      customerName: 'Clinic LLC',
+      customerEmail: '',
+      customerPhone: '',
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+      trackingNumber: '',
+      invoicePaid: true,
+      paidAmount: 170,
+      vials: 2,
+      amountPerVial: 85,
+      product: 'BPC-157 10mg',
+      notes: '',
+      unitCost: 10,
+      cogs: 20,
+      lineItems: [
+        { product: 'BPC-157 10mg', quantity: 2, amount: 150, cogs: 20 },
+        ...orderChargeLines({ shippingTotal: 15, labSuppliesTotal: 5 }, 1),
+      ],
+    })
+    assert.deepEqual(
+      sales.map((s) => [s.Product, s.PaidAmount]),
+      [
+        ['BPC-157 10mg', 150],
+        ['Shipping', 15],
+        ['Lab supplies', 5],
+      ]
+    )
   })
 })
 

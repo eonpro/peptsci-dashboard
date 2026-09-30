@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { ShoppingCart, Minus, Plus, Trash2, ArrowRight, X, Package, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { FREE_SHIPPING_THRESHOLD } from '@/lib/checkout-core'
+import { computeLabSupplies, FREE_SHIPPING_THRESHOLD } from '@/lib/checkout-core'
 import { BACKORDER_LEAD_TIME, BACKORDER_MIN_QUANTITY } from '@/lib/shop/backorder'
 
 export function CartDrawer() {
@@ -27,6 +27,7 @@ export function CartDrawer() {
   const freeShippingThreshold = FREE_SHIPPING_THRESHOLD
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal)
   const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100)
+  const labSupplies = computeLabSupplies(subtotal)
 
   const hasBackorder = items.some((item) => item.isBackorder)
 
@@ -239,6 +240,12 @@ export function CartDrawer() {
                     {remainingForFreeShipping === 0 ? 'FREE' : 'Calculated at checkout'}
                   </span>
                 </div>
+                {labSupplies > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/60">Lab supplies</span>
+                    <span className="font-medium text-white">{formatPrice(labSupplies)}</span>
+                  </div>
+                )}
               </div>
 
               <Separator className="bg-white/10" />
@@ -246,7 +253,7 @@ export function CartDrawer() {
               {/* Total */}
               <div className="flex justify-between text-xl font-bold text-white">
                 <span>Total</span>
-                <span>{formatPrice(subtotal)}</span>
+                <span>{formatPrice(subtotal + labSupplies)}</span>
               </div>
 
               {/* Checkout button - large touch target */}

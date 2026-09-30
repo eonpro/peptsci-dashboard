@@ -15,6 +15,8 @@ import {
   isPickupSpeed,
   formatShipSpeedLabel,
   normalizeCheckoutDelivery,
+  LAB_SUPPLIES_FEE,
+  computeLabSupplies,
 } from '../checkout-core.ts'
 
 describe('validateCartInput', () => {
@@ -144,23 +146,24 @@ describe('computeCartTotals', () => {
       subtotal: 150,
       taxTotal: 0,
       shippingTotal: 15,
+      labSuppliesTotal: 0,
       total: 165,
     })
   })
 
   test('overnight below threshold adds $25', () => {
     const totals = computeCartTotals([{ lineTotal: 150 }], 'OVERNIGHT')
-    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 25, total: 175 })
+    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 25, labSuppliesTotal: 0, total: 175 })
   })
 
   test('free 2-day over threshold, still no tax', () => {
     const totals = computeCartTotals([{ lineTotal: 600 }], 'TWO_DAY')
-    assert.deepEqual(totals, { subtotal: 600, taxTotal: 0, shippingTotal: 0, total: 600 })
+    assert.deepEqual(totals, { subtotal: 600, taxTotal: 0, shippingTotal: 0, labSuppliesTotal: 0, total: 600 })
   })
 
   test('discounted overnight over threshold ($20)', () => {
     const totals = computeCartTotals([{ lineTotal: 600 }], 'OVERNIGHT')
-    assert.deepEqual(totals, { subtotal: 600, taxTotal: 0, shippingTotal: 20, total: 620 })
+    assert.deepEqual(totals, { subtotal: 600, taxTotal: 0, shippingTotal: 20, labSuppliesTotal: 0, total: 620 })
   })
 
   test('handles floating point line totals without drift', () => {
@@ -174,7 +177,13 @@ describe('computeCartTotals', () => {
       twoDay: 12,
       overnight: 29.5,
     })
-    assert.deepEqual(totals, { subtotal: 200, taxTotal: 0, shippingTotal: 29.5, total: 229.5 })
+    assert.deepEqual(totals, {
+      subtotal: 200,
+      taxTotal: 0,
+      shippingTotal: 29.5,
+      labSuppliesTotal: 0,
+      total: 229.5,
+    })
   })
 
   test('office pickup totals are the product subtotal with $0 shipping', () => {
@@ -182,7 +191,44 @@ describe('computeCartTotals', () => {
       twoDay: 18,
       overnight: 42,
     })
-    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 0, total: 150 })
+    assert.deepEqual(totals, { subtotal: 150, taxTotal: 0, shippingTotal: 0, labSuppliesTotal: 0, total: 150 })
+  })
+})
+
+describe('lab supplies (clinic shop checkout)', () => {
+  test('is a flat $5.00 per order regardless of order size', () => {
+    assert.equal(LAB_SUPPLIES_FEE, 5)
+    assert.equal(computeLabSupplies(40), 5)
+    assert.equal(computeLabSupplies(2500), 5)
+  })
+
+  test('an empty cart carries no lab supplies charge', () => {
+    assert.equal(computeLabSupplies(0), 0)
+  })
+
+  test('clinic checkout adds it on top of the products and shipping', () => {
+    const totals = computeCartTotals([{ lineTotal: 100 }, { lineTotal: 50 }], 'TWO_DAY', null, {
+      includeLabSupplies: true,
+    })
+    assert.deepEqual(totals, {
+      subtotal: 150,
+      taxTotal: 0,
+      shippingTotal: 15,
+      labSuppliesTotal: 5,
+      total: 170,
+    })
+  })
+
+  test('free-shipping and office-pickup orders still carry it', () => {
+    const opts = { includeLabSupplies: true }
+    assert.equal(computeCartTotals([{ lineTotal: 600 }], 'TWO_DAY', null, opts).total, 605)
+    assert.equal(computeCartTotals([{ lineTotal: 150 }], 'PICKUP', null, opts).total, 155)
+  })
+
+  test('admin, Shopify and invoice orders leave it off', () => {
+    const totals = computeCartTotals([{ lineTotal: 150 }], 'OVERNIGHT')
+    assert.equal(totals.labSuppliesTotal, 0)
+    assert.equal(totals.total, 175)
   })
 })
 
