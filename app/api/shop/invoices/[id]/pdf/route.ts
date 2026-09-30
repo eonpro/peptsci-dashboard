@@ -3,7 +3,7 @@ import { requireAuth, unauthorizedResponse, errorResponse } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveShopClientId } from '@/lib/shop-actor'
-import { getInvoice } from '@/lib/invoicing/service'
+import { getInvoice, withShipTo } from '@/lib/invoicing/service'
 import { generateInvoicePdf } from '@/lib/invoicing/pdf'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 
@@ -21,12 +21,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!clientId) return errorResponse('No client account linked', 403, 'NO_CLIENT')
 
     const { id } = await params
-    const view = await getInvoice(id)
+    const found = await getInvoice(id)
     // Ownership check + hide internal drafts. 404 (not 403) so invoice ids
     // can't be probed across accounts.
-    if (!view || view.invoice.clientId !== clientId || view.invoice.status === 'DRAFT') {
+    if (!found || found.invoice.clientId !== clientId || found.invoice.status === 'DRAFT') {
       return errorResponse('Invoice not found', 404, 'NOT_FOUND')
     }
+    // Itemize ship-to-patient orders by patient — only once the invoice is
+    // known to be this client's own.
+    const view = await withShipTo(found)
 
     const pdf = await generateInvoicePdf(view)
     return new NextResponse(new Uint8Array(pdf), {

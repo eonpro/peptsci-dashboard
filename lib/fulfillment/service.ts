@@ -19,6 +19,7 @@ import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { displayProductName } from '../products/named-blends'
 import { resolveLabelBrandKey } from '../labels/brandKeys'
+import { orderRecipientName } from '../orders/recipient'
 import {
   allocatableBatchesForVariants,
   minAllocatableBud,
@@ -314,6 +315,10 @@ export interface PackingSlipData {
     contactPhone: string | null
   } | null
   shippingAddress: unknown
+  /** 'PRACTICE' | 'PATIENT' — the slip is addressed to the patient on the latter. */
+  shipTo?: string | null
+  /** Who the package is addressed to (address snapshot, else the saved patient). */
+  recipientName?: string
   /** When PICKUP, the slip is hold-at-office rather than carrier ship-to. */
   shipSpeed?: string | null
   lines: Array<{ productName: string; dose: string; sku: string; quantity: number }>
@@ -337,6 +342,8 @@ const ORDER_WITH_ITEMS = {
       labelBrandKey: true,
     },
   },
+  // Ship-to-patient orders name the patient on the packing slip.
+  patient: { select: { firstName: true, lastName: true } },
 } satisfies Prisma.OrderInclude
 
 function toPickListItems(
@@ -418,6 +425,11 @@ export async function buildPackingSlipData(orderId: string): Promise<PackingSlip
         }
       : null,
     shippingAddress: order.shippingAddress,
+    shipTo: order.shipTo,
+    recipientName: orderRecipientName({
+      shippingAddress: order.shippingAddress,
+      patient: order.patient,
+    }),
     shipSpeed: order.shipSpeed,
     lines,
     totalUnits: lines.reduce((s, l) => s + l.quantity, 0),

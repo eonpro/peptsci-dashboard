@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, errorResponse } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { getInvoice } from '@/lib/invoicing/service'
+import { getInvoiceWithShipTo } from '@/lib/invoicing/service'
 import { generateInvoicePdf } from '@/lib/invoicing/pdf'
 import { formatInvoiceNumber } from '@/lib/invoicing/core'
 
@@ -17,7 +17,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
     const { id } = await params
-    const view = await getInvoice(id)
+    const view = await getInvoiceWithShipTo(id)
     if (!view) return errorResponse('Invoice not found', 404, 'NOT_FOUND')
 
     const pdf = await generateInvoicePdf(view)

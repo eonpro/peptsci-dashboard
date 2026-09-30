@@ -15,6 +15,7 @@ import { Prisma, type InvoiceStatus as PrismaInvoiceStatus } from '@prisma/clien
 import { prisma } from '../prisma'
 import { logger } from '../logger'
 import { syncSalesRecordFromOrder } from '../sales'
+import { patientShipToName } from '../orders/recipient'
 import { accrueCommissionForOrder } from '../partners/accrual'
 import { earnReferralCreditForOrder } from '../referrals/credit'
 import {
@@ -60,6 +61,13 @@ export interface InvoiceView {
   totals: InvoiceTotals
   aging: AgingBucket
   daysPastDue: number
+  /**
+   * Patient each order line shipped to, keyed by `lineItem.orderId` — present
+   * only for ship-to-patient orders, and only when loaded via
+   * {@link getInvoiceWithShipTo}. Lets the invoice screen and PDF itemize
+   * "Order #N" lines by patient without changing the persisted description.
+   */
+  shipToByOrderId?: Record<string, string>
 }
 
 /** Map a persisted invoice + relations to totals/aging using the pure core. */
@@ -139,7 +147,17 @@ export async function getUnbilledOrders(
       ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
     },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, orderNumber: true, total: true, createdAt: true, status: true, paymentStatus: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      total: true,
+      createdAt: true,
+      status: true,
+      paymentStatus: true,
+      shipTo: true,
+      shippingAddress: true,
+      patient: { select: { firstName: true, lastName: true } },
+    },
   })
   return orders.map((o) => ({
     id: o.id,
@@ -148,6 +166,9 @@ export async function getUnbilledOrders(
     createdAt: o.createdAt.toISOString(),
     status: o.status,
     paymentStatus: o.paymentStatus,
+    // The patient this order shipped to (null for practice / pickup orders), so
+    // the invoice builder can tell a clinic's orders apart.
+    shipToName: patientShipToName(o) || null,
   }))
 }
 
@@ -623,6 +644,51 @@ export async function listInvoices(params: ListInvoicesParams = {}) {
 export async function getInvoice(invoiceId: string): Promise<InvoiceView | null> {
   const inv = await db().invoice.findUnique({ where: { id: invoiceId }, include: INVOICE_INCLUDE })
   return inv ? decorateInvoice(inv) : null
+}
+
+/**
+ * Patient each order shipped to, keyed by order id. Only ship-to-patient orders
+ * appear; practice and pickup orders (and patient orders that name no one) are
+ * omitted.
+ */
+export async function patientNamesByOrderId(
+  orderIds: ReadonlyArray<string | null | undefined>
+): Promise<Record<string, string>> {
+  const ids = Array.from(new Set(orderIds.filter((id): id is string => Boolean(id))))
+  if (ids.length === 0) return {}
+  const orders = await db().order.findMany({
+    where: { id: { in: ids }, shipTo: 'PATIENT' },
+    select: {
+      id: true,
+      shipTo: true,
+      shippingAddress: true,
+      patient: { select: { firstName: true, lastName: true } },
+    },
+  })
+  const byOrder: Record<string, string> = {}
+  for (const o of orders) {
+    const name = patientShipToName(o)
+    if (name) byOrder[o.id] = name
+  }
+  return byOrder
+}
+
+/**
+ * Attach the patient behind each ship-to-patient order line to an invoice view.
+ * Do this for anything a person reads (detail screen, PDF), after any access
+ * check. The persisted line text stays "Order #N — date": other code matches on
+ * that prefix, and resolving the patient at read time also covers invoices
+ * created before this existed.
+ */
+export async function withShipTo(view: InvoiceView): Promise<InvoiceView> {
+  const shipToByOrderId = await patientNamesByOrderId(view.invoice.lineItems.map((li) => li.orderId))
+  return { ...view, shipToByOrderId }
+}
+
+/** {@link getInvoice} with {@link withShipTo} applied. */
+export async function getInvoiceWithShipTo(invoiceId: string): Promise<InvoiceView | null> {
+  const view = await getInvoice(invoiceId)
+  return view ? withShipTo(view) : null
 }
 
 /**

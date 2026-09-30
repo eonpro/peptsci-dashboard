@@ -6,6 +6,7 @@
  */
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { pdfSafeText } from '../pdf-safe-text'
 import { formatInvoiceNumber, resolveAdjustmentAmount } from './core'
 import { decorateInvoice, type InvoiceView } from './service'
 
@@ -21,6 +22,14 @@ const LINE = rgb(0.82, 0.82, 0.86)
 const RED = rgb(0.7, 0.1, 0.1)
 
 type Fonts = { reg: PDFFont; bold: PDFFont }
+
+/**
+ * Standard-14 fonts throw on anything outside WinAnsi (emoji, CJK, even a line
+ * break). Line descriptions, notes and patient names are free text, so every
+ * user-supplied string is made drawable first — one odd character must never
+ * 500 an invoice.
+ */
+const S = (input: string | null | undefined): string => pdfSafeText(input)
 
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -94,7 +103,7 @@ export async function generateInvoicePdf(view: InvoiceView): Promise<Buffer> {
   page.drawText('BILL TO', { x: MARGIN, y, size: 8, font: fonts.bold, color: MUTED })
   let billY = y - 14
   for (const ln of billTo) {
-    page.drawText(ln.slice(0, 48), { x: MARGIN, y: billY, size: 10, font: fonts.reg, color: INK })
+    page.drawText(S(ln).slice(0, 48), { x: MARGIN, y: billY, size: 10, font: fonts.reg, color: INK })
     billY -= 13
   }
 
@@ -132,7 +141,7 @@ export async function generateInvoicePdf(view: InvoiceView): Promise<Buffer> {
   y -= 16
 
   const drawRow = (pageRef: PDFPage, desc: string, qty: string, unit: string, amt: string) => {
-    pageRef.drawText(desc.slice(0, 58), { x: cols.desc, y, size: 10, font: fonts.reg, color: INK })
+    pageRef.drawText(S(desc).slice(0, 58), { x: cols.desc, y, size: 10, font: fonts.reg, color: INK })
     pageRef.drawText(qty, { x: cols.qty, y, size: 10, font: fonts.reg, color: INK })
     pageRef.drawText(unit, { x: cols.unit, y, size: 10, font: fonts.reg, color: INK })
     pageRef.drawText(amt, { x: cols.amt, y, size: 10, font: fonts.reg, color: INK })
@@ -151,6 +160,19 @@ export async function generateInvoicePdf(view: InvoiceView): Promise<Buffer> {
       usd(typeof li.unitPrice === 'number' ? li.unitPrice : li.unitPrice.toNumber()),
       usd(typeof li.amount === 'number' ? li.amount : li.amount.toNumber())
     )
+    // Order lines read "Order #N — date"; say which patient a ship-to-patient
+    // order went to so the clinic can reconcile it.
+    const patient = li.orderId ? view.shipToByOrderId?.[li.orderId] : undefined
+    if (patient) {
+      y -= 12
+      pageRef.drawText(S(`Ship to patient: ${patient}`).slice(0, 70), {
+        x: cols.desc + 10,
+        y,
+        size: 8.5,
+        font: fonts.reg,
+        color: MUTED,
+      })
+    }
     y -= 16
   }
 
@@ -229,7 +251,7 @@ export async function generateInvoicePdf(view: InvoiceView): Promise<Buffer> {
     y -= 6
     pageRef.drawText('Notes', { x: MARGIN, y, size: 8, font: fonts.bold, color: MUTED })
     y -= 13
-    pageRef.drawText(invoice.notes.slice(0, 100), { x: MARGIN, y, size: 9, font: fonts.reg, color: INK })
+    pageRef.drawText(S(invoice.notes).slice(0, 100), { x: MARGIN, y, size: 9, font: fonts.reg, color: INK })
   }
 
   // Footer.

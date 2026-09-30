@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { resolveCart, createDraftOrder, cancelAbandonedPaymentIntents } from '@/lib/stripe/checkout'
 import { checkoutShippingAddressSchema } from '@/lib/address'
+import { orderShippingAddressFromPatient } from '@/lib/patient'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY, SHIP_SPEEDS, normalizeCheckoutDelivery } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import { assessTermsCheckout, formatPaymentTermsLabel, type TermsCheckoutResult } from '@/lib/checkout-terms'
@@ -162,13 +163,8 @@ export async function POST(request: NextRequest) {
       })
       if (!patient) return errorResponse('Patient not found', 404, 'PATIENT_NOT_FOUND')
       patientId = patient.id
-      const addr = patient.address as Record<string, unknown> | null
-      resolvedShippingAddress = {
-        ...(addr ?? {}),
-        firstName: patient.firstName,
-        lastName: patient.lastName,
-        phone: patient.phone ?? undefined,
-      } as Prisma.InputJsonValue
+      // Same canonical snapshot as the card checkout (name + personName + street).
+      resolvedShippingAddress = orderShippingAddressFromPatient(patient) as Prisma.InputJsonValue
     }
 
     const order = await createDraftOrder({

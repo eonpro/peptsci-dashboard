@@ -38,6 +38,8 @@ type UnbilledOrder = {
   total: number
   createdAt: string
   status: string
+  /** Patient the order shipped to; null for practice / pickup orders. */
+  shipToName?: string | null
 }
 type VariantRow = {
   id: string
@@ -473,6 +475,11 @@ export default function NewInvoiceDialog({
                         <p className="text-xs text-white/40">
                           {new Date(o.createdAt).toLocaleDateString()} · {o.status}
                         </p>
+                        {o.shipToName && (
+                          <p className="truncate text-xs text-violet-200/80">
+                            Ship to patient: {o.shipToName}
+                          </p>
+                        )}
                       </div>
                       <span className="text-sm font-medium text-white">{usd(o.total)}</span>
                     </label>

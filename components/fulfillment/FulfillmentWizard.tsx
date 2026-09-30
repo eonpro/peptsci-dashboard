@@ -30,6 +30,7 @@ import {
   describeLabelShortfall,
   type LabelShortfallEntry,
 } from '@/lib/fulfillment/label-shortfall'
+import { formatShipToSummary } from '@/lib/fulfillment/ship-to'
 import {
   WIZARD_STEPS,
   canComplete,
@@ -63,6 +64,10 @@ export type WizardOrder = {
   items: { name: string; dose: string | null; quantity: number }[]
   shippingAddress: Record<string, unknown> | null
   shipSpeed?: string | null
+  /** 'PRACTICE' | 'PATIENT'. */
+  shipTo?: string | null
+  /** Who the package is addressed to (the patient on ship-to-patient orders). */
+  recipientName?: string
   client: { organizationName: string; contactName: string | null } | null
   carrier: string | null
   trackingNumber: string | null
@@ -86,31 +91,6 @@ export type FulfillmentWizardProps = {
   onChanged: () => void
   /** The order was marked fulfilled. */
   onFulfilled: () => void
-}
-
-function formatShipTo(order: WizardOrder): string {
-  if (order.shipSpeed === 'PICKUP') {
-    const a = order.shippingAddress ?? {}
-    const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
-    const who =
-      str(a.company) ||
-      order.client?.organizationName ||
-      str(a.name) ||
-      str(a.personName) ||
-      order.client?.contactName ||
-      'Practice'
-    return `Office pickup · ${who}`
-  }
-  const a = order.shippingAddress ?? {}
-  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
-  const name = str(a.name) || str(a.personName) || order.client?.contactName || ''
-  const line = [str(a.address1) || str(a.line1) || str(a.street), str(a.address2) || str(a.line2)]
-    .filter(Boolean)
-    .join(', ')
-  const city = [str(a.city), [str(a.state), str(a.zip)].filter(Boolean).join(' ')]
-    .filter(Boolean)
-    .join(', ')
-  return [name, line, city].filter(Boolean).join(' · ') || 'No shipping address on file'
 }
 
 /** Back to the previous screen; renders nothing on the first one. */
@@ -314,7 +294,7 @@ export default function FulfillmentWizard({
             <DialogTitle className="flex items-center gap-2">
               <PackageCheck className="h-5 w-5" /> Fulfill Order #{order.orderNumber}
             </DialogTitle>
-            <DialogDescription>{formatShipTo(order)}</DialogDescription>
+            <DialogDescription>{formatShipToSummary(order)}</DialogDescription>
           </DialogHeader>
 
           <StepRail current={step} />

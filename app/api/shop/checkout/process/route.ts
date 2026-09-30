@@ -17,6 +17,7 @@ import {
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer'
 import { resolveCart, createDraftOrder } from '@/lib/stripe/checkout'
 import { checkoutShippingAddressSchema } from '@/lib/address'
+import { orderShippingAddressFromPatient } from '@/lib/patient'
 import { CartValidationError, MAX_SHOP_ITEM_QUANTITY, SHIP_SPEEDS, normalizeCheckoutDelivery } from '@/lib/checkout-core'
 import { stockEnforcementEnabled } from '@/lib/stock-enforcement'
 import {
@@ -131,13 +132,10 @@ export async function POST(request: NextRequest) {
       })
       if (!patient) return errorResponse('Patient not found', 404, 'PATIENT_NOT_FOUND')
       patientId = patient.id
-      const addr = patient.address as Record<string, unknown> | null
-      resolvedShippingAddress = {
-        ...(addr ?? {}),
-        firstName: patient.firstName,
-        lastName: patient.lastName,
-        phone: patient.phone ?? undefined,
-      } as Prisma.InputJsonValue
+      // Canonical patient snapshot (name + personName + street). Staff read the
+      // recipient from it for FedEx labels, the fulfillment queue and invoices,
+      // so it must carry the patient's name — not just firstName/lastName.
+      resolvedShippingAddress = orderShippingAddressFromPatient(patient) as Prisma.InputJsonValue
     }
 
     const stripe = requireStripeClient()

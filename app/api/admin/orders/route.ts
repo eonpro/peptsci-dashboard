@@ -15,6 +15,7 @@ import {
 } from '@/lib/patient'
 import { createPatientForClient } from '@/lib/patients/create'
 import { displayProductName } from '@/lib/products/named-blends'
+import { orderRecipientName, patientNameSearchWhere } from '@/lib/orders/recipient'
 import { isSmsEnabled } from '@/lib/sms/client'
 import { describeShippedText } from '@/lib/sms/notification-status'
 
@@ -62,10 +63,13 @@ export async function GET(request: NextRequest) {
     }
     if (params.search) {
       const asNum = Number(params.search.replace(/^#/, ''))
+      const patientMatch = patientNameSearchWhere(params.search)
       where.OR = [
         ...(Number.isInteger(asNum) ? [{ orderNumber: asNum }] : []),
         { trackingNumber: { contains: params.search, mode: 'insensitive' } },
         { client: { organizationName: { contains: params.search, mode: 'insensitive' } } },
+        // Ship-to-patient orders are findable by the patient's name.
+        ...(patientMatch ? [patientMatch] : []),
       ]
     }
 
@@ -91,6 +95,11 @@ export async function GET(request: NextRequest) {
           shippedAt: true,
           shippingAddress: true,
           shipSpeed: true,
+          shipTo: true,
+          // The saved patient a ship-to-patient order was placed for. The
+          // address snapshot is read first; this covers snapshots that carry no
+          // person (shop-checkout orders placed before the name was stamped).
+          patient: { select: { firstName: true, lastName: true } },
           client: {
             select: {
               id: true,
@@ -144,6 +153,9 @@ export async function GET(request: NextRequest) {
       shippedAt: o.shippedAt?.toISOString() ?? null,
       shippingAddress: o.shippingAddress,
       shipSpeed: o.shipSpeed,
+      shipTo: o.shipTo,
+      // Who the package is addressed to — the patient on ship-to-patient orders.
+      recipientName: orderRecipientName({ shippingAddress: o.shippingAddress, patient: o.patient }),
       client: o.client,
       shippedText: describeShippedText({
         trackingNumber: o.trackingNumber,

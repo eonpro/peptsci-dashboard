@@ -9,7 +9,7 @@ import {
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { getInvoice, issueInvoice, voidInvoice } from '@/lib/invoicing/service'
+import { getInvoiceWithShipTo, issueInvoice, voidInvoice } from '@/lib/invoicing/service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!prisma) return errorResponse('Database not connected', 503, 'DB_UNAVAILABLE')
 
     const { id } = await params
-    const view = await getInvoice(id)
+    const view = await getInvoiceWithShipTo(id)
     if (!view) return errorResponse('Invoice not found', 404, 'NOT_FOUND')
     return successResponse({ invoice: view })
   } catch (error) {

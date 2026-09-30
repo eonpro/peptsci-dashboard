@@ -1,3 +1,63 @@
+# Ship-to-patient recipient missing on staff surfaces  [PLANNER+EXECUTOR — 2026-09-29]
+
+## Background and Motivation
+Owner report: orders where the clinic chose "ship to patient" (Element Labs, InCare) show no
+patient name on our end — FedEx label prefill / fulfillment queue / packing slip — or when
+itemizing InCare's invoice. Needed for printing labels and for accounting.
+
+## Key Challenges and Analysis
+- `Order.shippingAddress` is a JSON snapshot whose shape depends on the writer: admin New Order
+  and Shopify/Stripe-convert stamp `name`/`personName`; the shop checkout (card `process` +
+  net-terms `terms`) stamped ship-to-patient as `{...address, firstName, lastName, phone}` only;
+  practice checkout stamps `company` only.
+- Root cause: every staff reader looked only at `name`/`personName`, then fell back to the clinic
+  contact (label prefill, wizard) or printed nothing (queue row, packing slip). The admin orders
+  API never selected `Order.patient` / `shipTo`. Invoice lines are persisted as "Order #N — date"
+  with no ship-to information at all.
+- Fix both ends: writers use the canonical `orderShippingAddressFromPatient`; every reader goes
+  through one tested resolver (`lib/orders/recipient.ts`, snapshot first, linked Patient as
+  fallback) so orders already placed are fixed at read time — no backfill, no migration.
+- Invoice lines stay "Order #N — date" (code matches on the `Order #` prefix); the patient is
+  resolved at render time (`withShipTo` → `shipToByOrderId`) for the picker, detail page and PDF.
+- pdf-lib Standard-14 fonts THROW on anything outside WinAnsi — including "\n". Patient names are
+  free text and the invoice PDF had no sanitizer, so the packing-slip `S()` moved to a shared
+  `lib/pdf-safe-text.ts` (keeps everything WinAnsi can draw, so invoices keep their em dashes).
+- Assumptions to confirm with owner: (1) the clinic-facing invoice PDF now names the patient
+  under each ship-to-patient order line; (2) FedEx TO *company* line and the sales-ledger
+  customer are intentionally untouched.
+
+## High-level Task Breakdown
+1. [x] `lib/orders/recipient.ts` + tests (legacy/canonical/placeholder/patient fallback/search)
+2. [x] Writers: `process` + `terms` checkout use `orderShippingAddressFromPatient`
+3. [x] Admin orders API: `shipTo`, `recipientName`, patient-name search
+4. [x] Queue row, wizard header, FedEx label prefill via `lib/fulfillment/ship-to.ts`
+5. [x] Packing slip: service + PDF (`recipientName`)
+6. [x] Invoices: unbilled picker, detail page, admin + shop PDF routes, PDF sub-line
+7. [x] `lib/pdf-safe-text.ts` (oracle-tested against pdf-lib's own encoder)
+
+## Project Status Board
+- [x] 56 new tests (recipient, ship-to, packing-slip PDF, invoice PDF, sanitizer, patient)
+- [x] `npm test` 1024/1024 · `tsc --noEmit` exit 0 · eslint 0 errors on touched files
+- [x] Real-DB smoke on a throwaway local Postgres (own port/data dir, torn down): migrations
+      applied, real route handlers called (orders GET + patient search, unbilled, invoice GET,
+      admin/shop invoice PDF, packing-slip PDF) — legacy, canonical, link-only and practice rows
+- [x] SSR render of `FulfillmentOrderRow` for 6 order shapes
+- [ ] PR review + owner sign-off before merge/deploy
+
+## Lessons
+- A JSON snapshot with several writers needs ONE reader; grep every consumer when a display
+  field is missing instead of patching the one screen that was reported.
+- Fix writers going forward AND make readers tolerant — read-time resolution repairs history
+  without a data migration.
+- pdf-lib Standard-14 `drawText` throws on control characters (even "\n") and any non-WinAnsi
+  glyph; sanitize all user-entered text, and test the sanitizer against pdf-lib's own encoder
+  rather than a hand-written character list.
+- Node's `TextDecoder('windows-1252')` is latin1 without full ICU — decode WinAnsi by hand in tests.
+- Real route handlers can be exercised under `env -i` with only a scratch `DATABASE_URL`: with
+  Clerk unconfigured, `requireAdmin`/`requireAuth` take the dev bypass.
+
+---
+
 # Liquid-glass UI — phase 2 sweep  [PLANNER+EXECUTOR — 2026-09-28 17:30]
 
 ## Background and Motivation
