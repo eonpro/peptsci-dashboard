@@ -28,6 +28,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { CheckoutPaymentSection } from '@/components/shop/CheckoutPaymentSection'
 import {
+  computeLabSupplies,
   computeShipping,
   FREE_SHIPPING_THRESHOLD,
   formatShipSpeedLabel,
@@ -147,7 +148,8 @@ export default function CheckoutPage() {
   }, [])
 
   const shipping = computeShipping(subtotal, shipSpeed, shippingOverrides)
-  const total = subtotal + shipping // No tax (Model A)
+  const labSupplies = computeLabSupplies(subtotal)
+  const total = subtotal + shipping + labSupplies // No tax (Model A)
   const isPickup = isPickupSpeed(shipSpeed)
   const pickupLocation = getOfficePickupLocation()
   const pickupAddressLine = formatOfficePickupAddress()
@@ -367,6 +369,12 @@ export default function CheckoutPage() {
             {shipping === 0 ? 'FREE' : formatPrice(shipping)}
           </span>
         </div>
+        {labSupplies > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-white/60">Lab supplies</span>
+            <span className="text-white">{formatPrice(labSupplies)}</span>
+          </div>
+        )}
       </div>
       <Separator className="bg-white/10" />
       <div className="flex justify-between text-lg font-bold text-white">

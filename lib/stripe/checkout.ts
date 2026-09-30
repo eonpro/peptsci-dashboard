@@ -32,6 +32,7 @@ import {
 } from '@/lib/shop/backorder'
 import {
   checkoutCartFingerprint,
+  isReusableCheckoutDraft,
   selectSupersededDraftIds,
   SUPERSEDED_CHECKOUT_REASON,
 } from '@/lib/checkout-draft'
@@ -48,7 +49,8 @@ export interface ResolvedCart {
 
 /**
  * Resolve a cart against the DB for the given client, computing effective
- * per-client unit prices and authoritative totals.
+ * per-client unit prices and authoritative clinic checkout totals (including
+ * the flat lab supplies charge).
  *
  * @throws CartValidationError when input is invalid or a SKU is unavailable.
  */
@@ -193,7 +195,12 @@ export async function resolveCart(params: {
     twoDay: client?.shippingRateTwoDay != null ? Number(client.shippingRateTwoDay) : null,
     overnight: client?.shippingRateOvernight != null ? Number(client.shippingRateOvernight) : null,
   }
-  return { lines, totals: computeCartTotals(lines, params.speed ?? 'TWO_DAY', shippingOverrides) }
+  return {
+    lines,
+    totals: computeCartTotals(lines, params.speed ?? 'TWO_DAY', shippingOverrides, {
+      includeLabSupplies: true,
+    }),
+  }
 }
 
 /**
@@ -315,16 +322,25 @@ export async function createDraftOrder(params: {
       }
     }
 
-    // Reuse only drafts with matching credit semantics (both with or both
-    // without credit): the credit amount is frozen on the draft, so a shopper
-    // who toggled the credit box between submits must get a fresh draft.
-    const reusable = pendingDrafts.find(
-      (o) =>
-        o.shipTo === shipTo &&
-        o.shipSpeed === shipSpeed &&
-        o.patientId === patientId &&
-        (requestedCreditCents > 0 ? Number(o.creditApplied) > 0 : Number(o.creditApplied) === 0) &&
-        cartLineFingerprint(fingerprintItems(o) as ResolvedCart['lines']) === fingerprint
+    const reusable = pendingDrafts.find((o) =>
+      isReusableCheckoutDraft(
+        {
+          shipTo: o.shipTo,
+          shipSpeed: o.shipSpeed,
+          patientId: o.patientId,
+          creditApplied: Number(o.creditApplied),
+          labSuppliesTotal: Number(o.labSuppliesTotal),
+          items: fingerprintItems(o),
+        },
+        {
+          shipTo,
+          shipSpeed,
+          patientId,
+          wantsCredit: requestedCreditCents > 0,
+          labSuppliesTotal: cart.totals.labSuppliesTotal,
+          fingerprint,
+        }
+      )
     )
     if (reusable) {
       // Same cart, but the shopper may have edited the shipping address or
@@ -420,6 +436,7 @@ export async function createDraftOrder(params: {
         subtotal: cart.totals.subtotal,
         taxTotal: cart.totals.taxTotal,
         shippingTotal: cart.totals.shippingTotal,
+        labSuppliesTotal: cart.totals.labSuppliesTotal,
         total: effectiveTotal,
         creditApplied: round2(appliedCreditCents / 100),
         currency: 'USD',

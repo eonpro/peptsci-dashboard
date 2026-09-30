@@ -99,6 +99,23 @@ interface StoredLineItem {
   cogs: number
 }
 
+/**
+ * Non-product charges on an order as zero-vial lines, scaled by the paid
+ * (net-of-refund) fraction like the product lines, so analytics never fold
+ * them into per-vial prices.
+ */
+export function orderChargeLines(
+  order: { shippingTotal: number; labSuppliesTotal: number },
+  paidFraction: number
+): Array<{ product: string; quantity: number; amount: number; cogs: number }> {
+  return [
+    { product: 'Shipping', amount: order.shippingTotal * paidFraction },
+    { product: 'Lab supplies', amount: order.labSuppliesTotal * paidFraction },
+  ]
+    .filter((line) => line.amount > 0.005)
+    .map((line) => ({ ...line, quantity: 0, cogs: 0 }))
+}
+
 function parseLineItems(raw: unknown): StoredLineItem[] {
   if (!Array.isArray(raw)) return []
   const out: StoredLineItem[] = []
@@ -331,8 +348,8 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
           : `${displayProductName(order.items[0].variant.product.name, order.items[0].variant.sku)} +${order.items.length - 1} more`
     // Per-line breakdown (net of refunds, same scaling as the totals) so
     // analytics credits each real product instead of the "+N more" label.
-    // Include shipping as its own line so product unit prices stay catalog/
-    // client prices instead of (subtotal + shipping) / vials.
+    // Shipping and lab supplies get their own lines so product unit prices
+    // stay catalog/client prices instead of (subtotal + charges) / vials.
     const productLines = order.items.map((it) => ({
       product: [displayProductName(it.variant.product.name, it.variant.sku), it.variant.dose]
         .filter(Boolean)
@@ -342,13 +359,15 @@ export async function syncSalesRecordFromOrder(orderId: string): Promise<void> {
       amount: Number(it.totalPrice) * paidFraction,
       cogs: Number(it.variant.unitCost) * it.quantity * paidFraction,
     }))
-    const shippingAmount = Number(order.shippingTotal) * paidFraction
+    const chargeLines = orderChargeLines(
+      {
+        shippingTotal: Number(order.shippingTotal),
+        labSuppliesTotal: Number(order.labSuppliesTotal),
+      },
+      paidFraction
+    )
     const lineItems =
-      productLines.length > 0
-        ? shippingAmount > 0.005
-          ? [...productLines, { product: 'Shipping', quantity: 0, amount: shippingAmount, cogs: 0 }]
-          : productLines
-        : Prisma.JsonNull
+      productLines.length > 0 ? [...productLines, ...chargeLines] : Prisma.JsonNull
     const addr = addressString(order.shippingAddress ?? order.client.shippingAddress)
 
     const data = {

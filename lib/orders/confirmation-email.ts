@@ -27,6 +27,7 @@ export async function sendOrderConfirmationForOrder(
         orderNumber: true,
         subtotal: true,
         shippingTotal: true,
+        labSuppliesTotal: true,
         shipSpeed: true,
         total: true,
         client: {
@@ -60,6 +61,8 @@ export async function sendOrderConfirmationForOrder(
           : Number(order.shippingTotal) === 0
             ? 'FREE'
             : usd(Number(order.shippingTotal)),
+      labSupplies:
+        Number(order.labSuppliesTotal) > 0 ? usd(Number(order.labSuppliesTotal)) : undefined,
       total: usd(Number(order.total)),
       paymentLabel: opts.paymentLabel,
       isPickup: order.shipSpeed === 'PICKUP',
