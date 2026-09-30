@@ -145,6 +145,7 @@ interface SchemaProbe {
   smsMessageTable: boolean
   smsConversationTable: boolean
   smsMessageConversationColumn: boolean
+  orderLabSuppliesTotalColumn: boolean
 }
 
 async function probeSchema(): Promise<SchemaProbe> {
@@ -197,7 +198,8 @@ async function probeSchema(): Promise<SchemaProbe> {
         OR (table_name = 'InvoiceLineItem' AND column_name = 'variantId')
         OR (table_name = 'User' AND column_name = 'permissionsGrant')
         OR (table_name = 'User' AND column_name = 'permissionsDeny')
-        OR (table_name = 'SmsMessage' AND column_name = 'conversationId'))
+        OR (table_name = 'SmsMessage' AND column_name = 'conversationId')
+        OR (table_name = 'Order' AND column_name = 'labSuppliesTotal'))
   `
   const enumValues = await db.$queryRaw<{ typname: string; enumlabel: string }[]>`
     SELECT t.typname, e.enumlabel FROM pg_type t
@@ -286,6 +288,7 @@ async function probeSchema(): Promise<SchemaProbe> {
     smsMessageTable: tableNames.has('SmsMessage'),
     smsConversationTable: tableNames.has('SmsConversation'),
     smsMessageConversationColumn: colKeys.has('SmsMessage.conversationId'),
+    orderLabSuppliesTotalColumn: colKeys.has('Order.labSuppliesTotal'),
   }
 }
 
