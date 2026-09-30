@@ -4,8 +4,8 @@
  * The source SVG (`public/labels/PEPTSCI LABEL SAMPLE.svg`) is the authoritative
  * label artwork supplied by PeptSci. Its viewBox is `0 0 144 54` — i.e. the
  * OL4891LP label in PDF points (2.0" x 0.75"). All *static* brand elements
- * (PeptSci logo + molecule, divider, `BUD:`, `RUO`, two-tone dose box with
- * `99%HPLC`, the rotated `PROVIDER USE ONLY...` warning, and `BATCH:`) are baked
+ * (PeptSci logo + molecule, divider, `BUD:`, `PUO`, two-tone dose box with
+ * `99%HPLC`, the rotated `PHYSICIAN USE ONLY...` warning, and `BATCH:`) are baked
  * in. The *dynamic* fields (BUD date digits, dose, barcode) are `display:none`
  * so they do NOT render — leaving a clean blank template that the label engine
  * composites and overlays at print time.

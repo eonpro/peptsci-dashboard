@@ -8,10 +8,17 @@ real PeptSci artwork on every label and overlays only the dynamic fields.
 `PEPTSCI LABEL SAMPLE.svg` is the authoritative artwork supplied by PeptSci. Its
 viewBox is `0 0 144 54` — exactly the OL4891LP label in PDF points (2.0" × 0.75").
 All **static** brand elements are baked in (PeptSci logo + molecule, divider,
-`BUD:`, `RUO`, the two-tone dose box with `99%HPLC`, the rotated
-`PROVIDER USE ONLY / NOT FOR HUMAN OR / ANIMAL CONSUMPTION` warning, and
-`BATCH:`). The **dynamic** fields (BUD date digits, dose, barcode) are
-`display:none`, so they don't render — leaving a clean blank template.
+`BUD:`, `PUO`, the two-tone dose box with `99%HPLC`, the rotated
+`PHYSICIAN USE ONLY / NOT FOR CONSUMPTION` warning, and `BATCH:`). The
+**dynamic** fields (BUD date digits, dose, barcode) are `display:none`, so they
+don't render — leaving a clean blank template.
+
+`PUO` (group `use-mark`) and the warning (group `use-warning`) are outlined
+Roboto Condensed Regular — the face of the original artwork — at 6.02pt and
+4.37pt with metric kerning, centred where the old `RUO` / three-line warning
+sat. The engine redraws the `use-mark` outlines when a two-line product name
+shifts the dose box (`PUO_GLYPH_PATHS` in `lib/labels/peptsciLabelPdf.ts`); a
+unit test keeps the two in sync.
 
 `scripts/build-label-template.ts` rasterizes that SVG to a high-DPI PNG used by
 the engine as the label background:

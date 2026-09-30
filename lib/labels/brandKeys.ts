@@ -17,6 +17,22 @@ export function isLabelBrandKey(value: string | null | undefined): value is Labe
   return Boolean(value && (LABEL_BRAND_KEYS as readonly string[]).includes(value))
 }
 
+/** White-label brands printed on the PeptSci face (built from its artwork). */
+export const PEPTSCI_FACE_BRAND_KEYS: readonly LabelBrandKey[] = [
+  VITAL_HEALTH_BRAND_KEY,
+  ELEMENT_LABS_BRAND_KEY,
+]
+
+/**
+ * Vials for this brand carry the physician-use wording (PUO, "PHYSICIAN USE
+ * ONLY / NOT FOR CONSUMPTION"): PeptSci and its face. Livbetr and Elevated
+ * Vitality artwork still says research use only.
+ */
+export function usesPhysicianUseLabels(brandKey: string | null | undefined): boolean {
+  if (!isLabelBrandKey(brandKey)) return true
+  return PEPTSCI_FACE_BRAND_KEYS.includes(brandKey)
+}
+
 export const LABEL_BRAND_OPTIONS: Array<{ key: LabelBrandKey; label: string }> = [
   { key: ELEVATED_VITALITY_BRAND_KEY, label: 'Elevated Vitality' },
   { key: LIVBETR_BRAND_KEY, label: 'LIVBETR' },

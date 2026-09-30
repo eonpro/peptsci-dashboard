@@ -1,7 +1,7 @@
 /**
  * Bacteriostatic water SKUs, vial presentation, and checkout upsell math.
  *
- * 3 mL / 10 mL carry a PeptSci label (volume only — no mg, purity, or RUO).
+ * 3 mL / 10 mL carry a PeptSci label (volume only — no mg, purity, or PUO).
  * 30 mL is the Hospira-branded bottle (product photo, no PeptSci label).
  * Checkout offers one vial per peptide vial when BAC water is not already in the cart.
  */

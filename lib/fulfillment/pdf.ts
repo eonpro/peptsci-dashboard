@@ -17,6 +17,7 @@ import {
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
   isLabelBrandKey,
+  usesPhysicianUseLabels,
 } from '../labels/brandKeys'
 import { pdfSafeText } from '../pdf-safe-text'
 import { recipientNameFromAddress } from '../orders/recipient'
@@ -405,7 +406,11 @@ export async function generatePackingSlipPdf(slip: PackingSlipData): Promise<Buf
     color: INK,
   })
 
-  last.drawText('Research Use Only — Not for human or animal consumption.', {
+  // Match the wording printed on the vials in this box.
+  const useNotice = usesPhysicianUseLabels(slip.labelBrandKey)
+    ? 'Physician Use Only — Not for consumption.'
+    : 'Research Use Only — Not for human or animal consumption.'
+  last.drawText(useNotice, {
     x: MARGIN,
     y: MARGIN + 8,
     size: 8,
