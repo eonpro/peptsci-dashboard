@@ -39,7 +39,7 @@ function nestedLogo(logoSvg: string): string {
     .replaceAll('class="st3"', 'class="vh3"')
     .trim()
 
-  // Landscape mark → vertical left rail, same bottom-to-top read as PeptSci / BATCH / RUO.
+  // Landscape mark → vertical left rail, same bottom-to-top read as PeptSci / BATCH / PUO.
   // Native 392.97×236.53; after rotate(-90) the bbox is 236.53×392.97. Divider is at x=25.07.
   const logoW = 392.97
   const logoH = 236.53

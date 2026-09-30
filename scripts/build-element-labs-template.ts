@@ -39,7 +39,7 @@ function pngSize(buf: Buffer): { width: number; height: number } {
 function nestedLogo(logoPng: Buffer): string {
   const { width: logoW, height: logoH } = pngSize(logoPng)
 
-  // Square mark → vertical left rail, same bottom-to-top read as PeptSci / BATCH / RUO.
+  // Square mark → vertical left rail, same bottom-to-top read as PeptSci / BATCH / PUO.
   // After rotate(-90) the bbox is logoH×logoW. Divider is at x=25.07.
   const railX = 1.1
   const railY = 2.2

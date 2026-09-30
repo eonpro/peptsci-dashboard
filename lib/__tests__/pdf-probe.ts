@@ -24,7 +24,9 @@ function decodeWinAnsi(bytes: Buffer): string {
 export function pdfShownStrings(pdf: Buffer | Uint8Array): string[] {
   const raw = Buffer.from(pdf).toString('latin1')
   const shown: string[] = []
-  const streams = /stream\r?\n([\s\S]*?)\r?\nendstream/g
+  // pdf-lib ends stream data with exactly "\nendstream"; compressed bytes can
+  // themselves end in \r, so it must not be consumed as part of the delimiter.
+  const streams = /stream\r?\n([\s\S]*?)\nendstream/g
   let stream: RegExpExecArray | null
   while ((stream = streams.exec(raw))) {
     let content: string

@@ -1,5 +1,5 @@
 /**
- * PeptSci RUO Vial Label Generator
+ * PeptSci PUO Vial Label Generator
  * ================================
  *
  * Print-ready PDF label sheets for PeptSci research peptides, adapted from the
@@ -14,8 +14,9 @@
  * The authoritative artwork is the PeptSci-supplied SVG
  * (`public/labels/PEPTSCI LABEL SAMPLE.svg`, viewBox `0 0 144 54` = the label in
  * PDF points). All *static* brand elements (logo + molecule, divider, `BUD:`,
- * `RUO`, two-tone dose box with `99%HPLC`, the rotated `PROVIDER USE ONLY...`
- * warning, and `BATCH:`) are baked in; the *dynamic* fields are `display:none`.
+ * `PUO`, two-tone dose box with `99%HPLC`, the rotated `PHYSICIAN USE ONLY /
+ * NOT FOR CONSUMPTION` warning, and `BATCH:`) are baked in; the *dynamic*
+ * fields are `display:none`.
  * `scripts/build-label-template.ts` rasterizes that SVG to a high-DPI PNG
  * (`public/labels/peptsci-label-template.png`). At print time we composite that
  * template as the label background and overlay ONLY the dynamic fields, placed
@@ -142,7 +143,7 @@ const DOSE_BASELINE_BLUE = 40.1
 const COLOR_BOX_BLUE = rgb(0x2f / 255, 0x2f / 255, 0x80 / 255)
 const PURITY_SIDE_SIZE = 4.2
 
-// On two-line names the dose box (bands + RUO + purity) is shifted down so the
+// On two-line names the dose box (bands + PUO + purity) is shifted down so the
 // second name line stays clear of it. The baked artwork box is whited out and
 // redrawn at the shifted position using the exact SVG paths/colors.
 const DOSE_BOX_SHIFT = 6
@@ -150,10 +151,14 @@ const DOSE_BOX_TOP_PATH =
   'M42.72,24.94h23.69c1.19,0,2.16.97,2.16,2.16v6.74h-28.01v-6.74c0-1.19.97-2.16,2.16-2.16Z'
 const DOSE_BOX_BOTTOM_PATH =
   'M40.55,33.83h28.01v6.74c0,1.19-.97,2.16-2.16,2.16h-23.69c-1.19,0-2.16-.97-2.16-2.16v-6.74h0Z'
-// Baked RUO glyphs span x 34.32-38.60, y 29.08-38.03 in the artwork.
-const RUO_CLEAR_LEFT = 33.3
-const RUO_BASELINE_X = 38.9
-const RUO_TEXT_LENGTH = 8.95
+// Baked PUO glyphs span x 34.26-38.66, y 29.00-38.50 in the artwork.
+const PUO_CLEAR_LEFT = 33.3
+/** The artwork's `use-mark` group: PUO outlines (Roboto Condensed), one path per glyph. */
+export const PUO_GLYPH_PATHS = [
+  'M36.922,37.14L36.922,38.074L36.46,38.074L36.46,37.14Q36.46,36.875 36.354,36.712Q36.248,36.549 36.06,36.474Q35.872,36.399 35.631,36.399Q35.411,36.399 35.217,36.474Q35.023,36.549 34.904,36.712Q34.784,36.875 34.784,37.14L34.784,37.963L38.6,37.963L38.6,38.503L34.32,38.503L34.32,37.14Q34.32,36.725 34.488,36.44Q34.655,36.155 34.951,36.006Q35.246,35.858 35.625,35.858Q36.037,35.858 36.328,36.006Q36.619,36.155 36.77,36.44Q36.922,36.725 36.922,37.14Z',
+  'M34.32,33.153L34.32,32.613L37.333,32.613Q37.815,32.613 38.106,32.798Q38.397,32.983 38.528,33.284Q38.659,33.586 38.659,33.932Q38.659,34.303 38.528,34.6Q38.397,34.897 38.106,35.072Q37.815,35.246 37.333,35.246L34.32,35.246L34.32,34.709L37.333,34.709Q37.668,34.709 37.856,34.613Q38.044,34.517 38.121,34.343Q38.197,34.168 38.197,33.932Q38.197,33.694 38.121,33.519Q38.044,33.345 37.856,33.249Q37.668,33.153 37.333,33.153Z',
+  'M36.09,29.003L36.833,29.003Q37.286,29.003 37.628,29.101Q37.971,29.2 38.2,29.388Q38.43,29.576 38.544,29.841Q38.659,30.105 38.659,30.437Q38.659,30.758 38.544,31.022Q38.43,31.287 38.2,31.478Q37.971,31.669 37.628,31.773Q37.286,31.878 36.833,31.878L36.09,31.878Q35.637,31.878 35.294,31.775Q34.952,31.672 34.723,31.481Q34.493,31.29 34.377,31.025Q34.261,30.761 34.261,30.44Q34.261,30.108 34.377,29.842Q34.493,29.576 34.723,29.389Q34.952,29.203 35.294,29.103Q35.637,29.003 36.09,29.003ZM36.833,29.538L36.084,29.538Q35.731,29.538 35.477,29.597Q35.222,29.655 35.061,29.77Q34.899,29.885 34.821,30.052Q34.743,30.22 34.743,30.44Q34.743,30.649 34.821,30.815Q34.899,30.981 35.061,31.099Q35.222,31.216 35.477,31.28Q35.731,31.343 36.084,31.343L36.833,31.343Q37.189,31.343 37.443,31.28Q37.698,31.216 37.861,31.097Q38.024,30.978 38.102,30.811Q38.18,30.643 38.18,30.437Q38.18,30.217 38.102,30.048Q38.024,29.879 37.861,29.766Q37.698,29.652 37.443,29.595Q37.189,29.538 36.833,29.538Z',
+] as const
 // Purity re-drawn inside the blue band (single-compound, shifted box): the
 // baked glyphs span x 43.7-64.7 with baseline ~39.9.
 const PURITY_BAND_BASELINE = 39.9
@@ -444,7 +449,7 @@ type LabelContext = {
 }
 
 /**
- * 3 mL / 10 mL BAC water: PeptSci face with volume only — no mg, RUO, or 99%.
+ * 3 mL / 10 mL BAC water: PeptSci face with volume only — no mg, PUO, or 99%.
  * The Hospira 30 mL bottle never reaches this path.
  */
 function drawBacWaterLabel(ctx: LabelContext): void {
@@ -457,7 +462,7 @@ function drawBacWaterLabel(ctx: LabelContext): void {
   const toX = (sx: number) => x + sx
   const toY = (sy: number) => y + (SVG_H - sy)
 
-  // Cover peptide-only artwork: BUD, RUO, 99%HPLC, barcode, BATCH.
+  // Cover peptide-only artwork: BUD, PUO, 99%HPLC, barcode, BATCH.
   page.drawRectangle({
     x: toX(NAME_LEFT),
     y: toY(14),
@@ -466,7 +471,7 @@ function drawBacWaterLabel(ctx: LabelContext): void {
     color: COLOR_WHITE,
   })
   page.drawRectangle({
-    x: toX(RUO_CLEAR_LEFT),
+    x: toX(PUO_CLEAR_LEFT),
     y: toY(DOSE_BOX_BOTTOM + 0.5),
     width: 7.5,
     height: DOSE_BOX_BOTTOM - DOSE_BOX_TOP + 1,
@@ -619,7 +624,7 @@ function drawLabel(ctx: LabelContext): void {
   }
   const { page, x, y, req, fonts, template, accent, boxBlue } = ctx
 
-  // Background artwork (logo, divider, BUD:, RUO, dose box + 99%HPLC, warning,
+  // Background artwork (logo, divider, BUD:, PUO, dose box + 99%HPLC, warning,
   // BATCH:) — fills the whole label.
   page.drawImage(template, { x, y, width: LABEL_WIDTH, height: LABEL_HEIGHT })
 
@@ -729,29 +734,22 @@ function drawLabel(ctx: LabelContext): void {
   const boxShift = twoLine ? DOSE_BOX_SHIFT : 0
 
   // Two-line names need the extra vertical room, so lower the dose box: paint
-  // over the baked box + RUO and redraw them (exact artwork paths and colors)
+  // over the baked box + PUO and redraw them (exact artwork paths and colors)
   // shifted down. Drawn before the name so text always sits on top.
   if (twoLine) {
     page.drawRectangle({
-      x: toX(RUO_CLEAR_LEFT),
+      x: toX(PUO_CLEAR_LEFT),
       y: toY(DOSE_BOX_BOTTOM + 0.5),
-      width: DOSE_BOX_RIGHT + 0.6 - RUO_CLEAR_LEFT,
+      width: DOSE_BOX_RIGHT + 0.6 - PUO_CLEAR_LEFT,
       height: DOSE_BOX_BOTTOM - DOSE_BOX_TOP + 1,
       color: COLOR_WHITE,
     })
     const shiftedOrigin = { x, y: y + SVG_H - boxShift }
     page.drawSvgPath(DOSE_BOX_TOP_PATH, { ...shiftedOrigin, color: COLOR_TEXT })
     page.drawSvgPath(DOSE_BOX_BOTTOM_PATH, { ...shiftedOrigin, color: boxBlue })
-    const ruoSize = Math.min(6, RUO_TEXT_LENGTH / fonts.name.widthOfTextAtSize('RUO', 1))
-    const ruoWidth = fonts.name.widthOfTextAtSize('RUO', ruoSize)
-    page.drawText('RUO', {
-      x: toX(RUO_BASELINE_X),
-      y: toY((DOSE_BOX_TOP + DOSE_BOX_BOTTOM) / 2 + boxShift) - ruoWidth / 2,
-      size: ruoSize,
-      font: fonts.name,
-      color: COLOR_TEXT,
-      rotate: degrees(90),
-    })
+    for (const glyph of PUO_GLYPH_PATHS) {
+      page.drawSvgPath(glyph, { ...shiftedOrigin, color: COLOR_TEXT })
+    }
   }
 
   if (nameLines.length === 2) {
@@ -977,10 +975,10 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
   })
   page.pushOperators(setCharacterSpacing(0))
 
-  // Two-tone dose box + rotated "RUO" to its left.
-  const ruoWidth = 8
-  const boxX = contentX + ruoWidth
-  const boxWidth = contentWidth - ruoWidth
+  // Two-tone dose box + rotated "PUO" to its left.
+  const markWidth = 8
+  const boxX = contentX + markWidth
+  const boxWidth = contentWidth - markWidth
   const boxBottom = contentBottom
   const boxHeight = 19
   const halfH = boxHeight / 2
@@ -1028,22 +1026,25 @@ function drawLabelVector({ page, x, y, req, fonts, logo, accent }: LabelContext)
     color: COLOR_WHITE,
   })
 
-  // Rotated "RUO" (Research Use Only).
-  const ruoText = 'RUO'
-  const ruoSize = 7
-  const ruoTextW = fonts.helv.widthOfTextAtSize(ruoText, ruoSize)
-  page.drawText(ruoText, {
+  // Rotated "PUO" (Physician Use Only).
+  const markText = 'PUO'
+  const markSize = 7
+  const markTextW = fonts.helv.widthOfTextAtSize(markText, markSize)
+  page.drawText(markText, {
     x: contentX + 5,
-    y: boxBottom + (boxHeight - ruoTextW) / 2,
-    size: ruoSize,
+    y: boxBottom + (boxHeight - markTextW) / 2,
+    size: markSize,
     font: fonts.helv,
     color: COLOR_TEXT,
     rotate: degrees(90),
   })
 
-  // Rotated warning block.
-  const warningLines = ['PROVIDER USE ONLY', 'NOT FOR HUMAN OR', 'ANIMAL CONSUMPTION']
-  const wSize = 4.6
+  // Rotated warning block, sized so the longest line fits the label height.
+  const warningLines = ['PHYSICIAN USE ONLY', 'NOT FOR CONSUMPTION']
+  const longestAtOnePt = Math.max(
+    ...warningLines.map((line) => fonts.helvBold.widthOfTextAtSize(line, 1))
+  )
+  const wSize = Math.min(4.6, contentHeight / longestAtOnePt)
   const wStep = warningWidth / (warningLines.length + 0.5)
   warningLines.forEach((line, i) => {
     const lineW = fonts.helvBold.widthOfTextAtSize(line, wSize)

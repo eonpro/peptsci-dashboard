@@ -21,7 +21,7 @@ export { isBacteriostaticWaterProduct } from '@/lib/shop/bac-water'
  * vial.
  *
  * 30 mL bacteriostatic water uses the Hospira product photo. 3 mL / 10 mL
- * use a PeptSci label with volume only (no mg, purity, or RUO).
+ * use a PeptSci label with volume only (no mg, purity, or PUO).
  */
 
 // Label rectangle as % of the cropped vial image (measured from the render)
@@ -388,11 +388,11 @@ export function ProductVial({ product, className }: ProductVialProps) {
               })()
             )}
 
-            {/* RUO | dose box | purity */}
+            {/* PUO | dose box | purity */}
             <div className="flex items-stretch gap-[2.5cqw]">
               <div className="flex items-center justify-center">
                 <span className="text-[6cqw] font-bold tracking-[0.15em] text-[#101123] [writing-mode:vertical-rl] rotate-180">
-                  RUO
+                  PUO
                 </span>
               </div>
 

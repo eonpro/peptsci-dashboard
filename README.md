@@ -374,8 +374,8 @@ Proprietary - PEPTSCI
 
 ## Inventory Batches & Label Generation
 
-Admins (and super-admins) record inbound inventory and print research-use-only
-(RUO) vial labels from **Inventory → Receive Inventory**.
+Admins (and super-admins) record inbound inventory and print physician-use-only
+(PUO) vial labels from **Inventory → Receive Inventory**.
 
 - **Single-step intake** (`/inventory`): enter product name, dose (mg), vial
   size, BUD, amount, and received-on date. On save the system:
