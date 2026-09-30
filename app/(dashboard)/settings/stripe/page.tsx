@@ -43,6 +43,7 @@ interface MigrateSchema {
   webhookEventTable?: boolean
   orderShippingTotalColumn?: boolean
   clientStripeCustomerIdColumn?: boolean
+  orderLabSuppliesTotalColumn?: boolean
 }
 
 interface MigrateResult {
@@ -323,6 +324,7 @@ export default function StripeSettingsPage() {
             <Row label="WebhookEvent table" value={String(migrate.schema?.webhookEventTable ?? false)} ok={migrate.schema?.webhookEventTable} />
             <Row label="Order.shippingTotal" value={String(migrate.schema?.orderShippingTotalColumn ?? false)} ok={migrate.schema?.orderShippingTotalColumn} />
             <Row label="Client.stripeCustomerId" value={String(migrate.schema?.clientStripeCustomerIdColumn ?? false)} ok={migrate.schema?.clientStripeCustomerIdColumn} />
+            <Row label="Order.labSuppliesTotal" value={String(migrate.schema?.orderLabSuppliesTotalColumn ?? false)} ok={migrate.schema?.orderLabSuppliesTotalColumn} />
             {migrate.results && migrate.results.length > 0 && (
               <div className="pt-3">
                 <p className="mb-1 text-xs uppercase tracking-wide text-white/40">Run details</p>
