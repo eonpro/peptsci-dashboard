@@ -127,3 +127,39 @@ GLOW subtitle: `GHK-Cu / BPC-157 / TB-500`. KLOW: `GHK-Cu / BPC-157 / KPV / TB-5
 - Engine: `lib/labels/elementLabsLabelPdf.ts` — **PeptSci overlay family**
 - Rebuild: `npm run labels:element-labs`
 - Palette: navy `#073162`
+
+### TIME Academy of Regenerative Medicine & Longevity Science (`time_academy`)
+
+Own layout from the client proof (not the PeptSci face): logo in a wide left
+panel, teal divider, product name over the dose box, and a right rail with
+`BATCH: <lot>` and `BUD MM/DD/YY` reading bottom-to-top. No barcode and no
+warning column. Vials print **PUO**, so the packing slip uses the
+physician-use footer.
+
+- Source logo: `clients/time-academy/time-academy-logo.svg` (client-supplied
+  vector; teal `#308f83` mark, black type)
+- Empty label: `clients/time-academy/time-academy-label-empty.svg` — the logo
+  plus the PeptSci dose box, `99%HPLC` and PUO outlines copied at 1:1 (black
+  dose band, teal purity band). Geometry: `lib/labels/timeAcademyLayout.ts`,
+  shared by the build script and the engine
+- Raster template: `clients/time-academy/time-academy-label-template.png`
+- Packing-slip logo: `public/brand/time-academy-logo-dark.png`
+- Engine: `lib/labels/timeAcademyLabelPdf.ts` — plans each label as text runs
+  (`planTimeAcademyLabel`), then draws them over the template
+- Live text: name + dose in Sofia Pro Regular (as in the proof); rail in
+  Roboto Condensed Regular (`public/fonts/labels/RobotoCondensed-Regular.ttf`,
+  SIL OFL — see `RobotoCondensed-OFL.txt`). That file is the `wght=400`
+  instance of Google Fonts' `ofl/robotocondensed/RobotoCondensed[wght].ttf`,
+  subset to printable ASCII + `…` (identical apart from the `head` timestamp):
+
+  ```
+  fonttools varLib.instancer 'RobotoCondensed[wght].ttf' wght=400 --update-name-table -o rc-400.ttf
+  pyftsubset rc-400.ttf --unicodes=U+0020-007E,U+2026 --layout-features='*' \
+    --name-IDs='*' --drop-tables= --recalc-bounds --output-file=RobotoCondensed-Regular.ttf
+  ```
+
+- Blends: second dose in the teal band, purity rotated beside the box. BAC
+  water: volume only (no PUO, purity, BATCH or BUD), like the PeptSci BAC face
+- Rebuild: `npm run labels:time-academy` (also re-bundles the template and rail
+  font into `lib/labels/timeAcademyEmbeddedAssets.ts`)
+- Palette: teal `#308f83`, ink `#000000`

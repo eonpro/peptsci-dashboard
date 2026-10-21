@@ -132,8 +132,9 @@ export function ClientWhiteLabelLabelsCard({
         <CardDescription className="text-white/60">
           Selecting a brand enables it: order vial label PDFs then use that
           practice&apos;s artwork (OL4891LP) instead of PeptSci. Inventory batch
-          print stays PeptSci. Practices named Vital Health, LIVBETR, or Elevated
-          Vitality also match automatically if this picker was never saved.
+          print stays PeptSci. Practices named Vital Health, Element Labs, TIME
+          Academy, LIVBETR, or Elevated Vitality also match automatically if this
+          picker was never saved.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

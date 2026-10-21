@@ -17,6 +17,7 @@
     "labels:template": "tsx scripts/build-label-template.ts",
     "labels:vital-health": "tsx scripts/build-vital-health-template.ts",
     "labels:element-labs": "tsx scripts/build-element-labs-template.ts",
+    "labels:time-academy": "tsx scripts/build-time-academy-template.ts",
     "labels:assets": "python3 scripts/build-label-assets.py",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "seed:sci": "tsx --env-file=.env.local scripts/seed-sci-demo.ts",

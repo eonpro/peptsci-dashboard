@@ -1,0 +1,197 @@
+/**
+ * Build the TIME Academy white-label vial artwork (OL4891LP) from the client
+ * logo and the PeptSci dose box, following the client-supplied proof:
+ *
+ * - The supplied logo (vector) in the wide left panel, then a teal divider
+ * - The PeptSci dose box, `99%HPLC` and PUO outlines at 1:1, recoloured black /
+ *   teal and moved by DOSE_BOX_OFFSET (lib/labels/timeAcademyLayout.ts)
+ * - Rasterises the template PNG, writes the packing-slip logo PNG and the
+ *   bundled base64 copies (template + Roboto Condensed) used on Vercel
+ *
+ * Name, dose, BATCH and BUD are live text (lib/labels/timeAcademyLabelPdf.ts).
+ *
+ * Run: npm run labels:time-academy
+ */
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import { Resvg } from '@resvg/resvg-js'
+import {
+  DIVIDER,
+  DOSE_BOX_OFFSET,
+  LABEL_H,
+  LABEL_W,
+  LOGO_LEFT,
+  LOGO_TOP,
+  LOGO_WIDTH,
+  TIME_ACADEMY_INK_HEX,
+  TIME_ACADEMY_TEAL_HEX,
+} from '../lib/labels/timeAcademyLayout'
+
+const ROOT = process.cwd()
+const DIR = path.join(ROOT, 'public/labels/clients/time-academy')
+const LOGO = path.join(DIR, 'time-academy-logo.svg')
+const PEPTSCI = path.join(ROOT, 'public/labels/PEPTSCI LABEL SAMPLE.svg')
+const EMPTY_OUT = path.join(DIR, 'time-academy-label-empty.svg')
+const PNG_OUT = path.join(DIR, 'time-academy-label-template.png')
+const BRAND_PNG = path.join(ROOT, 'public/brand/time-academy-logo-dark.png')
+const RAIL_FONT = path.join(ROOT, 'public/fonts/labels/RobotoCondensed-Regular.ttf')
+const EMBED_OUT = path.join(ROOT, 'lib/labels/timeAcademyEmbeddedAssets.ts')
+
+const DOSE_TOP_START = 'M42.72,24.94'
+const DOSE_BOTTOM_START = 'M40.55,33.83'
+const PURITY_START = 'M45.87,37.87'
+const WHITE = '#ffffff'
+
+const num = (n: number) => Number(n.toFixed(4)).toString()
+
+type LogoPath = { fill: string; d: string }
+
+/** The logo's paths with their fills resolved (Illustrator `.st0` = teal, rest = ink). */
+function logoPaths(svg: string): LogoPath[] {
+  const classFills = new Map<string, string>()
+  for (const rule of svg.matchAll(/\.(st\d+)\s*\{\s*fill:\s*(#[0-9a-f]{6})\s*;?\s*\}/gi)) {
+    classFills.set(rule[1], rule[2].toLowerCase())
+  }
+  if (classFills.get('st0') !== TIME_ACADEMY_TEAL_HEX) {
+    throw new Error(`Logo .st0 is not the TIME teal ${TIME_ACADEMY_TEAL_HEX}; update the palette.`)
+  }
+  const paths = [...svg.matchAll(/<path\b([^>]*?)\/>/g)].map(([, attrs]) => {
+    const d = / d="([^"]+)"/.exec(attrs)?.[1]
+    if (!d) throw new Error('Logo <path> without d.')
+    const cls = /class="([^"]+)"/.exec(attrs)?.[1]
+    const fill = cls ? classFills.get(cls) : TIME_ACADEMY_INK_HEX
+    if (!fill) throw new Error(`Logo class ${cls} has no fill rule.`)
+    return { fill, d }
+  })
+  if (paths.length === 0) throw new Error('Logo has no paths.')
+  return paths
+}
+
+function pathElements(paths: LogoPath[], indent: string): string {
+  return paths.map(({ fill, d }) => `${indent}<path fill="${fill}" d="${d}"/>`).join('\n')
+}
+
+/** Ink bounds of the logo in its own viewBox units. */
+function logoBBox(svg: string) {
+  const bbox = new Resvg(svg).getBBox()
+  if (!bbox) throw new Error('Logo renders nothing.')
+  return { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height }
+}
+
+/** `d` of every <path> inside the PeptSci <g> that holds `marker`. */
+function peptsciGroupPaths(svg: string, marker: string, expected: number): string[] {
+  const at = svg.indexOf(marker)
+  const start = svg.lastIndexOf('<g', at)
+  const end = svg.indexOf('</g>', at)
+  if (at < 0 || start < 0 || end < 0) throw new Error(`PeptSci artwork: no group for ${marker}`)
+  const paths = [...svg.slice(start, end).matchAll(/ d="([^"]+)"/g)].map((m) => m[1])
+  if (paths.length !== expected) {
+    throw new Error(
+      `PeptSci artwork: expected ${expected} paths near ${marker}, got ${paths.length}`
+    )
+  }
+  return paths
+}
+
+function peptsciPath(svg: string, start: string): string {
+  const d = new RegExp(` d="(${start.replace(/[.]/g, '\\.')}[^"]*)"`).exec(svg)?.[1]
+  if (!d) throw new Error(`PeptSci artwork: missing path ${start}`)
+  return d
+}
+
+function puoMarkPaths(svg: string): string[] {
+  const group = /<g id="use-mark">([\s\S]*?)<\/g>/.exec(svg)
+  if (!group) throw new Error('PeptSci artwork: no <g id="use-mark">')
+  const paths = [...group[1].matchAll(/ d="([^"]+)"/g)].map((m) => m[1])
+  if (paths.length !== 'PUO'.length) throw new Error('PeptSci use mark is not PUO.')
+  return paths
+}
+
+function assembleLabel(logoSvg: string, peptsci: string): string {
+  const paths = logoPaths(logoSvg)
+  const bbox = logoBBox(logoSvg)
+  const scale = LOGO_WIDTH / bbox.width
+  const tx = LOGO_LEFT - bbox.x * scale
+  const ty = LOGO_TOP - bbox.y * scale
+
+  const doseTop = peptsciPath(peptsci, DOSE_TOP_START)
+  const doseBottom = peptsciPath(peptsci, DOSE_BOTTOM_START)
+  const purity = peptsciGroupPaths(peptsci, PURITY_START, '99%HPLC'.length)
+  const mark = puoMarkPaths(peptsci)
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!-- Generated by scripts/build-time-academy-template.ts (npm run labels:time-academy). -->',
+    `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 ${LABEL_W} ${LABEL_H}" width="${LABEL_W}" height="${LABEL_H}">`,
+    `  <g id="time-academy-logo" transform="translate(${num(tx)} ${num(ty)}) scale(${num(scale)})">`,
+    pathElements(paths, '    '),
+    '  </g>',
+    `  <rect id="divider" x="${DIVIDER.x}" y="${DIVIDER.y}" width="${DIVIDER.width}" height="${DIVIDER.height}" rx="${DIVIDER.width / 2}" ry="${DIVIDER.width / 2}" fill="${TIME_ACADEMY_TEAL_HEX}"/>`,
+    `  <g id="dose-box" transform="translate(${DOSE_BOX_OFFSET.x} ${DOSE_BOX_OFFSET.y})">`,
+    `    <path fill="${TIME_ACADEMY_INK_HEX}" d="${doseTop}"/>`,
+    `    <path fill="${TIME_ACADEMY_TEAL_HEX}" d="${doseBottom}"/>`,
+    '    <g id="purity">',
+    purity.map((d) => `      <path fill="${WHITE}" d="${d}"/>`).join('\n'),
+    '    </g>',
+    '    <g id="use-mark">',
+    mark.map((d) => `      <path fill="${TIME_ACADEMY_INK_HEX}" d="${d}"/>`).join('\n'),
+    '    </g>',
+    '  </g>',
+    '</svg>',
+    '',
+  ].join('\n')
+}
+
+/** Packing-slip / pick-list header mark: the logo cropped to its ink. */
+function brandLogoSvg(logoSvg: string): string {
+  const bbox = logoBBox(logoSvg)
+  const pad = 0.5
+  const viewBox = [bbox.x - pad, bbox.y - pad, bbox.width + pad * 2, bbox.height + pad * 2]
+    .map(num)
+    .join(' ')
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">`,
+    pathElements(logoPaths(logoSvg), '  '),
+    '</svg>',
+  ].join('\n')
+}
+
+function rasterize(svg: string, fitTo: { mode: 'width' | 'height'; value: number }): Buffer {
+  return Buffer.from(new Resvg(svg, { fitTo, background: 'rgba(0,0,0,0)' }).render().asPng())
+}
+
+function main() {
+  mkdirSync(DIR, { recursive: true })
+  mkdirSync(path.dirname(BRAND_PNG), { recursive: true })
+
+  const logoSvg = readFileSync(LOGO, 'utf8')
+  const labelSvg = assembleLabel(logoSvg, readFileSync(PEPTSCI, 'utf8'))
+  writeFileSync(EMPTY_OUT, labelSvg)
+  console.log(`wrote ${EMPTY_OUT} (${labelSvg.length} bytes)`)
+
+  const labelPng = rasterize(labelSvg, { mode: 'width', value: 2880 })
+  writeFileSync(PNG_OUT, labelPng)
+  console.log(`wrote ${PNG_OUT} (${labelPng.length} bytes)`)
+
+  const brandPng = rasterize(brandLogoSvg(logoSvg), { mode: 'height', value: 480 })
+  writeFileSync(BRAND_PNG, brandPng)
+  console.log(`wrote ${BRAND_PNG} (${brandPng.length} bytes)`)
+
+  const railFont = readFileSync(RAIL_FONT)
+  writeFileSync(
+    EMBED_OUT,
+    [
+      '// AUTO-GENERATED by scripts/build-time-academy-template.ts — do not edit by hand.',
+      '// Base64 TIME Academy label template PNG + Roboto Condensed Regular (printable',
+      '// ASCII subset) for Vercel (public/ is not in serverless bundles).',
+      '',
+      `export const TIME_ACADEMY_TEMPLATE_PNG_B64 = '${labelPng.toString('base64')}'`,
+      '',
+      `export const ROBOTO_CONDENSED_REGULAR_B64 = '${railFont.toString('base64')}'`,
+      '',
+    ].join('\n')
+  )
+  console.log(`wrote ${EMBED_OUT}`)
+}
+
+main()

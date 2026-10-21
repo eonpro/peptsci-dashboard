@@ -21,10 +21,15 @@ import {
   type ElementLabsLabelGroup,
 } from './elementLabsLabelPdf'
 import {
+  generateTimeAcademyLabelsPdf,
+  type TimeAcademyLabelGroup,
+} from './timeAcademyLabelPdf'
+import {
   ELEVATED_VITALITY_BRAND_KEY,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
+  TIME_ACADEMY_BRAND_KEY,
   type LabelBrandKey,
 } from './brandKeys'
 
@@ -33,6 +38,7 @@ export {
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
+  TIME_ACADEMY_BRAND_KEY,
   LABEL_BRAND_KEYS,
   LABEL_BRAND_OPTIONS,
   isLabelBrandKey,
@@ -124,6 +130,21 @@ export async function generateVialLabelsPdf(
     }))
     const result = await generateElementLabsLabelsPdf(elGroups, { startSlot })
     return { brand: ELEMENT_LABS_BRAND_KEY, ...result }
+  }
+
+  if (brandKey === TIME_ACADEMY_BRAND_KEY) {
+    const taGroups: TimeAcademyLabelGroup[] = groups.map((g) => ({
+      req: {
+        productName: g.productName,
+        dose: g.dose,
+        purity: g.purity,
+        batchNumber: g.batchNumber,
+        budIsoDate: g.budIsoDate,
+      },
+      quantity: g.quantity,
+    }))
+    const result = await generateTimeAcademyLabelsPdf(taGroups, { startSlot })
+    return { brand: TIME_ACADEMY_BRAND_KEY, ...result }
   }
 
   const peptsciGroups: PeptSciLabelGroup[] = groups.map((g) => ({

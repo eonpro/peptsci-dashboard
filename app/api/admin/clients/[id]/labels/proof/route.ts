@@ -15,11 +15,13 @@ import {
 import { generateLivbetrLabelSheetPdf } from '@/lib/labels/livbetrLabelPdf'
 import { generateVitalHealthLabelSheetPdf } from '@/lib/labels/vitalHealthLabelPdf'
 import { generateElementLabsLabelSheetPdf } from '@/lib/labels/elementLabsLabelPdf'
+import { generateTimeAcademyLabelSheetPdf } from '@/lib/labels/timeAcademyLabelPdf'
 import {
   isLabelBrandKey,
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
+  TIME_ACADEMY_BRAND_KEY,
 } from '@/lib/labels/brandKeys'
 
 export const runtime = 'nodejs'
@@ -136,6 +138,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="element-labs-${client.id}-proof.pdf"`,
+          'Cache-Control': 'no-store',
+          'X-Label-Brand': brandKey,
+        },
+      })
+    }
+
+    if (brandKey === TIME_ACADEMY_BRAND_KEY) {
+      const pdf = await generateTimeAcademyLabelSheetPdf({
+        productName: input.productName ?? 'NAD+',
+        dose: input.dose ?? '500mg',
+        purity: '99%HPLC',
+        batchNumber: input.batchNumber ?? 'NAD500-022028',
+        budIsoDate: input.budIsoDate ?? '2028-02-28',
+        quantity: input.quantity ?? 1,
+        proofMode: input.proofMode ?? true,
+      })
+      return new NextResponse(new Uint8Array(pdf), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="time-academy-${client.id}-proof.pdf"`,
           'Cache-Control': 'no-store',
           'X-Label-Brand': brandKey,
         },
