@@ -201,6 +201,7 @@ describe('resolveLabelBrandKey', () => {
     assert.equal(isLabelBrandKey('livbetr'), true)
     assert.equal(isLabelBrandKey('vital_health'), true)
     assert.equal(isLabelBrandKey('element_labs'), true)
+    assert.equal(isLabelBrandKey('time_academy'), true)
     assert.equal(isLabelBrandKey('peptsci'), false)
   })
 

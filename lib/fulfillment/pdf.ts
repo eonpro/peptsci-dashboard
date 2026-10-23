@@ -16,6 +16,7 @@ import {
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
+  TIME_ACADEMY_BRAND_KEY,
   isLabelBrandKey,
   usesPhysicianUseLabels,
 } from '../labels/brandKeys'
@@ -56,6 +57,10 @@ const WHITE_LABEL_LOGOS: Record<LabelBrandKey, string[]> = {
     path.join(process.cwd(), 'public', 'brand', 'element-labs-logo-dark.png'),
     path.join(process.cwd(), 'assets', 'brand', 'element-labs-logo-dark.png'),
   ],
+  [TIME_ACADEMY_BRAND_KEY]: [
+    path.join(process.cwd(), 'public', 'brand', 'time-academy-logo-dark.png'),
+    path.join(process.cwd(), 'assets', 'brand', 'time-academy-logo-dark.png'),
+  ],
 }
 
 const WHITE_LABEL_WORDMARK: Record<LabelBrandKey, string> = {
@@ -63,6 +68,7 @@ const WHITE_LABEL_WORDMARK: Record<LabelBrandKey, string> = {
   [LIVBETR_BRAND_KEY]: 'LIVBETR',
   [VITAL_HEALTH_BRAND_KEY]: 'Vital Health',
   [ELEMENT_LABS_BRAND_KEY]: 'Element Labs',
+  [TIME_ACADEMY_BRAND_KEY]: 'TIME Academy',
 }
 
 async function embedPngFrom(doc: PDFDocument, candidates: string[]): Promise<PDFImage | null> {

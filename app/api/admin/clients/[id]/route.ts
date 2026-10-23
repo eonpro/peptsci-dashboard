@@ -23,6 +23,7 @@ import {
   LIVBETR_BRAND_KEY,
   VITAL_HEALTH_BRAND_KEY,
   ELEMENT_LABS_BRAND_KEY,
+  TIME_ACADEMY_BRAND_KEY,
 } from '@/lib/labels/brandKeys'
 
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,7 @@ const adminUpdateSchema = z.object({
       LIVBETR_BRAND_KEY,
       VITAL_HEALTH_BRAND_KEY,
       ELEMENT_LABS_BRAND_KEY,
+      TIME_ACADEMY_BRAND_KEY,
     ])
     .nullable()
     .optional(),

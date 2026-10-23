@@ -121,7 +121,7 @@ describe('packing slip use notice', () => {
     }
   }
 
-  for (const brand of [null, 'vital_health', 'element_labs']) {
+  for (const brand of [null, 'vital_health', 'element_labs', 'time_academy']) {
     test(`${brand ?? 'PeptSci'} slips match the physician-use vials in the box`, async () => {
       assert.equal(usesPhysicianUseLabels(brand), true)
       const text = pdfShownStrings(await generatePackingSlipPdf(slip(brand)))
