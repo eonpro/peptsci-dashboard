@@ -1008,6 +1008,8 @@ model Order {
   subtotal              Decimal                @db.Decimal(12, 2)
   taxTotal              Decimal                @default(0) @db.Decimal(12, 2)
   shippingTotal         Decimal                @default(0) @db.Decimal(12, 2)
+  // Flat "Lab supplies" charge — clinic shop checkout only (lib/checkout-core.ts).
+  labSuppliesTotal      Decimal                @default(0) @db.Decimal(12, 2)
   total                 Decimal                @db.Decimal(12, 2)
   currency              String                 @default("USD")
   notes                 String?

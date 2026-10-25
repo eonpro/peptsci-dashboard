@@ -271,6 +271,8 @@ export interface OrderConfirmationEmailOpts {
   items: Array<{ name: string; dose?: string | null; quantity: number; lineTotal: string }>
   subtotal: string
   shipping: string
+  /** Clinic checkout lab supplies charge (e.g. "$5.00"); row omitted when absent. */
+  labSupplies?: string
   total: string
   /** e.g. "Paid by card" or "Billed to account — Net 30". */
   paymentLabel: string
@@ -306,7 +308,15 @@ export function orderConfirmationEmail(opts: OrderConfirmationEmailOpts): EmailC
       <tr>
         <td style="padding:2px 0;color:${BRAND.muted};font-size:13px;">Shipping</td>
         <td style="padding:2px 0 2px 16px;color:${BRAND.text};font-size:14px;text-align:right;">${escapeHtml(opts.shipping)}</td>
-      </tr>
+      </tr>${
+        opts.labSupplies
+          ? `
+      <tr>
+        <td style="padding:2px 0;color:${BRAND.muted};font-size:13px;">Lab supplies</td>
+        <td style="padding:2px 0 2px 16px;color:${BRAND.text};font-size:14px;text-align:right;">${escapeHtml(opts.labSupplies)}</td>
+      </tr>`
+          : ''
+      }
       <tr>
         <td style="padding:6px 0;color:${BRAND.text};font-size:14px;font-weight:700;">Total</td>
         <td style="padding:6px 0 6px 16px;color:${BRAND.text};font-size:15px;font-weight:700;text-align:right;">${escapeHtml(opts.total)}</td>
@@ -344,7 +354,7 @@ Thanks for your order! We've received PeptSci order ${ord} (${opts.paymentLabel}
 ${itemLines}
 
 Subtotal: ${opts.subtotal}
-Shipping: ${opts.shipping}
+Shipping: ${opts.shipping}${opts.labSupplies ? `\nLab supplies: ${opts.labSupplies}` : ''}
 Total: ${opts.total}
 
 ${followUp}

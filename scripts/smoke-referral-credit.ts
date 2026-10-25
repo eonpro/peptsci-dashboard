@@ -86,7 +86,7 @@ async function main() {
           isCustomPrice: false,
         },
       ],
-      totals: { subtotal: 100, taxTotal: 0, shippingTotal: 0, total: 100 },
+      totals: { subtotal: 100, taxTotal: 0, shippingTotal: 0, labSuppliesTotal: 0, total: 100 },
     }
     const creditOrder = await createDraftOrder({
       clientId: referrer.id,
@@ -103,7 +103,7 @@ async function main() {
     const cart2: ResolvedCart = {
       ...cart,
       lines: [{ ...cart.lines[0], quantity: 2, lineTotal: 200 }],
-      totals: { subtotal: 200, taxTotal: 0, shippingTotal: 0, total: 200 },
+      totals: { subtotal: 200, taxTotal: 0, shippingTotal: 0, labSuppliesTotal: 0, total: 200 },
     }
     const heldOrder = await createDraftOrder({
       clientId: referrer.id,
@@ -147,7 +147,7 @@ async function main() {
       cart: {
         ...cart,
         lines: [{ ...cart.lines[0], quantity: 3, lineTotal: 300 }],
-        totals: { subtotal: 100, taxTotal: 0, shippingTotal: 0, total: 100 },
+        totals: { subtotal: 100, taxTotal: 0, shippingTotal: 0, labSuppliesTotal: 0, total: 100 },
       },
       requestedCreditCents: 100_00,
     })

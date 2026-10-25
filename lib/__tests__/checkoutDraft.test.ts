@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   checkoutCartFingerprint,
+  isReusableCheckoutDraft,
   selectSupersededDraftIds,
   paymentIntentIdFromClientSecret,
   isSupersededCheckoutDraft,
@@ -57,6 +58,51 @@ describe('selectSupersededDraftIds', () => {
       null
     )
     assert.deepEqual(ids.sort(), ['a', 'b'])
+  })
+})
+
+describe('isReusableCheckoutDraft', () => {
+  const items = [{ variantId: 'v1', quantity: 2, unitPrice: 75 }]
+  const draft = {
+    shipTo: 'PRACTICE',
+    shipSpeed: 'TWO_DAY',
+    patientId: null,
+    creditApplied: 0,
+    labSuppliesTotal: 5,
+    items,
+  }
+  const attempt = {
+    shipTo: 'PRACTICE',
+    shipSpeed: 'TWO_DAY',
+    patientId: null,
+    wantsCredit: false,
+    labSuppliesTotal: 5,
+    fingerprint: checkoutCartFingerprint(items),
+  }
+
+  test('reuses the draft for an identical checkout', () => {
+    assert.equal(isReusableCheckoutDraft(draft, attempt), true)
+  })
+
+  test('never reuses a draft priced without the lab supplies charge', () => {
+    assert.equal(isReusableCheckoutDraft({ ...draft, labSuppliesTotal: 0 }, attempt), false)
+  })
+
+  test('delivery, credit or cart changes mint a fresh draft', () => {
+    assert.equal(isReusableCheckoutDraft({ ...draft, shipSpeed: 'OVERNIGHT' }, attempt), false)
+    assert.equal(isReusableCheckoutDraft({ ...draft, patientId: 'pat_1' }, attempt), false)
+    assert.equal(isReusableCheckoutDraft({ ...draft, creditApplied: 10 }, attempt), false)
+    assert.equal(
+      isReusableCheckoutDraft({ ...draft, creditApplied: 10 }, { ...attempt, wantsCredit: true }),
+      true
+    )
+    assert.equal(
+      isReusableCheckoutDraft(
+        { ...draft, items: [{ variantId: 'v1', quantity: 3, unitPrice: 75 }] },
+        attempt
+      ),
+      false
+    )
   })
 })
 

@@ -78,6 +78,7 @@ type OrderDetail = {
   subtotal: number
   taxTotal: number
   shippingTotal: number
+  labSuppliesTotal: number
   total: number
   carrier: string | null
   trackingNumber: string | null
@@ -375,6 +376,12 @@ export default function OrderDetailPage() {
                   {order.shippingTotal === 0 ? 'FREE' : formatPrice(order.shippingTotal)}
                 </span>
               </div>
+              {order.labSuppliesTotal > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Lab supplies</span>
+                  <span>{formatPrice(order.labSuppliesTotal)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-white/70">Tax</span>
                 <span>{formatPrice(order.taxTotal)}</span>

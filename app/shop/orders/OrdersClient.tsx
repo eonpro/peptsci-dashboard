@@ -185,23 +185,33 @@ export function OrdersClient({ orders }: { orders: ShopOrder[] }) {
                           <p className="text-sm font-medium text-white">{formatPrice(item.total)}</p>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between border-t border-white/10 pt-3 text-sm">
-                        <span className="text-white/60">
-                          {order.shipSpeed === 'PICKUP'
-                            ? 'Office pickup'
-                            : order.shipSpeed === 'OVERNIGHT'
-                              ? 'Next-day shipping'
-                              : '2-day shipping'}
-                        </span>
-                        <span
-                          className={
-                            order.shippingTotal === 0
-                              ? 'font-medium text-green-400'
-                              : 'font-medium text-white'
-                          }
-                        >
-                          {order.shippingTotal === 0 ? 'FREE' : formatPrice(order.shippingTotal)}
-                        </span>
+                      <div className="space-y-1.5 border-t border-white/10 pt-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/60">
+                            {order.shipSpeed === 'PICKUP'
+                              ? 'Office pickup'
+                              : order.shipSpeed === 'OVERNIGHT'
+                                ? 'Next-day shipping'
+                                : '2-day shipping'}
+                          </span>
+                          <span
+                            className={
+                              order.shippingTotal === 0
+                                ? 'font-medium text-green-400'
+                                : 'font-medium text-white'
+                            }
+                          >
+                            {order.shippingTotal === 0 ? 'FREE' : formatPrice(order.shippingTotal)}
+                          </span>
+                        </div>
+                        {order.labSuppliesTotal > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-white/60">Lab supplies</span>
+                            <span className="font-medium text-white">
+                              {formatPrice(order.labSuppliesTotal)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

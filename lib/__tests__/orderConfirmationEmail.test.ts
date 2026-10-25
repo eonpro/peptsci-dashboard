@@ -52,6 +52,22 @@ describe('orderConfirmationEmail', () => {
     assert.match(text, /^Hello,/)
   })
 
+  test('lists the lab supplies charge between shipping and the total', () => {
+    const { html, text } = orderConfirmationEmail({
+      ...base,
+      labSupplies: '$5.00',
+      total: '$305.00',
+    })
+    assert.match(text, /Shipping: \$25\.00\nLab supplies: \$5\.00\nTotal: \$305\.00/)
+    assert.match(html, /Lab supplies<\/td>[\s\S]*?\$5\.00/)
+  })
+
+  test('orders without the charge show no lab supplies row', () => {
+    const { html, text } = orderConfirmationEmail(base)
+    assert.doesNotMatch(text, /Lab supplies/)
+    assert.doesNotMatch(html, /Lab supplies/)
+  })
+
   test('office pickup replaces the tracking follow-up', () => {
     const { html, text } = orderConfirmationEmail({
       ...base,

@@ -1,6 +1,7 @@
 /**
- * Pure helpers for clinic checkout drafts: cart identity and which abandoned
- * drafts a new attempt should supersede (shipping-speed / credit toggles).
+ * Pure helpers for clinic checkout drafts: cart identity, when a draft can be
+ * reused, and which abandoned drafts a new attempt should supersede
+ * (shipping-speed / credit toggles).
  */
 
 export function checkoutCartFingerprint(
@@ -10,6 +11,39 @@ export function checkoutCartFingerprint(
     .map((l) => `${l.variantId}:${l.quantity}:${Number(l.unitPrice)}`)
     .sort()
     .join('|')
+}
+
+/**
+ * A recent unpaid draft is reused only for an identical checkout: same cart,
+ * delivery, credit choice (the credit amount is frozen on the draft, so a
+ * toggle between submits needs a fresh draft) and lab supplies charge.
+ */
+export function isReusableCheckoutDraft(
+  draft: {
+    shipTo: string
+    shipSpeed: string
+    patientId: string | null
+    creditApplied: number
+    labSuppliesTotal: number
+    items: Array<{ variantId: string; quantity: number; unitPrice: number }>
+  },
+  attempt: {
+    shipTo: string
+    shipSpeed: string
+    patientId: string | null
+    wantsCredit: boolean
+    labSuppliesTotal: number
+    fingerprint: string
+  }
+): boolean {
+  return (
+    draft.shipTo === attempt.shipTo &&
+    draft.shipSpeed === attempt.shipSpeed &&
+    draft.patientId === attempt.patientId &&
+    (attempt.wantsCredit ? draft.creditApplied > 0 : draft.creditApplied === 0) &&
+    draft.labSuppliesTotal === attempt.labSuppliesTotal &&
+    checkoutCartFingerprint(draft.items) === attempt.fingerprint
+  )
 }
 
 export function selectSupersededDraftIds(
