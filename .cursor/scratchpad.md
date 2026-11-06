@@ -1,3 +1,82 @@
+# Inventory stock count — paste a physical count, apply in one transaction  [PLANNER+EXECUTOR — 2026-11-05]
+
+## Background and Motivation
+The PeptSci admin sent a full physical count (~50 lines, "BPC-157 5mg: 126 vials", …) and asked
+for it to be applied "in one swipe" so Inventory is accurate going forward. Today the only path
+is one manual adjustment per product (ProductDetailSheet), which also never touches batches.
+
+## Key Challenges and Analysis
+- Two counters must agree: `ProductVariant.inventoryOnHand` (checkout availability =
+  onHand − reserved) and the batches' `qtyOnHand` (fulfillment draws ONLY from batches, FIFO by
+  BUD, and decrements variant on-hand with each draw). If batches cover less than on-hand,
+  label/FedEx consume hits the shortfall path (409 or override) and the undrawn units never
+  leave on-hand → the count drifts again. So the count must reconcile batches too:
+  - counted < batch total → drain FIFO (soonest BUD first, expired first), DEPLETED at 0.
+  - counted > batch total → add the surplus to the soonest-BUD non-expired batch (conservative
+    BUD on printed labels); no such batch → report the units as unbatched.
+- Reservations are untouched: reserved units are still physically on the shelf until they ship.
+  Counted < reserved is surfaced as a warning (open orders exceed stock).
+- Matching free text to the catalog: shorthand (Mot-C, 5 amino IQ, Thymolin, CJC/IPA, BPC-TB
+  10mg combo = 5mg/5mg, GLP-SM/RT = INN), blends by total mg, SKU-only lines (MS 40mg = MS40).
+  Never guess: no dose + several sizes → ambiguous; two lines → same variant → duplicate;
+  unknown product → unmatched. Admin fixes the text (dose / SKU) and re-previews.
+- No prod DB access from local (RDS IAM via Vercel OIDC). Prod changes run in the deployed app
+  under an admin session, so the tool is an admin screen + API, not a script.
+- Apply is optimistic-concurrency: each line carries the on-hand seen in preview; conditional
+  updates abort the whole transaction (409, re-preview) if stock moved meanwhile.
+- Live catalog (public /catalog, 2026-11-05) ambiguities for the 11/5 list: Tirzepatide (4 sizes,
+  no dose), SS-31 (10/50mg, no dose), GLP-SM 10mg (two 10mg SKUs: SM10 + SM-10), "MS 40mg"
+  duplicates "Mot-C 40mg" (MS40), MT-1 + Sermorelin not in the public catalog.
+
+## High-level Task Breakdown
+1. [x] `lib/inventory/stock-count-core.ts` (pure, client-safe) + tests first: parse pasted text,
+   match to catalog (matched/ambiguous/unmatched/duplicate), FIFO batch reconciliation plan,
+   preview builder (totals, warnings, optional "zero products not on the list").
+   Success: the exact 11/5 list resolves as expected against a fixture of the live catalog.
+2. [x] `lib/inventory/stock-count.ts`: load catalog + batches, preview, apply in ONE transaction
+   (variant set + AUDIT InventoryAdjustment per change, batch drain/add + ADJUSTED events,
+   optional new batch when a BUD is given, AuditLog `stock_count_applied` snapshot),
+   back-in-stock alerts after commit.
+3. [x] API: `POST /api/admin/inventory/stock-count/preview` + `POST /api/admin/inventory/stock-count`
+   (`requirePermission('catalog:write')` + middleware, zod validation, 409 STOCK_CHANGED).
+4. [x] UI: "Stock count" button + `StockCountDialog` on /inventory (paste → preview → apply →
+   summary); batch history shows "Quantity adjusted" for ADJUSTED events with a delta.
+5. [x] Verify: typecheck, lint, unit tests, real-DB smoke (`scripts/smoke-stock-count.ts`) on a
+   throwaway DB, browser run of the 11/5 list on a seeded copy of the live catalog; PR.
+6. [ ] Owner: approve deploy, then run the 11/5 count in prod (answers for the ambiguous lines).
+
+## Project Status Board
+- [x] 1 core + 76 tests (`lib/__tests__/stockCount.test.ts`, the verbatim 11/5 list included)
+- [x] 2 service
+- [x] 3 API
+- [x] 4 UI
+- [x] 5 `npm test` 1134/1134 · `tsc` clean · lint clean on touched files · smoke ✔ · browser ✔
+- [ ] 6 prod run (owner)
+
+## Executor's Feedback or Assistance Requests
+- Owner decisions before the prod run (the preview blocks these 7 lines until the text says):
+  Tirzepatide 230 (10/20/30/60mg?), SS-31 14 (10/50mg?), GLP-SM 10mg 13 (SM10 or SM-10 — two
+  10mg listings), "MS 40mg: 20" vs "Mot-C 40mg: 20" (same vials → 20, or two bins → 40),
+  MT-1 49 + Sermorelin 168 (not in the live catalog — add the products first, or skip).
+- Products not on the list (TSIP, FOXO4, BAC water 30mL, other sizes): leave or zero them.
+- Prod runs inside the deployed app; no local prod DB access. Smoke recipe: scratch DB in the
+  `peptsci-pg` container, `prisma migrate deploy`, then
+  `env -i PATH HOME DATABASE_URL=<scratch> npx tsx scripts/smoke-stock-count.ts`.
+
+## Lessons
+- Fulfillment draws only from batches and decrements on-hand per draw. A stock correction that
+  doesn't move batches leaves units no label/FedEx consume can draw, so on-hand drifts again on
+  the next shortfall shipment — reconcile batches in the same transaction.
+- Count matching: dose is the primary signal, never SKU digits ("BPC-TB 10mg combo" = 5mg/5mg,
+  SKU BB10). Fuzzy matching only on long, digit-free names: "with"/"without" DAC and MT-1/MT-2
+  differ by a couple of characters. A size-less line for a multi-size product must block.
+- `doseCode('10.0mg')` is "100", so batch numbers for catalog doses imported as "10.0mg" read
+  e.g. KPV100-MMYYYY (Receive and stock count alike). Pre-existing; fix both together if ever.
+- The public /catalog page embeds every offered SKU + dose in its RSC payload — a no-auth way
+  to see the live catalog's naming when prod DB access isn't available.
+
+---
+
 # Ship-to-patient recipient missing on staff surfaces  [PLANNER+EXECUTOR — 2026-09-29]
 
 ## Background and Motivation

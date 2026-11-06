@@ -24,6 +24,7 @@ import {
   Boxes,
   CalendarClock,
   ChevronDown,
+  ClipboardCheck,
   Download,
   Lock,
   LockOpen,
@@ -79,6 +80,7 @@ export type { BatchRow, CatalogStockRow } from './inventory-shared'
 // Loaded on demand — keeps the receive form + variant picker and the recharts
 // bundle out of the workspace's initial JS.
 const ReceiveInventoryModal = dynamic(() => import('./ReceiveInventoryModal'), { ssr: false })
+const StockCountDialog = dynamic(() => import('./StockCountDialog'), { ssr: false })
 const InventoryCharts = dynamic(() => import('./InventoryCharts'), {
   ssr: false,
   loading: () => <div className="h-[320px] w-full animate-pulse rounded-xl bg-muted/40" />,
@@ -195,6 +197,7 @@ export default function InventoryClient({
   const [refreshing, setRefreshing] = useState(false)
   const [chartsOpen, setChartsOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [countOpen, setCountOpen] = useState(false)
   const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const [openProduct, setOpenProduct] = useState<ProductRollupRow | null>(null)
 
@@ -577,10 +580,16 @@ export default function InventoryClient({
             <span className="hidden md:inline">Export CSV</span>
           </Button>
           {canWrite ? (
-            <Button size="sm" onClick={() => setModalOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              Receive
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={() => setCountOpen(true)}>
+                <ClipboardCheck className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Stock count</span>
+              </Button>
+              <Button size="sm" onClick={() => setModalOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Receive
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -855,6 +864,11 @@ export default function InventoryClient({
         onOpenChange={setModalOpen}
         onReceived={() => void refresh()}
         catalog={catalog}
+      />
+      <StockCountDialog
+        open={countOpen}
+        onOpenChange={setCountOpen}
+        onApplied={() => void refresh()}
       />
     </div>
   )
