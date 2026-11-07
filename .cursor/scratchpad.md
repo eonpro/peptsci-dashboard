@@ -27,6 +27,13 @@ is one manual adjustment per product (ProductDetailSheet), which also never touc
 - Live catalog (public /catalog, 2026-11-05) ambiguities for the 11/5 list: Tirzepatide (4 sizes,
   no dose), SS-31 (10/50mg, no dose), GLP-SM 10mg (two 10mg SKUs: SM10 + SM-10), "MS 40mg"
   duplicates "Mot-C 40mg" (MS40), MT-1 + Sermorelin not in the public catalog.
+  Owner re-sent the list 2026-11-07 with "Tirzepatide 60mg: 230" (→ TR60); the rest still open.
+- Count time matters: the shelf was counted ~Nov 5 but gets applied Nov 7, after Friday's
+  shipments. A count is true at the moment it was taken, so "Counted at" replays every
+  InventoryAdjustment recorded after it (except AUDIT corrections, which the count supersedes —
+  including its own, so re-applying is a no-op): on-hand = counted + movements since.
+  Every on-hand writer logs an InventoryAdjustment (receipt, consume, void, reversal, return,
+  manual, Add Product, CSV import), so the replay is complete.
 
 ## High-level Task Breakdown
 1. [x] `lib/inventory/stock-count-core.ts` (pure, client-safe) + tests first: parse pasted text,
@@ -51,6 +58,8 @@ is one manual adjustment per product (ProductDetailSheet), which also never touc
 - [x] 3 API
 - [x] 4 UI
 - [x] 5 `npm test` 1134/1134 · `tsc` clean · lint clean on touched files · smoke ✔ · browser ✔
+- [x] 5b "Counted at" replay (11/7): core + 6 tests, service, API, dialog columns "Since count" /
+      "New", smoke scenario with a real fulfillment draw after the count; browser ✔
 - [ ] 6 prod run (owner)
 
 ## Executor's Feedback or Assistance Requests
@@ -74,6 +83,9 @@ is one manual adjustment per product (ProductDetailSheet), which also never touc
   e.g. KPV100-MMYYYY (Receive and stock count alike). Pre-existing; fix both together if ever.
 - The public /catalog page embeds every offered SKU + dose in its RSC payload — a no-auth way
   to see the live catalog's naming when prod DB access isn't available.
+- A physical count entered days after it was taken must be applied "as of" the count time:
+  setting on-hand to the counted number resurrects everything that shipped in between. Replay
+  logged movements since the cutoff, but skip audit corrections or a re-apply double-counts.
 
 ---
 

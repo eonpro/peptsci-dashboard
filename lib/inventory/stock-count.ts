@@ -3,11 +3,16 @@
  * catalog, then apply it in ONE transaction.
  *
  * Apply, per line: set ProductVariant.inventoryOnHand to the counted number
- * (InventoryAdjustment reason AUDIT), move the variant's batches to the same
- * total (InventoryBatchEvent ADJUSTED; optional new batch when a BUD is given
- * for units no usable batch can hold), and record the whole count as one
- * AuditLog snapshot. Reservations are never touched: reserved units are still
- * on the shelf until they ship.
+ * plus every movement recorded after the count time (InventoryAdjustment
+ * reason AUDIT), move the variant's batches to the same total
+ * (InventoryBatchEvent ADJUSTED; optional new batch when a BUD is given for
+ * units no usable batch can hold), and record the whole count as one AuditLog
+ * snapshot. Reservations are never touched: reserved units are still on the
+ * shelf until they ship.
+ *
+ * Replayed movements are every InventoryAdjustment after the count time
+ * except AUDIT ones — those are corrections the count supersedes (including
+ * this tool's own writes, so re-applying a count is a no-op).
  *
  * Concurrency: every line carries the on-hand + batch total the preview
  * showed. Any difference (an order shipped, a receipt landed) aborts the whole
@@ -26,12 +31,15 @@ import { resolveInventoryActor } from '../inventory-log'
 import { buildBatchNumber, withCollisionSuffix } from '../batch-number'
 import type { BatchActor } from '../inventory-batches-core'
 import { displayProductName } from '../products/named-blends'
+import { BUSINESS_TIME_ZONE, nyDayString } from '../reports/core'
 import {
   budDay,
   buildStockCountPreview,
+  countTarget,
   formatDoseAmounts,
   parseDoseAmounts,
   planBatchReconciliation,
+  validateCountedAt,
   validateStockCountApplyLines,
   type StockCountApplyLine,
   type StockCountBatch,
@@ -42,6 +50,42 @@ import {
 function db() {
   if (!prisma) throw new Error('Database is not configured')
   return prisma
+}
+
+const COUNT_TIME_LABEL = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TIME_ZONE,
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+function resolveCountedAt(value: string | null | undefined, now: Date): Date {
+  const resolved = validateCountedAt(value, now)
+  if ('error' in resolved) throw new StockCountError(resolved.error, 'INVALID')
+  return resolved.at
+}
+
+/**
+ * Net on-hand movement per variant recorded after `countedAt`, excluding AUDIT
+ * corrections (the count supersedes them).
+ */
+async function movementsSince(
+  client: Prisma.TransactionClient,
+  countedAt: Date,
+  variantIds?: string[]
+): Promise<Map<string, number>> {
+  const rows = await client.inventoryAdjustment.groupBy({
+    by: ['variantId'],
+    where: {
+      createdAt: { gt: countedAt },
+      reason: { not: 'AUDIT' },
+      ...(variantIds ? { variantId: { in: variantIds } } : {}),
+    },
+    _sum: { delta: true },
+  })
+  return new Map(rows.map((r) => [r.variantId, r._sum.delta ?? 0]))
 }
 
 const VARIANT_SELECT = {
@@ -106,27 +150,37 @@ function conflict(row: VariantRow, line: StockCountApplyLine): StockCountConflic
 
 /**
  * Every variant (inactive ones too, so a counted item that was switched off
- * is reported instead of "not found"), with its non-voided batches.
+ * is reported instead of "not found"), with its non-voided batches and the
+ * movement recorded since `countedAt`.
  */
-export async function loadStockCountCatalog(): Promise<StockCountCatalogVariant[]> {
-  const rows = await db().productVariant.findMany({
-    select: VARIANT_SELECT,
-    orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
-  })
-  return rows.map(toCatalogVariant)
+export async function loadStockCountCatalog(
+  countedAt: Date = new Date()
+): Promise<StockCountCatalogVariant[]> {
+  const client = db()
+  const [rows, since] = await Promise.all([
+    client.productVariant.findMany({
+      select: VARIANT_SELECT,
+      orderBy: [{ product: { name: 'asc' } }, { dose: 'asc' }],
+    }),
+    movementsSince(client, countedAt),
+  ])
+  return rows.map((row) => ({ ...toCatalogVariant(row), sinceCount: since.get(row.id) ?? 0 }))
 }
 
 /** Read-only: what applying the pasted count would change. */
 export async function previewStockCount(input: {
   text: string
   zeroUnlisted?: boolean
+  /** When the shelf was counted (ISO); defaults to now. */
+  countedAt?: string | null
 }): Promise<StockCountPreview> {
-  const catalog = await loadStockCountCatalog()
+  const now = new Date()
+  const catalog = await loadStockCountCatalog(resolveCountedAt(input.countedAt, now))
   return buildStockCountPreview({
     text: input.text,
     catalog,
     zeroUnlisted: input.zeroUnlisted,
-    today: new Date(),
+    today: now,
   })
 }
 
@@ -154,7 +208,8 @@ export class StockCountError extends Error {
 
 export interface StockCountResult {
   countId: string
-  countedOn: string
+  /** When the shelf was counted (ISO). */
+  countedAt: string
   lines: number
   changed: number
   unchanged: number
@@ -175,8 +230,8 @@ export interface StockCountResult {
 
 export interface ApplyStockCountInput {
   lines: StockCountApplyLine[]
-  /** Day the shelf was counted (YYYY-MM-DD); defaults to today. */
-  countedOn?: string | null
+  /** When the shelf was counted (ISO) — must match the preview; defaults to now. */
+  countedAt?: string | null
   note?: string | null
 }
 
@@ -242,10 +297,7 @@ export async function applyStockCount(
 
   const now = new Date()
   const today = budDay(now)
-  const countedOn = input.countedOn?.trim() || today
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(countedOn) || countedOn > today) {
-    throw new StockCountError('Count date must be today or earlier (YYYY-MM-DD).', 'INVALID')
-  }
+  const countedAt = resolveCountedAt(input.countedAt, now)
   for (const line of input.lines) {
     if (line.newBatchBud && line.newBatchBud < today) {
       throw new StockCountError('A new batch BUD cannot be in the past.', 'INVALID')
@@ -254,7 +306,7 @@ export async function applyStockCount(
 
   const countId = randomUUID()
   const userNote = input.note?.trim().slice(0, 500) || null
-  const tag = `Stock count ${countedOn} · ref ${countId.slice(0, 8)}`
+  const tag = `Stock count ${COUNT_TIME_LABEL.format(countedAt)} ET · ref ${countId.slice(0, 8)}`
 
   const outcome = await db().$transaction(
     async (tx) => {
@@ -297,6 +349,7 @@ export async function applyStockCount(
         return stockChanged(fresh ? [conflict(fresh, line)] : [])
       }
 
+      const since = await movementsSince(tx, countedAt, ids)
       const { userId, name: actorName } = await resolveInventoryActor(
         tx,
         actor.clerkUserId,
@@ -304,7 +357,7 @@ export async function applyStockCount(
       )
       const result: StockCountResult = {
         countId,
-        countedOn,
+        countedAt: countedAt.toISOString(),
         lines: input.lines.length,
         changed: 0,
         unchanged: 0,
@@ -320,22 +373,27 @@ export async function applyStockCount(
 
       for (const line of input.lines) {
         const row = byId.get(line.variantId)!
-        const plan = planBatchReconciliation(toBatches(row), line.counted, now, line.newBatchBud)
+        const sinceCount = since.get(row.id) ?? 0
+        const target = countTarget(line.counted, sinceCount)
+        const plan = planBatchReconciliation(toBatches(row), target, now, line.newBatchBud)
         const before = row.inventoryOnHand
-        const delta = line.counted - before
+        const delta = target - before
 
         if (delta !== 0) {
           const set = await tx.productVariant.updateMany({
             where: { id: row.id, inventoryOnHand: before },
-            data: { inventoryOnHand: line.counted },
+            data: { inventoryOnHand: target },
           })
           if (set.count !== 1) throw await lostRace(line)
+          const replayed = sinceCount
+            ? `, ${sinceCount > 0 ? '+' : ''}${sinceCount} moved since → ${target}`
+            : ''
           await tx.inventoryAdjustment.create({
             data: {
               variantId: row.id,
               delta,
               reason: 'AUDIT',
-              note: `${tag}: counted ${line.counted} (system had ${before})${userNote ? ` — ${userNote}` : ''}`,
+              note: `${tag}: counted ${line.counted}${replayed} (system had ${before})${userNote ? ` — ${userNote}` : ''}`,
               createdById: userId,
               createdByName: actorName,
             },
@@ -364,7 +422,7 @@ export async function applyStockCount(
               tx,
               row,
               plan.newBatch,
-              countedOn,
+              nyDayString(countedAt),
               { userId, name: actorName },
               tag
             )
@@ -374,14 +432,14 @@ export async function applyStockCount(
         result.changed += changed ? 1 : 0
         result.unchanged += changed ? 0 : 1
         result.unitsBefore += before
-        result.unitsAfter += line.counted
+        result.unitsAfter += target
         result.netChange += delta
         result.batchesAdjusted += plan.changes.length
         result.batchesCreated += created ? 1 : 0
         if (plan.unbatched > 0) {
           result.unbatched.push({ variantId: row.id, ...variantLabel(row), units: plan.unbatched })
         }
-        if (before - row.inventoryReserved <= 0 && line.counted - row.inventoryReserved > 0) {
+        if (before - row.inventoryReserved <= 0 && target - row.inventoryReserved > 0) {
           restocked.push(row.id)
         }
         snapshot.push({
@@ -390,6 +448,8 @@ export async function applyStockCount(
           label: line.label ?? null,
           before,
           counted: line.counted,
+          sinceCount,
+          target,
           delta,
           reserved: row.inventoryReserved,
           batchChanges: plan.changes,
@@ -405,7 +465,7 @@ export async function applyStockCount(
           entityId: countId,
           action: 'stock_count_applied',
           metadata: {
-            countedOn,
+            countedAt: countedAt.toISOString(),
             note: userNote,
             by: actorName,
             totals: {
@@ -429,7 +489,7 @@ export async function applyStockCount(
   for (const variantId of outcome.restocked) void fireBackInStockAlerts(variantId)
   logger.info('Stock count applied', {
     countId,
-    countedOn,
+    countedAt: outcome.result.countedAt,
     lines: outcome.result.lines,
     changed: outcome.result.changed,
     netChange: outcome.result.netChange,

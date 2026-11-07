@@ -8,7 +8,7 @@ import {
   successResponse,
 } from '@/lib/auth'
 import { logger } from '@/lib/logger'
-import { previewStockCount } from '@/lib/inventory/stock-count'
+import { previewStockCount, StockCountError } from '@/lib/inventory/stock-count'
 import { STOCK_COUNT_MAX_TEXT } from '@/lib/inventory/stock-count-core'
 
 export const runtime = 'nodejs'
@@ -22,6 +22,7 @@ const previewSchema = z.object({
       `The pasted count is too long (max ${STOCK_COUNT_MAX_TEXT} characters)`
     ),
   zeroUnlisted: z.boolean().optional(),
+  countedAt: z.string().datetime({ offset: true }).nullish(),
 })
 
 /**
@@ -29,7 +30,9 @@ const previewSchema = z.object({
  * Read-only: match a pasted physical count ("BPC-157 5mg: 126", one or more
  * per line) to the catalog and return what applying it would change —
  * on-hand deltas, batch moves, warnings, and every line that needs a size or
- * SKU before it can apply. Requires catalog:write (same as applying).
+ * SKU before it can apply. `countedAt` (when the shelf was counted, default
+ * now) replays stock movements recorded after it. Requires catalog:write
+ * (same as applying).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +52,9 @@ export async function POST(request: NextRequest) {
     const preview = await previewStockCount(parsed.data)
     return successResponse({ preview })
   } catch (error) {
+    if (error instanceof StockCountError) {
+      return errorResponse(error.message, 400, error.code)
+    }
     logger.error(
       'Error previewing stock count',
       {},

@@ -2,8 +2,9 @@
  * Real-DB smoke test for the stock count (preview → apply), driven through the
  * real route handlers. Seeds a small catalog with batches and reservations
  * into an EMPTY scratch database, then checks on-hand, batch moves,
- * adjustments, batch events, the audit snapshot, the STOCK_CHANGED guard,
- * new-batch creation, idempotency and payload validation.
+ * adjustments, batch events, the audit snapshot, replay of stock that moved
+ * after the count time, the STOCK_CHANGED guard, new-batch creation,
+ * idempotency and payload validation.
  *
  * Usage (scratch DB with migrations applied — never the dev or prod DB):
  *   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL=postgresql://…/peptsci_smoke \
@@ -14,6 +15,7 @@ import assert from 'node:assert/strict'
 import { NextRequest } from 'next/server'
 import { assertLocalOrExplicitOverride } from '../lib/db-url'
 import { prisma } from '../lib/prisma'
+import { recordLabelsPrinted } from '../lib/inventory-batches'
 import { POST as previewRoute } from '../app/api/admin/inventory/stock-count/preview/route'
 import { POST as applyRoute } from '../app/api/admin/inventory/stock-count/route'
 import { toApplyLines, type StockCountPreview } from '../lib/inventory/stock-count-core'
@@ -30,10 +32,16 @@ function post(url: string, body: unknown) {
   })
 }
 
-async function preview(text: string, zeroUnlisted = false): Promise<StockCountPreview> {
-  const res = await previewRoute(
-    post('/api/admin/inventory/stock-count/preview', { text, zeroUnlisted })
-  )
+async function previewResponse(body: Record<string, unknown>) {
+  return previewRoute(post('/api/admin/inventory/stock-count/preview', body))
+}
+
+async function preview(
+  text: string,
+  zeroUnlisted = false,
+  countedAt?: string
+): Promise<StockCountPreview> {
+  const res = await previewResponse({ text, zeroUnlisted, countedAt })
   assert.equal(res.status, 200, await res.clone().text())
   return (await res.json()).preview
 }
@@ -158,7 +166,9 @@ TB-500 5mg: 10 vials KPV: 7"`
   )
 
   // 2. Fixed → apply. KPV has no batch, so give it a BUD for a new one.
-  const fixed = await preview(draft.replace('Tirzepatide: 40', 'Tirzepatide 30mg: 40'))
+  const countedAt = new Date().toISOString()
+  const fixedText = draft.replace('Tirzepatide: 40', 'Tirzepatide 30mg: 40')
+  const fixed = await preview(fixedText, false, countedAt)
   assert.equal(fixed.canApply, true, JSON.stringify(fixed.lines, null, 2))
   const kpvLine = fixed.lines.find((l) => l.variant?.sku === 'KPV10')
   assert.equal(kpvLine?.unbatched, 7)
@@ -175,7 +185,7 @@ TB-500 5mg: 10 vials KPV: 7"`
     lines: toApplyLines(fixed).map((l) =>
       l.variantId === kpvLine?.variant?.variantId ? { ...l, newBatchBud: kpvBud } : l
     ),
-    countedOn: isoDay(0),
+    countedAt,
     note: 'smoke',
   })
   assert.equal(applied.status, 201, JSON.stringify(applied.body))
@@ -221,9 +231,12 @@ TB-500 5mg: 10 vials KPV: 7"`
   const adjustments = await db.inventoryAdjustment.findMany({ where: { reason: 'AUDIT' } })
   assert.equal(adjustments.length, 5, 'one AUDIT adjustment per changed on-hand (BC10 unchanged)')
   assert.ok(
-    adjustments.every((a) =>
-      a.note?.startsWith(`Stock count ${isoDay(0)} · ref ${result.countId.slice(0, 8)}`)
-    )
+    adjustments.every(
+      (a) =>
+        /^Stock count \w{3} \d{1,2}, \d{4}, \d{1,2}:\d{2} [AP]M ET/.test(a.note ?? '') &&
+        a.note?.includes(`ref ${result.countId.slice(0, 8)}: counted`)
+    ),
+    adjustments.map((a) => a.note).join('\n')
   )
   const events = await db.inventoryBatchEvent.findMany({ where: { type: 'ADJUSTED' } })
   assert.deepEqual(
@@ -236,14 +249,25 @@ TB-500 5mg: 10 vials KPV: 7"`
   assert.equal(audit.action, 'stock_count_applied')
   assert.equal((audit.metadata as { lines: unknown[] }).lines.length, 6)
 
-  // 3. Re-previewing the same count is a no-op.
-  const again = await preview(draft.replace('Tirzepatide: 40', 'Tirzepatide 30mg: 40'))
+  // 3. Re-previewing the same count is a no-op (its own AUDIT rows aren't replayed).
+  const again = await preview(fixedText, false, countedAt)
   assert.deepEqual(
     again.lines.map((l) => l.status),
     ['unchanged', 'unchanged', 'unchanged', 'unchanged', 'unchanged', 'unchanged']
   )
 
-  // 4. Stock moves between preview and apply → 409, nothing written.
+  // 4. An order ships 3 vials after the count. Entering the same count as of
+  //    its original time replays the draw; entering it as "now" would undo it.
+  await recordLabelsPrinted(bc5.batches[0].id, 3, { label: 'smoke-fulfillment' })
+  const asCounted = (await preview('BPC-157 5mg: 126', false, countedAt)).lines[0]
+  assert.deepEqual(
+    [asCounted.status, asCounted.sinceCount, asCounted.target, asCounted.before],
+    ['unchanged', -3, 123, 123]
+  )
+  const asNow = (await preview('BPC-157 5mg: 126')).lines[0]
+  assert.deepEqual([asNow.status, asNow.sinceCount, asNow.delta], ['ready', 0, 3])
+
+  // 5. Stock moves between preview and apply → 409, nothing written.
   const stale = await preview('BPC-157 5mg: 120')
   await db.productVariant.update({
     where: { sku: 'BC5' },
@@ -258,12 +282,12 @@ TB-500 5mg: 10 vials KPV: 7"`
       c.expectedOnHand,
       c.onHand,
     ]),
-    [['BC5', 126, 125]]
+    [['BC5', 123, 122]]
   )
-  assert.equal((await variant('BC5')).inventoryOnHand, 125)
+  assert.equal((await variant('BC5')).inventoryOnHand, 122)
   assert.equal(await db.inventoryAdjustment.count({ where: { reason: 'AUDIT' } }), 5)
 
-  // 5. Full count: products not on the list become explicit zero lines.
+  // 6. Full count: products not on the list become explicit zero lines.
   const full = await preview('BPC-157 5mg: 125', true)
   assert.deepEqual(
     full.lines
@@ -279,11 +303,15 @@ TB-500 5mg: 10 vials KPV: 7"`
     ]
   )
 
-  // 6. Payload validation.
+  // 7. Payload validation.
   assert.equal((await apply({ lines: [] })).status, 400)
   const line = toApplyLines(stale)[0]
   assert.equal((await apply({ lines: [line, line] })).status, 400)
-  assert.equal((await apply({ lines: [line], countedOn: isoDay(2) })).status, 400)
+  const tomorrow = utcDay(1).toISOString()
+  const longAgo = utcDay(-120).toISOString()
+  assert.equal((await apply({ lines: [line], countedAt: tomorrow })).status, 400)
+  assert.equal((await apply({ lines: [line], countedAt: longAgo })).status, 400)
+  assert.equal((await previewResponse({ text: 'KPV: 1', countedAt: tomorrow })).status, 400)
   assert.equal((await apply({ lines: [{ ...line, newBatchBud: isoDay(-1) }] })).status, 400)
 
   console.log('✔ stock count smoke passed')

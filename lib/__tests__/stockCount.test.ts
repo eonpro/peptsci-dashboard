@@ -8,6 +8,7 @@ import {
   parseStockCountText,
   planBatchReconciliation,
   toApplyLines,
+  validateCountedAt,
   validateStockCountApplyLines,
   type StockCountBatch,
   type StockCountCatalogVariant,
@@ -318,6 +319,7 @@ describe('matchStockCountEntries', () => {
     ['Tesamorelin', 'TSM10'],
     ['Thymosin-alpha-1', 'TA10'],
     ['Thymolin', 'TY10'],
+    ['Tirzepatide 60mg', 'TR60'],
   ]
 
   for (const [label, sku] of EXPECTED) {
@@ -652,6 +654,48 @@ describe('buildStockCountPreview', () => {
     )
   })
 
+  test('movements recorded after the count are replayed on top of it', () => {
+    // Counted 126 on Thursday; 10 shipped Friday before the count was entered.
+    const catalog = CATALOG.map((v) =>
+      v.sku === 'BC5'
+        ? {
+            ...v,
+            onHand: 120,
+            sinceCount: -10,
+            batches: [batch('bc-a', '2027-01-01', 90), batch('bc-b', '2027-05-01', 30)],
+          }
+        : v
+    )
+    const [line] = preview('BPC-157 5mg: 126', catalog).lines
+    assert.deepEqual(
+      [line.counted, line.sinceCount, line.target, line.before, line.delta],
+      [126, -10, 116, 120, -4]
+    )
+    assert.deepEqual(
+      line.batchChanges.map((c) => [c.batchId, c.from, c.to]),
+      [['bc-a', 90, 86]]
+    )
+  })
+
+  test('more stock left after the count than was counted clamps at zero with a warning', () => {
+    const catalog = CATALOG.map((v) =>
+      v.sku === 'KPV10' ? { ...v, onHand: 0, sinceCount: -8 } : v
+    )
+    const [line] = preview('KPV: 5', catalog).lines
+    assert.deepEqual([line.target, line.delta, line.status], [0, 0, 'unchanged'])
+    assert.ok(line.warnings.some((w) => /only 5 were counted/.test(w)))
+  })
+
+  test('a full count replays receipts that landed after it for unlisted products', () => {
+    const catalog = CATALOG.map((v) =>
+      v.sku === 'F410'
+        ? { ...v, onHand: 6, sinceCount: 6, batches: [batch('f1', '2027-04-01', 6)] }
+        : v
+    )
+    const zeroed = preview('KPV: 5', catalog, true).lines.find((l) => l.variant?.sku === 'F410')
+    assert.deepEqual([zeroed?.counted, zeroed?.target, zeroed?.status], [0, 6, 'unchanged'])
+  })
+
   test('nothing to apply when the text has no entries', () => {
     const p = preview('   \n"\n')
     assert.equal(p.canApply, false)
@@ -662,6 +706,29 @@ describe('buildStockCountPreview', () => {
     const p = preview('KPV: 5\nBPC-157 5mg 126')
     assert.equal(p.issues.length, 1)
     assert.equal(p.canApply, false)
+  })
+})
+
+describe('validateCountedAt', () => {
+  const now = new Date('2026-11-07T14:42:00.000Z')
+
+  test('defaults to now and accepts a past time', () => {
+    assert.deepEqual(validateCountedAt(null, now), { at: now })
+    assert.deepEqual(validateCountedAt('2026-11-06T00:17:00.000Z', now), {
+      at: new Date('2026-11-06T00:17:00.000Z'),
+    })
+  })
+
+  test('rejects future, very old and unreadable times', () => {
+    assert.match(
+      (validateCountedAt('2026-11-07T15:00:00.000Z', now) as { error: string }).error,
+      /future/
+    )
+    assert.match(
+      (validateCountedAt('2026-01-01T00:00:00.000Z', now) as { error: string }).error,
+      /90 days/
+    )
+    assert.match((validateCountedAt('not a date', now) as { error: string }).error, /valid/)
   })
 })
 

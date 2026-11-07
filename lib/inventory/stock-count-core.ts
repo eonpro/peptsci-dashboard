@@ -12,6 +12,11 @@
  * Matching never guesses: a size-less line for a multi-size product, two
  * catalog items with the same size, or two lines landing on one variant all
  * block the apply until the text names the size or SKU.
+ *
+ * A count is true at the moment it was taken. Stock recorded as moving after
+ * that time (orders shipped, receipts, returns) is replayed on top of it, so a
+ * shelf counted Thursday and entered Saturday doesn't resurrect Friday's
+ * shipments.
  */
 
 import { displayCatalogDose, displayProductName } from '../products/named-blends'
@@ -20,6 +25,27 @@ import { glpSearchAliases } from '../products/glp-trade-names'
 export const STOCK_COUNT_MAX_TEXT = 50_000
 export const STOCK_COUNT_MAX_LINES = 1_000
 export const STOCK_COUNT_MAX_QTY = 1_000_000
+/** Oldest count time accepted — replaying months of movements hides typos in the date. */
+export const STOCK_COUNT_MAX_AGE_DAYS = 90
+/** Clock skew tolerated between the browser and the server. */
+const COUNT_TIME_SKEW_MS = 5 * 60 * 1000
+
+/** Resolve the time a count was taken: empty → now; future or >90 days old → error. */
+export function validateCountedAt(
+  value: string | null | undefined,
+  now: Date = new Date()
+): { at: Date } | { error: string } {
+  if (!value?.trim()) return { at: now }
+  const at = new Date(value)
+  if (Number.isNaN(at.getTime())) return { error: 'Count time is not a valid date.' }
+  if (at.getTime() > now.getTime() + COUNT_TIME_SKEW_MS) {
+    return { error: 'Count time cannot be in the future.' }
+  }
+  if (at.getTime() < now.getTime() - STOCK_COUNT_MAX_AGE_DAYS * 86_400_000) {
+    return { error: `Count time must be within the last ${STOCK_COUNT_MAX_AGE_DAYS} days.` }
+  }
+  return { at }
+}
 
 // ── Parsing ──────────────────────────────────────────────────────────────
 
@@ -458,6 +484,17 @@ export interface StockCountCatalogVariant {
   reserved: number
   /** Non-voided batches. */
   batches: StockCountBatch[]
+  /**
+   * Net on-hand movement recorded after the count was taken (shipments,
+   * receipts, returns, voids — never audit corrections), replayed on top of
+   * the counted number so a count entered days later is still exact.
+   */
+  sinceCount?: number
+}
+
+/** On-hand a count sets: what was counted plus everything recorded since. */
+export function countTarget(counted: number, sinceCount = 0): number {
+  return Math.max(0, counted + sinceCount)
 }
 
 export interface StockCountVariantRef {
@@ -810,12 +847,19 @@ export function planBatchReconciliation(
 export function stockCountWarnings(
   v: Pick<StockCountCatalogVariant, 'reserved' | 'variantActive' | 'productActive'>,
   counted: number,
+  sinceCount: number,
   plan: Pick<StockCountBatchPlan, 'unbatched'>
 ): string[] {
   const warnings: string[] = []
-  if (v.reserved > counted) {
+  const target = countTarget(counted, sinceCount)
+  if (counted + sinceCount < 0) {
     warnings.push(
-      `${v.reserved} reserved for open orders but only ${counted} counted — those orders can't all ship from stock.`
+      `${-sinceCount} left stock after the count but only ${counted} were counted — on-hand set to 0; check the count.`
+    )
+  }
+  if (v.reserved > target) {
+    warnings.push(
+      `${v.reserved} reserved for open orders but only ${target} on hand after the count — those orders can't all ship from stock.`
     )
   }
   if (plan.unbatched > 0) {
@@ -846,7 +890,12 @@ export interface StockCountPreviewLine {
   matchedBy: 'sku' | 'name' | null
   variant: StockCountVariantRef | null
   candidates: StockCountVariantRef[]
+  /** As typed. */
   counted: number
+  /** Net movement recorded after the count time (0 when counted just now). */
+  sinceCount: number
+  /** On-hand after applying (counted + sinceCount, floored at 0); null while blocked. */
+  target: number | null
   /** On-hand now; null while the line is blocked. */
   before: number | null
   delta: number | null
@@ -888,8 +937,10 @@ function applicableLine(
   matchedBy: StockCountPreviewLine['matchedBy'],
   today: Date
 ): StockCountPreviewLine {
-  const plan = planBatchReconciliation(iv.v.batches, counted, today)
-  const delta = counted - iv.v.onHand
+  const sinceCount = iv.v.sinceCount ?? 0
+  const target = countTarget(counted, sinceCount)
+  const plan = planBatchReconciliation(iv.v.batches, target, today)
+  const delta = target - iv.v.onHand
   return {
     key,
     source,
@@ -900,13 +951,15 @@ function applicableLine(
     variant: iv.ref,
     candidates: [],
     counted,
+    sinceCount,
+    target,
     before: iv.v.onHand,
     delta,
     reserved: iv.v.reserved,
     batchTotal: plan.batchTotal,
     batchChanges: plan.changes,
     unbatched: plan.unbatched,
-    warnings: stockCountWarnings(iv.v, counted, plan),
+    warnings: stockCountWarnings(iv.v, counted, sinceCount, plan),
   }
 }
 
@@ -958,6 +1011,8 @@ export function buildStockCountPreview(input: {
       variant: iv?.ref ?? null,
       candidates: m.candidates,
       counted: m.entry.qty,
+      sinceCount: 0,
+      target: null,
       before: null,
       delta: null,
       reserved: null,
@@ -1003,7 +1058,7 @@ export function buildStockCountPreview(input: {
     if (l.status === 'ready' || l.status === 'unchanged') {
       totals[l.status] += 1
       totals.unitsBefore += l.before ?? 0
-      totals.unitsAfter += l.counted
+      totals.unitsAfter += l.target ?? 0
       totals.netChange += l.delta ?? 0
       if ((l.delta ?? 0) > 0) totals.increased += 1
       if ((l.delta ?? 0) < 0) totals.decreased += 1

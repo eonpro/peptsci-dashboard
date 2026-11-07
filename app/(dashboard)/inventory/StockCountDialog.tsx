@@ -62,9 +62,25 @@ function isApplicable(line: StockCountPreviewLine): boolean {
   return line.status === 'ready' || line.status === 'unchanged'
 }
 
-function localToday(): string {
+/** `YYYY-MM-DDTHH:mm` in the browser's time zone — the datetime-local format. */
+function localNowInput(): string {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function inputToIso(value: string): string | null {
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+function fmtCountTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function signed(n: number): string {
@@ -87,10 +103,12 @@ interface StockCountDialogProps {
 export default function StockCountDialog({ open, onOpenChange, onApplied }: StockCountDialogProps) {
   const [step, setStep] = useState<'edit' | 'preview' | 'done'>('edit')
   const [text, setText] = useState('')
-  const [countedOn, setCountedOn] = useState(localToday)
+  const [countedAt, setCountedAt] = useState(localNowInput)
   const [note, setNote] = useState('')
   const [zeroUnlisted, setZeroUnlisted] = useState(false)
   const [preview, setPreview] = useState<StockCountPreview | null>(null)
+  // The count time the preview was computed for; apply must replay the same window.
+  const [previewCountedAt, setPreviewCountedAt] = useState<string | null>(null)
   const [buds, setBuds] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
   const [result, setResult] = useState<StockCountResult | null>(null)
@@ -98,10 +116,11 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
   function reset() {
     setStep('edit')
     setText('')
-    setCountedOn(localToday())
+    setCountedAt(localNowInput())
     setNote('')
     setZeroUnlisted(false)
     setPreview(null)
+    setPreviewCountedAt(null)
     setBuds({})
     setResult(null)
   }
@@ -113,15 +132,21 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
   }
 
   async function runPreview() {
+    const countedAtIso = inputToIso(countedAt)
+    if (!countedAtIso) {
+      toast.error('Enter when the shelf was counted.')
+      return
+    }
     setBusy('preview')
     try {
       const res = await fetch('/api/admin/inventory/stock-count/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, zeroUnlisted }),
+        body: JSON.stringify({ text, zeroUnlisted, countedAt: countedAtIso }),
       })
       if (!res.ok) throw await apiError(res, 'Could not preview the count')
       setPreview((await res.json()).preview)
+      setPreviewCountedAt(countedAtIso)
       setStep('preview')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not preview the count')
@@ -140,7 +165,11 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
       const res = await fetch('/api/admin/inventory/stock-count', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lines, countedOn, note: note.trim() || undefined }),
+        body: JSON.stringify({
+          lines,
+          countedAt: previewCountedAt,
+          note: note.trim() || undefined,
+        }),
       })
       if (!res.ok) throw await apiError(res, 'Could not apply the count')
       setResult((await res.json()).result)
@@ -160,6 +189,7 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
 
   const blocked = preview?.lines.filter((l) => !isApplicable(l)) ?? []
   const toUpdate = preview?.totals.ready ?? 0
+  const movedSince = preview?.lines.filter((l) => isApplicable(l) && l.sinceCount !== 0) ?? []
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -183,16 +213,19 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
               rows={14}
               className="font-mono text-sm"
             />
-            <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
+            <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
               <div>
-                <Label htmlFor="count-date">Counted on</Label>
+                <Label htmlFor="count-time">Counted at</Label>
                 <Input
-                  id="count-date"
-                  type="date"
-                  value={countedOn}
-                  max={localToday()}
-                  onChange={(e) => setCountedOn(e.target.value)}
+                  id="count-time"
+                  type="datetime-local"
+                  value={countedAt}
+                  max={localNowInput()}
+                  onChange={(e) => setCountedAt(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Orders shipped and stock received after this are added on top of the count.
+                </p>
               </div>
               <div>
                 <Label htmlFor="count-note">Note (optional)</Label>
@@ -240,6 +273,15 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
               </span>
             </div>
 
+            {previewCountedAt && (
+              <p className="-mt-2 text-xs text-muted-foreground">
+                Counted at {fmtCountTime(previewCountedAt)}.{' '}
+                {movedSince.length > 0
+                  ? `${movedSince.length} product${movedSince.length === 1 ? '' : 's'} moved after that (orders shipped, stock received) — those movements are added on top of the count in "New".`
+                  : 'No stock moved after that, so the counts apply as written.'}
+              </p>
+            )}
+
             {(preview.issues.length > 0 || blocked.length > 0) && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                 <p className="mb-1.5 flex items-center gap-1.5 font-semibold">
@@ -270,6 +312,12 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
                   <TableHead>Catalog item</TableHead>
                   <TableHead className="text-right">System</TableHead>
                   <TableHead className="text-right">Counted</TableHead>
+                  {movedSince.length > 0 && (
+                    <>
+                      <TableHead className="text-right">Since count</TableHead>
+                      <TableHead className="text-right">New</TableHead>
+                    </>
+                  )}
                   <TableHead className="text-right">Change</TableHead>
                   <TableHead>Batches</TableHead>
                   <TableHead>Notes</TableHead>
@@ -280,6 +328,7 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
                   <PreviewRow
                     key={l.key}
                     line={l}
+                    showReplay={movedSince.length > 0}
                     bud={l.variant ? (buds[l.variant.variantId] ?? '') : ''}
                     onBud={(value) =>
                       l.variant && setBuds((prev) => ({ ...prev, [l.variant!.variantId]: value }))
@@ -317,8 +366,9 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
               <div>
                 <p className="font-semibold">Stock count applied</p>
                 <p className="text-muted-foreground">
-                  {result.lines} products counted · {result.changed} updated · vials{' '}
-                  {result.unitsBefore.toLocaleString()} → {result.unitsAfter.toLocaleString()} (
+                  Counted at {fmtCountTime(result.countedAt)} · {result.lines} products counted ·{' '}
+                  {result.changed} updated · vials {result.unitsBefore.toLocaleString()} →{' '}
+                  {result.unitsAfter.toLocaleString()} (
                   <span className={deltaClass(result.netChange)}>{signed(result.netChange)}</span>)
                   · {result.batchesAdjusted} batch adjustment
                   {result.batchesAdjusted === 1 ? '' : 's'}
@@ -392,10 +442,13 @@ export default function StockCountDialog({ open, onOpenChange, onApplied }: Stoc
 
 function PreviewRow({
   line,
+  showReplay,
   bud,
   onBud,
 }: {
   line: StockCountPreviewLine
+  /** Show the "Since count" / "New" columns (something moved after the count time). */
+  showReplay: boolean
   bud: string
   onBud: (value: string) => void
 }) {
@@ -440,6 +493,16 @@ function PreviewRow({
       <TableCell className="text-right align-top font-semibold tabular-nums">
         {line.counted}
       </TableCell>
+      {showReplay && (
+        <>
+          <TableCell className={`text-right align-top tabular-nums ${deltaClass(line.sinceCount)}`}>
+            {line.sinceCount === 0 ? '—' : signed(line.sinceCount)}
+          </TableCell>
+          <TableCell className="text-right align-top font-semibold tabular-nums">
+            {line.target ?? '—'}
+          </TableCell>
+        </>
+      )}
       <TableCell
         className={`text-right align-top font-semibold tabular-nums ${deltaClass(line.delta ?? 0)}`}
       >

@@ -32,16 +32,17 @@ const applySchema = z.object({
     )
     .min(1, 'A stock count needs at least one line')
     .max(STOCK_COUNT_MAX_LINES, `A stock count can hold at most ${STOCK_COUNT_MAX_LINES} lines`),
-  countedOn: day.nullish(),
+  countedAt: z.string().datetime({ offset: true }).nullish(),
   note: z.string().trim().max(500).nullish(),
 })
 
 /**
  * POST /api/admin/inventory/stock-count
  * Apply a previewed physical count in one transaction: set each variant's
- * on-hand to the counted number, move its batches to match, and audit the
- * whole count. 409 STOCK_CHANGED (nothing written) when stock moved since the
- * preview — re-preview and apply again. Requires catalog:write.
+ * on-hand to the counted number plus movements recorded after `countedAt`
+ * (send the value used for the preview), move its batches to match, and
+ * audit the whole count. 409 STOCK_CHANGED (nothing written) when stock moved
+ * since the preview — re-preview and apply again. Requires catalog:write.
  */
 export async function POST(request: NextRequest) {
   try {
