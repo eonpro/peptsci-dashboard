@@ -387,7 +387,9 @@ export default function BatchDetailSheet({
                     <li key={ev.id} className="relative pl-4">
                       <span className="absolute left-0 top-1.5 h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
                       <p className="text-sm font-medium">
-                        {EVENT_LABELS[ev.type] ?? ev.type}
+                        {ev.type === 'ADJUSTED' && ev.delta
+                          ? 'Quantity adjusted'
+                          : (EVENT_LABELS[ev.type] ?? ev.type)}
                         {ev.delta !== null && ev.delta !== 0 && (
                           <span
                             className={`ml-1.5 text-xs font-semibold ${ev.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
