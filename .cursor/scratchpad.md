@@ -1,3 +1,24 @@
+# Sermorelin shown (and labeled) as GLP-SM because of its SKU  [EXECUTOR — 2026-11-07]
+
+## Background and Motivation
+Found while applying the 11/5 stock count in prod: variant SKU `SM-10` (10mg, $65, category
+"GHRH (1-29) analog", batch `SER10-112027`, its own product) displayed as "GLP-SM" everywhere —
+catalog, shop, Inventory, Products, batches and printed vial labels (both label PDF routes use
+`displayProductName`). `resolveGlpTradeName` fell back to the SKU (`/^(sema|sm)[-_]?\d/`) whenever
+the stored name wasn't an INN/trade name, so the SKU overrode the real name "Sermorelin".
+
+## Fix (PR, owner sign-off before deploy)
+- `resolveGlpTradeName`: the SKU is consulted only when the name has no product identity of its own
+  (blank or generic words like "Received batch"); a real name wins. Stored incretin names are the
+  INNs (see the 2026-08-26 GLP entry), so GLP-SM/TZ/RT keep resolving by name.
+- Tests: Sermorelin/SM-10 stays Sermorelin (display, search aliases), generic titles still use the
+  SKU; stock-count fixture now mirrors prod (SM-10 = Sermorelin).
+- After deploy, check: Inventory/Products show "Sermorelin" for SM-10 and still GLP-SM/TZ/RT for the
+  incretins. If SM-10 still reads GLP-SM, its stored product name is literally GLP-SM — rename it in
+  Products.
+
+---
+
 # Inventory stock count — paste a physical count, apply in one transaction  [PLANNER+EXECUTOR — 2026-11-05]
 
 ## Background and Motivation
@@ -50,7 +71,7 @@ is one manual adjustment per product (ProductDetailSheet), which also never touc
    summary); batch history shows "Quantity adjusted" for ADJUSTED events with a delta.
 5. [x] Verify: typecheck, lint, unit tests, real-DB smoke (`scripts/smoke-stock-count.ts`) on a
    throwaway DB, browser run of the 11/5 list on a seeded copy of the live catalog; PR.
-6. [ ] Owner: approve deploy, then run the 11/5 count in prod (answers for the ambiguous lines).
+6. [x] Owner: approve deploy, then run the 11/5 count in prod (answers for the ambiguous lines).
 
 ## Project Status Board
 - [x] 1 core + 76 tests (`lib/__tests__/stockCount.test.ts`, the verbatim 11/5 list included)
@@ -60,7 +81,13 @@ is one manual adjustment per product (ProductDetailSheet), which also never touc
 - [x] 5 `npm test` 1134/1134 · `tsc` clean · lint clean on touched files · smoke ✔ · browser ✔
 - [x] 5b "Counted at" replay (11/7): core + 6 tests, service, API, dialog columns "Since count" /
       "New", smoke scenario with a real fulfillment draw after the count; browser ✔
-- [ ] 6 prod run (owner)
+- [x] 6 prod run 2026-11-07 (PR #73 → `eb304e8`, info@peptsci.com session), counted at
+      Nov 5 7:15 PM ET (no movements since): count `af4e879c` — 46 lines, 36 changed, vials
+      2,662 → 2,927 (+265), 36 batch moves, 0 unbatched; count `196ea477` — SM10 (GLP-SM 10mg)
+      0 → 13, SM-10 (Sermorelin) 149 → 168. Verified on-hand = target and batch totals = on-hand
+      for all 48. Owner answers: Tirzepatide = 60mg, SS-31 = 10mg, MOTS-c 40mg = 20 (listed
+      twice), unlisted products unchanged (TSIP 236, BAC 30mL 30).
+- [ ] MT-1 49 — no product in the catalog; add it in Products, then count it.
 
 ## Executor's Feedback or Assistance Requests
 - Owner decisions before the prod run (the preview blocks these 7 lines until the text says):

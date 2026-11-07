@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { displayProductAka, displayProductName } from '../products/named-blends'
 import {
   glpGenericName,
+  glpSearchAliases,
   glpSearchHaystack,
   resolveGlpTradeName,
   rewriteGlpInnNames,
@@ -38,6 +39,18 @@ describe('resolveGlpTradeName', () => {
     assert.equal(resolveGlpTradeName('Cagrilintide'), null)
     assert.equal(resolveGlpTradeName('GLOW'), null)
     assert.equal(resolveGlpTradeName('GLP-1 / GIP analog', 'BPC-10'), null)
+  })
+
+  it('lets a real product name win over GLP-looking SKU shorthand', () => {
+    // Production stocks Sermorelin under SKU SM-10; it must never read (or
+    // print on a vial label) as GLP-SM.
+    assert.equal(resolveGlpTradeName('Sermorelin', 'SM-10'), null)
+    assert.equal(displayProductName('Sermorelin', 'SM-10'), 'Sermorelin')
+    assert.deepEqual(glpSearchAliases('Sermorelin', 'SM-10'), [])
+    assert.equal(resolveGlpTradeName('Tesamorelin', 'TR-10'), null)
+    // Titles with no product identity still fall back to the SKU.
+    assert.equal(resolveGlpTradeName('Received batch 10mg', 'SM-10'), 'GLP-SM')
+    assert.equal(resolveGlpTradeName('  ', 'RT30'), 'GLP-RT')
   })
 })
 

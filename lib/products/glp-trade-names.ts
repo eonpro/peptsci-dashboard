@@ -29,7 +29,35 @@ export function resolveGlpTradeNameFromSku(sku?: string | null): GlpTradeName | 
   return null
 }
 
-/** Map an INN, frozen batch title, old GLP-R code, or SKU to GLP-SM / GLP-TZ / GLP-RT. */
+// Words that say nothing about which compound a vial is ("Received batch").
+const GENERIC_NAME_WORDS = new Set([
+  'received',
+  'batch',
+  'batches',
+  'vial',
+  'vials',
+  'product',
+  'products',
+  'peptide',
+  'peptides',
+  'item',
+  'new',
+  'unknown',
+  'research',
+  'hplc',
+])
+
+/** True when a name has no product identity of its own (only generic words, units, numbers). */
+function isGenericName(name: string): boolean {
+  const words = name.toLowerCase().match(/[a-z]{3,}/g) ?? []
+  return words.every((w) => GENERIC_NAME_WORDS.has(w))
+}
+
+/**
+ * Map an INN, frozen batch title, old GLP-R code, or SKU to GLP-SM / GLP-TZ /
+ * GLP-RT. The SKU is only consulted when the name itself doesn't identify a
+ * product — a real name always wins (Sermorelin is stocked as SKU "SM-10").
+ */
 export function resolveGlpTradeName(name: string, sku?: string | null): GlpTradeName | null {
   const trimmed = name.trim()
   if (trimmed) {
@@ -47,6 +75,8 @@ export function resolveGlpTradeName(name: string, sku?: string | null): GlpTrade
     if (key === 'semaglutide' || key.startsWith('semaglutide')) return 'GLP-SM'
     if (key === 'tirzepatide' || key.startsWith('tirzepatide')) return 'GLP-TZ'
     if (key === 'retatrutide' || key.startsWith('retatrutide')) return 'GLP-RT'
+
+    if (!isGenericName(trimmed)) return null
   }
   return resolveGlpTradeNameFromSku(sku)
 }
