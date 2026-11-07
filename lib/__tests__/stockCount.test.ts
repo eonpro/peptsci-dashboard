@@ -119,7 +119,8 @@ const CATALOG: StockCountCatalogVariant[] = [
   variant('GLOW', 'GLOW', '50mg / 10mg / 10mg', { aka: 'GHK-Cu / BPC-157 / TB-500' }),
   variant('SM5', 'Semaglutide', '5.0mg'),
   variant('SM10', 'Semaglutide', '10.0mg'),
-  variant('SM-10', 'Semaglutide', '10mg'),
+  // Sermorelin really is stocked under this GLP-looking SKU in production.
+  variant('SM-10', 'Sermorelin', '10mg'),
   variant('G10K', 'HCG', '10000.0mg'),
   variant('HGH-15MG', 'hGH', '15mg'),
   variant('IG1', 'IGF-1LR3', '1.0mg'),
@@ -320,6 +321,8 @@ describe('matchStockCountEntries', () => {
     ['Thymosin-alpha-1', 'TA10'],
     ['Thymolin', 'TY10'],
     ['Tirzepatide 60mg', 'TR60'],
+    ['GLP-SM 10mg', 'SM10'],
+    ['Sermorelin', 'SM-10'],
   ]
 
   for (const [label, sku] of EXPECTED) {
@@ -348,12 +351,21 @@ describe('matchStockCountEntries', () => {
   })
 
   test('two catalog items with the same size are ambiguous until the SKU is used', () => {
-    const m = matchOne('GLP-SM 10mg')
+    const catalog = [...CATALOG, variant('SM10B', 'Semaglutide', '10mg')]
+    const m = matchOne('GLP-SM 10mg', catalog)
     assert.equal(m.status, 'ambiguous')
-    assert.deepEqual(m.candidates.map((c) => skuOf(c.variantId)).sort(), ['SM-10', 'SM10'])
+    assert.deepEqual(m.candidates.map((c) => skuOf(c.variantId)).sort(), ['SM10', 'SM10B'])
     assert.match(m.message ?? '', /SKU/)
-    assert.equal(skuOf(matchOne('SM10').variantId), 'SM10')
+    assert.equal(skuOf(matchOne('SM10', catalog).variantId), 'SM10')
+    assert.equal(skuOf(matchOne('SM10B', catalog).variantId), 'SM10B')
+  })
+
+  test('Sermorelin under the GLP-looking SKU SM-10 is never read as GLP-SM', () => {
     assert.equal(skuOf(matchOne('SM-10').variantId), 'SM-10')
+    assert.deepEqual(
+      matchOne('GLP-SM').candidates.map((c) => skuOf(c.variantId)),
+      ['SM5', 'SM10']
+    )
   })
 
   test('size and SKU forms resolve the ambiguous lines', () => {
@@ -375,7 +387,7 @@ describe('matchStockCountEntries', () => {
     const mt1 = matchOne('MT-1')
     assert.equal(mt1.status, 'unmatched')
     assert.equal(mt1.variantId, null)
-    assert.equal(matchOne('Sermorelin').status, 'unmatched')
+    assert.equal(matchOne('Tesofensine').status, 'unmatched')
     assert.equal(matchOne('MT').status, 'unmatched')
   })
 
@@ -531,18 +543,16 @@ describe('buildStockCountPreview', () => {
     return buildStockCountPreview({ text, catalog, zeroUnlisted, today: TODAY })
   }
 
-  test('the raw 11/5 count is blocked until its 7 problem lines are fixed', () => {
+  test('the raw 11/5 count is blocked until its 5 problem lines are fixed', () => {
     const p = preview(NOV_5_COUNT)
     assert.equal(p.canApply, false)
     const blocked = p.lines.filter((l) => l.status !== 'ready' && l.status !== 'unchanged')
     assert.deepEqual(
       blocked.map((l) => [l.entry?.label, l.status]),
       [
-        ['GLP-SM 10mg', 'ambiguous'],
         ['Mot-C 40mg', 'duplicate'],
         ['MT-1', 'unmatched'],
         ['SS-31', 'ambiguous'],
-        ['Sermorelin', 'unmatched'],
         ['Tirzepatide', 'ambiguous'],
         ['MS 40mg', 'duplicate'],
       ]
@@ -550,7 +560,7 @@ describe('buildStockCountPreview', () => {
     const dup = p.lines.find((l) => l.entry?.label === 'MS 40mg')
     assert.match(dup?.message ?? '', /line 30/i)
     assert.equal(p.totals.entries, 50)
-    assert.equal(p.totals.blocked, 7)
+    assert.equal(p.totals.blocked, 5)
   })
 
   test('once fixed, every line applies and products not on the list are reported', () => {
